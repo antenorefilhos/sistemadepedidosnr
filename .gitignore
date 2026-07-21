@@ -33,3 +33,6 @@ arquivos-projeto/md/06\ -\ Sessões/Day_0_Historico.md
 .DS_Store
 Thumbs.db
 .opencode
+
+# TS incremental build info
+*.tsbuildinfo
