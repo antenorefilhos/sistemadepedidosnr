@@ -13,12 +13,14 @@ import {
 import { SalesChart, StatusDonutChart, TopProductsChart } from '../../components/BICharts'
 import { Select } from '../../components/ui/select'
 import { DashboardStats, DashboardAnalytics } from '../types'
+import type { Section } from '../Dashboard'
 import { SectionPanel } from './SectionChrome'
 import { SystemHealthWidget } from '../SystemHealthWidget'
 import {
   Banknote,
   Package,
   AlertTriangle,
+  ChevronRight,
   ClipboardList,
   Gauge,
   Megaphone,
@@ -33,6 +35,7 @@ interface DashboardSectionProps {
   stats: DashboardStats
   analytics: DashboardAnalytics
   onAnalyticsChange: (updates: Partial<DashboardAnalytics>) => void
+  onNavigate?: (section: Section) => void
 }
 
 interface StatCardProps {
@@ -59,6 +62,49 @@ function StatCard({ label, value, trend, trendComparisonPeriod = 'últimos 30 di
       </div>
       <div className="mt-4">{renderTrend(trend, trendComparisonPeriod)}</div>
     </div>
+  )
+}
+
+interface RoleQueueCardProps {
+  role: string
+  title: string
+  description: string
+  actionLabel: string
+  hasAttention?: boolean
+  onClick?: () => void
+}
+
+function RoleQueueCard({ role, title, description, actionLabel, hasAttention, onClick }: RoleQueueCardProps) {
+  const content = (
+    <>
+      <p className="text-xs font-black uppercase tracking-wider text-[#9e7080]">{role}</p>
+      <h4 className="mt-1 text-base font-bold text-gray-900">{title}</h4>
+      <p className="mt-2 text-sm text-gray-600">{description}</p>
+      {onClick && (
+        <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#5d082a]">
+          {actionLabel}
+          <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+        </span>
+      )}
+    </>
+  )
+
+  if (!onClick) {
+    return <div className="p-5">{content}</div>
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group relative flex w-full flex-col items-start p-5 text-left transition-colors hover:bg-[#fff5f8] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5d082a]"
+      aria-label={`${title} — ${actionLabel}`}
+    >
+      {hasAttention && (
+        <span className="absolute right-4 top-4 h-2 w-2 rounded-full bg-[#5d082a]" aria-hidden="true" />
+      )}
+      {content}
+    </button>
   )
 }
 
@@ -140,6 +186,7 @@ export function DashboardSection({
   stats,
   analytics,
   onAnalyticsChange,
+  onNavigate,
 }: DashboardSectionProps) {
   const [orders, setOrders] = useState<AdminOrder[]>([])
   const [pickingTasks, setPickingTasks] = useState<PickingTask[]>([])
@@ -332,33 +379,42 @@ export function DashboardSection({
           <p className="mt-1 text-sm text-gray-500">Leitura rapida para operador, separador e gestor sem depender de treinamento longo.</p>
         </div>
         <div className="grid grid-cols-1 divide-y divide-[#f1dbe3] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-          <div className="p-5">
-            <p className="text-xs font-black uppercase tracking-wider text-[#9e7080]">Operador</p>
-            <h4 className="mt-1 text-base font-bold text-gray-900">Priorizar pedido parado</h4>
-            <p className="mt-2 text-sm text-gray-600">
-              {roleQueues.urgentOrders.length > 0
+          <RoleQueueCard
+            role="Operador"
+            title="Priorizar pedido parado"
+            description={
+              roleQueues.urgentOrders.length > 0
                 ? `${roleQueues.urgentOrders.length} pedido(s) exigem acao por SLA, falha ou substituicao.`
-                : 'Fila sem pedido critico neste momento.'}
-            </p>
-          </div>
-          <div className="p-5">
-            <p className="text-xs font-black uppercase tracking-wider text-[#9e7080]">Separador</p>
-            <h4 className="mt-1 text-base font-bold text-gray-900">Concluir por setor e SLA</h4>
-            <p className="mt-2 text-sm text-gray-600">
-              {pickingPerformance
+                : 'Fila sem pedido critico neste momento.'
+            }
+            actionLabel="Ver pedidos"
+            hasAttention={roleQueues.urgentOrders.length > 0}
+            onClick={onNavigate ? () => onNavigate('orders') : undefined}
+          />
+          <RoleQueueCard
+            role="Separador"
+            title="Concluir por setor e SLA"
+            description={
+              pickingPerformance
                 ? `${pickingPerformance.totals.completed}/${pickingPerformance.totals.tasks} tarefas concluidas no periodo; ${pickingPerformance.totals.delayed} atrasada(s).`
-                : 'Sem leitura de produtividade carregada.'}
-            </p>
-          </div>
-          <div className="p-5">
-            <p className="text-xs font-black uppercase tracking-wider text-[#9e7080]">Gestor</p>
-            <h4 className="mt-1 text-base font-bold text-gray-900">Enxergar gargalo</h4>
-            <p className="mt-2 text-sm text-gray-600">
-              {roleQueues.integrationFailures > 0 || roleQueues.catalogIssues > 0
+                : 'Sem leitura de produtividade carregada.'
+            }
+            actionLabel="Ver separação"
+            hasAttention={Boolean(pickingPerformance && pickingPerformance.totals.delayed > 0)}
+            onClick={onNavigate ? () => onNavigate('picking') : undefined}
+          />
+          <RoleQueueCard
+            role="Gestor"
+            title="Enxergar gargalo"
+            description={
+              roleQueues.integrationFailures > 0 || roleQueues.catalogIssues > 0
                 ? `${roleQueues.catalogIssues} alerta(s) de catalogo e ${roleQueues.integrationFailures} falha(s) de integracao.`
-                : 'Catalogo e integracoes sem fila critica nos indicadores principais.'}
-            </p>
-          </div>
+                : 'Catalogo e integracoes sem fila critica nos indicadores principais.'
+            }
+            actionLabel="Ver integrações"
+            hasAttention={roleQueues.integrationFailures > 0 || roleQueues.catalogIssues > 0}
+            onClick={onNavigate ? () => onNavigate('integrations') : undefined}
+          />
         </div>
       </SectionPanel>
 
