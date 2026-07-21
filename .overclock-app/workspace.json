@@ -1,0 +1,10 @@
+{
+  "autoSpawnSquad": null,
+  "favoritePane": {
+    "agent": "antigravity",
+    "providerId": "antigravity-cli",
+    "model": "gemini-3.5-flash-high"
+  },
+  "accessMode": "write_external",
+  "authorizedExternalPaths": []
+}

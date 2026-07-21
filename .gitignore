@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+coverage/
+artifacts/
+*.log
+
+# External agent/tool state
+.opencode/
+.gemini/
+.od-skills/
+.github/skills/
+
+# Generated artifacts
+graphify-out/
+graphify-knowledge.json/
+*/graphify-out/
+
+# Session histories and sensitive docs
+arquivos-projeto/md/06\ -\ Sessões/Day_0_Historico.md
+
+# Local environment
+.env
+.env.local
+.env.*.local
+!.env.example
+.env.production.local
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.opencode

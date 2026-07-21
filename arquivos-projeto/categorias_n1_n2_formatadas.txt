@@ -1,0 +1,72 @@
+﻿CONCEITO DA CATEGORIZAÇÃO
+Este arquivo organiza as categorias em 2 niveis:
+- Nivel 1: categoria principal (ex.: Adega, Bebidas Alcoolicas, Cafe da Manha e Matinais).
+- Nivel 2: subcategoria da categoria principal, indicada com o simbolo ↳ (ex.: ↳ Brancos, ↳ Roses).
+Quando nao houver subcategoria, apenas o Nivel 1 e exibido.
+
+LISTA DE CATEGORIAS
+Adega
+↳ Brancos
+↳ Champagnes
+↳ Espumantes
+↳ Rosés
+↳ Tintos
+Bazar
+Bebês
+↳ Alimentação Infantil
+↳ Chupetas e Mamadeiras
+↳ Fraldas
+↳ Higiene Infantil
+↳ Lenços Umedecidos
+Bebidas Alcoólicas
+↳ Aguardentes
+↳ Aperitivos
+↳ Bebidas Especiais
+↳ Bebidas Mistas
+↳ Bebidas Populares
+↳ Conhaques
+↳ Destilados
+↳ Licores
+↳ Vodkas
+↳ Whiskys
+Bebidas sem Álcool
+Biscoitos e Cookies
+Brinquedos
+Café da Manhã e Matinais
+Carnes
+Carnes Salgadas e Defumadas
+Casa e Utilidades
+Cervejas
+Cestas e Kits
+Chocolates, Balas e Snacks
+Churrasco
+Confeitaria
+Congelados
+Conservas e Enlatados
+Doces, Sobremesas e Geleias
+Festa e Decoração
+Fora do Ecommerce / Internos
+Higiene Pessoal
+Hortifruti
+Lanches e Salgados
+Leites, Iogurtes e Cremosos
+Limpeza
+Linguiças e Embutidos
+Massas e Pratos Secos
+Mercearia Básica
+Molhos, Temperos e Condimentos
+Óleos, Azeites e Vinagres
+Ovos
+Padaria
+Pães e Bolos Industrializados
+Papelaria
+Peixaria e Frutos do Mar
+Perfumaria e Beleza
+Pet Shop
+Queijos e Frios
+Refeições Prontas e Rotisseria
+Refrigerados e Massas Frescas
+Saudáveis e Especiais
+Saúde e Cuidados
+Sorvetes e Gelo
+Tabacaria

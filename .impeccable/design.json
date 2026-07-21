@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-11T19:54:00Z",
+  "title": "Design System: Mercado Antenor & Filhos",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Burgundy Tradicional", "canonical": "#5D082A", "tonalRamp": ["#3b0217", "#4b0520", "#5d082a", "#7a1a3e", "#992f55", "#b8476d", "#d66387", "#f282a2"] },
+      "secondary": { "role": "secondary", "displayName": "Gold Premium", "canonical": "#D2BB8A", "tonalRamp": ["#6e5a31", "#8f7645", "#b0935a", "#d2bb8a", "#dfcca4", "#ebdcbf", "#f5ebdb", "#faf6f0"] },
+      "neutral-fg": { "role": "neutral", "displayName": "Onyx Principal", "canonical": "#231F20", "tonalRamp": ["#000000", "#121011", "#231f20", "#3a3536", "#554f50", "#736d6e", "#958f90", "#bbb5b6"] },
+      "neutral-bg": { "role": "neutral", "displayName": "Cream Suave", "canonical": "#F5F5F0", "tonalRamp": ["#858580", "#a3a39e", "#c2c2bd", "#e0e0db", "#f5f5f0", "#fafaf7", "#fcfcfb", "#ffffff"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Títulos grandes e banners." },
+      "body": { "displayName": "Corpo", "purpose": "Texto corrido, descrições e tabelas." }
+    },
+    "shadows": [
+      { "name": "card-shadow", "value": "0 2px 8px rgba(35,31,32,0.05)", "purpose": "Leve separação de cards contra o fundo." },
+      { "name": "modal-shadow", "value": "0 10px 25px rgba(35,31,32,0.15)", "purpose": "Elevada profundidade para modais e popups." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Efeito padrão para transições de hover." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão Primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Botão principal de chamada para ação (CTA).",
+      "html": "<button class=\"ds-btn-primary\">ADICIONAR</button>",
+      "css": ".ds-btn-primary { background: #5D082A; color: #ffffff; padding: 10px 20px; font-weight: 600; border: none; border-radius: 8px; font-family: sans-serif; cursor: pointer; transition: background 0.2s; } .ds-btn-primary:hover { background: #45051d; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "O Armazém de Tradição Premium",
+    "overview": "O Mercado Antenor & Filhos combina a sensação acolhedora e confiável de uma feira ou empório tradicional com a sofisticação e conveniência de um e-commerce premium.",
+    "keyCharacteristics": [
+      "Acolhimento familiar e foco no frescor.",
+      "Uso de tons quentes e ricos (Burgundy e Gold).",
+      "Layout limpo, legível e livre de poluição visual."
+    ],
+    "rules": [
+      { "name": "The Burgundy Rule", "body": "A cor primária (#5D082A) é o tom de voz principal; não a dilua com variações pastel desbotadas.", "section": "colors" }
+    ],
+    "dos": [
+      "Do usar a cor Burgundy em botões de ação principal para direcionar a jornada do usuário.",
+      "Do manter o contraste mínimo de 4.5:1 em todos os textos para garantir total legibilidade no mobile."
+    ],
+    "donts": [
+      "Don't utilizar bordas coloridas espessas em apenas um dos lados dos cards (side-stripes).",
+      "Don't aplicar gradientes sobrepostos em textos ou títulos Display.",
+      "Don't utilizar sombras exageradas ou cores neon descontextualizadas da paleta tradicional da marca."
+    ]
+  }
+}

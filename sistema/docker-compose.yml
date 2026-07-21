@@ -1,0 +1,124 @@
+services:
+  # --- Database (PostgreSQL) ---
+  db:
+      image: postgres:15-alpine
+      container_name: antenor_db
+      restart: always
+      environment:
+        POSTGRES_DB: antenor_db
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: antenor_password_2026
+      volumes:
+        - pgdata:/var/lib/postgresql/data
+      networks:
+        - antenor_network
+      ports:
+        - "5432:5432"
+
+  # --- Cache & Sockets (Redis) ---
+  redis:
+    image: redis:7-alpine
+    container_name: antenor_redis
+    restart: always
+    networks:
+      - antenor_network
+
+  # --- Busca inteligente (MeiliSearch) ---
+  meili:
+    image: getmeili/meilisearch:v1.11
+    container_name: antenor_meili
+    restart: always
+    environment:
+      MEILI_MASTER_KEY: antenor_meili_master_2026
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - meili_data:/meili_data
+    networks:
+      - antenor_network
+    ports:
+      - "7700:7700"
+
+  # --- Backend API (NestJS) ---
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: antenor_api
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://postgres:antenor_password_2026@db:5432/antenor_db?schema=public
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      JWT_SECRET: antenor_local_stack_jwt_secret_2026_min_32_chars
+      CORS_ORIGIN: http://localhost:3000,http://localhost:3002,https://localhost:3443,https://localhost:3444
+      FRONTEND_URL: http://localhost:3000
+      ADMIN_URL: http://localhost:3002
+      PORT: 3001
+      MEILI_HOST: http://meili:7700
+      MEILI_MASTER_KEY: antenor_meili_master_2026
+      ALLOW_GUEST_CHECKOUT: ${ALLOW_GUEST_CHECKOUT:-true}
+      ENABLE_LEGACY_CLASSIFICATION_MAPPINGS: ${ENABLE_LEGACY_CLASSIFICATION_MAPPINGS:-false}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@antenor.com.br}
+      HANDOFF_CSV_PATH: ${HANDOFF_CSV_PATH:-/data/handoff_ecommerce_v3_n1_n2.csv}
+    depends_on:
+      - db
+      - redis
+      - meili
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ../arquivos-projeto/handoff_ecommerce_v3_n1_n2.csv:/data/handoff_ecommerce_v3_n1_n2.csv:ro
+    networks:
+      - antenor_network
+    ports:
+      - "3001:3001"
+
+  # --- Storefront (Frontend Loja) ---
+  storefront:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_GUEST_CHECKOUT_ENABLED: ${VITE_GUEST_CHECKOUT_ENABLED:-true}
+        VITE_PAYMENTS_UI_ENABLED: ${VITE_PAYMENTS_UI_ENABLED:-false}
+        VITE_MAPBOX_ACCESS_TOKEN: ${VITE_MAPBOX_ACCESS_TOKEN:-}
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
+    container_name: antenor_storefront
+    restart: always
+    depends_on:
+      - api
+    networks:
+      - antenor_network
+    ports:
+      - "3000:80"
+      - "3443:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # --- Admin Dashboard ---
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: antenor_admin
+    restart: always
+    depends_on:
+      - api
+    networks:
+      - antenor_network
+    ports:
+      - "3002:80"
+      - "3444:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+      - ./admin/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+networks:
+  antenor_network:
+    driver: bridge
+
+volumes:
+  pgdata:
+  meili_data:

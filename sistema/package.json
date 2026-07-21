@@ -1,0 +1,37 @@
+{
+  "scripts": {
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:admin\"",
+    "dev:backend": "cd backend && npm run start:dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:admin": "cd admin && npm run dev",
+    "install:all": "npm run install:backend && npm run install:frontend && npm run install:admin",
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "install:admin": "cd admin && npm install",
+    "build:all": "npm run build:backend && npm run build:frontend && npm run build:admin",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build:admin": "cd admin && npm run build",
+    "validate:pending-contract": "cd backend && npm run test:pending-contract",
+    "validate:web-push-readiness": "node scripts/validate-web-push-readiness.js",
+    "inspect:web-push-subscriptions": "node scripts/inspect-web-push-subscriptions.js",
+    "generate:web-push-vapid": "node scripts/generate-web-push-vapid.js",
+    "prepare:web-push-env": "node scripts/prepare-web-push-env.js",
+    "validate:web-push-tooling": "node scripts/validate-web-push-tooling.js",
+    "validate:web-push-evidence": "node scripts/validate-web-push-evidence.js",
+    "report:web-push-homologation": "node scripts/generate-web-push-homologation-report.js",
+    "finalize:web-push-homologation": "node scripts/finalize-web-push-homologation.js",
+    "verify:web-push-evidence-manifest": "node scripts/verify-web-push-evidence-manifest.js",
+    "homologate:web-push": "node scripts/homologate-web-push.js",
+    "confirm:web-push-visual": "node scripts/confirm-web-push-visual.js",
+    "register:web-push-cdp-chrome": "node scripts/register-web-push-cdp-chrome.js",
+    "prove:web-push-delivery": "node scripts/prove-web-push-delivery.js",
+    "validate:category-tree": "node scripts/validate-category-tree.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3"
+  }
+}

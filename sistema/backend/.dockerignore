@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+npm-debug.log
+Dockerfile*
+*.md
+uploads
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+tsconfig.tsbuildinfo

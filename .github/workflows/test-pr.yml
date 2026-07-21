@@ -1,0 +1,144 @@
+name: PR Quality Gate
+
+on:
+  pull_request:
+    branches: ["main", "master", "develop"]
+
+jobs:
+  backend-coverage:
+    name: Backend Coverage Gate
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: antenor
+          POSTGRES_PASSWORD: antenor123
+          POSTGRES_DB: antenor_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://antenor:antenor123@localhost:5432/antenor_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-pr-quality-gate
+      NODE_ENV: test
+      COVERAGE_THRESHOLD: "75"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: sistema/backend/package-lock.json
+
+      - name: Install backend deps
+        working-directory: sistema/backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: sistema/backend
+        run: npx prisma generate
+
+      - name: Run migrations
+        working-directory: sistema/backend
+        run: npx prisma migrate deploy
+
+      - name: Run coverage
+        working-directory: sistema/backend
+        run: npm run test:cov -- --coverageReporters=text-summary --coverageReporters=json-summary
+
+      - name: Enforce statements coverage threshold
+        working-directory: sistema/backend
+        run: |
+          node -e "const fs=require('fs');const path='coverage/coverage-summary.json';if(!fs.existsSync(path)){console.error('coverage-summary.json not found');process.exit(1)};const summary=JSON.parse(fs.readFileSync(path,'utf8'));const pct=summary.total.statements.pct;const threshold=Number(process.env.COVERAGE_THRESHOLD||75);console.log('Coverage statements:',pct+'%');if(pct<threshold){console.error('Coverage gate failed: '+pct+'% < '+threshold+'%');process.exit(1)}"
+
+  e2e-critical:
+    name: E2E Critical Flows Gate
+    runs-on: ubuntu-latest
+    needs: backend-coverage
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Start stack
+        working-directory: sistema
+        run: docker compose up -d db redis meili api storefront admin
+
+      - name: Wait for services
+        run: |
+          for i in {1..60}; do
+            API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/health || true)
+            STOREFRONT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 || true)
+            ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002 || true)
+            if [ "$API_STATUS" = "200" ] && [ "$STOREFRONT_STATUS" = "200" ] && [ "$ADMIN_STATUS" = "200" ]; then
+              echo "All services are healthy"
+              exit 0
+            fi
+            echo "Waiting stack... api=$API_STATUS storefront=$STOREFRONT_STATUS admin=$ADMIN_STATUS"
+            sleep 5
+          done
+          echo "Services did not become healthy in time"
+          exit 1
+
+      - name: Seed backend data
+        working-directory: sistema
+        run: |
+          docker compose exec -T api npx prisma migrate deploy
+          docker compose exec -T api npx prisma db seed
+
+      - name: Pending contract guardrail
+        working-directory: sistema
+        run: docker compose exec -T api node /app/scripts/validate-pending-contract.js
+
+      - name: Install frontend deps
+        working-directory: sistema/frontend
+        run: npm ci
+
+      - name: Run frontend unit tests
+        working-directory: sistema/frontend
+        run: npm run test:unit
+
+      - name: Run storefront E2E (cart)
+        working-directory: sistema/frontend
+        run: npx cypress run --spec "cypress/e2e/cart.cy.ts" --config baseUrl=http://localhost:3000
+
+      - name: Install admin deps
+        working-directory: sistema/admin
+        run: npm ci
+
+      - name: Run admin E2E (dashboard)
+        working-directory: sistema/admin
+        run: npx cypress run --spec "cypress/e2e/dashboard.cy.ts" --config baseUrl=http://localhost:3002
+
+      - name: Stack logs on failure
+        if: failure()
+        working-directory: sistema
+        run: docker compose logs --tail=200
+
+      - name: Tear down stack
+        if: always()
+        working-directory: sistema
+        run: docker compose down -v

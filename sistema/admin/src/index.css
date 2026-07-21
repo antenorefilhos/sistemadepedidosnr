@@ -1,0 +1,127 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 23% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 23% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 23% 13%;
+    --primary: 334 84% 20%;
+    --primary-foreground: 36 100% 97%;
+    --secondary: 30 52% 94%;
+    --secondary-foreground: 334 74% 18%;
+    --muted: 28 34% 95%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 344 58% 95%;
+    --accent-foreground: 334 84% 20%;
+    --destructive: 0 76% 48%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 336 36% 88%;
+    --input: 336 36% 88%;
+    --ring: 334 84% 20%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Google Sans Flex', 'Roboto', 'Segoe UI', Arial, sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Google Sans Flex', 'Roboto', 'Segoe UI', Arial, sans-serif;
+  }
+}
+
+/* Tema visual do admin: remove tons verdes e aplica paleta da marca. */
+.bg-green-50 { background-color: #fbf6ee !important; }
+.bg-green-100 { background-color: #f3e9d2 !important; }
+.bg-green-600 { background-color: #5d082a !important; }
+.bg-green-700 { background-color: #4a0622 !important; }
+.bg-green-800 { background-color: #3a051b !important; }
+
+.text-green-100 { color: #f7edd9 !important; }
+.text-green-600 { color: #5d082a !important; }
+.text-green-700 { color: #4a0622 !important; }
+.text-green-800 { color: #3a051b !important; }
+
+.border-green-600 { border-color: #5d082a !important; }
+
+.hover\:bg-green-600:hover { background-color: #5d082a !important; }
+.hover\:bg-green-700:hover { background-color: #4a0622 !important; }
+.hover\:bg-green-800:hover { background-color: #3a051b !important; }
+.hover\:bg-green-100:hover { background-color: #f3e9d2 !important; }
+
+.focus\:ring-green-500:focus {
+  --tw-ring-color: rgb(93 8 42 / 0.45) !important;
+}
+
+.shadow-green-600\/20 {
+  --tw-shadow-color: rgb(93 8 42 / 0.2) !important;
+  --tw-shadow: var(--tw-shadow-colored) !important;
+}
+
+/* Melhorias globais de acessibilidade e UX */
+
+/* Focus rings mais visíveis */
+:focus-visible {
+  outline: 2px solid #5d082a;
+  outline-offset: 2px;
+}
+
+/* Inputs e selects com melhor feedback */
+input:disabled,
+select:disabled,
+button:disabled {
+  cursor: not-allowed;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #5d082a;
+  box-shadow: 0 0 0 3px rgba(93, 8, 42, 0.1);
+}
+
+/* Reduzir motion para usuários que preferem */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark mode improvements */
+@media (prefers-color-scheme: dark) {
+  button:focus-visible {
+    outline-color: #fdf0f4;
+  }
+}
+
+/* Custom smooth and thin scrollbar for admin panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #ead7df;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d4a0b5;
+}

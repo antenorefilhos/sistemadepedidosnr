@@ -1,0 +1,90 @@
+{
+  "name": "Mercado Antenor - Sistema",
+  "version": "1.5.2-alpha",
+  "date": "2026-04-21",
+  "description": "Sistema de pedidos online com loja, painel administrativo e integracoes auxiliares.",
+  "status": "operational-local-docker",
+  "environment": "local-dev",
+  "completed": [
+    "Backend NestJS com modulos principais ativos",
+    "Frontend loja com autenticacao, carrinho, checkout e conta",
+    "Admin com login, dashboard, produtos, pedidos e clientes",
+    "Prisma configurado com PostgreSQL em desenvolvimento",
+    "Swagger disponivel em /api",
+    "Validacoes PT-BR e normalizacao de erros da API"
+  ],
+  "in_progress": [
+    "Painel de eventos de pagamento no admin",
+    "Exibicao de status de pagamento por pedido no storefront/admin",
+    "Migration Prisma formal para coluna products.fractionStep"
+  ],
+  "next_steps": [
+    "Expandir validacao e cobertura de testes",
+    "Planejar estrategia de producao separada da stack local",
+    "Projetar e iniciar a Fase 21 da API propria da Antenor & Filhos como camada principal de negocio sobre a integracao Solidcom"
+  ],
+  "technologies": {
+    "backend": {
+      "framework": "NestJS 10",
+      "runtime": "Node.js 20",
+      "language": "TypeScript",
+      "orm": "Prisma 5.22.0",
+      "database_dev": "PostgreSQL",
+      "auth": "JWT + Passport + bcrypt"
+    },
+    "frontend": {
+      "framework": "React 18",
+      "language": "TypeScript",
+      "build": "Vite 4",
+      "styling": "Tailwind CSS",
+      "state": "React Query + Context"
+    },
+    "admin": {
+      "framework": "React 18",
+      "language": "TypeScript",
+      "build": "Vite 4",
+      "styling": "Tailwind CSS",
+      "state": "React Query + hooks customizados"
+    }
+  },
+  "services": {
+    "api": "http://localhost:3001",
+    "frontend": "http://localhost:3000",
+    "admin": "http://localhost:3002",
+    "swagger": "http://localhost:3001/api"
+  },
+  "running_locally": {
+    "prerequisites": [
+      "Node.js 20+",
+      "npm 10+"
+    ],
+    "setup": [
+      "npm run install:all",
+      "cd sistema/backend && npx prisma migrate dev --name init",
+      "cd sistema/backend && npm run prisma:seed",
+      "npm run dev:all"
+    ]
+  },
+  "environment_variables": {
+    "backend": {
+      "DATABASE_URL": "postgresql://postgres:antenor_password_2026@localhost:5432/antenor_db?schema=public",
+      "JWT_SECRET": "definir secret forte",
+      "CORS_ORIGIN": "http://localhost:3000,http://localhost:3002",
+      "SOLIDCOM_API_URL": "http://45.239.193.56:5000"
+    },
+    "frontend": {
+      "VITE_API_URL": "http://localhost:3001",
+      "VITE_GUEST_CHECKOUT_ENABLED": "true"
+    },
+    "admin": {
+      "VITE_API_URL": "http://localhost:3001"
+    }
+  },
+  "notes": [
+    "PostgreSQL e Redis fazem parte do setup de desenvolvimento recomendado.",
+    "Home e Carrinho sao publicos; Checkout convidado pode ser ligado/desligado por feature flag.",
+    "Storefront entrega imagens por /uploads via proxy Nginx e fallback de placeholder para arquivo ausente.",
+    "Documentos de auditoria e release notes anteriores permanecem como historico de evolucao.",
+    "Roadmap futuro inclui a Fase 21 da API propria para tratar entrada e saida de dados antes da integracao com a Solidcom."
+  ]
+}

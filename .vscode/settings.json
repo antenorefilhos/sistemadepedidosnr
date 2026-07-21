@@ -1,0 +1,23 @@
+{
+  "git.enabled": false,
+  "files.exclude": {
+    "**/.git": true,
+    "**/.opencode": true,
+    "**/artifacts": true,
+    "**/dist": true,
+    "**/node_modules": true
+  },
+  "search.exclude": {
+    "**/.opencode": true,
+    "**/artifacts": true,
+    "**/dist": true,
+    "**/node_modules": true
+  },
+  "chat.tools.terminal.autoApprove": {
+    "/^Set-Location \"F:/VC\\.VERSE/PROJETOS/antenor e filhos/pedidos nr/sistema/backend\" ; npm test 2>&1 \\| Select-Object -Last 8$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "docker compose": true
+  }
+}

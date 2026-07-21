@@ -1,0 +1,1916 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Conexão Dorsal",
+    "description": "API para Integração de Produtos e Pedidos",
+    "version": "v1 - 1.0.71.0"
+  },
+  "paths": {
+    "/api/Cliente/PostCliente": {
+      "post": {
+        "tags": [
+          "Cliente"
+        ],
+        "summary": "Utilizado para inserir/atualizar uma lista de clientes.",
+        "requestBody": {
+          "description": "JSON com a lista de clientes que serão inseridos/atualizados no banco.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/vmCliente"
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/vmCliente"
+                }
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/vmCliente"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Cliente/GetClientes": {
+      "get": {
+        "tags": [
+          "Cliente"
+        ],
+        "summary": "Retorna uma lista com os todos os clientes cadastrados.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Cliente/{cpf}/GetClientes": {
+      "get": {
+        "tags": [
+          "Cliente"
+        ],
+        "summary": "Retorna uma lista com os dados do cliente cadastrado com o CPF consultado.",
+        "parameters": [
+          {
+            "name": "cpf",
+            "in": "path",
+            "description": "CPF ou Cnpj que será consultado no banco",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Pedido/PostPedido": {
+      "post": {
+        "tags": [
+          "Pedido"
+        ],
+        "summary": "Inclui pedidos no banco de dados da filial.",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/vmPedido"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/vmPedido"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/vmPedido"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Pedido/{cdPedido}/CNPJ/{CNPJ}/Ecom/{cdEcom}/GetPedido": {
+      "get": {
+        "tags": [
+          "Pedido"
+        ],
+        "summary": "Busca dados de um pedido no banco de dados da filial.",
+        "parameters": [
+          {
+            "name": "CNPJ",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "cdPedido",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "cdEcom",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Pedido/CNPJ/{CNPJ}/Ecom/{cdEcom}/GetPedidoPeriodo": {
+      "get": {
+        "tags": [
+          "Pedido"
+        ],
+        "summary": "Retorna todos os pedidos do período solicitado.",
+        "parameters": [
+          {
+            "name": "CNPJ",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "cdEcom",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "dataInicial",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "dataFinal",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Pedido/GetModeloPagamento": {
+      "get": {
+        "tags": [
+          "Pedido"
+        ],
+        "summary": "Busca os dados da tabela tbTefCartao e uma lista com as 5 operadoras mais transacionadas",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Pedido/{cdPedido}/Ecom/{cdEcom}/PutCancelamentoPedido": {
+      "put": {
+        "tags": [
+          "Pedido"
+        ],
+        "summary": "Método utilizado para cancelar um pedido",
+        "parameters": [
+          {
+            "name": "cdEcom",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "cdPedido",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Produto/GetProdutos": {
+      "get": {
+        "tags": [
+          "Produto"
+        ],
+        "summary": "Retorna uma lista de produtos.",
+        "parameters": [
+          {
+            "name": "ativo",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "estoque",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProdutoEcommerce"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProdutoEcommerce"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProdutoEcommerce"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Produto/GetProdutosAlterados/{data}": {
+      "get": {
+        "tags": [
+          "Produto"
+        ],
+        "summary": "Retorna os Produtos alterados a partir da data informada. caso seja passado o parametro Apenas Alterados, a consulta só buscará pela data de alteração do produto.",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "ApenasAlterados",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProdutoEcommerce"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProdutoEcommerce"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProdutoEcommerce"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Vendas/CNPJ/{cnpj}/INICIO/{inicio}/FIM/{fim}/GetVendasResumo": {
+      "get": {
+        "tags": [
+          "Vendas"
+        ],
+        "summary": "Retorna o resumo das vendas do periodo e filial informados",
+        "parameters": [
+          {
+            "name": "cnpj",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "inicio",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "fim",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Vendas/CNPJ/{cnpj}/INICIO/{inicio}/FIM/{fim}/nfcechave/{chave}/GetVendasResumoChave": {
+      "get": {
+        "tags": [
+          "Vendas"
+        ],
+        "parameters": [
+          {
+            "name": "cnpj",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "inicio",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "fim",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "chave",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Vendas/retorna-cupons/{idFilial}": {
+      "get": {
+        "tags": [
+          "Vendas"
+        ],
+        "summary": "Retorna cupons da Filial na Data",
+        "parameters": [
+          {
+            "name": "idFilial",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "data",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "numeroCupom",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "numeroNfce",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "chaveNfce",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/vmResultListCupom"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/vmResultListCupom"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/vmResultListCupom"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Vendas/resumo-produtos-data": {
+      "get": {
+        "tags": [
+          "Vendas"
+        ],
+        "summary": "Retorna o resumo de venda agrupando por poduto",
+        "parameters": [
+          {
+            "name": "idFilial",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "data",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Vendas/resumo-modalidade-data": {
+      "get": {
+        "tags": [
+          "Vendas"
+        ],
+        "summary": "Retorna o resumo de venda agrupando por poduto",
+        "parameters": [
+          {
+            "name": "idFilial",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "data",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Vendas/resumo-operadores-data": {
+      "get": {
+        "tags": [
+          "Vendas"
+        ],
+        "summary": "Retorna o resumo de Operador(a) agrupando por poduto",
+        "parameters": [
+          {
+            "name": "idFilial",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "data",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Ecommerce": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "ProdutoEcommerce": {
+        "type": "object",
+        "properties": {
+          "id_loja": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id_produto": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "codigo_ean": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "ean_principal": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "produto": {
+            "type": "string",
+            "nullable": true
+          },
+          "vl_produto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "vl_produto_normal": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "preco_fidelidade_promocao": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "preco_clube_promocao": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "qtd_produto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "qtd_movimentacao": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "dt_ult_mov_preco": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dt_cadastro": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cdtipopromocao": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "classificacao01": {
+            "type": "string",
+            "nullable": true
+          },
+          "classificacao02": {
+            "type": "string",
+            "nullable": true
+          },
+          "classificacao03": {
+            "type": "string",
+            "nullable": true
+          },
+          "classificacao04": {
+            "type": "string",
+            "nullable": true
+          },
+          "dtalteracao": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "descricaoecommerce": {
+            "type": "string",
+            "nullable": true
+          },
+          "fracionado": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "importado": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "foto": {
+            "type": "string",
+            "nullable": true
+          },
+          "ativo": {
+            "type": "boolean"
+          },
+          "atacadoQtde": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "atacadoQtde2": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "atacadoQtde3": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "atacadoPreco": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "atacadoPreco2": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "atacadoPreco3": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "fracionamento": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "txtfracionamento": {
+            "type": "string",
+            "nullable": true
+          },
+          "emb": {
+            "type": "string",
+            "nullable": true
+          },
+          "ncm": {
+            "type": "string",
+            "nullable": true
+          },
+          "cest": {
+            "type": "string",
+            "nullable": true
+          },
+          "qtd_medida": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "unid_medida": {
+            "type": "string",
+            "nullable": true
+          },
+          "descricaoEcommerceHTML": {
+            "type": "string",
+            "nullable": true
+          },
+          "tipoIntegracao": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StatusPedido": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          99
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "vmCliente": {
+        "required": [
+          "cpf"
+        ],
+        "type": "object",
+        "properties": {
+          "cpf": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nome": {
+            "maxLength": 150,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "telefone": {
+            "maxLength": 12,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "endereco": {
+            "$ref": "#/components/schemas/vmEndereco"
+          },
+          "cdCNP_": {
+            "type": "string",
+            "nullable": true
+          },
+          "dtNascimento": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dtCadastro": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "sexo": {
+            "type": "string",
+            "nullable": true
+          },
+          "nrDependentes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "celular": {
+            "type": "string",
+            "nullable": true
+          },
+          "idClienteIFood": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmCupom": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idEmpresa": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idFilial": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numeroCaixa": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sequencial": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dataVenda": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dataHoraAberturaCupom": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dataHoraUltimoItem": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dataHoraFechamentoCupom": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "sequencialOperador": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "clienteId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "valor": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "desconto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "acrescimo": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "shopCash": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "idAutorizaDesconto": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "coo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "descontoPromocaoCombinada": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "mD5PAF": {
+            "type": "string",
+            "nullable": true
+          },
+          "nfCeChave": {
+            "type": "string",
+            "description": "XML convertido em base64",
+            "nullable": true
+          },
+          "txObsComanda": {
+            "type": "string",
+            "nullable": true
+          },
+          "itensVenda": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/vmCupomItem"
+            },
+            "nullable": true
+          },
+          "modalidades": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/vmCupomModalidade"
+            },
+            "nullable": true
+          },
+          "cliente": {
+            "$ref": "#/components/schemas/vmCliente"
+          },
+          "nfce": {
+            "$ref": "#/components/schemas/vmNfce"
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmCupomItem": {
+        "type": "object",
+        "properties": {
+          "gdCupom": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hora": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "produtoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "secaoId": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "quantidadeVenda": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "precoVenda": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "valorDesconto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "tributacaoId": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "prTributacao": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "cdVendedor": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdAutorizaDesconto": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdAutorizaSecao": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "vlDescontoPromocaoCombinada": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "qtDescontoPromocaoCombinada": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdPromocaoScanntech": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "vlDescontoPromocaoScanntech": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "qtDescontoPromocaoScanntech": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pesoBrutog": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "vlDescontoPromocaoClube": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "qtDescontoPromocaoClube": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdDescontoPromocaoClube": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "vlItemOriginal": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "txObsComandaItem": {
+            "type": "string",
+            "nullable": true
+          },
+          "vlDescontoProdutoAVista": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "vlCusto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "cupom": {
+            "$ref": "#/components/schemas/vmCupom"
+          },
+          "produto": {
+            "$ref": "#/components/schemas/vmProduto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmCupomModalidade": {
+        "type": "object",
+        "properties": {
+          "gdCupom": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nrModalidade": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cdModalidade": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "vlModalidade": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "vlTroco": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "inContraVale": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "cdCliente": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "cdSupervisor": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "nrParcelas": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdTefCartao": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdTefModalidadeTipo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdTefModalidadeParcela": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdTefBin": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdTefNSUHost": {
+            "type": "string",
+            "nullable": true
+          },
+          "cdTefNSUSitef": {
+            "type": "string",
+            "nullable": true
+          },
+          "cdTefOperadora": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdTefPOS": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "cdTefAutorizacao": {
+            "type": "string",
+            "nullable": true
+          },
+          "cdModalidadeOriginal": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdUsuarioModlidadeCorrecao": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "dtModalidadeCorrecao": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "gdVEE": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "cdMotivoModalidadeCorrecao": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cdTefNrCartao": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "txSegundaViaTEF": {
+            "type": "string",
+            "nullable": true
+          },
+          "cupom": {
+            "$ref": "#/components/schemas/vmCupom"
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmEndereco": {
+        "type": "object",
+        "properties": {
+          "logradouro": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "numero": {
+            "maxLength": 30,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "complemento": {
+            "maxLength": 60,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "bairro": {
+            "maxLength": 25,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "cidade": {
+            "maxLength": 25,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "cdMunicipio": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cep": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "estado": {
+            "maxLength": 2,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmNfce": {
+        "type": "object",
+        "properties": {
+          "idEmpresa": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idFilial": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idPdv": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "serie": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numero": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chave": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "xmlNota": {
+            "type": "string",
+            "nullable": true
+          },
+          "xmlInutilizacao": {
+            "type": "string",
+            "nullable": true
+          },
+          "inCancelada": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmPagamento": {
+        "type": "object",
+        "properties": {
+          "formaPagamento": {
+            "type": "string",
+            "nullable": true
+          },
+          "tef": {
+            "$ref": "#/components/schemas/vmPagamentoTEF"
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmPagamentoTEF": {
+        "type": "object",
+        "properties": {
+          "nsuHost": {
+            "type": "string",
+            "nullable": true
+          },
+          "autorizacao": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "codigoCartao": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "codigoTipo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "codigoParcela": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "codigoOperadora": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cartaoValorReservado": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "idPagamento": {
+            "type": "string",
+            "nullable": true
+          },
+          "bandeira": {
+            "type": "string",
+            "nullable": true
+          },
+          "parcela": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "parcelaModalidade": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmPedido": {
+        "required": [
+          "cliente",
+          "cnpj",
+          "codEcom",
+          "data",
+          "itens",
+          "numero"
+        ],
+        "type": "object",
+        "properties": {
+          "cnpj": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "numero": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "data": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "valorDesconto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "obs": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "ecommerceSolidcon": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "ecommerceSolidconStatus": {
+            "$ref": "#/components/schemas/StatusPedido"
+          },
+          "cdEcomPedido": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "codEcom": {
+            "$ref": "#/components/schemas/Ecommerce"
+          },
+          "valorFrete": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "aceitaTroca": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "hrCombinada": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "hrEntrega": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelado": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "retiraNaLoja": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "dav": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hrRegistro": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "pdv": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cupom": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "valorRegistrado": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "cep": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "cdTransportadora": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/vmPedidoItem"
+            }
+          },
+          "pagamentoPIX": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "inEntregaExpressa": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "prDesconto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "prDescontoPagamento": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "idPedidoIFood": {
+            "type": "string",
+            "nullable": true
+          },
+          "referencia": {
+            "type": "string",
+            "nullable": true
+          },
+          "obsInterna": {
+            "type": "string",
+            "nullable": true
+          },
+          "inPrioridadeSeparacao": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "itensSubstituto": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/vmPedidoItemSubstituto"
+            },
+            "nullable": true
+          },
+          "cliente": {
+            "$ref": "#/components/schemas/vmCliente"
+          },
+          "pagamento": {
+            "$ref": "#/components/schemas/vmPagamento"
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmPedidoItem": {
+        "type": "object",
+        "properties": {
+          "numero": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ean": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quantidade": {
+            "type": "number",
+            "format": "double"
+          },
+          "quantidadeAtendida": {
+            "type": "number",
+            "format": "double"
+          },
+          "valorUnitario": {
+            "type": "number",
+            "format": "double"
+          },
+          "valorDesconto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "nmProduto": {
+            "type": "string",
+            "nullable": true
+          },
+          "obs": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "inCodigoInterno": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "cdProduto": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmPedidoItemSubstituto": {
+        "type": "object",
+        "properties": {
+          "numero": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "codigo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "ean": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quantidadeSubstituto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "valorUnitario": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmProduto": {
+        "required": [
+          "idFilial",
+          "idProduto",
+          "idSuperProduto"
+        ],
+        "type": "object",
+        "properties": {
+          "idEmpresa": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idFilial": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idProduto": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idSuperProduto": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "descricaoVariacao": {
+            "type": "string",
+            "nullable": true
+          },
+          "nrMultiplicador": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "idProdutoEstoque": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "checksum": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "prDesconto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "pesoBrutog": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pesoLiquidog": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "inValidoGTIN": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "vmResultListCupom": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "description": "posição do primeiro registro da lista. inicia no Zero.",
+            "format": "int32"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Quantidade de itens na coleção.",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total de itens na consulta.",
+            "format": "int32"
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/vmCupom"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

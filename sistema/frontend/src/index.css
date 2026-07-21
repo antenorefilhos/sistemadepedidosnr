@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-gold: #D2BB8A;
+  --color-burgundy: #5D082A;
+  --color-onyx: #231F20;
+  --color-cream: #F5F5F0;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 20px rgba(93,8,42,0.08);
+}
+
+@layer base {
+  body {
+    @apply antialiased text-[#231F20] bg-white;
+    font-family: 'Google Sans Flex', 'Roboto', 'Segoe UI', Arial, sans-serif;
+  }
+
+  h1, h2, h3, .luxury-text {
+    font-family: 'Google Sans Flex', 'Roboto', 'Segoe UI', Arial, sans-serif;
+  }
+
+  /* Evita zoom automático em inputs no iOS/Android ao focar campos com font-size < 16px.
+     !important necessário para sobrepor classes Tailwind como text-sm (14px) aplicadas inline. */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white border border-gray-200 shadow-sm;
+  }
+
+  .glass-dark {
+    @apply bg-[#231F20] border border-[#3a3a3a] shadow-md;
+  }
+
+  .btn-gold {
+    @apply bg-[#D2BB8A] text-[#231F20] px-6 py-2 rounded-lg font-semibold hover:bg-[#c1a978] transition-all transform active:scale-95 shadow-lg;
+  }
+
+  .btn-burgundy {
+    @apply bg-[#5D082A] text-white px-6 py-2 rounded-lg font-semibold hover:bg-[#4a0621] transition-all transform active:scale-95 shadow-lg;
+  }
+
+  .btn-outline-burgundy {
+    @apply border border-[#D2BB8A] text-[#5D082A] bg-white px-6 py-2 rounded-lg font-semibold hover:bg-[#F8F4EA] transition-all;
+  }
+
+  .card-premium {
+    @apply relative overflow-hidden rounded-xl transition-all duration-300 bg-white border border-[#E8D7B0]/40 shadow-sm cursor-pointer;
+  }
+
+  .card-premium:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2.5px);
+    border-color: var(--color-gold);
+  }
+
+  .aspect-square-img {
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+
+  /* Fade in animation for section rows */
+  .fade-in-section {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Custom scrollbar for horizontal categories */
+.hide-scrollbar::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar,
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

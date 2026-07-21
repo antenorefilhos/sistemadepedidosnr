@@ -1,0 +1,65 @@
+# Copilot instructions — Antenor & Filhos
+
+## LEIA PRIMEIRO
+Antes de qualquer ação neste projeto, leia `arquivos-projeto/md/INICIO_AQUI.md`.
+Ele contém as regras invioláveis, o estado atual e os arquivos críticos que você precisa conhecer.
+
+## Ordem de leitura obrigatória
+1. `arquivos-projeto/md/INICIO_AQUI.md`
+2. `arquivos-projeto/md/STATUS.md`
+3. `arquivos-projeto/md/ROADMAP.md`
+4. Documento canônico da área alterada (`REFERENCIA_TECNICA.md`, `CONFIGURACOES.md`, `CMS_MANUAL.md`, etc.)
+
+## Output rules
+- Responda APENAS o que foi pedido. Sem introduções, confirmações ou resumos.
+- Sem preamble: nunca comece com "Claro!", "Com certeza!", "Ótima pergunta!".
+- Sem repetir o contexto dado: vá direto à solução.
+- Sem comentários óbvios no código (ex: `// incrementa i`).
+- Sem explicar o que o código faz depois de escrevê-lo, salvo se solicitado.
+- Use markdown mínimo: sem headers desnecessários, sem listas quando prosa serve.
+
+## Code style
+- Escreva o mínimo de código que resolve o problema.
+- Prefira funções pequenas e nomeadas sobre blocos inline longos.
+- Sem código de exemplo não solicitado (ex: "veja como usar:").
+- Se houver múltiplas abordagens, implemente a melhor — não liste as opções.
+
+## Quando perguntar
+- Pergunte SOMENTE se a ambiguidade bloqueia a implementação.
+- Máximo 1 pergunta por vez, a mais crítica.
+- Nunca pergunte para confirmar algo já inferível pelo contexto.
+
+## Regras específicas do projeto
+- Preços: SEMPRE usar `productPricing.ts` — nunca calcular inline.
+- Carrinho: SEMPRE usar `CartContext` — nunca estado local.
+- Pagamento: é por fora, sem gateway. Não ativar `ENABLE_PAYMENTS_INTEGRATION` sem aprovação.
+- CEP: campos em inglês (`street`, `neighborhood`). Não traduzir.
+- Docker: sempre `http://localhost:3000`, nunca proxy da IDE.
+- Documentação: SEMPRE atualizar os markdowns canônicos impactados no mesmo ciclo da mudança (sem exceção).
+
+## Comandos padrão (workspace)
+- Instalar tudo: `npm run install:all`
+- Rodar tudo local: `npm run dev:all`
+- Build geral: `npm run build:all`
+
+## Validação mínima por tipo de mudança
+- Frontend storefront/admin: `npm run build` no app alterado.
+- Backend: `npm run build` em `sistema/backend`.
+- Se alterar preço/carrinho/checkout: rodar E2E de guardrail no storefront (`cypress/e2e/product-pricing.cy.ts` e `cypress/e2e/checkout.cy.ts`).
+
+## Fronteiras de arquitetura
+- `sistema/backend`: regras de negócio e contratos de API.
+- `sistema/frontend`: experiência da loja (cliente).
+- `sistema/admin`: operação e CMS.
+- Não mover regra de domínio para camada visual para “resolver rápido”.
+
+## Roadmap e milestones
+- Executar por milestone oficial em `arquivos-projeto/md/ROADMAP.md` (M0 → M10).
+- Não iniciar milestone bloqueada por dependência não concluída.
+- Ao concluir task/milestone, atualizar `STATUS.md` + `MEMORIA_PROJETO.md` + documento canônico da área.
+
+## Contexto do projeto
+- Infira stack e tecnologias pelos arquivos do repositório.
+- Siga os padrões já presentes no código existente (nomenclatura, estrutura de pastas, estilo).
+- Não introduza dependências novas sem perguntar primeiro.
+- Em caso de dúvida sobre convenção, imite o padrão do arquivo sendo editado.

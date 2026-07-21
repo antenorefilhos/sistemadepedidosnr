@@ -1,0 +1,160 @@
+name: Mercado Antenor CI
+
+on:
+  push:
+    branches: ["main", "master", "develop"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  # ── Job 1: Backend (build + unit tests) ───────────────────────
+  backend:
+    name: Backend — build & test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: antenor
+          POSTGRES_PASSWORD: antenor123
+          POSTGRES_DB: antenor_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://antenor:antenor123@localhost:5432/antenor_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-test-secret-not-for-production
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: sistema/backend/package-lock.json
+
+      - name: Install backend deps
+        working-directory: sistema/backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: sistema/backend
+        run: npx prisma generate
+
+      - name: Run migrations (test DB)
+        working-directory: sistema/backend
+        run: npx prisma migrate deploy
+
+      - name: Build backend
+        working-directory: sistema/backend
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: sistema/backend
+        run: npm run test -- --passWithNoTests
+
+  # ── Job 2: Storefront (build) ─────────────────────────────────
+  storefront:
+    name: Storefront — build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: sistema/frontend/package-lock.json
+
+      - name: Install deps
+        working-directory: sistema/frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: sistema/frontend
+        env:
+          VITE_API_URL: http://localhost:3001
+        run: npm run build
+
+  # ── Job 3: Admin (build) ──────────────────────────────────────
+  admin:
+    name: Admin — build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: sistema/admin/package-lock.json
+
+      - name: Install deps
+        working-directory: sistema/admin
+        run: npm ci
+
+      - name: Build
+        working-directory: sistema/admin
+        env:
+          VITE_API_URL: http://localhost:3001
+        run: npm run build
+
+  # ── Job 4: Docker smoke test (apenas em push para main) ───────
+  docker:
+    name: Docker — compose build
+    runs-on: ubuntu-latest
+    needs: [backend, storefront, admin]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build all images
+        working-directory: sistema
+        run: docker compose build
+
+      - name: Start stack and health check
+        working-directory: sistema
+        env:
+          DATABASE_URL: postgresql://antenor:antenor123@db:5432/antenor
+          POSTGRES_USER: antenor
+          POSTGRES_PASSWORD: antenor123
+          POSTGRES_DB: antenor
+          REDIS_URL: redis://redis:6379
+          JWT_SECRET: ci-smoke-secret
+        run: |
+          docker compose up -d
+          sleep 15
+          curl -f http://localhost:3001/health || (docker compose logs api && exit 1)
+          curl -f http://localhost:3000 || (docker compose logs storefront && exit 1)
+          curl -f http://localhost:3002 || (docker compose logs admin && exit 1)
+
+      - name: Pending contract guardrail
+        working-directory: sistema
+        run: docker compose exec -T api node /app/scripts/validate-pending-contract.js
+
+      - name: Tear down
+        if: always()
+        working-directory: sistema
+        run: docker compose down -v

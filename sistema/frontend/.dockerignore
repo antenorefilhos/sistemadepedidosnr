@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+cypress/videos
+cypress/screenshots
+.git
+.vscode
+*.log
+Dockerfile*
+README.md
+stats.html
+smoke_test.ps1
