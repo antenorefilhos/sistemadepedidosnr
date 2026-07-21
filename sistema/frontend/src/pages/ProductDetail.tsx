@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Loader2, ShoppingCart, Film } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Minus, Plus, ShoppingCart, Film } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useProduct, useCart, useProductRecommendations, useSmartSubstitutes } from '../hooks/useCart'
+import type { Product } from '../types'
 import { formatProductTitle } from '../utils/format'
-import { getProductPricePresentation } from '../utils/productPricing'
+import { getProductPricePresentation, formatProductQuantity } from '../utils/productPricing'
+import { getProductCardViewModel } from '../utils/productCard'
+import { trackEvent } from '../utils/analytics'
 import { SEO, StructuredData } from '../components/SEO'
 import { getProductDetailSections } from '../utils/productDetailSchema'
 import { StoreProductCard } from '../components/StoreProductCard'
@@ -264,11 +268,18 @@ export default function ProductDetail() {
             </p>
           )}
 
-          <div className="rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] px-4 py-3 inline-flex items-end gap-1.5">
-            <span className="text-sm font-semibold text-[#5D082A]">{price.currencySymbol}</span>
-            <span className="text-3xl font-black text-[#5D082A] leading-none">{price.value}</span>
-            {price.suffix && <span className="text-xs font-medium text-gray-500">{price.suffix}</span>}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] px-4 py-3 inline-flex items-end gap-1.5">
+              <span className="text-sm font-semibold text-[#5D082A]">{price.currencySymbol}</span>
+              <span className="text-3xl font-black text-[#5D082A] leading-none">{price.value}</span>
+              {price.suffix && <span className="text-xs font-medium text-gray-500">{price.suffix}</span>}
+            </div>
+            {price.referenceText && (
+              <span className="text-xs font-medium text-gray-500">{price.referenceText}</span>
+            )}
           </div>
+
+          <ProductPurchasePanel product={product} />
 
           <div className="space-y-4 pt-2">
             {sections.map((section) => (
@@ -335,6 +346,124 @@ export default function ProductDetail() {
               ))}
           </div>
         </section>
+      )}
+    </div>
+  )
+}
+
+function ProductPurchasePanel({ product }: { product: Product }) {
+  const { cart, addItem, updateQuantity, removeItem } = useCart()
+  const [unitMode, setUnitMode] = useState<'unit' | 'weight'>('unit')
+
+  const viewModel = useMemo(() => getProductCardViewModel(product), [product])
+  const cartItem = cart.find((item) => item.productId === product.id)
+  const quantity = cartItem?.quantity || 0
+
+  const displayQuantity = useMemo(() => {
+    if (!product.isFractional || unitMode === 'unit') return `${quantity}`
+    return formatProductQuantity(product, quantity)
+  }, [product, quantity, unitMode])
+
+  const fireAddToCartEvent = () => {
+    trackEvent('ADD_TO_CART', 'PRODUCT', product.id, {
+      name: product.name,
+      price: product.price,
+      source: 'SEARCH',
+    })
+  }
+
+  const handleAdd = () => {
+    addItem(product, 1)
+    fireAddToCartEvent()
+    toast.success(`${formatProductTitle(product.name)} no carrinho`, { id: `add-${product.id}` })
+  }
+
+  const handleDecrease = () => {
+    if (quantity > 1) {
+      updateQuantity(product.id, quantity - 1)
+      return
+    }
+    removeItem(product.id)
+  }
+
+  const handleIncrease = () => {
+    addItem(product, 1)
+    fireAddToCartEvent()
+  }
+
+  if (viewModel.outOfStock) {
+    return (
+      <div className="rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] px-4 py-4 text-center">
+        <p className="text-sm font-semibold text-[#8a6a3a]">
+          {viewModel.ctaLabel === 'Indisponivel'
+            ? 'Produto temporariamente indisponível'
+            : 'Sem estoque no momento'}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {product.isFractional && (
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setUnitMode('unit')}
+            variant={unitMode === 'unit' ? 'primary' : 'subtle'}
+            size="sm"
+            className="flex-1 rounded-full"
+          >
+            Unidade
+          </Button>
+          <Button
+            onClick={() => setUnitMode('weight')}
+            variant={unitMode === 'weight' ? 'primary' : 'subtle'}
+            size="sm"
+            className="flex-1 rounded-full"
+          >
+            Peso
+          </Button>
+        </div>
+      )}
+
+      {quantity === 0 ? (
+        <Button onClick={handleAdd} size="lg" className="w-full gap-2">
+          <ShoppingCart className="h-5 w-5" />
+          {viewModel.ctaLabel === 'Adicionar porção' ? 'Adicionar porção ao carrinho' : 'Adicionar ao carrinho'}
+        </Button>
+      ) : (
+        <div className="flex items-center gap-3">
+          <div className="flex items-center rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] p-1">
+            <Button
+              onClick={handleDecrease}
+              variant="ghost"
+              size="icon"
+              className="h-11 w-11 hover:bg-white"
+              aria-label="Diminuir quantidade"
+            >
+              <Minus className="h-4 w-4" strokeWidth={2.4} />
+            </Button>
+            <div className="flex min-w-[68px] flex-col items-center justify-center px-2">
+              <span className="text-base font-black leading-none text-[#231F20]">{displayQuantity}</span>
+              <span className="text-[9px] uppercase tracking-[0.14em] text-gray-500">no carrinho</span>
+            </div>
+            <Button
+              onClick={handleIncrease}
+              variant="ghost"
+              size="icon"
+              className="h-11 w-11 hover:bg-white"
+              aria-label="Aumentar quantidade"
+            >
+              <Plus className="h-4 w-4" strokeWidth={2.4} />
+            </Button>
+          </div>
+          <Link
+            to="/cart"
+            className={buttonVariants({ variant: 'primary', size: 'lg', className: 'flex-1 gap-2' })}
+          >
+            Ver carrinho <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
       )}
     </div>
   )
