@@ -770,8 +770,9 @@ export default function Checkout() {
                     <div className="rounded-lg border border-[#D2BB8A]/50 bg-[#FBFAF7] p-4 space-y-4">
                       <h3 className="font-semibold text-[#231F20]">Seus dados para o pedido</h3>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Nome</label>
+                        <label htmlFor="guestName" className="block text-sm font-medium mb-1">Nome</label>
                         <Input
+                          id="guestName"
                           type="text"
                           name="guestName"
                           value={formData.guestName}
@@ -781,8 +782,9 @@ export default function Checkout() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium mb-1">WhatsApp</label>
+                          <label htmlFor="guestWhatsapp" className="block text-sm font-medium mb-1">WhatsApp</label>
                           <Input
+                            id="guestWhatsapp"
                             type="text"
                             name="guestWhatsapp"
                             value={formData.guestWhatsapp}
@@ -792,8 +794,9 @@ export default function Checkout() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-1">CPF (opcional)</label>
+                          <label htmlFor="guestCpf" className="block text-sm font-medium mb-1">CPF (opcional)</label>
                           <Input
+                            id="guestCpf"
                             type="text"
                             name="guestCpf"
                             value={formData.guestCpf}
@@ -803,8 +806,9 @@ export default function Checkout() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Email (opcional)</label>
+                        <label htmlFor="guestEmail" className="block text-sm font-medium mb-1">Email (opcional)</label>
                         <Input
+                          id="guestEmail"
                           type="email"
                           name="guestEmail"
                           value={formData.guestEmail}
@@ -824,7 +828,7 @@ export default function Checkout() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label htmlFor="zipCode" className="block text-sm font-medium mb-1">
                     CEP
                     {cepAutoFilled && (
                       <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-100 text-green-800 border border-green-200">
@@ -835,6 +839,7 @@ export default function Checkout() {
                   </label>
                   <div className="relative">
                     <Input
+                      id="zipCode"
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]{5}-?[0-9]{3}"
@@ -865,8 +870,9 @@ export default function Checkout() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Rua</label>
+                  <label htmlFor="street" className="block text-sm font-medium mb-1">Rua</label>
                   <Input
+                    id="street"
                     type="text"
                     name="street"
                     value={formData.street}
@@ -877,8 +883,9 @@ export default function Checkout() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Número</label>
+                    <label htmlFor="number" className="block text-sm font-medium mb-1">Número</label>
                     <Input
+                      id="number"
                       type="text"
                       name="number"
                       value={formData.number}
@@ -887,8 +894,9 @@ export default function Checkout() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Complemento</label>
+                    <label htmlFor="complement" className="block text-sm font-medium mb-1">Complemento</label>
                     <Input
+                      id="complement"
                       type="text"
                       name="complement"
                       value={formData.complement}
@@ -898,8 +906,9 @@ export default function Checkout() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Bairro</label>
+                  <label htmlFor="neighborhood" className="block text-sm font-medium mb-1">Bairro</label>
                   <Input
+                    id="neighborhood"
                     type="text"
                     name="neighborhood"
                     value={formData.neighborhood}
@@ -910,8 +919,9 @@ export default function Checkout() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Cidade</label>
+                    <label htmlFor="city" className="block text-sm font-medium mb-1">Cidade</label>
                     <Input
+                      id="city"
                       type="text"
                       name="city"
                       value={formData.city}
@@ -920,8 +930,9 @@ export default function Checkout() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Estado</label>
+                    <label htmlFor="state" className="block text-sm font-medium mb-1">Estado</label>
                     <Input
+                      id="state"
                       type="text"
                       name="state"
                       value={formData.state}
