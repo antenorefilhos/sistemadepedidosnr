@@ -23,7 +23,7 @@ import { BarChart3, Bot, Package, ShoppingCart, Users, LogOut, Menu, Sparkles, M
 import { Button } from '@/components/ui/button'
 import type { DashboardAnalytics } from './types'
 
-type Section =
+export type Section =
   | 'dashboard'
   | 'products'
   | 'orders'
@@ -1453,6 +1453,7 @@ export default function AdminDashboard() {
                   dashboardLoading,
                 }}
                 onAnalyticsChange={handleAnalyticsChange}
+                onNavigate={setActiveSection}
               />
             </Suspense>
           )}
