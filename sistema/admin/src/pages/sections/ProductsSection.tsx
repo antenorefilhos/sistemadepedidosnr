@@ -498,7 +498,7 @@ export default function ProductsSection({
                     : 'text-[#5d082a]/40'
                 }`} />
               </div>
-              <p className="mt-2 text-3xl font-black leading-none">{products.length}</p>
+              <p className="mt-2 text-3xl font-black leading-none">{availabilityMetrics?.totalActive ?? products.length}</p>
               <p className={`mt-1 text-[10px] ${
                 !productsFilterOutOfStock && !productsFilterInactive && !productsFilterUncategorized
                   ? 'text-white/60'
@@ -524,11 +524,11 @@ export default function ProductsSection({
                 }`} />
               </div>
               <p className="mt-2 text-3xl font-black leading-none">
-                {availabilityMetrics?.lowStockProducts ?? 0}
+                {availabilityMetrics?.outOfStock ?? 0}
               </p>
               <p className={`mt-1 text-[10px] ${
                 productsFilterOutOfStock ? 'text-white/60' : 'text-amber-600/60'
-              }`}>Estoque baixo/crítico</p>
+              }`}>Produtos com estoque zerado</p>
             </div>
 
             {/* Card 3: Sem Categoria */}

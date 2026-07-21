@@ -340,10 +340,15 @@ export default function AdminDashboard() {
         0,
       )
 
+      const productsPayload = productsRes.data as { total?: number; data?: unknown[] } | unknown[]
+      const productsCount = Array.isArray(productsPayload)
+        ? productsPayload.length
+        : productsPayload.total ?? productsPayload.data?.length ?? 0
+
       setStats({
         orders: ordersRes.data.length,
         customers: customersRes.data.length,
-        products: productsRes.data.length,
+        products: productsCount,
         revenue: totalRevenue,
       })
     } catch {
