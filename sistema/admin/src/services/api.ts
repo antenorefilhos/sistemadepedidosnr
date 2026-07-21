@@ -128,6 +128,8 @@ export interface TaxonomySyncResponse {
 }
 
 export interface ProductAvailabilityMetricsResponse {
+  totalActive: number
+  outOfStock: number
   lowStockProducts: number
   alwaysEnabledWithZeroStock: number
   inactiveWithStock: number

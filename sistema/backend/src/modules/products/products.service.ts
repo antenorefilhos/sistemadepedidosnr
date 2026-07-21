@@ -62,6 +62,8 @@ type TaxonomySyncResult = {
 }
 
 type ProductAvailabilityMetrics = {
+  totalActive: number
+  outOfStock: number
   lowStockProducts: number
   alwaysEnabledWithZeroStock: number
   inactiveWithStock: number
@@ -892,30 +894,42 @@ export class ProductsService {
   }
 
   async getAvailabilityMetrics(): Promise<ProductAvailabilityMetrics> {
-    const [lowStockProducts, alwaysEnabledWithZeroStock, inactiveWithStock] = await Promise.all([
-      this.prisma.product.count({
-        where: {
-          active: true,
-          syncOption: 'ESTOQUE',
-          stock: { gte: 1, lt: 5 },
-        },
-      }),
-      this.prisma.product.count({
-        where: {
-          active: true,
-          syncOption: 'SEMPRE',
-          OR: [{ stock: null }, { stock: { lte: 0 } }],
-        },
-      }),
-      this.prisma.product.count({
-        where: {
-          active: false,
-          stock: { gt: 0 },
-        },
-      }),
-    ])
+    const [totalActive, outOfStock, lowStockProducts, alwaysEnabledWithZeroStock, inactiveWithStock] =
+      await Promise.all([
+        this.prisma.product.count({
+          where: { active: true },
+        }),
+        this.prisma.product.count({
+          where: {
+            active: true,
+            OR: [{ stock: null }, { stock: { lte: 0 } }],
+          },
+        }),
+        this.prisma.product.count({
+          where: {
+            active: true,
+            syncOption: 'ESTOQUE',
+            stock: { gte: 1, lt: 5 },
+          },
+        }),
+        this.prisma.product.count({
+          where: {
+            active: true,
+            syncOption: 'SEMPRE',
+            OR: [{ stock: null }, { stock: { lte: 0 } }],
+          },
+        }),
+        this.prisma.product.count({
+          where: {
+            active: false,
+            stock: { gt: 0 },
+          },
+        }),
+      ])
 
     return {
+      totalActive,
+      outOfStock,
       lowStockProducts,
       alwaysEnabledWithZeroStock,
       inactiveWithStock,
