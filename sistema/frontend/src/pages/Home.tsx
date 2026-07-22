@@ -1,30 +1,11 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-
-// Hook para auto-scroll leve nos carrosséis mobile
-function useAutoScroll(containerRef: React.RefObject<HTMLDivElement>, enabled: boolean = true) {
-  useEffect(() => {
-    if (!enabled || !containerRef.current) return
-
-    const container = containerRef.current
-    const scrollAmount = 280 // px por scroll
-    const scrollInterval = 4000 // 4 segundos entre scrolls
-
-    const autoScroll = () => {
-      const maxScroll = container.scrollWidth - container.clientWidth
-      if (container.scrollLeft >= maxScroll - 10) {
-        // Volta pro início com animação suave
-        container.scrollTo({ left: 0, behavior: 'smooth' })
-      } else {
-        // Scroll para direita com animação suave
-        container.scrollBy({ left: scrollAmount, behavior: 'smooth' })
-      }
-    }
-
-    const intervalId = setInterval(autoScroll, scrollInterval)
-    return () => clearInterval(intervalId)
-  }, [containerRef, enabled])
-}
-
+import { useHomeShelves } from '../hooks/useHomeShelves'
+import {
+  CATEGORY_ICONS,
+  RULE_ID_TO_CMS_CODE,
+  normalizeWineLink,
+  toCategoryUrlParam,
+} from '../utils/homeCategories'
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
@@ -36,11 +17,12 @@ import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationMo
 import { resolveApiUrl } from '../services/api'
 import type { Product } from '../types'
 import { StoreProductCard } from '../components/StoreProductCard'
+import { ProductShelf } from '../components/ProductShelf'
 import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock, Home as HomeIcon,
-  Apple, Trash2, Smile, Beer, CupSoda, Croissant, Beef, Flame, Wine, Candy, Pizza, ShoppingBag
+  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
@@ -61,185 +43,10 @@ type PromoBannerView = {
   align?: 'left' | 'right'
 }
 
-const normalizeCategoryCode = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-
-const toCategoryUrlParam = (value: string) =>
-  normalizeCategoryCode(value)
-    .toLowerCase()
-    .replace(/_/g, '-')
-
-type HomeCategoryRule = {
-  id: string
-  label: string
-  query: string
-}
-
-const HOME_COMMERCIAL_PRIORITY: Record<string, number> = {
-  carnes: 1,
-  churrasco: 2,
-  hortifruti: 3,
-  padaria: 4,
-  bebidas: 5,
-  cervejas: 6,
-  vinhos: 7,
-  praticos: 8,
-  doces: 9,
-  limpeza: 10,
-  higiene: 11,
-  perfumaria: 12,
-}
-
-const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
-  {
-    id: 'hortifruti',
-    label: '🥬 Hortifruti Fresquinho',
-    query: 'hortifruti',
-  },
-  {
-    id: 'limpeza',
-    label: '🧼 Limpeza da Casa',
-    query: 'limpeza',
-  },
-  {
-    id: 'higiene',
-    label: '🧴 Higiene Pessoal',
-    query: 'higiene pessoal',
-  },
-  {
-    id: 'perfumaria',
-    label: '✨ Perfumaria & Beleza',
-    query: 'perfumaria',
-  },
-  {
-    id: 'cervejas',
-    label: '🍺 Cervejas Geladas',
-    query: 'cerveja',
-  },
-  {
-    id: 'bebidas',
-    label: '🥤 Bebidas em Geral',
-    query: 'bebidas',
-  },
-  {
-    id: 'padaria',
-    label: '🥖 Padaria & Forno',
-    query: 'padaria',
-  },
-  {
-    id: 'carnes',
-    label: '🥩 Carnes Frescas',
-    query: 'carnes',
-  },
-  {
-    id: 'churrasco',
-    label: '🔥 Para Churrasquear',
-    query: 'churrasco',
-  },
-  {
-    id: 'vinhos',
-    label: '🍷 Adega & Vinhos',
-    query: 'vinhos',
-  },
-  {
-    id: 'doces',
-    label: '🍫 Doces & Guloseimas',
-    query: 'guloseimas',
-  },
-  {
-    id: 'praticos',
-    label: '🍔 Pronto pra Comer',
-    query: 'consumo rapido',
-  },
-]
-
-const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
-  CARNES_DIA_A_DIA: 'carnes',
-  CHURRASCO: 'churrasco',
-  HORTIFRUTI: 'hortifruti',
-  PADARIA: 'padaria',
-  BEBIDAS: 'bebidas',
-  CERVEJAS: 'cervejas',
-  VINHOS: 'vinhos',
-  CONSUMO_RAPIDO: 'praticos',
-  GULOSEIMAS: 'doces',
-  LIMPEZA: 'limpeza',
-  HIGIENE_PESSOAL: 'higiene',
-  PERFUMARIA: 'perfumaria',
-}
-
-// Mapeamento inverso: ruleId → código CMS real (usado para navegar com ?cat= em vez de ?q=)
-const RULE_ID_TO_CMS_CODE: Record<string, string> = {
-  carnes: 'CARNES_DIA_A_DIA',
-  churrasco: 'CHURRASCO',
-  hortifruti: 'HORTIFRUTI',
-  padaria: 'PADARIA',
-  bebidas: 'BEBIDAS',
-  cervejas: 'CERVEJAS',
-  vinhos: 'VINHOS',
-  praticos: 'CONSUMO_RAPIDO',
-  doces: 'GULOSEIMAS',
-  limpeza: 'LIMPEZA',
-  higiene: 'HIGIENE_PESSOAL',
-  perfumaria: 'PERFUMARIA',
-}
-
-const CATEGORY_ICONS: Record<string, React.ComponentType<any>> = {
-  hortifruti: Apple,
-  limpeza: Trash2,
-  higiene: Smile,
-  perfumaria: Sparkles,
-  cervejas: Beer,
-  bebidas: CupSoda,
-  padaria: Croissant,
-  carnes: Beef,
-  churrasco: Flame,
-  vinhos: Wine,
-  doces: Candy,
-  praticos: Pizza,
-  default: ShoppingBag
-}
-
-const normalizeWineLink = (link?: string) => {
-  if (!link) return '#'
-  const normalized = link.trim().toLowerCase()
-  if (normalized === '/vinhos' || normalized === '/adega' || normalized === '/adega-antenor') {
-    return '/adega'
-  }
-  return link
-}
-
 export default function Home() {
   const navigate = useNavigate()
   const touchStartX = useRef(0)
   const categoriesScrollRef = useRef<HTMLDivElement | null>(null)
-  
-  // Refs para auto-scroll dos carrosséis mobile
-  const bestSellersScrollRef = useRef<HTMLDivElement | null>(null)
-  const rebuyScrollRef = useRef<HTMLDivElement | null>(null)
-  const offersScrollRef = useRef<HTMLDivElement | null>(null)
-  const freshScrollRef = useRef<HTMLDivElement | null>(null)
-  const fairScrollRef = useRef<HTMLDivElement | null>(null)
-  const recurringScrollRef = useRef<HTMLDivElement | null>(null)
-  const churrascoScrollRef = useRef<HTMLDivElement | null>(null)
-  const padariaScrollRef = useRef<HTMLDivElement | null>(null)
-  const tudoMercadoScrollRef = useRef<HTMLDivElement | null>(null)
-
-  // Ativar auto-scroll nos carrosséis mobile
-  useAutoScroll(bestSellersScrollRef)
-  useAutoScroll(rebuyScrollRef)
-  useAutoScroll(offersScrollRef)
-  useAutoScroll(freshScrollRef)
-  useAutoScroll(fairScrollRef)
-  useAutoScroll(recurringScrollRef)
-  useAutoScroll(churrascoScrollRef)
-  useAutoScroll(padariaScrollRef)
-  useAutoScroll(tudoMercadoScrollRef)
 
   const { data: products, isLoading: productsLoading } = useProducts()
   const { data: storeBanners } = useStoreBanners()
@@ -266,237 +73,26 @@ export default function Home() {
     openDeliveryVerificationModal()
   }, [openDeliveryVerificationModal])
 
-  interface CMSCategoryConfig {
-    rule: HomeCategoryRule
-    limit: number
-    priority: number
-    productCount: number
-    curatedProducts: Product[]
-  }
-
-  // Tipo local para itens vindos da API CMS (sem contrato forte)
-  type CMSCategoryItem = {
-    active?: boolean
-    code?: string
-    name?: string
-    limit?: number
-    priority?: number
-    productCount?: number
-    curatedProducts?: Array<{ product?: Product }>
-  }
-
-  const enabledHomeRules = useMemo(() => {
-    const list = Array.isArray(cmsCategories) ? cmsCategories : []
-    const configs: CMSCategoryConfig[] = []
-
-    list
-      .filter((item: CMSCategoryItem) => item?.active !== false)
-      .forEach((item: CMSCategoryItem) => {
-        const categoryCode = String(item?.code || item?.name || '')
-        const ruleId = CMS_CATEGORY_TO_RULE_ID[normalizeCategoryCode(categoryCode)]
-        if (ruleId) {
-          const rule = HOME_CATEGORY_RULES.find(r => r.id === ruleId)
-          if (rule) {
-            configs.push({
-              rule,
-              limit: item?.limit ?? 6,
-              priority: item?.priority ?? 0,
-              productCount: Number(item?.productCount ?? 0),
-              curatedProducts: Array.isArray(item?.curatedProducts)
-                ? (item.curatedProducts as Product[])
-                : [],
-            })
-          }
-        }
-      })
-
-    // Sort by priority (ascending, 0 is highest)
-    if (configs.length === 0) {
-      return HOME_CATEGORY_RULES.map(rule => ({
-        rule,
-        limit: 6,
-        priority: HOME_COMMERCIAL_PRIORITY[rule.id] ?? 999,
-        productCount: 0,
-        curatedProducts: [],
-      }))
-    }
-
-    return configs.sort((a, b) => a.priority - b.priority)
-  }, [cmsCategories])
-
-  const categorized = useMemo(() => {
-    const bucketByRule = new Map<string, Product[]>()
-    const limitsMap = new Map<string, number>()
-    const enabledRuleIds = new Set(enabledHomeRules.map((config) => config.rule.id))
-    const sectionRuleIds = new Set(['praticos', 'doces', 'churrasco', 'carnes', 'hortifruti', 'padaria', 'bebidas'])
-    const usedProductIds = new Set<string>()
-    
-    enabledHomeRules.forEach((config) => {
-      const curated = (config.curatedProducts || []).filter((product) => {
-        if (!product?.id || usedProductIds.has(product.id)) return false
-        usedProductIds.add(product.id)
-        return true
-      })
-
-      bucketByRule.set(config.rule.id, curated)
-      limitsMap.set(config.rule.id, config.limit)
-    })
-
-    const unmatched: Product[] = []
-
-    for (const product of productsList) {
-      if (usedProductIds.has(product.id)) continue
-
-      const categoryRuleId = CMS_CATEGORY_TO_RULE_ID[normalizeCategoryCode(product.category || '')]
-
-      if (categoryRuleId && enabledRuleIds.has(categoryRuleId)) {
-        usedProductIds.add(product.id)
-        if (sectionRuleIds.has(categoryRuleId)) {
-          bucketByRule.get(categoryRuleId)?.push(product)
-        } else {
-          unmatched.push(product)
-        }
-      } else {
-        unmatched.push(product)
-      }
-    }
-
-    // Apply limits to each category
-    const applyLimit = (products: Product[], limit: number) => products.slice(0, limit)
-
-    return {
-      consumoRapido: applyLimit(bucketByRule.get('praticos') || [], limitsMap.get('praticos') || 6),
-      guloseimas: applyLimit(bucketByRule.get('doces') || [], limitsMap.get('doces') || 6),
-      churrasco: applyLimit(bucketByRule.get('churrasco') || [], limitsMap.get('churrasco') || 6),
-      carnesDiaADia: applyLimit(bucketByRule.get('carnes') || [], limitsMap.get('carnes') || 6),
-      feira: applyLimit(bucketByRule.get('hortifruti') || [], limitsMap.get('hortifruti') || 8),
-      padaria: applyLimit(bucketByRule.get('padaria') || [], limitsMap.get('padaria') || 6),
-      bebidas: applyLimit(bucketByRule.get('bebidas') || [], limitsMap.get('bebidas') || 6),
-      outros: unmatched,
-    }
-  }, [productsList, enabledHomeRules])
-
-  const homeCategories = useMemo(() => {
-    const categories = enabledHomeRules
-      .map((config) => {
-        const count = (config.curatedProducts?.length || 0) > 0
-          ? config.curatedProducts.length
-          : config.productCount
-
-        return {
-          id: config.rule.id,
-          label: config.rule.label,
-          query: config.rule.query,
-          count,
-          priority: config.priority,
-        }
-      })
-      .filter((category) => category.count > 0)
-      .sort((a, b) => a.priority - b.priority)
-
-    return categories
-  }, [productsList, enabledHomeRules])
-
-  const featuredCommercialSection = useMemo(() => {
-    const hasProducts = (config: { productCount: number; curatedProducts?: Product[] }) =>
-      (config.curatedProducts?.length || 0) > 0 || config.productCount > 0
-
-    const preferred = enabledHomeRules.find((config) => config.rule.id === 'vinhos' && hasProducts(config))
-    const fallback = enabledHomeRules.find((config) => hasProducts(config))
-    const selected = preferred || fallback
-
-    if (!selected) return null
-
-    const cleanLabel = selected.rule.label.replace(/^\S+\s*/, '').trim()
-    const cmsCode = RULE_ID_TO_CMS_CODE[selected.rule.id] || selected.rule.id.toUpperCase()
-    const isWine = selected.rule.id === 'vinhos'
-
-    return {
-      badge: isWine ? 'Adega Exclusiva' : 'Selecao Especial',
-      title: isWine ? 'Vinhos para toda ocasião' : `${cleanLabel} em destaque`,
-      description: isWine
-        ? 'Uma seleção pronta para impressionar, presentear e completar pedidos especiais.'
-        : `Produtos selecionados da categoria ${cleanLabel.toLowerCase()} para completar seus pedidos.`,
-      ctaLabel: isWine ? 'Acessar Adega' : `Ver ${cleanLabel}`,
-      ctaTo: isWine ? '/adega' : `/mercado?cat=${toCategoryUrlParam(cmsCode)}`,
-    }
-  }, [enabledHomeRules])
+  const {
+    categorized,
+    homeCategories,
+    featuredCommercialSection,
+    bestSellers,
+    rebuyShelf,
+    offersShelf,
+    freshShelf,
+    fairShelf,
+    churrascoOccasionShelf,
+    recurringShelf,
+  } = useHomeShelves({
+    productsList,
+    cmsCategories,
+    topSellingProducts,
+    rebuyProducts,
+    marginShowcase,
+  })
 
   const [currentSlide, setCurrentSlide] = useState(0)
-
-  const bestSellers = useMemo(() => {
-    const fromAnalytics = Array.isArray(topSellingProducts)
-      ? topSellingProducts
-          .map((item) => item?.product)
-          .filter((product): product is Product => Boolean(product))
-      : []
-
-    if (fromAnalytics.length > 0) {
-      return fromAnalytics.slice(0, 8)
-    }
-
-    const fallback = [
-      ...categorized.churrasco,
-      ...categorized.carnesDiaADia,
-      ...categorized.padaria,
-      ...categorized.guloseimas,
-      ...categorized.bebidas,
-      ...categorized.consumoRapido,
-      ...categorized.outros,
-    ]
-
-    const seen = new Set<string>()
-    return fallback.filter((product) => {
-      if (seen.has(product.id)) return false
-      seen.add(product.id)
-      return true
-    }).slice(0, 8)
-  }, [topSellingProducts, categorized])
-
-  const uniqueProducts = useCallback((items: Product[], limit: number) => {
-    const seen = new Set<string>()
-    return items
-      .filter((product) => {
-        if (!product?.id || seen.has(product.id)) return false
-        seen.add(product.id)
-        return true
-      })
-      .slice(0, limit)
-  }, [])
-
-  const rebuyShelf = useMemo(() => {
-    const fallback = [...bestSellers, ...categorized.outros]
-    return uniqueProducts(rebuyProducts.length > 0 ? rebuyProducts : fallback, 10)
-  }, [bestSellers, categorized.outros, rebuyProducts, uniqueProducts])
-
-  const offersShelf = useMemo(() => {
-    const promotional = productsList.filter((product) =>
-      typeof product.promotionalPrice === 'number' &&
-      product.promotionalPrice > 0 &&
-      product.promotionalPrice < product.price,
-    )
-    return uniqueProducts([...promotional, ...marginShowcase, ...bestSellers], 10)
-  }, [bestSellers, marginShowcase, productsList, uniqueProducts])
-
-  const freshShelf = useMemo(() => {
-    return uniqueProducts([...categorized.feira, ...categorized.carnesDiaADia, ...categorized.padaria, ...categorized.outros], 10)
-  }, [categorized.carnesDiaADia, categorized.feira, categorized.outros, categorized.padaria, uniqueProducts])
-
-  const fairShelf = useMemo(() => {
-    return uniqueProducts([...categorized.feira, ...freshShelf], 10)
-  }, [categorized.feira, freshShelf, uniqueProducts])
-
-  const churrascoOccasionShelf = useMemo(() => {
-    return uniqueProducts([...categorized.churrasco, ...categorized.carnesDiaADia, ...categorized.bebidas], 10)
-  }, [categorized.bebidas, categorized.carnesDiaADia, categorized.churrasco, uniqueProducts])
-
-  const recurringShelf = useMemo(() => {
-    const pantry = productsList.filter((product) => {
-      const haystack = `${product.category || ''} ${product.name || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-      return ['arroz', 'feijao', 'acucar', 'cafe', 'leite', 'limpeza', 'papel', 'detergente', 'sabao'].some((term) => haystack.includes(term))
-    })
-    return uniqueProducts([...rebuyProducts, ...pantry, ...bestSellers], 10)
-  }, [bestSellers, productsList, rebuyProducts, uniqueProducts])
 
   const slides = useMemo(() => {
     if (!storeBanners || storeBanners.length === 0) return []
@@ -878,82 +474,66 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── MOBILE MAIN — seção Popular Now ── */}
-      {rebuyShelf.length > 0 && (
-        <MobileProductShelf
-          title={user ? 'Recomprar rapidinho' : 'Atalhos para repetir'}
-          subtitle={user ? 'Historico do cliente' : 'Mais pedidos da loja'}
-          icon={ShoppingCart}
-          products={rebuyShelf}
-          to="/mercado"
-          linkLabel="Ver mais"
-          scrollRef={rebuyScrollRef}
-        />
-      )}
+      {/* ── MOBILE MAIN — vitrines de intencao ── */}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title={user ? 'Recomprar rapidinho' : 'Atalhos para repetir'}
+        eyebrow={user ? 'Historico do cliente' : 'Mais pedidos da loja'}
+        icon={ShoppingCart}
+        products={rebuyShelf}
+        to="/mercado"
+        linkLabel="Ver mais"
+      />
 
-      {offersShelf.length > 0 && (
-        <MobileProductShelf
-          title="Ofertas para hoje"
-          subtitle="Preco e margem"
-          icon={Sparkles}
-          products={offersShelf}
-          to="/promocoes"
-          linkLabel="Promos"
-          scrollRef={offersScrollRef}
-        />
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Ofertas para hoje"
+        eyebrow="Preco e margem"
+        icon={Sparkles}
+        products={offersShelf}
+        to="/promocoes"
+        linkLabel="Promos"
+      />
 
-      {freshShelf.length > 0 && (
-        <MobileProductShelf
-          title="Frescos da loja"
-          subtitle="Acougue e padaria"
-          icon={Apple}
-          products={freshShelf}
-          to="/mercado?cat=hortifruti"
-          linkLabel="Ver frescos"
-          scrollRef={freshScrollRef}
-        />
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Frescos da loja"
+        eyebrow="Acougue e padaria"
+        icon={Apple}
+        products={freshShelf}
+        to="/mercado?cat=hortifruti"
+        linkLabel="Ver frescos"
+      />
 
-      {fairShelf.length > 0 && (
-        <MobileProductShelf
-          title="Feira da semana"
-          subtitle="Hortifruti e frescos"
-          icon={Apple}
-          products={fairShelf}
-          to="/mercado?cat=hortifruti"
-          linkLabel="Ver feira"
-          scrollRef={fairScrollRef}
-        />
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Feira da semana"
+        eyebrow="Hortifruti e frescos"
+        icon={Apple}
+        products={fairShelf}
+        to="/mercado?cat=hortifruti"
+        linkLabel="Ver feira"
+      />
 
-      {recurringShelf.length > 0 && (
-        <MobileProductShelf
-          title="Recorrentes da casa"
-          subtitle="Itens que sempre voltam"
-          icon={ShoppingBag}
-          products={recurringShelf}
-          to="/mercado?q=recorrentes"
-          linkLabel="Ver itens"
-          scrollRef={recurringScrollRef}
-        />
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Recorrentes da casa"
+        eyebrow="Itens que sempre voltam"
+        icon={ShoppingBag}
+        products={recurringShelf}
+        to="/mercado?q=recorrentes"
+        linkLabel="Ver itens"
+      />
 
-      {bestSellers.length > 0 && (
-        <section className="md:hidden px-4 pt-5 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-[#231F20]">Mais Pedidos</h2>
-            <Link to="/mercado" className="text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">
-              Ver todos <ArrowRight size={13} />
-            </Link>
-          </div>
-          <div ref={bestSellersScrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-            {bestSellers.map(product => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-            ))}
-          </div>
-        </section>
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Mais Pedidos"
+        eyebrow="Dados de pedidos"
+        icon={Sparkles}
+        products={bestSellers}
+        to="/mercado"
+        linkLabel="Ver todos"
+      />
 
       {/* Mobile Promo Banner */}
       {promoBanner1 && (
@@ -996,53 +576,35 @@ export default function Home() {
       )}
 
       {/* Mobile — Mais seções de produto */}
-      {churrascoOccasionShelf.length > 0 && (
-        <section className="md:hidden px-4 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-[#231F20] flex items-center gap-2">
-              <Flame size={18} className="text-[#5D082A]" /> Churrasco e ocasião
-            </h2>
-            <Link to="/mercado?q=churrasco" className="text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">Ver todos <ArrowRight size={13} /></Link>
-          </div>
-          <div ref={churrascoScrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-            {churrascoOccasionShelf.map(product => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-            ))}
-          </div>
-        </section>
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pb-2"
+        title="Churrasco e ocasião"
+        eyebrow="Ocasião pronta"
+        icon={Flame}
+        products={churrascoOccasionShelf}
+        to="/mercado?q=churrasco"
+        linkLabel="Ver todos"
+      />
 
-      {categorized.padaria.length > 0 && (
-        <section className="md:hidden px-4 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-[#231F20] flex items-center gap-2">
-              <Croissant size={18} className="text-[#5D082A]" /> Padaria & Pães Artesanais
-            </h2>
-            <Link to="/mercado?q=padaria" className="text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">Ver todos <ArrowRight size={13} /></Link>
-          </div>
-          <div ref={padariaScrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-            {categorized.padaria.map(product => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-            ))}
-          </div>
-        </section>
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pb-2"
+        title="Padaria & Pães Artesanais"
+        eyebrow="Forno da casa"
+        icon={Croissant}
+        products={categorized.padaria}
+        to="/mercado?q=padaria"
+        linkLabel="Ver todos"
+      />
 
-      {(categorized.outros.length > 0 || categorized.bebidas.length > 0) && (
-        <section className="md:hidden px-4 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-[#231F20] flex items-center gap-2">
-              <ShoppingBag size={18} className="text-[#5D082A]" /> Tudo do Mercado
-            </h2>
-            <Link to="/mercado" className="text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">Ver todos <ArrowRight size={13} /></Link>
-          </div>
-          <div ref={tudoMercadoScrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-            {[...categorized.outros, ...categorized.bebidas].map(product => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-            ))}
-          </div>
-        </section>
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pb-2"
+        title="Tudo do Mercado"
+        eyebrow="Catálogo completo"
+        icon={ShoppingBag}
+        products={[...categorized.outros, ...categorized.bebidas]}
+        to="/mercado"
+        linkLabel="Ver todos"
+      />
 
       {/* ── DESKTOP MAIN ── */}
       <main className="hidden md:block max-w-7xl mx-auto px-4 py-8 space-y-12 pb-24">
@@ -1067,60 +629,54 @@ export default function Home() {
         )}
 
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
-          {rebuyShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow={user ? 'Historico de compra' : 'Compra recorrente'}
-              title={user ? 'Recompre em poucos cliques' : 'Mais fáceis de repetir'}
-              icon={ShoppingCart}
-              products={rebuyShelf.slice(0, 6)}
-              to="/mercado"
-            />
-          )}
-          {offersShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Ofertas e oportunidade"
-              title="Melhores escolhas de hoje"
-              icon={Sparkles}
-              products={offersShelf.slice(0, 6)}
-              to="/promocoes"
-            />
-          )}
-          {freshShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Frescos e balcão"
-              title="Para levar fresco agora"
-              icon={Apple}
-              products={freshShelf.slice(0, 6)}
-              to="/mercado?cat=hortifruti"
-            />
-          )}
-          {churrascoOccasionShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Ocasião pronta"
-              title="Churrasco sem garimpo"
-              icon={Flame}
-              products={churrascoOccasionShelf.slice(0, 6)}
-              to="/mercado?q=churrasco"
-            />
-          )}
-          {fairShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Feira e hortifruti"
-              title="Reposição fresca da semana"
-              icon={Apple}
-              products={fairShelf.slice(0, 6)}
-              to="/mercado?cat=hortifruti"
-            />
-          )}
-          {recurringShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Compra recorrente"
-              title="Itens que sempre voltam"
-              icon={ShoppingBag}
-              products={recurringShelf.slice(0, 6)}
-              to="/mercado?q=recorrentes"
-            />
-          )}
+          <ProductShelf
+            layout="grid"
+            eyebrow={user ? 'Historico de compra' : 'Compra recorrente'}
+            title={user ? 'Recompre em poucos cliques' : 'Mais fáceis de repetir'}
+            icon={ShoppingCart}
+            products={rebuyShelf.slice(0, 6)}
+            to="/mercado"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Ofertas e oportunidade"
+            title="Melhores escolhas de hoje"
+            icon={Sparkles}
+            products={offersShelf.slice(0, 6)}
+            to="/promocoes"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Frescos e balcão"
+            title="Para levar fresco agora"
+            icon={Apple}
+            products={freshShelf.slice(0, 6)}
+            to="/mercado?cat=hortifruti"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Ocasião pronta"
+            title="Churrasco sem garimpo"
+            icon={Flame}
+            products={churrascoOccasionShelf.slice(0, 6)}
+            to="/mercado?q=churrasco"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Feira e hortifruti"
+            title="Reposição fresca da semana"
+            icon={Apple}
+            products={fairShelf.slice(0, 6)}
+            to="/mercado?cat=hortifruti"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Compra recorrente"
+            title="Itens que sempre voltam"
+            icon={ShoppingBag}
+            products={recurringShelf.slice(0, 6)}
+            to="/mercado?q=recorrentes"
+          />
         </div>
 
         {bestSellers.length > 0 && (
@@ -1199,24 +755,6 @@ export default function Home() {
         </section>
         )}
 
-        {/* Category: CHURRASCO */}
-        {categorized.churrasco.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <Link to="/mercado?q=churrasco" className="cursor-pointer hover:opacity-80 transition-opacity">
-              <h3 className="text-2xl font-bold flex items-center gap-2 text-[#231F20]">
-              <Flame size={22} className="text-[#5D082A]" /> Seleção para Churrasco
-            </h3>
-            </Link>
-          </div>
-          <div className="flex gap-6 overflow-x-auto pb-4 hide-scrollbar snap-x">
-             {categorized.churrasco.map(product => (
-               <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-             ))}
-          </div>
-        </section>
-        )}
-
         {/* Category: CARNES DIA A DIA */}
         {categorized.carnesDiaADia.length > 0 && (
         <section className="fade-in-section">
@@ -1229,22 +767,6 @@ export default function Home() {
           </div>
           <div className="flex gap-6 overflow-x-auto pb-4 hide-scrollbar snap-x">
              {categorized.carnesDiaADia.map(product => (
-               <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-             ))}
-          </div>
-        </section>
-        )}
-
-        {/* Category: PADARIA */}
-        {categorized.padaria.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-2xl font-bold flex items-center gap-2 text-[#231F20]">
-              <Croissant size={22} className="text-[#5D082A]" /> Padaria & Forno Artesanal
-            </h3>
-          </div>
-          <div className="flex gap-6 overflow-x-auto pb-4 hide-scrollbar snap-x">
-             {categorized.padaria.map(product => (
                <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
              ))}
           </div>
@@ -1368,82 +890,6 @@ export default function Home() {
       {/* Mobile bottom padding para não tapar conteúdo com nav */}
       <div className="md:hidden h-16" />
     </div>
-  )
-}
-
-function MobileProductShelf({
-  title,
-  subtitle,
-  icon: Icon,
-  products,
-  to,
-  linkLabel,
-  scrollRef,
-}: {
-  title: string
-  subtitle: string
-  icon: React.ComponentType<any>
-  products: Product[]
-  to: string
-  linkLabel: string
-  scrollRef: React.RefObject<HTMLDivElement>
-}) {
-  return (
-    <section className="md:hidden px-4 pt-5 pb-2">
-      <div className="flex items-end justify-between gap-3 mb-3">
-        <div className="min-w-0">
-          <span className="block text-[10px] uppercase tracking-widest text-[#8A6A3A] font-bold">{subtitle}</span>
-          <h2 className="text-base font-bold text-[#231F20] flex items-center gap-2">
-            <Icon size={18} className="text-[#5D082A]" />
-            <span className="truncate">{title}</span>
-          </h2>
-        </div>
-        <Link to={to} className="shrink-0 text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">
-          {linkLabel} <ArrowRight size={13} />
-        </Link>
-      </div>
-      <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-        {products.map(product => (
-          <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function DesktopIntentShelf({
-  eyebrow,
-  title,
-  icon: Icon,
-  products,
-  to,
-}: {
-  eyebrow: string
-  title: string
-  icon: React.ComponentType<any>
-  products: Product[]
-  to: string
-}) {
-  return (
-    <section className="fade-in-section min-w-0">
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <span className="text-[10px] uppercase tracking-widest text-[#8A6A3A] font-bold">{eyebrow}</span>
-          <h2 className="mt-1 flex items-center gap-2 text-xl font-bold text-[#231F20]">
-            <Icon size={20} className="shrink-0 text-[#5D082A]" />
-            <span className="truncate">{title}</span>
-          </h2>
-        </div>
-        <Link to={to} className="shrink-0 text-xs text-[#5D082A] font-bold hover:underline">
-          Ver
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {products.map(product => (
-          <StoreProductCard key={product.id} product={product} source="HOME" variant="grid" />
-        ))}
-      </div>
-    </section>
   )
 }
 
