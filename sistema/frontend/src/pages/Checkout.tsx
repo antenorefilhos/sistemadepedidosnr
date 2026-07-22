@@ -23,61 +23,24 @@ import { buildChangeForOptions, formatChangeForLabel } from '../utils/changeOpti
 import { getProductLineTotal, getProductPricePresentation } from '../utils/productPricing'
 import { saveDeliveryAddress } from '../utils/deliveryAddress'
 import { useFreeShipping } from '../hooks/useFreeShipping'
+import { useAddressAutofill } from '../hooks/useAddressAutofill'
+import {
+  PAYMENT_METHOD_LABEL,
+  createFallbackDeliverySlot,
+  createIdempotencyKey,
+  formatDeliveryWindow,
+  getCheckoutBlockerMessage,
+} from '../utils/checkout'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Radio } from '../components/ui/radio'
 import { surfaceClasses } from '../components/ui/surface'
 import {
-  fetchAddressByCep,
   formatZipCode,
   readDeliveryVerification,
-  requestCurrentPosition,
-  reverseGeocodeByMapbox,
   subscribeDeliveryVerification,
   verifyDeliveryForAddress,
 } from '../services/deliveryVerification'
-
-const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  CASH: 'Dinheiro',
-  PIX: 'PIX',
-  CARD: 'Cartão na entrega',
-  CREDIT_CARD: 'Cartão de crédito',
-  DEBIT_CARD: 'Cartão de débito',
-}
-
-function createIdempotencyKey() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-function createFallbackDeliverySlot() {
-  const windowStart = new Date(Date.now() + 45 * 60 * 1000)
-  const windowEnd = new Date(Date.now() + 3 * 60 * 60 * 1000)
-  return {
-    slotId: 'ASAP',
-    windowStart: windowStart.toISOString(),
-    windowEnd: windowEnd.toISOString(),
-  }
-}
-
-function formatDeliveryWindow(quote?: CheckoutQuoteResponse | null) {
-  const slot = quote?.delivery?.slot
-  if (!slot?.windowStart || !slot?.windowEnd) return 'Proxima janela disponivel'
-  const start = new Date(slot.windowStart)
-  const end = new Date(slot.windowEnd)
-  return `${start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
-}
-
-function getCheckoutBlockerMessage(quote: CheckoutQuoteResponse) {
-  if (quote.stock.unavailableItems.length > 0) {
-    return 'Alguns itens ficaram indisponiveis antes do pagamento. Revise o carrinho para continuar.'
-  }
-  if (quote.delivery.outOfArea) return 'Endereco fora da zona de entrega cadastrada.'
-  if (!quote.delivery.validSlot) return 'Selecione uma janela de entrega valida para continuar.'
-  return quote.blockers.join('; ') || 'Nao foi possivel confirmar o checkout agora.'
-}
 
 export default function Checkout() {
   const [step, setStep] = useState('address') // address, payment, confirmation
@@ -147,7 +110,6 @@ export default function Checkout() {
     return undefined
   }, [step, whatsappDispatch])
 
-  const [cepLoading, setCepLoading] = useState(false)
   const [formData, setFormData] = useState(() => {
     const saved = readDeliveryVerification()?.address
     return {
@@ -169,10 +131,19 @@ export default function Checkout() {
     }
   })
 
-  const [cepAutoFilled, setCepAutoFilled] = useState(false)
-  const [geoLoading, setGeoLoading] = useState(false)
-  const [locationStatus, setLocationStatus] = useState<'idle' | 'gps-success' | 'gps-fallback'>('idle')
-  const gpsAttemptedRef = useRef(false)
+  const {
+    cepLoading,
+    cepAutoFilled,
+    geoLoading,
+    locationStatus,
+    handleCepBlur,
+    handleUseMyLocation,
+  } = useAddressAutofill({
+    formData,
+    setFormData,
+    autoGpsEnabled: step === 'address',
+  })
+
   const [deliveryCalc, setDeliveryCalc] = useState<{
     fee: number | null
     freeAbove: number | null
@@ -192,77 +163,6 @@ export default function Checkout() {
     
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
-
-  const handleCepBlur = useCallback(async (cep: string) => {
-    if (cep.replace(/\D/g, '').length !== 8) {
-      return
-    }
-    setCepLoading(true)
-    setCepAutoFilled(false)
-    try {
-      const d = await fetchAddressByCep(cep, {
-        street: formData.street,
-        number: formData.number,
-        complement: formData.complement || null,
-        neighborhood: formData.neighborhood,
-        city: formData.city,
-        state: formData.state,
-        zipCode: formData.zipCode,
-      })
-      if (d.street || d.neighborhood) {
-        setCepAutoFilled(true)
-        setTimeout(() => setCepAutoFilled(false), 3000)
-      }
-      setFormData((prev) => ({
-        ...prev,
-        zipCode: d.zipCode || prev.zipCode,
-        street: d.street || prev.street,
-        neighborhood: d.neighborhood || prev.neighborhood,
-        city: d.city || prev.city,
-        state: d.state || prev.state,
-      }))
-    } catch {
-      // CEP lookup failed - leave fields as-is
-    } finally {
-      setCepLoading(false)
-    }
-  }, [formData.city, formData.complement, formData.neighborhood, formData.number, formData.state, formData.street, formData.zipCode])
-
-  const attemptAddressByGps = useCallback(async () => {
-    try {
-      setGeoLoading(true)
-      const position = await requestCurrentPosition()
-      const normalized = await reverseGeocodeByMapbox(position.lat, position.lng)
-
-      setFormData((prev) => ({
-        ...prev,
-        zipCode: normalized.zipCode || prev.zipCode,
-        street: normalized.street || prev.street,
-        number: normalized.number || prev.number,
-        neighborhood: normalized.neighborhood || prev.neighborhood,
-        city: normalized.city || prev.city,
-        state: normalized.state || prev.state,
-      }))
-      setLocationStatus('gps-success')
-    } catch {
-      setLocationStatus('gps-fallback')
-    } finally {
-      setGeoLoading(false)
-    }
-  }, [])
-
-  const handleUseMyLocation = useCallback(async () => {
-    gpsAttemptedRef.current = true
-    await attemptAddressByGps()
-  }, [attemptAddressByGps])
-
-  useEffect(() => {
-    if (step !== 'address') return
-    if (gpsAttemptedRef.current) return
-
-    gpsAttemptedRef.current = true
-    attemptAddressByGps()
-  }, [step, attemptAddressByGps])
 
   useEffect(() => {
     const syncFromStoredVerification = () => {
