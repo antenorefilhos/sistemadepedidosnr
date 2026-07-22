@@ -109,7 +109,7 @@ export function StoreProductCard({
       className={surfaceClasses({
         interactive: true,
         className: cn(
-          'group flex h-full flex-col overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-[2.5px] hover:border-[#D2BB8A]',
+          'group flex flex-col overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-[2.5px] hover:border-[#D2BB8A]',
           isCarousel ? 'w-[160px] md:w-[220px] shrink-0 snap-start' : 'w-full',
         ),
       })}
@@ -182,34 +182,32 @@ export function StoreProductCard({
       </div>
 
       {/* Unidade/Peso Toggle — reserva espaço fixo para alinhar cards (M11-D fix) */}
-      <div className="flex justify-center w-full px-2 pt-2 gap-2 min-h-[2.25rem]">
-        {product.isFractional && (
-          <>
-            <Button
-              onClick={() => setUnitMode('unit')}
-              variant={unitMode === 'unit' ? 'primary' : 'subtle'}
-              size="sm"
-              className="h-8 flex-1 rounded-full"
-            >
-              Unidade
-            </Button>
-            <Button
-              onClick={() => setUnitMode('weight')}
-              variant={unitMode === 'weight' ? 'primary' : 'subtle'}
-              size="sm"
-              className="h-8 flex-1 rounded-full"
-            >
-              Peso
-            </Button>
-          </>
-        )}
-      </div>
+      {product.isFractional && (
+        <div className="flex w-full justify-center gap-2 px-2 pt-2">
+          <Button
+            onClick={() => setUnitMode('unit')}
+            variant={unitMode === 'unit' ? 'primary' : 'subtle'}
+            size="sm"
+            className="h-8 flex-1 rounded-full"
+          >
+            Unidade
+          </Button>
+          <Button
+            onClick={() => setUnitMode('weight')}
+            variant={unitMode === 'weight' ? 'primary' : 'subtle'}
+            size="sm"
+            className="h-8 flex-1 rounded-full"
+          >
+            Peso
+          </Button>
+        </div>
+      )}
 
       {/* Informacoes do produto */}
       <div className="flex flex-1 flex-col p-3">
-        <div className="space-y-1 min-h-[4.35rem]">
+        <div className="space-y-0.5">
           {viewModel.eyebrow && (
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8A6A3A]">
+            <p className="text-[10px] font-semibold uppercase leading-tight tracking-[0.04em] text-[#8A6A3A]">
               {viewModel.eyebrow}
             </p>
           )}
@@ -220,12 +218,14 @@ export function StoreProductCard({
             </h3>
           </Link>
 
-          <p className={`text-[11px] leading-relaxed line-clamp-1 min-h-[1rem] ${viewModel.helperText ? 'text-gray-400' : 'text-transparent select-none'}`}>
-            {viewModel.helperText || '\u00a0'}
-          </p>
+          {viewModel.helperText && (
+            <p className="line-clamp-1 text-[11px] leading-relaxed text-gray-400">
+              {viewModel.helperText}
+            </p>
+          )}
         </div>
 
-        <div className="mt-auto pt-0 flex flex-col justify-end">
+        <div className="mt-auto flex flex-col justify-end pt-3">
           {/* Bloco de preco */}
           <div className="px-0.5 py-0">
             {viewModel.referenceText && (
