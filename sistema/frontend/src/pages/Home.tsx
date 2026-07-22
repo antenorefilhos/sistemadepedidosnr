@@ -1,15 +1,11 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useAutoScroll } from '../hooks/useAutoScroll'
+import { useHomeShelves } from '../hooks/useHomeShelves'
 import {
   CATEGORY_ICONS,
-  CMS_CATEGORY_TO_RULE_ID,
-  HOME_CATEGORY_RULES,
-  HOME_COMMERCIAL_PRIORITY,
   RULE_ID_TO_CMS_CODE,
-  normalizeCategoryCode,
   normalizeWineLink,
   toCategoryUrlParam,
-  type HomeCategoryRule,
 } from '../utils/homeCategories'
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
@@ -99,237 +95,26 @@ export default function Home() {
     openDeliveryVerificationModal()
   }, [openDeliveryVerificationModal])
 
-  interface CMSCategoryConfig {
-    rule: HomeCategoryRule
-    limit: number
-    priority: number
-    productCount: number
-    curatedProducts: Product[]
-  }
-
-  // Tipo local para itens vindos da API CMS (sem contrato forte)
-  type CMSCategoryItem = {
-    active?: boolean
-    code?: string
-    name?: string
-    limit?: number
-    priority?: number
-    productCount?: number
-    curatedProducts?: Array<{ product?: Product }>
-  }
-
-  const enabledHomeRules = useMemo(() => {
-    const list = Array.isArray(cmsCategories) ? cmsCategories : []
-    const configs: CMSCategoryConfig[] = []
-
-    list
-      .filter((item: CMSCategoryItem) => item?.active !== false)
-      .forEach((item: CMSCategoryItem) => {
-        const categoryCode = String(item?.code || item?.name || '')
-        const ruleId = CMS_CATEGORY_TO_RULE_ID[normalizeCategoryCode(categoryCode)]
-        if (ruleId) {
-          const rule = HOME_CATEGORY_RULES.find(r => r.id === ruleId)
-          if (rule) {
-            configs.push({
-              rule,
-              limit: item?.limit ?? 6,
-              priority: item?.priority ?? 0,
-              productCount: Number(item?.productCount ?? 0),
-              curatedProducts: Array.isArray(item?.curatedProducts)
-                ? (item.curatedProducts as Product[])
-                : [],
-            })
-          }
-        }
-      })
-
-    // Sort by priority (ascending, 0 is highest)
-    if (configs.length === 0) {
-      return HOME_CATEGORY_RULES.map(rule => ({
-        rule,
-        limit: 6,
-        priority: HOME_COMMERCIAL_PRIORITY[rule.id] ?? 999,
-        productCount: 0,
-        curatedProducts: [],
-      }))
-    }
-
-    return configs.sort((a, b) => a.priority - b.priority)
-  }, [cmsCategories])
-
-  const categorized = useMemo(() => {
-    const bucketByRule = new Map<string, Product[]>()
-    const limitsMap = new Map<string, number>()
-    const enabledRuleIds = new Set(enabledHomeRules.map((config) => config.rule.id))
-    const sectionRuleIds = new Set(['praticos', 'doces', 'churrasco', 'carnes', 'hortifruti', 'padaria', 'bebidas'])
-    const usedProductIds = new Set<string>()
-    
-    enabledHomeRules.forEach((config) => {
-      const curated = (config.curatedProducts || []).filter((product) => {
-        if (!product?.id || usedProductIds.has(product.id)) return false
-        usedProductIds.add(product.id)
-        return true
-      })
-
-      bucketByRule.set(config.rule.id, curated)
-      limitsMap.set(config.rule.id, config.limit)
-    })
-
-    const unmatched: Product[] = []
-
-    for (const product of productsList) {
-      if (usedProductIds.has(product.id)) continue
-
-      const categoryRuleId = CMS_CATEGORY_TO_RULE_ID[normalizeCategoryCode(product.category || '')]
-
-      if (categoryRuleId && enabledRuleIds.has(categoryRuleId)) {
-        usedProductIds.add(product.id)
-        if (sectionRuleIds.has(categoryRuleId)) {
-          bucketByRule.get(categoryRuleId)?.push(product)
-        } else {
-          unmatched.push(product)
-        }
-      } else {
-        unmatched.push(product)
-      }
-    }
-
-    // Apply limits to each category
-    const applyLimit = (products: Product[], limit: number) => products.slice(0, limit)
-
-    return {
-      consumoRapido: applyLimit(bucketByRule.get('praticos') || [], limitsMap.get('praticos') || 6),
-      guloseimas: applyLimit(bucketByRule.get('doces') || [], limitsMap.get('doces') || 6),
-      churrasco: applyLimit(bucketByRule.get('churrasco') || [], limitsMap.get('churrasco') || 6),
-      carnesDiaADia: applyLimit(bucketByRule.get('carnes') || [], limitsMap.get('carnes') || 6),
-      feira: applyLimit(bucketByRule.get('hortifruti') || [], limitsMap.get('hortifruti') || 8),
-      padaria: applyLimit(bucketByRule.get('padaria') || [], limitsMap.get('padaria') || 6),
-      bebidas: applyLimit(bucketByRule.get('bebidas') || [], limitsMap.get('bebidas') || 6),
-      outros: unmatched,
-    }
-  }, [productsList, enabledHomeRules])
-
-  const homeCategories = useMemo(() => {
-    const categories = enabledHomeRules
-      .map((config) => {
-        const count = (config.curatedProducts?.length || 0) > 0
-          ? config.curatedProducts.length
-          : config.productCount
-
-        return {
-          id: config.rule.id,
-          label: config.rule.label,
-          query: config.rule.query,
-          count,
-          priority: config.priority,
-        }
-      })
-      .filter((category) => category.count > 0)
-      .sort((a, b) => a.priority - b.priority)
-
-    return categories
-  }, [productsList, enabledHomeRules])
-
-  const featuredCommercialSection = useMemo(() => {
-    const hasProducts = (config: { productCount: number; curatedProducts?: Product[] }) =>
-      (config.curatedProducts?.length || 0) > 0 || config.productCount > 0
-
-    const preferred = enabledHomeRules.find((config) => config.rule.id === 'vinhos' && hasProducts(config))
-    const fallback = enabledHomeRules.find((config) => hasProducts(config))
-    const selected = preferred || fallback
-
-    if (!selected) return null
-
-    const cleanLabel = selected.rule.label.replace(/^\S+\s*/, '').trim()
-    const cmsCode = RULE_ID_TO_CMS_CODE[selected.rule.id] || selected.rule.id.toUpperCase()
-    const isWine = selected.rule.id === 'vinhos'
-
-    return {
-      badge: isWine ? 'Adega Exclusiva' : 'Selecao Especial',
-      title: isWine ? 'Vinhos para toda ocasião' : `${cleanLabel} em destaque`,
-      description: isWine
-        ? 'Uma seleção pronta para impressionar, presentear e completar pedidos especiais.'
-        : `Produtos selecionados da categoria ${cleanLabel.toLowerCase()} para completar seus pedidos.`,
-      ctaLabel: isWine ? 'Acessar Adega' : `Ver ${cleanLabel}`,
-      ctaTo: isWine ? '/adega' : `/mercado?cat=${toCategoryUrlParam(cmsCode)}`,
-    }
-  }, [enabledHomeRules])
+  const {
+    categorized,
+    homeCategories,
+    featuredCommercialSection,
+    bestSellers,
+    rebuyShelf,
+    offersShelf,
+    freshShelf,
+    fairShelf,
+    churrascoOccasionShelf,
+    recurringShelf,
+  } = useHomeShelves({
+    productsList,
+    cmsCategories,
+    topSellingProducts,
+    rebuyProducts,
+    marginShowcase,
+  })
 
   const [currentSlide, setCurrentSlide] = useState(0)
-
-  const bestSellers = useMemo(() => {
-    const fromAnalytics = Array.isArray(topSellingProducts)
-      ? topSellingProducts
-          .map((item) => item?.product)
-          .filter((product): product is Product => Boolean(product))
-      : []
-
-    if (fromAnalytics.length > 0) {
-      return fromAnalytics.slice(0, 8)
-    }
-
-    const fallback = [
-      ...categorized.churrasco,
-      ...categorized.carnesDiaADia,
-      ...categorized.padaria,
-      ...categorized.guloseimas,
-      ...categorized.bebidas,
-      ...categorized.consumoRapido,
-      ...categorized.outros,
-    ]
-
-    const seen = new Set<string>()
-    return fallback.filter((product) => {
-      if (seen.has(product.id)) return false
-      seen.add(product.id)
-      return true
-    }).slice(0, 8)
-  }, [topSellingProducts, categorized])
-
-  const uniqueProducts = useCallback((items: Product[], limit: number) => {
-    const seen = new Set<string>()
-    return items
-      .filter((product) => {
-        if (!product?.id || seen.has(product.id)) return false
-        seen.add(product.id)
-        return true
-      })
-      .slice(0, limit)
-  }, [])
-
-  const rebuyShelf = useMemo(() => {
-    const fallback = [...bestSellers, ...categorized.outros]
-    return uniqueProducts(rebuyProducts.length > 0 ? rebuyProducts : fallback, 10)
-  }, [bestSellers, categorized.outros, rebuyProducts, uniqueProducts])
-
-  const offersShelf = useMemo(() => {
-    const promotional = productsList.filter((product) =>
-      typeof product.promotionalPrice === 'number' &&
-      product.promotionalPrice > 0 &&
-      product.promotionalPrice < product.price,
-    )
-    return uniqueProducts([...promotional, ...marginShowcase, ...bestSellers], 10)
-  }, [bestSellers, marginShowcase, productsList, uniqueProducts])
-
-  const freshShelf = useMemo(() => {
-    return uniqueProducts([...categorized.feira, ...categorized.carnesDiaADia, ...categorized.padaria, ...categorized.outros], 10)
-  }, [categorized.carnesDiaADia, categorized.feira, categorized.outros, categorized.padaria, uniqueProducts])
-
-  const fairShelf = useMemo(() => {
-    return uniqueProducts([...categorized.feira, ...freshShelf], 10)
-  }, [categorized.feira, freshShelf, uniqueProducts])
-
-  const churrascoOccasionShelf = useMemo(() => {
-    return uniqueProducts([...categorized.churrasco, ...categorized.carnesDiaADia, ...categorized.bebidas], 10)
-  }, [categorized.bebidas, categorized.carnesDiaADia, categorized.churrasco, uniqueProducts])
-
-  const recurringShelf = useMemo(() => {
-    const pantry = productsList.filter((product) => {
-      const haystack = `${product.category || ''} ${product.name || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-      return ['arroz', 'feijao', 'acucar', 'cafe', 'leite', 'limpeza', 'papel', 'detergente', 'sabao'].some((term) => haystack.includes(term))
-    })
-    return uniqueProducts([...rebuyProducts, ...pantry, ...bestSellers], 10)
-  }, [bestSellers, productsList, rebuyProducts, uniqueProducts])
 
   const slides = useMemo(() => {
     if (!storeBanners || storeBanners.length === 0) return []
