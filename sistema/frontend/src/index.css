@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+/* Source Sans 3 variavel: um arquivo cobre 400-900, entao font-semibold (600) e
+   font-black (900) passam a ter peso real em vez de negrito sintetizado. */
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400..900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -17,11 +19,11 @@
 @layer base {
   body {
     @apply antialiased text-[#231F20] bg-white;
-    font-family: 'Google Sans Flex', 'Roboto', 'Segoe UI', Arial, sans-serif;
+    font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
   }
 
   h1, h2, h3, .luxury-text {
-    font-family: 'Google Sans Flex', 'Roboto', 'Segoe UI', Arial, sans-serif;
+    font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
   }
 
   /* Evita zoom automático em inputs no iOS/Android ao focar campos com font-size < 16px.

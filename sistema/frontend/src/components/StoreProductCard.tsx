@@ -69,7 +69,7 @@ export function StoreProductCard({
               removeItem(product.id)
               toast.dismiss(t.id)
             }}
-            className="shrink-0 rounded-md border border-[#D2BB8A]/60 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#D2BB8A] hover:bg-[#D2BB8A]/15"
+            className="shrink-0 rounded-md border border-[#D2BB8A]/60 px-2 py-1 text-caption font-semibold uppercase tracking-wide text-[#D2BB8A] hover:bg-[#D2BB8A]/15"
           >
             Desfazer
           </button>
@@ -146,7 +146,7 @@ export function StoreProductCard({
         {/* Overlay indisponivel */}
         {viewModel.outOfStock && (
           <div className="absolute inset-0 flex items-end justify-center bg-black/10 pb-3 pointer-events-none">
-            <span className="rounded-md border border-white/45 bg-white/45 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#3f3f46] backdrop-blur-md">
+            <span className="whitespace-nowrap rounded-md border border-white/45 bg-white/45 px-3 py-1 text-label font-bold uppercase tracking-[0.04em] text-[#3f3f46] backdrop-blur-md">
               Indisponivel
             </span>
           </div>
@@ -156,7 +156,7 @@ export function StoreProductCard({
         {!viewModel.outOfStock && (viewModel.badgeText || viewModel.isFractional) && (
           <div className="absolute left-2 top-2 flex flex-col gap-1 pointer-events-none">
             {viewModel.badgeText && (
-              <Badge className={cn('w-fit text-[9px] tracking-[0.12em]', badgeColorClass)}>
+              <Badge className={cn('w-fit whitespace-nowrap text-label tracking-[0.04em]', badgeColorClass)}>
                 {viewModel.badgeText}
               </Badge>
             )}
@@ -207,19 +207,19 @@ export function StoreProductCard({
       <div className="flex flex-1 flex-col p-3">
         <div className="space-y-0.5">
           {viewModel.eyebrow && (
-            <p className="text-[10px] font-semibold uppercase leading-tight tracking-[0.04em] text-[#8A6A3A]">
+            <p className="text-label font-semibold uppercase leading-tight tracking-[0.04em] text-[#8A6A3A]">
               {viewModel.eyebrow}
             </p>
           )}
 
           <Link to={`/produto/${product.id}`} className="block">
-            <h3 className="font-sans text-[13px] font-semibold leading-snug text-[#231F20] line-clamp-3 hover:text-[#5D082A] transition-colors">
+            <h3 className="font-sans text-body font-semibold leading-snug text-[#231F20] line-clamp-3 hover:text-[#5D082A] transition-colors">
               {formatProductTitle(viewModel.title)}
             </h3>
           </Link>
 
           {viewModel.helperText && (
-            <p className="line-clamp-1 text-[11px] leading-relaxed text-gray-400">
+            <p className="line-clamp-1 text-caption leading-relaxed text-gray-400">
               {viewModel.helperText}
             </p>
           )}
@@ -229,18 +229,18 @@ export function StoreProductCard({
           {/* Bloco de preco */}
           <div className="px-0.5 py-0">
             {viewModel.referenceText && (
-              <p className="mb-0.5 text-[10px] font-medium leading-none text-gray-500">
+              <p className="mb-0.5 text-label font-medium leading-none text-gray-500">
                 {viewModel.referenceText}
               </p>
             )}
 
             <div className="flex items-baseline gap-0.5 leading-none">
-              <span className="text-[11px] font-semibold text-[#5D082A]">{pricePresentation.currencySymbol}</span>
-              <p className="text-[1.82rem] font-bold leading-none text-[#5D082A] tracking-[-0.02em]">
+              <span className="text-caption font-semibold text-[#5D082A]">{pricePresentation.currencySymbol}</span>
+              <p className="text-display font-bold leading-none text-[#5D082A] tracking-[-0.02em]">
                 {pricePresentation.value}
               </p>
               {pricePresentation.suffix && (
-                <span className="text-[11px] font-medium leading-none text-gray-600">
+                <span className="text-caption font-medium leading-none text-gray-600">
                   {pricePresentation.suffix}
                 </span>
               )}
@@ -249,11 +249,11 @@ export function StoreProductCard({
             {viewModel.originalPrice && (
               <div className="mt-1.5 flex items-center gap-2">
                 {viewModel.discountPct >= 5 && (
-                  <span className="rounded-sm bg-[#F3E3EC] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#5D082A]">
+                  <span className="rounded-sm bg-[#F3E3EC] px-1.5 py-0.5 text-label font-semibold leading-none text-[#5D082A]">
                     {viewModel.discountPct}% OFF
                   </span>
                 )}
-                <p className="text-[11px] font-medium leading-none text-gray-400 line-through">
+                <p className="text-caption font-medium leading-none text-gray-400 line-through">
                   {formatPrice(viewModel.originalPrice)}
                 </p>
               </div>
@@ -275,7 +275,7 @@ export function StoreProductCard({
 
               <div className="flex flex-1 flex-col items-center justify-center">
                 <span className="text-sm font-black leading-none text-[#231F20]">{displayQuantity}</span>
-                <span className="text-[9px] uppercase tracking-[0.14em] text-gray-500">no carrinho</span>
+                <span className="whitespace-nowrap text-label uppercase tracking-[0.04em] text-gray-500">no carrinho</span>
               </div>
 
               <Button

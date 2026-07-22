@@ -554,7 +554,7 @@ export default function Checkout() {
             <div className="w-16 h-16 rounded-full bg-[#FFF7FA] border border-[#5D082A]/15 flex items-center justify-center mx-auto mb-5 text-[#5D082A] shadow-inner">
               <CheckCircle2 size={36} className="animate-bounce-short" />
             </div>
-            <h2 className="text-2xl font-bold text-[#5D082A] mb-2 font-outfit">Pedido Confirmado!</h2>
+            <h2 className="text-2xl font-bold text-[#5D082A] mb-2">Pedido Confirmado!</h2>
             <p className="text-gray-600 mb-6 text-sm">
               Seu pedido já está pronto para ser enviado no WhatsApp com todos os detalhes.
             </p>

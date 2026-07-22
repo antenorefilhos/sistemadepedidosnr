@@ -22,7 +22,7 @@ export default function Promocoes() {
   }, [products])
 
   return (
-    <div className="min-h-screen bg-white font-outfit pb-24">
+    <div className="min-h-screen bg-white pb-24">
       <SEO title="Promoções" description="Ofertas e promoções selecionadas para você economizar." />
 
       {/* Header */}

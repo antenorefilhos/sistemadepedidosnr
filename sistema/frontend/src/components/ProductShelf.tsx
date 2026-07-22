@@ -54,7 +54,7 @@ export function ProductShelf({
     <section className={cn('fade-in-section min-w-0', className)}>
       <div className="mb-3 flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <span className="block text-[10px] font-bold uppercase tracking-widest text-[#8A6A3A]">
+          <span className="block text-label font-bold uppercase tracking-[0.04em] text-[#8A6A3A]">
             {eyebrow}
           </span>
           <h2

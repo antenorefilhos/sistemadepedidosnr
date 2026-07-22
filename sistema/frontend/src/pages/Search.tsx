@@ -486,7 +486,7 @@ export default function MercadoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white font-outfit pb-28 md:pb-24">
+    <div className="min-h-screen bg-white pb-28 md:pb-24">
       <SEO
         title={q ? `${q} — Mercado` : cat ? `${categoryLabel} — Mercado` : 'Mercado'}
         description={
@@ -539,7 +539,7 @@ export default function MercadoPage() {
                   setIsInputFocused(true)
                 }}
                 placeholder="Digite o que você quer levar hoje"
-                className="h-auto border-0 bg-transparent p-0 text-[15px] shadow-none ring-0 placeholder:text-gray-400 focus-visible:ring-0"
+                className="h-auto border-0 bg-transparent p-0 text-title shadow-none ring-0 placeholder:text-gray-400 focus-visible:ring-0"
               />
               {isSuggesting && <Loader2 size={14} className="animate-spin text-[#5D082A]" />}
               {inputValue && (
@@ -574,7 +574,7 @@ export default function MercadoPage() {
                     type="button"
                     onClick={() => chooseSuggestion(suggestion)}
                     variant="ghost"
-                    className="h-auto w-full justify-start rounded-none border-b border-[#f1e8d6] px-4 py-3 text-left text-[15px] text-[#231F20] last:border-b-0"
+                    className="h-auto w-full justify-start rounded-none border-b border-[#f1e8d6] px-4 py-3 text-left text-title text-[#231F20] last:border-b-0"
                   >
                     {formatProductTitle(suggestion)}
                   </Button>
@@ -586,7 +586,7 @@ export default function MercadoPage() {
           <Link to="/cart" className="relative p-2 shrink-0 text-[#231F20] hover:text-[#5D082A] transition-colors">
             <ShoppingCart size={22} />
             {count > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
                 {count > 9 ? '9+' : count}
               </span>
             )}
@@ -687,7 +687,7 @@ export default function MercadoPage() {
           >
             {/* Preço */}
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Preço</p>
+              <p className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Preço</p>
               <div className="flex flex-wrap gap-2">
                 {PRICE_FILTERS.map((filter) => {
                   const isActive = filter.minPrice === minPrice && filter.maxPrice === maxPrice
@@ -710,7 +710,7 @@ export default function MercadoPage() {
             {/* Classificação mercadológica (progressiva) */}
             {level1Options.length > 0 && (
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Classificação</p>
+                <p className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Classificação</p>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Select
                     value={classification01}

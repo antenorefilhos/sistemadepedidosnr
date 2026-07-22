@@ -4,8 +4,8 @@ interface ProductImagePlaceholderProps {
 }
 
 const sizeMap = {
-  sm: { svg: 'w-8 h-8', text: 'text-[8px]' },
-  md: { svg: 'w-16 h-16', text: 'text-[9px]' },
+  sm: { svg: 'w-8 h-8', text: 'text-label' },
+  md: { svg: 'w-16 h-16', text: 'text-label' },
   lg: { svg: 'w-24 h-24', text: 'text-xs' },
 }
 

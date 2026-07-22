@@ -67,7 +67,7 @@ export default function ProductDetail() {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-white font-outfit pb-16">
+      <div className="min-h-screen bg-white pb-16">
         <header className="glass sticky top-0 z-50 border-b border-[#D2BB8A]/20">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
             <Button
@@ -82,7 +82,7 @@ export default function ProductDetail() {
             <Link to="/cart" className="relative p-2 text-[#231F20] hover:text-[#5D082A] transition-colors">
               <ShoppingCart size={22} />
               {count > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
                   {count > 9 ? '9+' : count}
                 </span>
               )}
@@ -141,7 +141,7 @@ export default function ProductDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F8F4EA] via-[#FBFAF7] to-white font-outfit pb-16">
+    <div className="min-h-screen bg-gradient-to-b from-[#F8F4EA] via-[#FBFAF7] to-white pb-16">
       <SEO
         title={formatProductTitle(product.name)}
         description={product.alternativeDescription || `Compre ${formatProductTitle(product.name)} no Antenor & Filhos. Qualidade garantida com entrega na sua porta.`}
@@ -168,7 +168,7 @@ export default function ProductDetail() {
           <Link to="/cart" className="relative p-2 text-[#231F20] hover:text-[#5D082A] transition-colors">
             <ShoppingCart size={22} />
             {count > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
                 {count > 9 ? '9+' : count}
               </span>
             )}
@@ -445,7 +445,7 @@ function ProductPurchasePanel({ product }: { product: Product }) {
             </Button>
             <div className="flex min-w-[68px] flex-col items-center justify-center px-2">
               <span className="text-base font-black leading-none text-[#231F20]">{displayQuantity}</span>
-              <span className="text-[9px] uppercase tracking-[0.14em] text-gray-500">no carrinho</span>
+              <span className="text-label uppercase tracking-[0.14em] text-gray-500">no carrinho</span>
             </div>
             <Button
               onClick={handleIncrease}

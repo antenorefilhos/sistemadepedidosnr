@@ -172,7 +172,7 @@ export default function Home() {
 
   if (productsLoading && !productsList.length) {
     return (
-      <div className="min-h-screen bg-white font-outfit">
+      <div className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
           <SkeletonHero />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -184,7 +184,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-white font-outfit">
+    <div className="min-h-screen bg-white">
       <SEO 
         title={`${brand.storeName} - mercado online, acougue, padaria e adega`}
         description="Carnes selecionadas, vinhos que impressionam e pão fresquinho. Tudo que você precisa para comprar bem e comer melhor."
@@ -228,7 +228,7 @@ export default function Home() {
               <Link to="/cart" className="relative p-1.5" aria-label={`Carrinho com ${count} itens`}>
                 <ShoppingCart size={22} className="text-white" />
                 {count > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-[#D2BB8A] text-[#5D082A] text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{count}</span>
+                  <span className="absolute -top-0.5 -right-0.5 bg-[#D2BB8A] text-[#5D082A] text-label font-black rounded-full w-4 h-4 flex items-center justify-center">{count}</span>
                 )}
                 {freeShipping.enabled && freeShipping.achieved && (
                   <span className="absolute -bottom-0.5 -right-0.5 bg-emerald-500 rounded-full w-2.5 h-2.5 border border-white" title="Frete grátis conquistado!" />
@@ -274,7 +274,7 @@ export default function Home() {
                     <div className="w-14 h-14 rounded-full bg-[#F3ECE0] flex items-center justify-center border border-[#E8D7B0]/60 text-[#5D082A] group-active:scale-95 transition-transform duration-150">
                       <IconComponent size={24} strokeWidth={1.8} />
                     </div>
-                    <span className="text-[10px] font-semibold text-[#231F20] leading-tight line-clamp-2">{name}</span>
+                    <span className="text-label font-semibold text-[#231F20] leading-tight line-clamp-2">{name}</span>
                   </Link>
                 )
               })}
@@ -292,14 +292,14 @@ export default function Home() {
               onClick={handleHeaderAddressClick}
               variant="outline"
               size="sm"
-              className="h-8 max-w-full justify-start bg-white/70 px-3 py-1 text-[11px] text-[#5d4f33] hover:bg-white"
+              className="h-8 max-w-full justify-start bg-white/70 px-3 py-1 text-caption text-[#5d4f33] hover:bg-white"
             >
               <MapPin size={14} className="shrink-0 text-[#5D082A]" />
               <span className="truncate">
                 {deliveryAddressLabel || 'Enviar para: CLIQUE AQUI'}
               </span>
             </Button>
-            <div className={`inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-1 text-[11px] ${deliveryOperation.isOpen ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-[#D2BB8A]/60 bg-[#FBFAF7] text-[#5d4f33]'}`}>
+            <div className={`inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-1 text-caption ${deliveryOperation.isOpen ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-[#D2BB8A]/60 bg-[#FBFAF7] text-[#5d4f33]'}`}>
               <Clock size={14} className="shrink-0" />
               <span className="truncate">
                 {deliveryOperation.headline}: {deliveryOperation.countdownLabel || deliveryOperation.detail}
@@ -359,7 +359,7 @@ export default function Home() {
             <Link to="/cart" className="relative p-2 text-white hover:text-[#D2BB8A] transition-colors" aria-label={`Carrinho com ${count} itens`}>
               <ShoppingCart size={24} />
               {count > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#D2BB8A] text-[#5D082A] text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-[#D2BB8A] text-[#5D082A] text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
                   {count}
                 </span>
               )}
@@ -463,7 +463,7 @@ export default function Home() {
                     className="snap-start shrink-0 flex flex-col items-center gap-1.5 px-4 py-3 rounded-lg bg-[#FBF7F0] border border-[#E8D7B0]/40 hover:bg-[#F3E7C9] hover:border-[#D2BB8A] hover:scale-105 transition-all duration-200 min-w-[90px] text-center group cursor-pointer"
                   >
                     <IconComponent size={20} className="text-[#5D082A] group-hover:scale-110 transition-transform duration-200" strokeWidth={1.8} />
-                    <span className="text-[11px] font-semibold text-[#5d4f33] group-hover:text-[#5D082A] transition-colors leading-tight line-clamp-2 whitespace-pre-wrap">
+                    <span className="text-caption font-semibold text-[#5d4f33] group-hover:text-[#5D082A] transition-colors leading-tight line-clamp-2 whitespace-pre-wrap">
                       {name}
                     </span>
                   </Link>
@@ -543,7 +543,7 @@ export default function Home() {
             <div className="absolute inset-0 bg-gradient-to-r from-[#231F20]/80 to-transparent" />
             <div className="relative z-10 p-5 flex flex-col justify-end h-full min-h-[140px]">
               {promoBanner1.badge && (
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#D2BB8A] mb-1">{promoBanner1.badge}</span>
+                <span className="text-label font-black uppercase tracking-widest text-[#D2BB8A] mb-1">{promoBanner1.badge}</span>
               )}
               <p className="text-white font-bold text-base leading-tight mb-3">{promoBanner1.title}</p>
               {promoBanner1.ctaTo && (
@@ -683,7 +683,7 @@ export default function Home() {
         <section className="fade-in-section">
           <div className="flex items-center justify-between mb-6">
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-widest text-[#D2BB8A] font-bold">Dados de pedidos</span>
+              <span className="text-label uppercase tracking-widest text-[#D2BB8A] font-bold">Dados de pedidos</span>
               <h3 className="text-3xl font-bold luxury-text flex items-center gap-2 text-[#231F20]">
                 <Sparkles size={24} className="text-[#D2BB8A]" /> Mais Vendidos
               </h3>
@@ -705,7 +705,7 @@ export default function Home() {
         <section className="fade-in-section">
           <div className="flex items-center justify-between mb-6">
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-widest text-[#D2BB8A] font-bold">Especialidade da Casa</span>
+              <span className="text-label uppercase tracking-widest text-[#D2BB8A] font-bold">Especialidade da Casa</span>
               <h3 className="text-3xl font-bold luxury-text flex items-center gap-2 text-[#231F20]">
                 <Flame size={24} className="text-[#5D082A]" /> Seleção para Churrasco
               </h3>
@@ -860,29 +860,29 @@ export default function Home() {
         <div className="grid grid-cols-5 h-16">
           <Link to="/" className="flex flex-col items-center justify-center gap-0.5 text-[#5D082A] cursor-pointer">
             <HomeIcon size={21} className="fill-[#5D082A]" />
-            <span className="text-[10px] font-semibold">Home</span>
+            <span className="text-label font-semibold">Home</span>
           </Link>
           <Link to="/mercado" className="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-[#5D082A] transition-colors cursor-pointer">
             <Search size={21} />
-            <span className="text-[10px] font-medium">Buscar</span>
+            <span className="text-label font-medium">Buscar</span>
           </Link>
           <Link to="/promocoes" className="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-[#5D082A] transition-colors cursor-pointer">
             <Flame size={21} />
-            <span className="text-[10px] font-medium">Promos</span>
+            <span className="text-label font-medium">Promos</span>
           </Link>
           <Link to="/cart" className="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-[#5D082A] transition-colors relative cursor-pointer">
             <ShoppingCart size={21} />
             {count > 0 && (
-              <span className="absolute top-2 right-4 bg-[#5D082A] text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{count}</span>
+              <span className="absolute top-2 right-4 bg-[#5D082A] text-white text-label font-black rounded-full w-4 h-4 flex items-center justify-center">{count}</span>
             )}
             {freeShipping.enabled && freeShipping.achieved && (
               <span className="absolute top-1.5 right-3 bg-emerald-500 rounded-full w-2.5 h-2.5 border-2 border-white" />
             )}
-            <span className="text-[10px] font-medium">Carrinho</span>
+            <span className="text-label font-medium">Carrinho</span>
           </Link>
           <Link to={user ? '/account' : '/login'} className="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-[#5D082A] transition-colors cursor-pointer">
             <User size={21} />
-            <span className="text-[10px] font-medium">{user ? 'Conta' : 'Entrar'}</span>
+            <span className="text-label font-medium">{user ? 'Conta' : 'Entrar'}</span>
           </Link>
         </div>
       </nav>
@@ -932,7 +932,7 @@ function PromoBanner({
             {description && <p className="text-sm leading-relaxed text-white/85 md:text-base">{description}</p>}
             {highlightedProduct && (
               <div className="rounded-lg border border-white/30 bg-white/85 p-3 text-left shadow-xl backdrop-blur-sm">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#5D082A]">Produto Exaltado</p>
+                <p className="text-caption font-black uppercase tracking-[0.16em] text-[#5D082A]">Produto Exaltado</p>
                 <p className="mt-1 text-sm font-bold text-[#231F20]">{highlightedProduct.name}</p>
                 {highlightNote && <p className="mt-1 text-xs text-[#5D082A]">{highlightNote}</p>}
                 <Link
