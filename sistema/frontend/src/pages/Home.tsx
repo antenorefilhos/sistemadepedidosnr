@@ -1,30 +1,16 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-
-// Hook para auto-scroll leve nos carrosséis mobile
-function useAutoScroll(containerRef: React.RefObject<HTMLDivElement>, enabled: boolean = true) {
-  useEffect(() => {
-    if (!enabled || !containerRef.current) return
-
-    const container = containerRef.current
-    const scrollAmount = 280 // px por scroll
-    const scrollInterval = 4000 // 4 segundos entre scrolls
-
-    const autoScroll = () => {
-      const maxScroll = container.scrollWidth - container.clientWidth
-      if (container.scrollLeft >= maxScroll - 10) {
-        // Volta pro início com animação suave
-        container.scrollTo({ left: 0, behavior: 'smooth' })
-      } else {
-        // Scroll para direita com animação suave
-        container.scrollBy({ left: scrollAmount, behavior: 'smooth' })
-      }
-    }
-
-    const intervalId = setInterval(autoScroll, scrollInterval)
-    return () => clearInterval(intervalId)
-  }, [containerRef, enabled])
-}
-
+import { useAutoScroll } from '../hooks/useAutoScroll'
+import {
+  CATEGORY_ICONS,
+  CMS_CATEGORY_TO_RULE_ID,
+  HOME_CATEGORY_RULES,
+  HOME_COMMERCIAL_PRIORITY,
+  RULE_ID_TO_CMS_CODE,
+  normalizeCategoryCode,
+  normalizeWineLink,
+  toCategoryUrlParam,
+  type HomeCategoryRule,
+} from '../utils/homeCategories'
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
@@ -40,7 +26,7 @@ import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock, Home as HomeIcon,
-  Apple, Trash2, Smile, Beer, CupSoda, Croissant, Beef, Flame, Wine, Candy, Pizza, ShoppingBag
+  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
@@ -59,159 +45,6 @@ type PromoBannerView = {
   ctaLabel?: string
   ctaTo?: string
   align?: 'left' | 'right'
-}
-
-const normalizeCategoryCode = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-
-const toCategoryUrlParam = (value: string) =>
-  normalizeCategoryCode(value)
-    .toLowerCase()
-    .replace(/_/g, '-')
-
-type HomeCategoryRule = {
-  id: string
-  label: string
-  query: string
-}
-
-const HOME_COMMERCIAL_PRIORITY: Record<string, number> = {
-  carnes: 1,
-  churrasco: 2,
-  hortifruti: 3,
-  padaria: 4,
-  bebidas: 5,
-  cervejas: 6,
-  vinhos: 7,
-  praticos: 8,
-  doces: 9,
-  limpeza: 10,
-  higiene: 11,
-  perfumaria: 12,
-}
-
-const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
-  {
-    id: 'hortifruti',
-    label: '🥬 Hortifruti Fresquinho',
-    query: 'hortifruti',
-  },
-  {
-    id: 'limpeza',
-    label: '🧼 Limpeza da Casa',
-    query: 'limpeza',
-  },
-  {
-    id: 'higiene',
-    label: '🧴 Higiene Pessoal',
-    query: 'higiene pessoal',
-  },
-  {
-    id: 'perfumaria',
-    label: '✨ Perfumaria & Beleza',
-    query: 'perfumaria',
-  },
-  {
-    id: 'cervejas',
-    label: '🍺 Cervejas Geladas',
-    query: 'cerveja',
-  },
-  {
-    id: 'bebidas',
-    label: '🥤 Bebidas em Geral',
-    query: 'bebidas',
-  },
-  {
-    id: 'padaria',
-    label: '🥖 Padaria & Forno',
-    query: 'padaria',
-  },
-  {
-    id: 'carnes',
-    label: '🥩 Carnes Frescas',
-    query: 'carnes',
-  },
-  {
-    id: 'churrasco',
-    label: '🔥 Para Churrasquear',
-    query: 'churrasco',
-  },
-  {
-    id: 'vinhos',
-    label: '🍷 Adega & Vinhos',
-    query: 'vinhos',
-  },
-  {
-    id: 'doces',
-    label: '🍫 Doces & Guloseimas',
-    query: 'guloseimas',
-  },
-  {
-    id: 'praticos',
-    label: '🍔 Pronto pra Comer',
-    query: 'consumo rapido',
-  },
-]
-
-const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
-  CARNES_DIA_A_DIA: 'carnes',
-  CHURRASCO: 'churrasco',
-  HORTIFRUTI: 'hortifruti',
-  PADARIA: 'padaria',
-  BEBIDAS: 'bebidas',
-  CERVEJAS: 'cervejas',
-  VINHOS: 'vinhos',
-  CONSUMO_RAPIDO: 'praticos',
-  GULOSEIMAS: 'doces',
-  LIMPEZA: 'limpeza',
-  HIGIENE_PESSOAL: 'higiene',
-  PERFUMARIA: 'perfumaria',
-}
-
-// Mapeamento inverso: ruleId → código CMS real (usado para navegar com ?cat= em vez de ?q=)
-const RULE_ID_TO_CMS_CODE: Record<string, string> = {
-  carnes: 'CARNES_DIA_A_DIA',
-  churrasco: 'CHURRASCO',
-  hortifruti: 'HORTIFRUTI',
-  padaria: 'PADARIA',
-  bebidas: 'BEBIDAS',
-  cervejas: 'CERVEJAS',
-  vinhos: 'VINHOS',
-  praticos: 'CONSUMO_RAPIDO',
-  doces: 'GULOSEIMAS',
-  limpeza: 'LIMPEZA',
-  higiene: 'HIGIENE_PESSOAL',
-  perfumaria: 'PERFUMARIA',
-}
-
-const CATEGORY_ICONS: Record<string, React.ComponentType<any>> = {
-  hortifruti: Apple,
-  limpeza: Trash2,
-  higiene: Smile,
-  perfumaria: Sparkles,
-  cervejas: Beer,
-  bebidas: CupSoda,
-  padaria: Croissant,
-  carnes: Beef,
-  churrasco: Flame,
-  vinhos: Wine,
-  doces: Candy,
-  praticos: Pizza,
-  default: ShoppingBag
-}
-
-const normalizeWineLink = (link?: string) => {
-  if (!link) return '#'
-  const normalized = link.trim().toLowerCase()
-  if (normalized === '/vinhos' || normalized === '/adega' || normalized === '/adega-antenor') {
-    return '/adega'
-  }
-  return link
 }
 
 export default function Home() {
@@ -1199,24 +1032,6 @@ export default function Home() {
         </section>
         )}
 
-        {/* Category: CHURRASCO */}
-        {categorized.churrasco.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <Link to="/mercado?q=churrasco" className="cursor-pointer hover:opacity-80 transition-opacity">
-              <h3 className="text-2xl font-bold flex items-center gap-2 text-[#231F20]">
-              <Flame size={22} className="text-[#5D082A]" /> Seleção para Churrasco
-            </h3>
-            </Link>
-          </div>
-          <div className="flex gap-6 overflow-x-auto pb-4 hide-scrollbar snap-x">
-             {categorized.churrasco.map(product => (
-               <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-             ))}
-          </div>
-        </section>
-        )}
-
         {/* Category: CARNES DIA A DIA */}
         {categorized.carnesDiaADia.length > 0 && (
         <section className="fade-in-section">
@@ -1229,22 +1044,6 @@ export default function Home() {
           </div>
           <div className="flex gap-6 overflow-x-auto pb-4 hide-scrollbar snap-x">
              {categorized.carnesDiaADia.map(product => (
-               <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-             ))}
-          </div>
-        </section>
-        )}
-
-        {/* Category: PADARIA */}
-        {categorized.padaria.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-2xl font-bold flex items-center gap-2 text-[#231F20]">
-              <Croissant size={22} className="text-[#5D082A]" /> Padaria & Forno Artesanal
-            </h3>
-          </div>
-          <div className="flex gap-6 overflow-x-auto pb-4 hide-scrollbar snap-x">
-             {categorized.padaria.map(product => (
                <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
              ))}
           </div>
