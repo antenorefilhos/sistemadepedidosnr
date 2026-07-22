@@ -157,12 +157,12 @@ function Account() {
 
   if (!customer) {
     return (
-      <div className="min-h-screen bg-white font-outfit pb-24">
+      <div className="min-h-screen bg-white pb-24">
         <header className="glass sticky top-0 z-50 border-b border-[#D2BB8A]/20">
           <div className="max-w-7xl mx-auto px-4 py-4">
             <Link to="/" className="flex items-center gap-3 w-fit">
               <div className="w-9 h-9 rounded-full bg-[#D2BB8A]/25 border border-[#D2BB8A]/40 flex items-center justify-center">
-                <span className="text-[11px] font-bold tracking-wider text-[#5D082A]">AF</span>
+                <span className="text-caption font-bold tracking-wider text-[#5D082A]">AF</span>
               </div>
               <h1 className="text-xl font-bold tracking-tight text-[#231F20]">
                 Antenor <span className="text-[#5D082A]">& Filhos</span>
@@ -187,12 +187,12 @@ function Account() {
   }
 
   return (
-    <div className="min-h-screen bg-white font-outfit pb-24">
+    <div className="min-h-screen bg-white pb-24">
       <header className="glass border-b border-[#D2BB8A]/20 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-[#D2BB8A]/25 border border-[#D2BB8A]/40 flex items-center justify-center">
-              <span className="text-[11px] font-bold tracking-wider text-[#5D082A]">AF</span>
+              <span className="text-caption font-bold tracking-wider text-[#5D082A]">AF</span>
             </div>
             <h1 className="text-xl font-bold tracking-tight text-[#231F20]">
               Antenor <span className="text-[#5D082A]">& Filhos</span>
@@ -337,7 +337,7 @@ function Account() {
                           <p className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</p>
                         </div>
                         <div className="flex flex-wrap gap-2 justify-end items-center">
-                          {isActive && <span className="inline-flex items-center gap-1 text-[10px] text-[#5D082A] font-semibold"><RefreshCw size={9} className="animate-spin" /> ao vivo</span>}
+                          {isActive && <span className="inline-flex items-center gap-1 text-label text-[#5D082A] font-semibold"><RefreshCw size={9} className="animate-spin" /> ao vivo</span>}
                           <span className={`px-3 py-1 rounded-md text-xs font-semibold border border-transparent ${getStatusClass(order.status)}`}>
                             {getStatusLabel(order.status)}
                           </span>

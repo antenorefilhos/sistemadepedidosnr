@@ -148,7 +148,7 @@ function App() {
                   background: '#5D082A',
                   color: '#FBF7F0',
                   border: '1px solid #D2BB8A',
-                  fontSize: '13px',
+                  fontSize: '0.875rem', // degrau `body` da rampa do DESIGN.md
                   fontWeight: 600,
                   maxWidth: '92vw',
                 },

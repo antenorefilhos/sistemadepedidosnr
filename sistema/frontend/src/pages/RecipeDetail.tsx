@@ -278,7 +278,7 @@ export default function RecipeDetail() {
                           {relatedRecipe.title}
                         </p>
                         {relatedRecipe.prepTime && (
-                          <p className="text-[10px] text-[#8A6A3A] mt-1 flex items-center gap-1">
+                          <p className="text-label text-[#8A6A3A] mt-1 flex items-center gap-1">
                             <Clock size={10} /> {relatedRecipe.prepTime} min
                           </p>
                         )}

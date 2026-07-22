@@ -156,7 +156,7 @@ export default function Cart() {
                           {formatProductTitle(item.product?.name || '')}
                         </h3>
                         {item.product?.isFractional && (
-                          <p className="text-[11px] text-[#5d4f33] mt-1 line-clamp-2">
+                          <p className="text-caption text-[#5d4f33] mt-1 line-clamp-2">
                             {cleanFractionText(item.product?.alternativeDescription) || `Venda fracionada (${(item.product?.unit || 'un').toUpperCase()})`}
                           </p>
                         )}
@@ -360,7 +360,7 @@ function CartItemSubstitutes({ productId }: { productId: string }) {
 
   return (
     <div className="mt-4 rounded-lg border border-amber-100 bg-amber-50/70 p-3">
-      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-800">
+      <p className="text-caption font-black uppercase tracking-[0.14em] text-amber-800">
         Substitutos para este item
       </p>
       <div className="mt-2 flex gap-2 overflow-x-auto pb-1 hide-scrollbar">

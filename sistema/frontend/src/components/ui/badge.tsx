@@ -18,7 +18,7 @@ export function Badge({ className, tone = 'gold', ...props }: BadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex h-6 items-center rounded-md border px-2 text-[10px] font-bold uppercase tracking-wider',
+        'inline-flex h-6 items-center rounded-md border px-2 text-label font-bold uppercase tracking-wider',
         toneClasses[tone],
         className,
       )}

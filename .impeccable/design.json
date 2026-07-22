@@ -1,59 +1,132 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-11T19:54:00Z",
+  "generatedAt": "2026-07-22T01:30:00Z",
   "title": "Design System: Mercado Antenor & Filhos",
   "extensions": {
     "colorMeta": {
-      "primary": { "role": "primary", "displayName": "Burgundy Tradicional", "canonical": "#5D082A", "tonalRamp": ["#3b0217", "#4b0520", "#5d082a", "#7a1a3e", "#992f55", "#b8476d", "#d66387", "#f282a2"] },
-      "secondary": { "role": "secondary", "displayName": "Gold Premium", "canonical": "#D2BB8A", "tonalRamp": ["#6e5a31", "#8f7645", "#b0935a", "#d2bb8a", "#dfcca4", "#ebdcbf", "#f5ebdb", "#faf6f0"] },
-      "neutral-fg": { "role": "neutral", "displayName": "Onyx Principal", "canonical": "#231F20", "tonalRamp": ["#000000", "#121011", "#231f20", "#3a3536", "#554f50", "#736d6e", "#958f90", "#bbb5b6"] },
-      "neutral-bg": { "role": "neutral", "displayName": "Cream Suave", "canonical": "#F5F5F0", "tonalRamp": ["#858580", "#a3a39e", "#c2c2bd", "#e0e0db", "#f5f5f0", "#fafaf7", "#fcfcfb", "#ffffff"] }
+      "burgundy": { "role": "primary", "displayName": "Bordo Tradicional", "canonical": "#5D082A", "tonalRamp": ["#2c0114", "#3b0217", "#4a0621", "#5d082a", "#7a1a3e", "#992f55", "#c2718d", "#e9c3d0"] },
+      "burgundy-deep": { "role": "primary", "displayName": "Bordo Profundo", "canonical": "#4A0621", "tonalRamp": ["#22010e", "#310215", "#4a0621", "#5d082a", "#761c3f", "#943a5b", "#bd7791", "#e5c1cf"] },
+      "gold": { "role": "secondary", "displayName": "Dourado Premium", "canonical": "#D2BB8A", "tonalRamp": ["#4d3f24", "#6e5a31", "#8f7645", "#b0935a", "#d2bb8a", "#dfcca4", "#ebdcbf", "#f7efe1"] },
+      "gold-deep": { "role": "secondary", "displayName": "Dourado Profundo", "canonical": "#C1A978", "tonalRamp": ["#453820", "#63512c", "#826b3f", "#a18a56", "#c1a978", "#d3c096", "#e4d7b8", "#f4eddd"] },
+      "sand": { "role": "secondary", "displayName": "Areia", "canonical": "#E8D7B0", "tonalRamp": ["#564a2f", "#77673f", "#988552", "#b9a46c", "#d4c091", "#e8d7b0", "#f2e8ce", "#faf5e9"] },
+      "cream": { "role": "neutral", "displayName": "Creme", "canonical": "#F5F5F0", "tonalRamp": ["#57574f", "#75756c", "#93938a", "#b1b1a8", "#d0d0c7", "#e6e6df", "#f5f5f0", "#fdfdfb"] },
+      "cream-light": { "role": "neutral", "displayName": "Creme Claro", "canonical": "#F8F4EA", "tonalRamp": ["#5b5443", "#79715c", "#978e76", "#b5ac93", "#d3ccb6", "#ebe4d3", "#f8f4ea", "#fefdfa"] },
+      "onyx": { "role": "neutral", "displayName": "Ônix", "canonical": "#231F20", "tonalRamp": ["#000000", "#121011", "#231f20", "#3a3536", "#554f50", "#736d6e", "#958f90", "#bbb5b6"] },
+      "bark": { "role": "neutral", "displayName": "Casca", "canonical": "#5D4F33", "tonalRamp": ["#241e13", "#3a301f", "#4e412a", "#5d4f33", "#7d6b48", "#9d8a63", "#c0b092", "#e2dac9"] },
+      "tobacco": { "role": "neutral", "displayName": "Tabaco", "canonical": "#8A6A3A", "tonalRamp": ["#3a2c18", "#523f22", "#6b522d", "#8a6a3a", "#a8874f", "#c3a677", "#dbc7a4", "#f0e6d4"] }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Títulos grandes e banners." },
-      "body": { "displayName": "Corpo", "purpose": "Texto corrido, descrições e tabelas." }
+      "display": { "displayName": "Display", "purpose": "Título de página e preço em destaque na PDP." },
+      "headline": { "displayName": "Headline", "purpose": "Título de vitrine no desktop." },
+      "title": { "displayName": "Title", "purpose": "Título de vitrine no mobile e cabeçalho de card." },
+      "body": { "displayName": "Corpo", "purpose": "Texto padrão, nome de produto e dados. Prosa longa em 65–75ch." },
+      "caption": { "displayName": "Caption", "purpose": "Metadados, texto de apoio e preço de referência. Degrau mais usado da interface." },
+      "label": { "displayName": "Label", "purpose": "Eyebrow de vitrine e selos, em caixa alta com tracking curto." }
     },
     "shadows": [
-      { "name": "card-shadow", "value": "0 2px 8px rgba(35,31,32,0.05)", "purpose": "Leve separação de cards contra o fundo." },
-      { "name": "modal-shadow", "value": "0 10px 25px rgba(35,31,32,0.15)", "purpose": "Elevada profundidade para modais e popups." }
+      { "name": "rest", "value": "0 1px 2px rgba(0,0,0,0.05)", "purpose": "Sombra de repouso, quase imperceptível. Em migração para borda tonal." },
+      { "name": "state", "value": "0 4px 6px rgba(0,0,0,0.06)", "purpose": "Resposta a hover em superfícies interativas." },
+      { "name": "brand", "value": "0 10px 20px rgba(93,8,42,0.08)", "purpose": "Sombra ampla tingida de bordo. Cards em destaque e modais." }
     ],
     "motion": [
-      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Efeito padrão para transições de hover." }
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Easing padrão para transições de estado." },
+      { "name": "duration-fast", "value": "200ms", "purpose": "Hover e mudança de cor." },
+      { "name": "duration-card", "value": "300ms", "purpose": "Elevação e translação do card de produto." },
+      { "name": "press", "value": "scale(0.98)", "purpose": "Resposta tátil ao toque em botões." }
     ],
     "breakpoints": [
       { "name": "sm", "value": "640px" },
-      { "name": "lg", "value": "1024px" }
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
     ]
   },
   "components": [
     {
-      "name": "Botão Primário",
+      "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Botão principal de chamada para ação (CTA).",
-      "html": "<button class=\"ds-btn-primary\">ADICIONAR</button>",
-      "css": ".ds-btn-primary { background: #5D082A; color: #ffffff; padding: 10px 20px; font-weight: 600; border: none; border-radius: 8px; font-family: sans-serif; cursor: pointer; transition: background 0.2s; } .ds-btn-primary:hover { background: #45051d; }"
+      "description": "Ação primária: adicionar ao carrinho, continuar, fechar pedido.",
+      "html": "<button class=\"ds-btn-primary\">Adicionar ao carrinho</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border: none; border-radius: 6px; background: var(--color-burgundy, #5D082A); color: #fff; font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 200ms cubic-bezier(0.4,0,0.2,1), transform 200ms; } .ds-btn-primary:hover { background: #4A0621; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(93,8,42,0.3); } .ds-btn-primary:active { transform: scale(0.98); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Ação secundária de destaque, usada sobre fundos escuros (Adega, banners).",
+      "html": "<button class=\"ds-btn-secondary\">Acessar Adega</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border: none; border-radius: 6px; background: var(--color-gold, #D2BB8A); color: var(--color-onyx, #231F20); font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 200ms cubic-bezier(0.4,0,0.2,1), transform 200ms; } .ds-btn-secondary:hover { background: #C1A978; } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(210,187,138,0.5); } .ds-btn-secondary:active { transform: scale(0.98); }"
+    },
+    {
+      "name": "Subtle Button",
+      "kind": "button",
+      "refersTo": "button-subtle",
+      "description": "Alternância de baixo peso, como o par Unidade/Peso no card de pesáveis.",
+      "html": "<button class=\"ds-btn-subtle\">Peso</button>",
+      "css": ".ds-btn-subtle { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; border: none; border-radius: 9999px; background: #F8F4EA; color: var(--color-burgundy, #5D082A); font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 200ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-subtle:hover { background: rgba(232,215,176,0.6); } .ds-btn-subtle:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(210,187,138,0.6); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de formulário do checkout e da busca. 16px no mobile para não disparar zoom no iOS.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"00000-000\" aria-label=\"CEP\" />",
+      "css": ".ds-input { height: 40px; width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid rgba(210,187,138,0.7); border-radius: 6px; background: #fff; color: var(--color-onyx, #231F20); font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); } .ds-input::placeholder { color: rgba(138,106,58,0.6); } .ds-input:focus-visible { outline: none; box-shadow: 0 0 0 2px #D2BB8A; } .ds-input:disabled { opacity: 0.6; cursor: not-allowed; } @media (max-width: 767px) { .ds-input { font-size: 16px; } }"
+    },
+    {
+      "name": "Product Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Card de produto: nome ancorado no topo, preço no rodapé, folga sobrando entre os dois.",
+      "html": "<article class=\"ds-card\"><div class=\"ds-card-media\"><span class=\"ds-card-badge\">Pesável</span></div><div class=\"ds-card-body\"><p class=\"ds-card-eyebrow\">Porção mínima de 800 g</p><h3 class=\"ds-card-title\">Abóbora Sergipana kg</h3><div class=\"ds-card-foot\"><span class=\"ds-card-ref\">R$ 6,99/kg</span><p class=\"ds-card-price\"><span>R$</span>5,59<small>/800 g</small></p></div></div></article>",
+      "css": ".ds-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(232,215,176,0.7); border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: box-shadow 300ms cubic-bezier(0.4,0,0.2,1), transform 300ms, border-color 300ms; font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif; } .ds-card:hover { transform: translateY(-2.5px); border-color: #D2BB8A; box-shadow: 0 4px 6px rgba(0,0,0,0.06); } .ds-card-media { position: relative; aspect-ratio: 1; background: #fafafa; border-bottom: 1px solid rgba(232,215,176,0.3); } .ds-card-badge { position: absolute; top: 8px; left: 8px; border-radius: 9999px; background: #F8F4EA; color: #5D4F33; padding: 2px 8px; font-size: 10px; font-weight: 600; } .ds-card-body { display: flex; flex: 1; flex-direction: column; padding: 12px; } .ds-card-eyebrow { margin: 0 0 2px; color: #8A6A3A; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.2; } .ds-card-title { margin: 0; color: var(--color-onyx, #231F20); font-size: 13px; font-weight: 600; line-height: 1.35; } .ds-card-foot { margin-top: auto; padding-top: 12px; } .ds-card-ref { display: block; color: #6b7280; font-size: 10px; } .ds-card-price { display: flex; align-items: baseline; gap: 2px; margin: 0; color: var(--color-burgundy, #5D082A); font-size: 29px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; } .ds-card-price span { font-size: 11px; font-weight: 600; } .ds-card-price small { color: #6b7280; font-size: 11px; font-weight: 500; }"
+    },
+    {
+      "name": "Shelf Header",
+      "kind": "nav",
+      "refersTo": "card",
+      "description": "Cabeçalho de vitrine: eyebrow, título com ícone e link ver-mais.",
+      "html": "<div class=\"ds-shelf\"><div><span class=\"ds-shelf-eyebrow\">Compra recorrente</span><h2 class=\"ds-shelf-title\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"8\" cy=\"21\" r=\"1\"/><circle cx=\"19\" cy=\"21\" r=\"1\"/><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\"/></svg>Mais fáceis de repetir</h2></div><a class=\"ds-shelf-link\" href=\"#\">Ver mais</a></div>",
+      "css": ".ds-shelf { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 12px; font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif; } .ds-shelf-eyebrow { display: block; color: #8A6A3A; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; } .ds-shelf-title { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; color: var(--color-onyx, #231F20); font-size: 20px; font-weight: 700; line-height: 1.3; } .ds-shelf-title svg { flex-shrink: 0; color: var(--color-burgundy, #5D082A); } .ds-shelf-link { flex-shrink: 0; color: var(--color-burgundy, #5D082A); font-size: 12px; font-weight: 600; text-decoration: none; } .ds-shelf-link:hover { text-decoration: underline; }"
     }
   ],
   "narrative": {
     "northStar": "O Armazém de Tradição Premium",
-    "overview": "O Mercado Antenor & Filhos combina a sensação acolhedora e confiável de uma feira ou empório tradicional com a sofisticação e conveniência de um e-commerce premium.",
+    "overview": "O sistema combina a confiança de um empório de bairro com a velocidade que a compra da semana exige. A tradição familiar é o pano de fundo — bordo, dourado e creme, materiais quentes —, mas ela nunca cobra pedágio da tarefa: o cliente veio resolver a compra, não admirar a interface. Quando o aconchego e a eficiência entram em conflito, a eficiência vence nas superfícies de tarefa (Mercado, Produto, Carrinho, Checkout) e o aconchego lidera nas superfícies de desejo (Home, Adega).\n\nA paleta é Restrained: neutros quentes cobrem quase toda a tela e o bordo aparece com parcimônia, reservado a ação primária, preço e seleção. O dourado não é decoração espalhada — é selo, borda e acento de curadoria. O produto (a foto, o preço, o peso) é o elemento mais chamativo de qualquer tela; a interface recua.\n\nEste sistema rejeita explicitamente o visual de painel SaaS genérico, o encarte promocional barulhento e a estética de ferramenta técnica. Nenhum desses vende comida.",
     "keyCharacteristics": [
-      "Acolhimento familiar e foco no frescor.",
-      "Uso de tons quentes e ricos (Burgundy e Gold).",
-      "Layout limpo, legível e livre de poluição visual."
+      "Neutros quentes dominantes, bordo escasso e intencional",
+      "Densidade confortável: alvos generosos, mas sem desperdício de tela no mobile",
+      "Preço como elemento tipográfico mais pesado do card",
+      "Contornos finos no lugar de sombras pesadas",
+      "Uma única família tipográfica em múltiplos pesos"
     ],
     "rules": [
-      { "name": "The Burgundy Rule", "body": "A cor primária (#5D082A) é o tom de voz principal; não a dilua com variações pastel desbotadas.", "section": "colors" }
+      { "name": "The Burgundy Rule", "body": "O bordo é o tom de voz principal e nunca é diluído em variações pastel desbotadas. Se uma tela tem mais de três elementos em bordo, dois estão errados.", "section": "colors" },
+      { "name": "The No-Gray Rule", "body": "Texto secundário sobre fundo quente usa Casca (#5D4F33) ou Tabaco (#8A6A3A), nunca um cinza neutro. Cinza sobre creme lava e é o tell nº 1 de interface genérica.", "section": "colors" },
+      { "name": "The Price-Is-Loudest Rule", "body": "Em qualquer card de produto, o preço é o elemento tipográfico mais pesado (≈29px, peso 700). Nome do produto e rótulos jamais competem com ele.", "section": "typography" },
+      { "name": "The Tight-Tracking Rule", "body": "Rótulo em caixa alta nunca passa de 0.04em de tracking. Acima disso a palavra esparrama e quebra em duas linhas.", "section": "typography" },
+      { "name": "The Tonal-First Rule", "body": "Antes de alcançar uma sombra, tente uma camada de tom ou uma borda de 1px. Sombra que não responde a um estado é decoração e está proibida.", "section": "elevation" },
+      { "name": "The Warm-Shadow Rule", "body": "Quando houver sombra ampla, ela é tingida de bordo (rgba(93,8,42,…)), nunca preto puro. Preto sobre creme suja.", "section": "elevation" }
     ],
     "dos": [
-      "Do usar a cor Burgundy em botões de ação principal para direcionar a jornada do usuário.",
-      "Do manter o contraste mínimo de 4.5:1 em todos os textos para garantir total legibilidade no mobile."
+      "Do usar Bordo (#5D082A) em ação primária, preço e seleção — e em mais nada.",
+      "Do manter contraste mínimo de 4.5:1 em texto corpo e 3:1 em texto grande (meta WCAG 2.1 AA do PRODUCT.md).",
+      "Do ancorar o preço no rodapé do card com mt-auto e deixar a folga cair entre nome e preço.",
+      "Do usar Casca ou Tabaco para texto secundário sobre fundos quentes.",
+      "Do manter font-size: 16px em campos de formulário no mobile, para não disparar zoom no iOS.",
+      "Do deixar o card esticar por align-items: stretch para igualar alturas."
     ],
     "donts": [
-      "Don't utilizar bordas coloridas espessas em apenas um dos lados dos cards (side-stripes).",
+      "Don't usar bordas coloridas espessas em apenas um dos lados dos cards (side-stripes).",
       "Don't aplicar gradientes sobrepostos em textos ou títulos Display.",
-      "Don't utilizar sombras exageradas ou cores neon descontextualizadas da paleta tradicional da marca."
+      "Don't utilizar sombras exageradas ou cores neon descontextualizadas da paleta tradicional da marca.",
+      "Don't produzir layouts genéricos de SaaS — cinzas claros desbotados, sombras exageradas ou gradientes artificiais no texto.",
+      "Don't produzir telas de encarte promocional poluídas, cheias e barulhentas.",
+      "Don't deixar a interface parecer painel de controle de backend ou banco de dados cru.",
+      "Don't usar min-height fixo em blocos internos do card para forçar alinhamento: isso cria vazio no meio.",
+      "Don't aplicar h-full num item de flex/grid esperando alturas iguais — um height explícito desativa o stretch.",
+      "Don't declarar famílias tipográficas que não são carregadas (Google Sans Flex), nem aplicar classes de fonte inexistentes como font-outfit."
     ]
   }
 }

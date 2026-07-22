@@ -75,7 +75,7 @@ export default function WinePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#231F20] text-white font-outfit">
+    <div className="min-h-screen bg-[#231F20] text-white">
       <SEO 
         title="Adega Antenor | Vinhos de Luxo" 
         description="Vinhos escolhidos para presentear, comemorar e surpreender. Descubra rótulos que valem a pena levar para casa."
@@ -89,12 +89,12 @@ export default function WinePage() {
           </Link>
           <div className="text-center flex-1">
              <h1 className="luxury-text text-xl text-[#D2BB8A] tracking-[0.2em] uppercase">Adega Antenor</h1>
-             <p className="text-[8px] text-[#D2BB8A]/60 -mt-1 tracking-widest uppercase">Since 2026</p>
+             <p className="text-label text-[#D2BB8A]/60 -mt-1 tracking-widest uppercase">Since 2026</p>
           </div>
           <Link to="/cart" className="relative p-2 text-[#D2BB8A]" aria-label={`Carrinho com ${count} itens`}>
             <ShoppingCart size={24} />
             {count > 0 && (
-              <span className="absolute -top-1 -right-1 bg-white text-[#231F20] text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-white text-[#231F20] text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
                 {count}
               </span>
             )}
@@ -199,7 +199,7 @@ function WineCard({ product }: { product: Product }) {
           {/* Badge Overlay */}
           <div className="absolute top-3 left-3 flex flex-col gap-1">
             {product.badges && (
-              <Badge tone="gold" className="h-5 bg-[#D2BB8A] text-[#231F20] text-[8px] shadow-lg">
+              <Badge tone="gold" className="h-5 bg-[#D2BB8A] text-[#231F20] text-label shadow-lg">
                 {product.badges}
               </Badge>
             )}
@@ -225,7 +225,7 @@ function WineCard({ product }: { product: Product }) {
                  {formatWineTitle(product.name)}
                </h3>
              </Link>
-             <p className="text-[10px] text-white/40 italic mt-1 line-clamp-1">
+             <p className="text-label text-white/40 italic mt-1 line-clamp-1">
                {formatWineDescription(product.alternativeDescription)}
              </p>
           </div>
