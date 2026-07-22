@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useHomeShelves } from '../hooks/useHomeShelves'
 import {
   CATEGORY_ICONS,
@@ -18,6 +17,7 @@ import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationMo
 import { resolveApiUrl } from '../services/api'
 import type { Product } from '../types'
 import { StoreProductCard } from '../components/StoreProductCard'
+import { ProductShelf } from '../components/ProductShelf'
 import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
 import {
@@ -47,28 +47,6 @@ export default function Home() {
   const navigate = useNavigate()
   const touchStartX = useRef(0)
   const categoriesScrollRef = useRef<HTMLDivElement | null>(null)
-  
-  // Refs para auto-scroll dos carrosséis mobile
-  const bestSellersScrollRef = useRef<HTMLDivElement | null>(null)
-  const rebuyScrollRef = useRef<HTMLDivElement | null>(null)
-  const offersScrollRef = useRef<HTMLDivElement | null>(null)
-  const freshScrollRef = useRef<HTMLDivElement | null>(null)
-  const fairScrollRef = useRef<HTMLDivElement | null>(null)
-  const recurringScrollRef = useRef<HTMLDivElement | null>(null)
-  const churrascoScrollRef = useRef<HTMLDivElement | null>(null)
-  const padariaScrollRef = useRef<HTMLDivElement | null>(null)
-  const tudoMercadoScrollRef = useRef<HTMLDivElement | null>(null)
-
-  // Ativar auto-scroll nos carrosséis mobile
-  useAutoScroll(bestSellersScrollRef)
-  useAutoScroll(rebuyScrollRef)
-  useAutoScroll(offersScrollRef)
-  useAutoScroll(freshScrollRef)
-  useAutoScroll(fairScrollRef)
-  useAutoScroll(recurringScrollRef)
-  useAutoScroll(churrascoScrollRef)
-  useAutoScroll(padariaScrollRef)
-  useAutoScroll(tudoMercadoScrollRef)
 
   const { data: products, isLoading: productsLoading } = useProducts()
   const { data: storeBanners } = useStoreBanners()
@@ -496,82 +474,66 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── MOBILE MAIN — seção Popular Now ── */}
-      {rebuyShelf.length > 0 && (
-        <MobileProductShelf
-          title={user ? 'Recomprar rapidinho' : 'Atalhos para repetir'}
-          subtitle={user ? 'Historico do cliente' : 'Mais pedidos da loja'}
-          icon={ShoppingCart}
-          products={rebuyShelf}
-          to="/mercado"
-          linkLabel="Ver mais"
-          scrollRef={rebuyScrollRef}
-        />
-      )}
+      {/* ── MOBILE MAIN — vitrines de intencao ── */}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title={user ? 'Recomprar rapidinho' : 'Atalhos para repetir'}
+        eyebrow={user ? 'Historico do cliente' : 'Mais pedidos da loja'}
+        icon={ShoppingCart}
+        products={rebuyShelf}
+        to="/mercado"
+        linkLabel="Ver mais"
+      />
 
-      {offersShelf.length > 0 && (
-        <MobileProductShelf
-          title="Ofertas para hoje"
-          subtitle="Preco e margem"
-          icon={Sparkles}
-          products={offersShelf}
-          to="/promocoes"
-          linkLabel="Promos"
-          scrollRef={offersScrollRef}
-        />
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Ofertas para hoje"
+        eyebrow="Preco e margem"
+        icon={Sparkles}
+        products={offersShelf}
+        to="/promocoes"
+        linkLabel="Promos"
+      />
 
-      {freshShelf.length > 0 && (
-        <MobileProductShelf
-          title="Frescos da loja"
-          subtitle="Acougue e padaria"
-          icon={Apple}
-          products={freshShelf}
-          to="/mercado?cat=hortifruti"
-          linkLabel="Ver frescos"
-          scrollRef={freshScrollRef}
-        />
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Frescos da loja"
+        eyebrow="Acougue e padaria"
+        icon={Apple}
+        products={freshShelf}
+        to="/mercado?cat=hortifruti"
+        linkLabel="Ver frescos"
+      />
 
-      {fairShelf.length > 0 && (
-        <MobileProductShelf
-          title="Feira da semana"
-          subtitle="Hortifruti e frescos"
-          icon={Apple}
-          products={fairShelf}
-          to="/mercado?cat=hortifruti"
-          linkLabel="Ver feira"
-          scrollRef={fairScrollRef}
-        />
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Feira da semana"
+        eyebrow="Hortifruti e frescos"
+        icon={Apple}
+        products={fairShelf}
+        to="/mercado?cat=hortifruti"
+        linkLabel="Ver feira"
+      />
 
-      {recurringShelf.length > 0 && (
-        <MobileProductShelf
-          title="Recorrentes da casa"
-          subtitle="Itens que sempre voltam"
-          icon={ShoppingBag}
-          products={recurringShelf}
-          to="/mercado?q=recorrentes"
-          linkLabel="Ver itens"
-          scrollRef={recurringScrollRef}
-        />
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Recorrentes da casa"
+        eyebrow="Itens que sempre voltam"
+        icon={ShoppingBag}
+        products={recurringShelf}
+        to="/mercado?q=recorrentes"
+        linkLabel="Ver itens"
+      />
 
-      {bestSellers.length > 0 && (
-        <section className="md:hidden px-4 pt-5 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-[#231F20]">Mais Pedidos</h2>
-            <Link to="/mercado" className="text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">
-              Ver todos <ArrowRight size={13} />
-            </Link>
-          </div>
-          <div ref={bestSellersScrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-            {bestSellers.map(product => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-            ))}
-          </div>
-        </section>
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pt-5 pb-2"
+        title="Mais Pedidos"
+        eyebrow="Dados de pedidos"
+        icon={Sparkles}
+        products={bestSellers}
+        to="/mercado"
+        linkLabel="Ver todos"
+      />
 
       {/* Mobile Promo Banner */}
       {promoBanner1 && (
@@ -614,53 +576,35 @@ export default function Home() {
       )}
 
       {/* Mobile — Mais seções de produto */}
-      {churrascoOccasionShelf.length > 0 && (
-        <section className="md:hidden px-4 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-[#231F20] flex items-center gap-2">
-              <Flame size={18} className="text-[#5D082A]" /> Churrasco e ocasião
-            </h2>
-            <Link to="/mercado?q=churrasco" className="text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">Ver todos <ArrowRight size={13} /></Link>
-          </div>
-          <div ref={churrascoScrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-            {churrascoOccasionShelf.map(product => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-            ))}
-          </div>
-        </section>
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pb-2"
+        title="Churrasco e ocasião"
+        eyebrow="Ocasião pronta"
+        icon={Flame}
+        products={churrascoOccasionShelf}
+        to="/mercado?q=churrasco"
+        linkLabel="Ver todos"
+      />
 
-      {categorized.padaria.length > 0 && (
-        <section className="md:hidden px-4 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-[#231F20] flex items-center gap-2">
-              <Croissant size={18} className="text-[#5D082A]" /> Padaria & Pães Artesanais
-            </h2>
-            <Link to="/mercado?q=padaria" className="text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">Ver todos <ArrowRight size={13} /></Link>
-          </div>
-          <div ref={padariaScrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-            {categorized.padaria.map(product => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-            ))}
-          </div>
-        </section>
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pb-2"
+        title="Padaria & Pães Artesanais"
+        eyebrow="Forno da casa"
+        icon={Croissant}
+        products={categorized.padaria}
+        to="/mercado?q=padaria"
+        linkLabel="Ver todos"
+      />
 
-      {(categorized.outros.length > 0 || categorized.bebidas.length > 0) && (
-        <section className="md:hidden px-4 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-[#231F20] flex items-center gap-2">
-              <ShoppingBag size={18} className="text-[#5D082A]" /> Tudo do Mercado
-            </h2>
-            <Link to="/mercado" className="text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">Ver todos <ArrowRight size={13} /></Link>
-          </div>
-          <div ref={tudoMercadoScrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-            {[...categorized.outros, ...categorized.bebidas].map(product => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-            ))}
-          </div>
-        </section>
-      )}
+      <ProductShelf
+        className="md:hidden px-4 pb-2"
+        title="Tudo do Mercado"
+        eyebrow="Catálogo completo"
+        icon={ShoppingBag}
+        products={[...categorized.outros, ...categorized.bebidas]}
+        to="/mercado"
+        linkLabel="Ver todos"
+      />
 
       {/* ── DESKTOP MAIN ── */}
       <main className="hidden md:block max-w-7xl mx-auto px-4 py-8 space-y-12 pb-24">
@@ -685,60 +629,54 @@ export default function Home() {
         )}
 
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
-          {rebuyShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow={user ? 'Historico de compra' : 'Compra recorrente'}
-              title={user ? 'Recompre em poucos cliques' : 'Mais fáceis de repetir'}
-              icon={ShoppingCart}
-              products={rebuyShelf.slice(0, 6)}
-              to="/mercado"
-            />
-          )}
-          {offersShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Ofertas e oportunidade"
-              title="Melhores escolhas de hoje"
-              icon={Sparkles}
-              products={offersShelf.slice(0, 6)}
-              to="/promocoes"
-            />
-          )}
-          {freshShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Frescos e balcão"
-              title="Para levar fresco agora"
-              icon={Apple}
-              products={freshShelf.slice(0, 6)}
-              to="/mercado?cat=hortifruti"
-            />
-          )}
-          {churrascoOccasionShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Ocasião pronta"
-              title="Churrasco sem garimpo"
-              icon={Flame}
-              products={churrascoOccasionShelf.slice(0, 6)}
-              to="/mercado?q=churrasco"
-            />
-          )}
-          {fairShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Feira e hortifruti"
-              title="Reposição fresca da semana"
-              icon={Apple}
-              products={fairShelf.slice(0, 6)}
-              to="/mercado?cat=hortifruti"
-            />
-          )}
-          {recurringShelf.length > 0 && (
-            <DesktopIntentShelf
-              eyebrow="Compra recorrente"
-              title="Itens que sempre voltam"
-              icon={ShoppingBag}
-              products={recurringShelf.slice(0, 6)}
-              to="/mercado?q=recorrentes"
-            />
-          )}
+          <ProductShelf
+            layout="grid"
+            eyebrow={user ? 'Historico de compra' : 'Compra recorrente'}
+            title={user ? 'Recompre em poucos cliques' : 'Mais fáceis de repetir'}
+            icon={ShoppingCart}
+            products={rebuyShelf.slice(0, 6)}
+            to="/mercado"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Ofertas e oportunidade"
+            title="Melhores escolhas de hoje"
+            icon={Sparkles}
+            products={offersShelf.slice(0, 6)}
+            to="/promocoes"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Frescos e balcão"
+            title="Para levar fresco agora"
+            icon={Apple}
+            products={freshShelf.slice(0, 6)}
+            to="/mercado?cat=hortifruti"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Ocasião pronta"
+            title="Churrasco sem garimpo"
+            icon={Flame}
+            products={churrascoOccasionShelf.slice(0, 6)}
+            to="/mercado?q=churrasco"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Feira e hortifruti"
+            title="Reposição fresca da semana"
+            icon={Apple}
+            products={fairShelf.slice(0, 6)}
+            to="/mercado?cat=hortifruti"
+          />
+          <ProductShelf
+            layout="grid"
+            eyebrow="Compra recorrente"
+            title="Itens que sempre voltam"
+            icon={ShoppingBag}
+            products={recurringShelf.slice(0, 6)}
+            to="/mercado?q=recorrentes"
+          />
         </div>
 
         {bestSellers.length > 0 && (
@@ -952,82 +890,6 @@ export default function Home() {
       {/* Mobile bottom padding para não tapar conteúdo com nav */}
       <div className="md:hidden h-16" />
     </div>
-  )
-}
-
-function MobileProductShelf({
-  title,
-  subtitle,
-  icon: Icon,
-  products,
-  to,
-  linkLabel,
-  scrollRef,
-}: {
-  title: string
-  subtitle: string
-  icon: React.ComponentType<any>
-  products: Product[]
-  to: string
-  linkLabel: string
-  scrollRef: React.RefObject<HTMLDivElement>
-}) {
-  return (
-    <section className="md:hidden px-4 pt-5 pb-2">
-      <div className="flex items-end justify-between gap-3 mb-3">
-        <div className="min-w-0">
-          <span className="block text-[10px] uppercase tracking-widest text-[#8A6A3A] font-bold">{subtitle}</span>
-          <h2 className="text-base font-bold text-[#231F20] flex items-center gap-2">
-            <Icon size={18} className="text-[#5D082A]" />
-            <span className="truncate">{title}</span>
-          </h2>
-        </div>
-        <Link to={to} className="shrink-0 text-xs text-[#5D082A] font-semibold flex items-center gap-0.5">
-          {linkLabel} <ArrowRight size={13} />
-        </Link>
-      </div>
-      <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-3 no-scrollbar snap-x -mx-4 px-4">
-        {products.map(product => (
-          <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function DesktopIntentShelf({
-  eyebrow,
-  title,
-  icon: Icon,
-  products,
-  to,
-}: {
-  eyebrow: string
-  title: string
-  icon: React.ComponentType<any>
-  products: Product[]
-  to: string
-}) {
-  return (
-    <section className="fade-in-section min-w-0">
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <span className="text-[10px] uppercase tracking-widest text-[#8A6A3A] font-bold">{eyebrow}</span>
-          <h2 className="mt-1 flex items-center gap-2 text-xl font-bold text-[#231F20]">
-            <Icon size={20} className="shrink-0 text-[#5D082A]" />
-            <span className="truncate">{title}</span>
-          </h2>
-        </div>
-        <Link to={to} className="shrink-0 text-xs text-[#5D082A] font-bold hover:underline">
-          Ver
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {products.map(product => (
-          <StoreProductCard key={product.id} product={product} source="HOME" variant="grid" />
-        ))}
-      </div>
-    </section>
   )
 }
 
