@@ -622,7 +622,7 @@ export default function Home() {
         title="Tudo do Mercado"
         eyebrow="Catálogo completo"
         icon={ShoppingBag}
-        products={[...categorized.outros, ...categorized.bebidas]}
+        products={[...categorized.outros, ...categorized.bebidas].slice(0, 12)}
         to="/mercado"
         linkLabel="Ver todos"
       />

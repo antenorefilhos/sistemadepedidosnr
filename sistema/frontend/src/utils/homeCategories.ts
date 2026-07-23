@@ -65,36 +65,52 @@ export const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
   { id: 'praticos', label: '🍔 Pronto pra Comer', query: 'consumo rapido' },
 ]
 
-/** Codigo de categoria do CMS -> id da regra local. */
+/**
+ * Codigo de categoria do CMS -> id da regra local.
+ *
+ * A taxonomia do CMS foi reescrita e cinco codigos antigos ficaram inativos
+ * (`CARNES_DIA_A_DIA`, `BEBIDAS`, `VINHOS`, `GULOSEIMAS`, `CONSUMO_RAPIDO`).
+ * Os antigos seguem aqui so por compatibilidade: vem do backend como
+ * `active: false`, entao sao descartados antes de virar vitrine.
+ */
 export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
-  CARNES_DIA_A_DIA: 'carnes',
+  // Codigos vigentes no CMS
+  CARNES: 'carnes',
   CHURRASCO: 'churrasco',
   HORTIFRUTI: 'hortifruti',
   PADARIA: 'padaria',
-  BEBIDAS: 'bebidas',
+  BEBIDAS_SEM_ALCOOL: 'bebidas',
   CERVEJAS: 'cervejas',
-  VINHOS: 'vinhos',
-  CONSUMO_RAPIDO: 'praticos',
-  GULOSEIMAS: 'doces',
+  ADEGA: 'vinhos',
+  CHOCOLATES_BALAS_E_SNACKS: 'doces',
   LIMPEZA: 'limpeza',
   HIGIENE_PESSOAL: 'higiene',
-  PERFUMARIA: 'perfumaria',
+  PERFUMARIA_E_BELEZA: 'perfumaria',
+  // Legado — inativos no CMS, mantidos para nao quebrar links antigos
+  CARNES_DIA_A_DIA: 'carnes',
+  BEBIDAS: 'bebidas',
+  VINHOS: 'vinhos',
+  GULOSEIMAS: 'doces',
+  CONSUMO_RAPIDO: 'praticos',
 }
 
-/** Inverso de CMS_CATEGORY_TO_RULE_ID — usado para navegar com `?cat=` em vez de `?q=`. */
+/**
+ * Inverso — define QUAL codigo e consultado no backend (`?category=`) para
+ * montar a vitrine, entao aponta sempre para o codigo vigente.
+ */
 export const RULE_ID_TO_CMS_CODE: Record<string, string> = {
-  carnes: 'CARNES_DIA_A_DIA',
+  carnes: 'CARNES',
   churrasco: 'CHURRASCO',
   hortifruti: 'HORTIFRUTI',
   padaria: 'PADARIA',
-  bebidas: 'BEBIDAS',
+  bebidas: 'BEBIDAS_SEM_ALCOOL',
   cervejas: 'CERVEJAS',
-  vinhos: 'VINHOS',
+  vinhos: 'ADEGA',
   praticos: 'CONSUMO_RAPIDO',
-  doces: 'GULOSEIMAS',
+  doces: 'CHOCOLATES_BALAS_E_SNACKS',
   limpeza: 'LIMPEZA',
   higiene: 'HIGIENE_PESSOAL',
-  perfumaria: 'PERFUMARIA',
+  perfumaria: 'PERFUMARIA_E_BELEZA',
 }
 
 export const CATEGORY_ICONS: Record<string, LucideIcon> = {

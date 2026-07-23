@@ -9,6 +9,7 @@ import {
   toCategoryUrlParam,
   type HomeCategoryRule,
 } from '../utils/homeCategories'
+import { useCategoryProducts } from './useCategoryProducts'
 
 /** Item vindo da API de taxonomia comercial do CMS (contrato fraco). */
 type CMSCategoryItem = {
@@ -39,17 +40,6 @@ type UseHomeShelvesInput = {
   marginShowcase: Product[]
 }
 
-/** Categorias que possuem secao dedicada na Home. */
-const SECTION_RULE_IDS = new Set([
-  'praticos',
-  'doces',
-  'churrasco',
-  'carnes',
-  'hortifruti',
-  'padaria',
-  'bebidas',
-])
-
 const PANTRY_TERMS = [
   'arroz',
   'feijao',
@@ -63,6 +53,16 @@ const PANTRY_TERMS = [
 ]
 
 const SHELF_LIMIT = 10
+
+/**
+ * Chave de deduplicacao das vitrines.
+ *
+ * O catalogo tem SKUs distintos com nome E preco identicos (residuo do sync do
+ * ERP): mesmo `name`, mesmo `price`, `id` diferente. Deduplicar so por `id`
+ * deixa o mesmo produto aparecer lado a lado. Variante real difere no nome
+ * (tamanho/sabor entram nele) ou no preco, entao nao e escondida por isso.
+ */
+const dedupeKey = (product: Product) => `${product.name ?? ''}::${product.price ?? ''}`
 
 const dedupeById = (items: Product[]) => {
   const seen = new Set<string>()
@@ -129,43 +129,51 @@ export function useHomeShelves({
     return configs.sort((a, b) => a.priority - b.priority)
   }, [cmsCategories])
 
+  /**
+   * Codigos CMS das categorias ativas — a chave do fetch por categoria.
+   *
+   * Enquanto o CMS nao respondeu, `enabledHomeRules` cai no fallback com TODAS
+   * as regras locais. Disparar por elas geraria uma rajada descartavel que e
+   * refeita logo em seguida — e o backend limita a 20 req/min. Entao so busca
+   * quando a taxonomia real chegou.
+   */
+  const categoryCodes = useMemo(() => {
+    if (!Array.isArray(cmsCategories) || cmsCategories.length === 0) return []
+    return enabledHomeRules
+      .map((config) => RULE_ID_TO_CMS_CODE[config.rule.id])
+      .filter((code): code is string => Boolean(code))
+  }, [cmsCategories, enabledHomeRules])
+
+  const categoryProducts = useCategoryProducts(categoryCodes)
+
   const categorized = useMemo(() => {
-    const bucketByRule = new Map<string, Product[]>()
-    const limitsMap = new Map<string, number>()
-    const enabledRuleIds = new Set(enabledHomeRules.map((config) => config.rule.id))
-    const usedProductIds = new Set<string>()
+    const usedKeys = new Set<string>()
 
-    enabledHomeRules.forEach((config) => {
-      const curated = (config.curatedProducts || []).filter((product) => {
-        if (!product?.id || usedProductIds.has(product.id)) return false
-        usedProductIds.add(product.id)
-        return true
-      })
+    /**
+     * Fonte de cada secao, na ordem de autoridade do Admin:
+     * 1) curadoria manual da categoria no CMS;
+     * 2) filtro por categoria (EAN -> categoria), a mesma fonte do productCount.
+     * O teto de itens tambem vem do CMS (`limit`).
+     */
+    const take = (ruleId: string, fallbackLimit: number) => {
+      const config = enabledHomeRules.find((item) => item.rule.id === ruleId)
+      if (!config) return []
 
-      bucketByRule.set(config.rule.id, curated)
-      limitsMap.set(config.rule.id, config.limit)
-    })
+      const source =
+        config.curatedProducts.length > 0
+          ? config.curatedProducts
+          : categoryProducts[RULE_ID_TO_CMS_CODE[ruleId]] || []
 
-    const unmatched: Product[] = []
-
-    for (const product of productsList) {
-      if (usedProductIds.has(product.id)) continue
-
-      const ruleId = CMS_CATEGORY_TO_RULE_ID[normalizeCategoryCode(product.category || '')]
-
-      if (ruleId && enabledRuleIds.has(ruleId)) {
-        usedProductIds.add(product.id)
-        if (SECTION_RULE_IDS.has(ruleId)) {
-          bucketByRule.get(ruleId)?.push(product)
-          continue
-        }
+      const limit = config.limit || fallbackLimit
+      const picked: Product[] = []
+      for (const product of source) {
+        if (picked.length >= limit) break
+        if (!product?.id || usedKeys.has(dedupeKey(product))) continue
+        usedKeys.add(dedupeKey(product))
+        picked.push(product)
       }
-
-      unmatched.push(product)
+      return picked
     }
-
-    const take = (ruleId: string, fallbackLimit: number) =>
-      (bucketByRule.get(ruleId) || []).slice(0, limitsMap.get(ruleId) || fallbackLimit)
 
     return {
       consumoRapido: take('praticos', 6),
@@ -175,9 +183,15 @@ export function useHomeShelves({
       feira: take('hortifruti', 8),
       padaria: take('padaria', 6),
       bebidas: take('bebidas', 6),
-      outros: unmatched,
+      // Alem de excluir o que ja foi para uma categoria, deduplica dentro de si:
+      // "Tudo do Mercado" e onde os SKUs repetidos do ERP mais aparecem juntos.
+      outros: productsList.filter((product) => {
+        if (!product?.id || usedKeys.has(dedupeKey(product))) return false
+        usedKeys.add(dedupeKey(product))
+        return true
+      }),
     }
-  }, [productsList, enabledHomeRules])
+  }, [enabledHomeRules, categoryProducts, productsList])
 
   const homeCategories = useMemo(
     () =>
@@ -248,16 +262,6 @@ export function useHomeShelves({
       return PANTRY_TERMS.some((term) => haystack.includes(term))
     })
 
-    const categoryPool = [
-      ...categorized.churrasco,
-      ...categorized.carnesDiaADia,
-      ...categorized.padaria,
-      ...categorized.guloseimas,
-      ...categorized.bebidas,
-      ...categorized.consumoRapido,
-      ...categorized.outros,
-    ]
-
     const claimed = new Set<string>()
 
     /** Consome candidatos em ordem, pulando o que ja foi usado em outra vitrine. */
@@ -265,8 +269,8 @@ export function useHomeShelves({
       const picked: Product[] = []
       for (const product of candidates) {
         if (picked.length >= limit) break
-        if (!product?.id || claimed.has(product.id)) continue
-        claimed.add(product.id)
+        if (!product?.id || claimed.has(dedupeKey(product))) continue
+        claimed.add(dedupeKey(product))
         picked.push(product)
       }
       return picked
@@ -274,33 +278,47 @@ export function useHomeShelves({
 
     // A ordem abaixo e a prioridade de escolha sobre o pool.
     const rebuy = claim(
-      rebuyProducts.length > 0 ? rebuyProducts : [...analyticsBestSellers, ...categorized.outros],
+      rebuyProducts.length > 0 ? rebuyProducts : analyticsBestSellers,
     )
-    const offers = claim([...promotional, ...marginShowcase, ...analyticsBestSellers, ...categoryPool])
-    const fresh = claim([
-      ...categorized.feira,
-      ...categorized.carnesDiaADia,
-      ...categorized.padaria,
-      ...categorized.outros,
-    ])
-    const fair = claim([...categorized.feira, ...categorized.outros])
+    // Cada vitrine so aceita fonte que honra o proprio titulo. Sem fonte valida
+    // ela volta vazia e o ProductShelf some — melhor que enchimento generico.
+    const offers = claim([...promotional, ...marginShowcase])
+    // Padaria fica de fora: tem secao dedicada logo abaixo na Home.
+    const fresh = claim([...categorized.feira, ...categorized.carnesDiaADia])
+    const fair = claim([...categorized.feira])
     const churrascoOccasion = claim([
       ...categorized.churrasco,
       ...categorized.carnesDiaADia,
       ...categorized.bebidas,
     ])
-    const recurring = claim([...pantry, ...analyticsBestSellers, ...categoryPool])
-    const bestSellers = claim(
-      analyticsBestSellers.length > 0 ? [...analyticsBestSellers, ...categoryPool] : categoryPool,
-      8,
-    )
+    const recurring = claim([...pantry, ...analyticsBestSellers])
+    const bestSellers = claim(analyticsBestSellers, 8)
 
-    return { rebuy, offers, fresh, fair, churrascoOccasion, recurring, bestSellers }
+    return { rebuy, offers, fresh, fair, churrascoOccasion, recurring, bestSellers, claimed }
   }, [categorized, marginShowcase, productsList, rebuyProducts, topSellingProducts])
+
+  /**
+   * Um produto aparece uma unica vez na Home: o que as vitrines de intencao
+   * levaram sai das secoes de categoria, que a Home renderiza direto.
+   */
+  const visibleCategorized = useMemo(() => {
+    const taken = intentShelves.claimed
+    const strip = (items: Product[]) => items.filter((product) => !taken.has(dedupeKey(product)))
+    return {
+      consumoRapido: strip(categorized.consumoRapido),
+      guloseimas: strip(categorized.guloseimas),
+      churrasco: strip(categorized.churrasco),
+      carnesDiaADia: strip(categorized.carnesDiaADia),
+      feira: strip(categorized.feira),
+      padaria: strip(categorized.padaria),
+      bebidas: strip(categorized.bebidas),
+      outros: strip(categorized.outros),
+    }
+  }, [categorized, intentShelves])
 
   return {
     enabledHomeRules,
-    categorized,
+    categorized: visibleCategorized,
     homeCategories,
     featuredCommercialSection,
     bestSellers: intentShelves.bestSellers,
