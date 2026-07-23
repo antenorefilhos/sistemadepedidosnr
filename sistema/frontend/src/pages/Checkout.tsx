@@ -552,7 +552,7 @@ export default function Checkout() {
         {step === 'confirmation' ? (
           <div className="bg-white border border-[#D2BB8A]/40 rounded-2xl p-8 text-center shadow-[0_12px_40px_rgba(93,8,42,0.04)] animate-in fade-in zoom-in duration-300">
             <div className="w-16 h-16 rounded-full bg-[#FFF7FA] border border-[#5D082A]/15 flex items-center justify-center mx-auto mb-5 text-[#5D082A] shadow-inner">
-              <CheckCircle2 size={36} className="animate-bounce-short" />
+              <CheckCircle2 size={36} className="animate-in zoom-in-50 duration-500 motion-reduce:animate-none" />
             </div>
             <h2 className="text-2xl font-bold text-[#5D082A] mb-2">Pedido Confirmado!</h2>
             <p className="text-gray-600 mb-6 text-sm">
