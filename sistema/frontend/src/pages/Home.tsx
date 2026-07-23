@@ -163,7 +163,7 @@ export default function Home() {
     "@context": "https://schema.org",
     "@type": "Store",
     "name": brand.storeName || "Antenor & Filhos",
-    "description": "Qualidade, Tradição e Elegaância. Açougue, Adega e Padaria Artesanal.",
+    "description": "Qualidade, Tradição e Elegância. Açougue, Adega e Padaria Artesanal.",
     "url": window.location.origin,
     "logo": `${window.location.origin}/branding/logo-bordo.png`,
   }
@@ -499,7 +499,7 @@ export default function Home() {
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
         title={user ? 'Recomprar rapidinho' : 'Atalhos para repetir'}
-        eyebrow={user ? 'Historico do cliente' : 'Mais pedidos da loja'}
+        eyebrow={user ? 'Histórico do cliente' : 'Mais pedidos da loja'}
         icon={ShoppingCart}
         products={rebuyShelf}
         to="/mercado"
@@ -519,7 +519,7 @@ export default function Home() {
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
         title="Frescos da loja"
-        eyebrow="Acougue e padaria"
+        eyebrow="Açougue e padaria"
         icon={Apple}
         products={freshShelf}
         to="/mercado?cat=hortifruti"

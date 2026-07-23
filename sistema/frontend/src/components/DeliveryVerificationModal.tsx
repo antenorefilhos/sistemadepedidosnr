@@ -317,7 +317,7 @@ export function DeliveryVerificationModal() {
                     Entrega disponivel{calc.zoneName ? ` para ${calc.zoneName}` : ''}. Taxa: {' '}
                     <strong>
                       {calc.fee == null
-                        ? 'Indisponivel'
+                        ? 'Indisponível'
                         : calc.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </strong>
                   </p>

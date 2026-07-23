@@ -31,6 +31,8 @@ export type ProductCardViewModel = {
   isFractional: boolean
   isOnSale: boolean
   outOfStock: boolean
+  /** Motivo do `outOfStock`: cadastro sem porcao, nao falta de estoque. */
+  missingFractionStep: boolean
 }
 
 export function parseFractionDetails(alternativeDescription?: string): FractionDetails {
@@ -134,7 +136,7 @@ export function getProductCardViewModel(product: Product): ProductCardViewModel 
     title: product.name,
     eyebrow: product.isFractional
       ? missingFractionStep
-        ? 'Pesavel sem porcao configurada'
+        ? 'Pesável sem porção configurada'
         : `Porção mínima de ${portionLabel}`
       : '',
     helperText: helperChunks.join(' • '),
@@ -144,9 +146,12 @@ export function getProductCardViewModel(product: Product): ProductCardViewModel 
     badgeText,
     badgeVariant,
     discountPct,
-    ctaLabel: missingFractionStep ? 'Indisponivel' : (product.isFractional ? 'Adicionar porção' : 'Adicionar'),
+    ctaLabel: missingFractionStep ? 'Indisponível' : (product.isFractional ? 'Adicionar porção' : 'Adicionar'),
     isFractional: Boolean(product.isFractional),
     isOnSale: hasPromotionalPrice,
     outOfStock: missingFractionStep || (product.syncOption !== 'SEMPRE' && stockValue <= 0),
+    /** Distingue o motivo de `outOfStock`: cadastro incompleto, nao falta de
+     *  estoque. Exposto para a UI nao ter que comparar o texto do `ctaLabel`. */
+    missingFractionStep: Boolean(missingFractionStep),
   }
 }

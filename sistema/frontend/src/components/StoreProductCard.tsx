@@ -147,7 +147,7 @@ export function StoreProductCard({
         {viewModel.outOfStock && (
           <div className="absolute inset-0 flex items-end justify-center bg-black/10 pb-3 pointer-events-none">
             <span className="whitespace-nowrap rounded-md border border-white/45 bg-white/45 px-3 py-1 text-label font-bold uppercase tracking-[0.04em] text-[#3f3f46] backdrop-blur-md">
-              Indisponivel
+              Indisponível
             </span>
           </div>
         )}
@@ -162,7 +162,7 @@ export function StoreProductCard({
             )}
             {viewModel.isFractional && (
               <Badge tone="neutral" className="w-fit normal-case tracking-normal">
-                Pesavel
+                Pesável
               </Badge>
             )}
           </div>

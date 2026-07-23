@@ -23,7 +23,7 @@ function cleanFractionText(text?: string) {
 }
 
 function getAvailabilityLabel(product?: Product) {
-  if (!product?.active || product?.syncOption === 'NUNCA') return { label: 'Indisponivel', tone: 'border-red-100 bg-red-50 text-red-700' }
+  if (!product?.active || product?.syncOption === 'NUNCA') return { label: 'Indisponível', tone: 'border-red-100 bg-red-50 text-red-700' }
   if (product?.syncOption === 'ESTOQUE' && typeof product.stock === 'number' && product.stock <= 0) {
     return { label: 'Sem estoque', tone: 'border-red-100 bg-red-50 text-red-700' }
   }

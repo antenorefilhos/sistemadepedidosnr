@@ -1008,7 +1008,7 @@ export default function Checkout() {
                           {deliveryIsFree
                             ? 'Grátis'
                             : quotedDeliveryFee == null
-                            ? 'Indisponivel'
+                            ? 'Indisponível'
                             : formatPrice(quotedDeliveryFee)}
                         </span>
                       </div>

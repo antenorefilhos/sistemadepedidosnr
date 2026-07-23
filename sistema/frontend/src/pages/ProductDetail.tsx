@@ -395,7 +395,7 @@ function ProductPurchasePanel({ product }: { product: Product }) {
     return (
       <div className="rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] px-4 py-4 text-center">
         <p className="text-sm font-semibold text-[#8a6a3a]">
-          {viewModel.ctaLabel === 'Indisponivel'
+          {viewModel.missingFractionStep
             ? 'Produto temporariamente indisponível'
             : 'Sem estoque no momento'}
         </p>
@@ -429,7 +429,7 @@ function ProductPurchasePanel({ product }: { product: Product }) {
       {quantity === 0 ? (
         <Button onClick={handleAdd} size="lg" className="w-full gap-2">
           <ShoppingCart className="h-5 w-5" />
-          {viewModel.ctaLabel === 'Adicionar porção' ? 'Adicionar porção ao carrinho' : 'Adicionar ao carrinho'}
+          {viewModel.isFractional ? 'Adicionar porção ao carrinho' : 'Adicionar ao carrinho'}
         </Button>
       ) : (
         <div className="flex items-center gap-3">
