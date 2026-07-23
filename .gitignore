@@ -8,16 +8,20 @@ artifacts/
 *.log
 sistema/frontend/stats.html
 
-# External agent/tool state
+# External agent/tool state (nao faz parte do runtime do projeto)
 .opencode/
 .gemini/
 .od-skills/
 .github/skills/
+.github/hooks/
+.claude/
+# .github/workflows/ (CI) permanece versionado — so o tooling de agente e' ignorado
 
 # Generated artifacts
 graphify-out/
 graphify-knowledge.json/
 */graphify-out/
+.impeccable/
 
 # Session histories and sensitive docs
 arquivos-projeto/md/06\ -\ Sessões/Day_0_Historico.md
