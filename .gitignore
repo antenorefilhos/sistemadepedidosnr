@@ -8,16 +8,20 @@ artifacts/
 *.log
 sistema/frontend/stats.html
 
-# External agent/tool state
+# External agent/tool state (nao faz parte do runtime do projeto)
 .opencode/
 .gemini/
 .od-skills/
 .github/skills/
+.github/hooks/
+.claude/
+# .github/workflows/ (CI) permanece versionado — so o tooling de agente e' ignorado
 
 # Generated artifacts
 graphify-out/
 graphify-knowledge.json/
 */graphify-out/
+.impeccable/
 
 # Session histories and sensitive docs
 arquivos-projeto/md/06\ -\ Sessões/Day_0_Historico.md
@@ -26,8 +30,12 @@ arquivos-projeto/md/06\ -\ Sessões/Day_0_Historico.md
 .env
 .env.local
 .env.*.local
-!.env.example
+.env.staging
+.env.production
 .env.production.local
+# Exemplos com placeholders SAO versionados; ambientes reais com segredos NAO
+!.env.example
+!.env.*.example
 
 # OS/editor noise
 .DS_Store

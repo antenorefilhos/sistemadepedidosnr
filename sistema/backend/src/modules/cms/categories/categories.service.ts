@@ -222,6 +222,7 @@ export class CategoriesService {
           active: true,
         },
         select: {
+          ean: true,
           category: true,
           classification01: true,
           classification02: true,
@@ -233,8 +234,44 @@ export class CategoriesService {
       }),
     ]);
 
+    const isEligibleForStorefront = (product: {
+      syncOption: string | null;
+      stock: number | null;
+    }) => {
+      if (product.syncOption === 'NUNCA') return false;
+      if (product.syncOption === 'SEMPRE') return true;
+      return Number(product.stock || 0) > 0;
+    };
+
+    // Contagem autoritativa: produtos elegiveis alcancaveis por
+    // ProductCategoryMapping (EAN -> categoria). E a mesma fonte que
+    // /products?category= usa, entao o numero exibido casa com o que o cliente
+    // encontra ao clicar. Contar por `product.category` daria numeros que a
+    // listagem nao consegue reproduzir.
+    const eanMappingRows = await this.prisma.productCategoryMapping.findMany({
+      select: { ean: true, categoryId: true },
+    });
+    const eligibleEans = new Set(
+      products.filter(isEligibleForStorefront).map((item) => item.ean),
+    );
+    const eanMappingCountByCategoryId = new Map<string, number>();
+    const seenEanPerCategory = new Set<string>();
+    for (const row of eanMappingRows) {
+      if (!eligibleEans.has(row.ean)) continue;
+      const dedupeKey = `${row.categoryId}:${row.ean}`;
+      if (seenEanPerCategory.has(dedupeKey)) continue;
+      seenEanPerCategory.add(dedupeKey);
+      eanMappingCountByCategoryId.set(
+        row.categoryId,
+        (eanMappingCountByCategoryId.get(row.categoryId) || 0) + 1,
+      );
+    }
+
+    // Fallback historico pelo campo `category` do produto, mantido apenas para
+    // categorias que existem no catalogo mas nao no CMS (bloco mais abaixo).
     const countsByCode = new Map<string, number>();
     for (const item of products) {
+      if (!isEligibleForStorefront(item)) continue;
       const code = normalizeCategoryCode(item.category || 'NAO_CLASSIFICADO');
       countsByCode.set(code, (countsByCode.get(code) || 0) + 1);
     }
@@ -271,15 +308,6 @@ export class CategoriesService {
       source: 'cms' | 'fallback';
     }>();
 
-    const isEligibleForStorefront = (product: {
-      syncOption: string | null;
-      stock: number | null;
-    }) => {
-      if (product.syncOption === 'NUNCA') return false;
-      if (product.syncOption === 'SEMPRE') return true;
-      return Number(product.stock || 0) > 0;
-    };
-
     const countProductsForMappings = (
       mappings: Array<{ classificationLevel: number; classificationValue: string }>
     ) => {
@@ -302,7 +330,15 @@ export class CategoriesService {
 
     for (const category of categories) {
       const code = normalizeCategoryCode(category.name);
-      const mappingBasedCount = countProductsForMappings(category.classificationMappings as Array<{ classificationLevel: number; classificationValue: string }>);
+      // Ordem de fontes, da mais para a menos confiavel:
+      // 1) ProductCategoryMapping (EAN -> categoria) — e o que /products?category=
+      //    usa para filtrar, entao e o unico numero que casa com o destino.
+      // 2) classificationMappings do CMS — opcional, quase nunca configurado.
+      // O campo `product.category` NAO entra aqui: 99,8% do catalogo esta como
+      // "GERAL", entao contaria uma categoria que a listagem nao sabe filtrar.
+      const mappingBasedCount =
+        (eanMappingCountByCategoryId.get(category.id) || 0) ||
+        countProductsForMappings(category.classificationMappings as Array<{ classificationLevel: number; classificationValue: string }>);
       byCode.set(code, {
         id: category.id,
         code,

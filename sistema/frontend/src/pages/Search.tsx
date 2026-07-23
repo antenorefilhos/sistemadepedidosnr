@@ -539,7 +539,7 @@ export default function MercadoPage() {
                   setIsInputFocused(true)
                 }}
                 placeholder="Digite o que você quer levar hoje"
-                className="h-auto border-0 bg-transparent p-0 text-title shadow-none ring-0 placeholder:text-gray-400 focus-visible:ring-0"
+                className="h-auto border-0 bg-transparent p-0 text-title shadow-none ring-0 placeholder:text-[#6B7280] focus-visible:ring-0"
               />
               {isSuggesting && <Loader2 size={14} className="animate-spin text-[#5D082A]" />}
               {inputValue && (
@@ -882,7 +882,7 @@ export default function MercadoPage() {
             </div>
 
             {!hasNextPage && allProducts.length > 0 && (
-              <p className="text-center text-xs text-gray-400 mt-2">
+              <p className="text-center text-xs text-[#6B7280] mt-2">
                 {allProducts.length} produto{allProducts.length !== 1 ? 's' : ''} carregado{allProducts.length !== 1 ? 's' : ''}
               </p>
             )}

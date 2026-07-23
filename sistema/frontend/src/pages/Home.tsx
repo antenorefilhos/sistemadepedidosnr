@@ -13,6 +13,8 @@ import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, type Sto
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
 import { useBrand } from '../hooks/useBrand'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
 import { resolveApiUrl } from '../services/api'
 import type { Product } from '../types'
@@ -46,7 +48,10 @@ type PromoBannerView = {
 export default function Home() {
   const navigate = useNavigate()
   const touchStartX = useRef(0)
-  const categoriesScrollRef = useRef<HTMLDivElement | null>(null)
+  const prefersReducedMotion = usePrefersReducedMotion()
+  // Monta apenas a arvore do viewport atual (mobile OU desktop) em vez de
+  // renderizar as duas e esconder uma com CSS — evita ~2x cards no DOM.
+  const isDesktop = useIsDesktop()
 
   const { data: products, isLoading: productsLoading } = useProducts()
   const { data: storeBanners } = useStoreBanners()
@@ -72,6 +77,14 @@ export default function Home() {
     e.preventDefault() // bloqueia ghost click do iOS
     openDeliveryVerificationModal()
   }, [openDeliveryVerificationModal])
+
+  // Busca da Home: leva para /mercado com o termo ja aplicado (a pagina de
+  // busca le ?q=). Campo real e focavel por teclado; sem termo, so abre o mercado.
+  const handleSearchSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const query = String(new FormData(e.currentTarget).get('q') || '').trim()
+    navigate(query ? `/mercado?q=${encodeURIComponent(query)}` : '/mercado')
+  }, [navigate])
 
   const {
     categorized,
@@ -138,27 +151,12 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (slides.length <= 1) return
+    if (slides.length <= 1 || prefersReducedMotion) return
     const timer = setInterval(() => {
       setCurrentSlide(prev => (prev + 1) % slides.length)
     }, 6000)
     return () => clearInterval(timer)
-  }, [slides.length])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const container = categoriesScrollRef.current
-      if (!container) return
-      const maxScroll = container.scrollWidth - container.clientWidth
-      if (maxScroll <= 0) return
-      if (container.scrollLeft >= maxScroll - 8) {
-        container.scrollTo({ left: 0, behavior: 'smooth' })
-      } else {
-        container.scrollBy({ left: 112, behavior: 'smooth' })
-      }
-    }, 2400)
-    return () => clearInterval(interval)
-  }, [])
+  }, [slides.length, prefersReducedMotion])
 
   // Schema.org Data
   const organizationSchema = {
@@ -196,6 +194,7 @@ export default function Home() {
       </h1>
 
       {/* ── MOBILE HEADER (< md) ── */}
+      {!isDesktop && (
       <header className="md:hidden sticky top-0 z-50">
         <div className="bg-[#5D082A] px-4 pt-4 pb-3">
           <div className="flex items-center justify-between mb-3">
@@ -246,13 +245,23 @@ export default function Home() {
             </div>
           </div>
           {/* Mobile Search Bar */}
-          <div
-            className="flex items-center gap-3 bg-white rounded-lg px-4 h-11 cursor-text"
-            onClick={() => navigate('/mercado')}
+          <form
+            role="search"
+            onSubmit={handleSearchSubmit}
+            className="flex items-center gap-3 bg-white rounded-lg px-4 h-11 focus-within:ring-2 focus-within:ring-[#D2BB8A]"
           >
-            <Search size={16} className="text-gray-400 shrink-0" />
-            <span className="text-sm text-gray-400 select-none">Buscar produto aqui...</span>
-          </div>
+            <button type="submit" aria-label="Buscar" className="shrink-0 text-[#5D082A]">
+              <Search size={16} />
+            </button>
+            <input
+              type="search"
+              name="q"
+              aria-label="Buscar produto"
+              placeholder="Buscar produto aqui..."
+              enterKeyHint="search"
+              className="min-w-0 flex-1 bg-transparent text-sm text-[#231F20] outline-none placeholder:text-[#6B7280]"
+            />
+          </form>
         </div>
         {/* Mobile Category Chips */}
         {homeCategories.length > 0 && (
@@ -282,8 +291,10 @@ export default function Home() {
           </div>
         )}
       </header>
+      )}
 
       {/* ── DESKTOP TOP BAR + HEADER (md+) ── */}
+      {isDesktop && (
       <div className="hidden md:block sticky top-0 z-50">
         <div className="bg-[#F8F4EA] border-b border-[#D2BB8A]/30">
           <div className="max-w-7xl mx-auto px-4 py-1.5 flex items-center justify-between gap-3">
@@ -347,13 +358,23 @@ export default function Home() {
             )}
           </Link>
           
-            <div
-              className="flex-1 mx-6 flex items-center gap-2 rounded-lg border border-[#D2BB8A]/50 bg-white/95 px-4 h-10 cursor-text hover:border-[#D2BB8A] transition-colors"
-              onClick={() => navigate('/mercado')}
+            <form
+              role="search"
+              onSubmit={handleSearchSubmit}
+              className="mx-6 flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#D2BB8A]/50 bg-white/95 px-4 transition-colors focus-within:border-[#D2BB8A] focus-within:ring-2 focus-within:ring-[#D2BB8A]/40"
             >
-              <Search size={16} className="text-gray-400 shrink-0" />
-              <span className="text-sm text-gray-500 select-none">Buscar produto aqui...</span>
-            </div>
+              <button type="submit" aria-label="Buscar" className="shrink-0 text-[#5D082A]">
+                <Search size={16} />
+              </button>
+              <input
+                type="search"
+                name="q"
+                aria-label="Buscar produto"
+                placeholder="Buscar produto aqui..."
+                enterKeyHint="search"
+                className="min-w-0 flex-1 bg-transparent text-sm text-[#231F20] outline-none placeholder:text-[#6B7280]"
+              />
+            </form>
           
             <div className="flex items-center gap-4">
             <Link to="/cart" className="relative p-2 text-white hover:text-[#D2BB8A] transition-colors" aria-label={`Carrinho com ${count} itens`}>
@@ -380,9 +401,10 @@ export default function Home() {
           </div>
         </header>
       </div>
+      )}
 
       {/* Hero Slider — escondido no mobile, substituído pela seção Popular */}
-      {slides.length > 0 && <div
+      {isDesktop && slides.length > 0 && <div
         className="hidden md:block relative h-[340px] sm:h-[430px] md:h-[520px] overflow-hidden bg-[#231F20]"
         onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
         onTouchEnd={(e) => {
@@ -446,13 +468,10 @@ export default function Home() {
       </div>}
 
       {/* Categorias abaixo do banner — apenas desktop */}
-      {homeCategories.length > 0 && (
+      {isDesktop && homeCategories.length > 0 && (
         <div className="hidden md:block border-b border-gray-100 bg-white">
           <div className="max-w-7xl mx-auto px-4">
-            <div
-              ref={categoriesScrollRef}
-              className="flex overflow-x-auto no-scrollbar py-3 gap-3 snap-x"
-            >
+            <div className="flex overflow-x-auto no-scrollbar py-3 gap-3 snap-x">
               {homeCategories.map((category) => {
                 const IconComponent = CATEGORY_ICONS[category.id] || CATEGORY_ICONS.default
                 const name = category.label.replace(/^\S+\s*/, '')
@@ -475,6 +494,8 @@ export default function Home() {
       )}
 
       {/* ── MOBILE MAIN — vitrines de intencao ── */}
+      {!isDesktop && (
+      <>
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
         title={user ? 'Recomprar rapidinho' : 'Atalhos para repetir'}
@@ -605,8 +626,11 @@ export default function Home() {
         to="/mercado"
         linkLabel="Ver todos"
       />
+      </>
+      )}
 
       {/* ── DESKTOP MAIN ── */}
+      {isDesktop && (
       <main className="hidden md:block max-w-7xl mx-auto px-4 py-8 space-y-12 pb-24">
         
         {featuredCommercialSection && (
@@ -683,9 +707,9 @@ export default function Home() {
         <section className="fade-in-section">
           <div className="flex items-center justify-between mb-6">
             <div className="flex flex-col">
-              <span className="text-label uppercase tracking-widest text-[#D2BB8A] font-bold">Dados de pedidos</span>
+              <span className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold">Dados de pedidos</span>
               <h3 className="text-3xl font-bold luxury-text flex items-center gap-2 text-[#231F20]">
-                <Sparkles size={24} className="text-[#D2BB8A]" /> Mais Vendidos
+                <Sparkles size={24} className="text-[#5D082A]" /> Mais Vendidos
               </h3>
             </div>
             <Link to="/mercado" className="text-xs text-[#5D082A] font-bold flex items-center gap-1 hover:underline whitespace-nowrap">
@@ -705,7 +729,7 @@ export default function Home() {
         <section className="fade-in-section">
           <div className="flex items-center justify-between mb-6">
             <div className="flex flex-col">
-              <span className="text-label uppercase tracking-widest text-[#D2BB8A] font-bold">Especialidade da Casa</span>
+              <span className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold">Especialidade da Casa</span>
               <h3 className="text-3xl font-bold luxury-text flex items-center gap-2 text-[#231F20]">
                 <Flame size={24} className="text-[#5D082A]" /> Seleção para Churrasco
               </h3>
@@ -854,23 +878,26 @@ export default function Home() {
             </div>
          </section>
       </main>
+      )}
 
       {/* ── MOBILE Bottom Navigation ── */}
+      {!isDesktop && (
+      <>
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-100 shadow-xl">
         <div className="grid grid-cols-5 h-16">
           <Link to="/" className="flex flex-col items-center justify-center gap-0.5 text-[#5D082A] cursor-pointer">
             <HomeIcon size={21} className="fill-[#5D082A]" />
             <span className="text-label font-semibold">Home</span>
           </Link>
-          <Link to="/mercado" className="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-[#5D082A] transition-colors cursor-pointer">
+          <Link to="/mercado" className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
             <Search size={21} />
             <span className="text-label font-medium">Buscar</span>
           </Link>
-          <Link to="/promocoes" className="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-[#5D082A] transition-colors cursor-pointer">
+          <Link to="/promocoes" className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
             <Flame size={21} />
             <span className="text-label font-medium">Promos</span>
           </Link>
-          <Link to="/cart" className="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-[#5D082A] transition-colors relative cursor-pointer">
+          <Link to="/cart" className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors relative cursor-pointer">
             <ShoppingCart size={21} />
             {count > 0 && (
               <span className="absolute top-2 right-4 bg-[#5D082A] text-white text-label font-black rounded-full w-4 h-4 flex items-center justify-center">{count}</span>
@@ -880,7 +907,7 @@ export default function Home() {
             )}
             <span className="text-label font-medium">Carrinho</span>
           </Link>
-          <Link to={user ? '/account' : '/login'} className="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-[#5D082A] transition-colors cursor-pointer">
+          <Link to={user ? '/account' : '/login'} className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
             <User size={21} />
             <span className="text-label font-medium">{user ? 'Conta' : 'Entrar'}</span>
           </Link>
@@ -889,6 +916,8 @@ export default function Home() {
 
       {/* Mobile bottom padding para não tapar conteúdo com nav */}
       <div className="md:hidden h-16" />
+      </>
+      )}
     </div>
   )
 }
