@@ -26,8 +26,12 @@ arquivos-projeto/md/06\ -\ Sessões/Day_0_Historico.md
 .env
 .env.local
 .env.*.local
-!.env.example
+.env.staging
+.env.production
 .env.production.local
+# Exemplos com placeholders SAO versionados; ambientes reais com segredos NAO
+!.env.example
+!.env.*.example
 
 # OS/editor noise
 .DS_Store

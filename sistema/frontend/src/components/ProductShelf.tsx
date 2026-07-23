@@ -24,7 +24,10 @@ type ProductShelfProps = {
   layout?: ProductShelfLayout
   /** Classes do <section> (ex.: `md:hidden` para vitrine exclusiva de mobile). */
   className?: string
-  /** Desliga o auto-scroll do carrossel. */
+  /**
+   * Liga o auto-scroll do carrossel. Padrao `false`: vitrines de navegacao nao
+   * se movem sozinhas (evita varios carrosseis animando ao mesmo tempo).
+   */
   autoScroll?: boolean
 }
 
@@ -41,7 +44,7 @@ export function ProductShelf({
   linkLabel = 'Ver',
   layout = 'carousel',
   className,
-  autoScroll = true,
+  autoScroll = false,
 }: ProductShelfProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   useAutoScroll(scrollRef, autoScroll && layout === 'carousel')
