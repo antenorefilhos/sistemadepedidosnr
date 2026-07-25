@@ -1689,9 +1689,11 @@ export class ProductsService {
     if (!normalized) return undefined
 
     const aliasMap: Record<string, string> = {
-      ADEGA: 'VINHOS',
-      VINHO: 'VINHOS',
-      VINHOS: 'VINHOS',
+      // A categoria cadastrada chama-se "Adega"; apontar para VINHOS nao casa
+      // com nenhuma categoria e derruba a listagem para o filtro legado.
+      ADEGA: 'ADEGA',
+      VINHO: 'ADEGA',
+      VINHOS: 'ADEGA',
       GERAL: 'NAO_CLASSIFICADO',
       CERVEJA: 'CERVEJAS',
       CERVEJAS: 'CERVEJAS',

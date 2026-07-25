@@ -62,7 +62,7 @@ export const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
   { id: 'churrasco', label: '🔥 Para Churrasquear', query: 'churrasco' },
   { id: 'vinhos', label: '🍷 Adega & Vinhos', query: 'vinhos' },
   { id: 'doces', label: '🍫 Doces & Guloseimas', query: 'guloseimas' },
-  { id: 'praticos', label: '🍔 Pronto pra Comer', query: 'consumo rapido' },
+  { id: 'praticos', label: '🧊 Congelados Práticos', query: 'congelados' },
 ]
 
 /**
@@ -86,6 +86,7 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
   LIMPEZA: 'limpeza',
   HIGIENE_PESSOAL: 'higiene',
   PERFUMARIA_E_BELEZA: 'perfumaria',
+  CONGELADOS: 'praticos',
   // Legado — inativos no CMS, mantidos para nao quebrar links antigos
   CARNES_DIA_A_DIA: 'carnes',
   BEBIDAS: 'bebidas',
@@ -106,7 +107,7 @@ export const RULE_ID_TO_CMS_CODE: Record<string, string> = {
   bebidas: 'BEBIDAS_SEM_ALCOOL',
   cervejas: 'CERVEJAS',
   vinhos: 'ADEGA',
-  praticos: 'CONSUMO_RAPIDO',
+  praticos: 'CONGELADOS',
   doces: 'CHOCOLATES_BALAS_E_SNACKS',
   limpeza: 'LIMPEZA',
   higiene: 'HIGIENE_PESSOAL',
