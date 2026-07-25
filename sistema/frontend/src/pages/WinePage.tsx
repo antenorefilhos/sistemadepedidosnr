@@ -116,7 +116,7 @@ export default function WinePage() {
               <span className="flex items-center gap-2 text-[#D2BB8A] text-xs font-bold tracking-widest uppercase mb-4">
                  <Sparkles size={14} /> Seleção Especial
               </span>
-              <h2 className="text-5xl md:text-7xl font-bold luxury-text mb-6">Cada taça conta <br/>uma história</h2>
+              <h2 className="text-4xl md:text-6xl font-medium tracking-tight leading-tight luxury-text mb-8">Cada taça conta <br/>uma história</h2>
               <p className="max-w-lg text-white/70 text-sm italic leading-relaxed">
                 Não é só vinho. É escolha, cuidado e sabor de verdade. Aqui você encontra rótulos para presentear bem ou aproveitar um momento especial.
               </p>
@@ -231,46 +231,51 @@ function WineCard({ product }: { product: Product }) {
           </div>
           
           <div className="mt-auto pt-3 border-t border-white/5">
-             <div className="flex items-center justify-between">
-                <span className="text-lg font-bold text-[#D2BB8A]">
+             <div className="flex flex-wrap items-center gap-y-1">
+                <span className="text-lg font-bold text-[#D2BB8A] whitespace-nowrap">
                  {getProductPricePresentation(product).fullLabel}
                 </span>
-                
-                {quantity === 0 ? (
-                   <Button
-                     onClick={handleIncrease}
-                     variant="ghost"
-                     size="icon"
-                     className="h-8 w-8 rounded-full border border-[#D2BB8A]/20 bg-white/5 text-[#D2BB8A] hover:bg-[#D2BB8A] hover:text-[#231F20]"
-                     aria-label="Adicionar ao carrinho"
-                   >
-                     +
-                   </Button>
-                ) : (
-                   <div className="flex items-center gap-2 bg-white/5 rounded-lg border border-[#D2BB8A]/20 p-1">
-                     <Button
-                       onClick={handleDecrease}
-                       variant="ghost"
-                       size="icon"
-                       className="h-6 w-6 text-[#D2BB8A] hover:bg-white/10"
-                       aria-label="Diminuir quantidade"
-                     >
-                       -
-                     </Button>
-                     <span className="text-xs font-bold text-white min-w-[15px] text-center">
-                       {quantity}
-                     </span>
+
+                {/* Altura E largura fixas reservadas: alterna add/stepper sem mudar o tamanho do card.
+                    ml-auto + flex-wrap: em cards estreitos o controle cai pra linha de baixo
+                    (sempre, independente da quantidade) em vez do preco quebrar no meio do texto. */}
+                <div className="ml-auto flex h-8 w-20 shrink-0 items-center justify-end">
+                  {quantity === 0 ? (
                      <Button
                        onClick={handleIncrease}
                        variant="ghost"
                        size="icon"
-                       className="h-6 w-6 text-[#D2BB8A] hover:bg-white/10"
-                       aria-label="Aumentar quantidade"
+                       className="relative h-8 w-8 rounded-full border border-[#D2BB8A]/20 bg-white/5 text-[#D2BB8A] hover:bg-[#D2BB8A] hover:text-[#231F20] before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
+                       aria-label="Adicionar ao carrinho"
                      >
                        +
                      </Button>
-                   </div>
-                )}
+                  ) : (
+                     <div className="flex h-8 items-center gap-1 bg-white/5 rounded-lg border border-[#D2BB8A]/20 p-0.5">
+                       <Button
+                         onClick={handleDecrease}
+                         variant="ghost"
+                         size="icon"
+                         className="relative h-6 w-6 text-[#D2BB8A] hover:bg-white/10 before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
+                         aria-label="Diminuir quantidade"
+                       >
+                         -
+                       </Button>
+                       <span className="text-xs font-bold text-white min-w-[15px] text-center">
+                         {quantity}
+                       </span>
+                       <Button
+                         onClick={handleIncrease}
+                         variant="ghost"
+                         size="icon"
+                         className="relative h-6 w-6 text-[#D2BB8A] hover:bg-white/10 before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
+                         aria-label="Aumentar quantidade"
+                       >
+                         +
+                       </Button>
+                     </div>
+                  )}
+                </div>
              </div>
           </div>
        </div>
