@@ -188,7 +188,7 @@ export function StoreProductCard({
             onClick={() => setUnitMode('unit')}
             variant={unitMode === 'unit' ? 'primary' : 'subtle'}
             size="sm"
-            className="h-11 flex-1 rounded-full"
+            className="relative h-6 flex-1 rounded-full px-2 before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']"
           >
             Unidade
           </Button>
@@ -196,7 +196,7 @@ export function StoreProductCard({
             onClick={() => setUnitMode('weight')}
             variant={unitMode === 'weight' ? 'primary' : 'subtle'}
             size="sm"
-            className="h-11 flex-1 rounded-full"
+            className="relative h-6 flex-1 rounded-full px-2 before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']"
           >
             Peso
           </Button>
@@ -267,7 +267,7 @@ export function StoreProductCard({
                 onClick={handleDecrease}
                 variant="ghost"
                 size="icon"
-                className="relative h-9 w-8 shrink-0 hover:bg-white before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
+                className="relative h-9 w-7 shrink-0 hover:bg-white before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
                 aria-label="Diminuir quantidade"
               >
                 <Minus className="h-4 w-4" strokeWidth={2.4} />
@@ -275,14 +275,14 @@ export function StoreProductCard({
 
               <div className="pointer-events-none flex flex-1 flex-col items-center justify-center text-center">
                 <span className="text-sm font-black leading-none text-[#231F20]">{displayQuantity}</span>
-                <span className="text-label uppercase leading-tight tracking-[0.04em] text-gray-500">no carrinho</span>
+                <span className="whitespace-nowrap text-label uppercase leading-tight tracking-[0.04em] text-gray-500">no carrinho</span>
               </div>
 
               <Button
                 onClick={handleIncrease}
                 variant="ghost"
                 size="icon"
-                className="relative h-9 w-8 shrink-0 hover:bg-white before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
+                className="relative h-9 w-7 shrink-0 hover:bg-white before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
                 aria-label="Aumentar quantidade"
               >
                 <Plus className="h-4 w-4" strokeWidth={2.4} />
