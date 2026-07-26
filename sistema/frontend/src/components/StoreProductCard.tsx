@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Minus, Plus } from 'lucide-react'
+import { Minus, Plus, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ProductImagePlaceholder } from './ProductImagePlaceholder'
 import { useCart } from '../hooks/useCart'
@@ -20,6 +20,9 @@ type StoreProductCardProps = {
   variant?: 'carousel' | 'grid'
   analyticsMeta?: Record<string, unknown>
 }
+
+const FRACTIONAL_INFO_TEXT =
+  'Vendido por peso: você paga a porção mínima agora e o valor final é ajustado pela nossa equipe conforme o peso real, na separação do pedido.'
 
 export function StoreProductCard({
   product,
@@ -161,9 +164,21 @@ export function StoreProductCard({
               </Badge>
             )}
             {viewModel.isFractional && (
-              <Badge tone="neutral" className="w-fit normal-case tracking-normal">
-                Pesável
-              </Badge>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toast(FRACTIONAL_INFO_TEXT, { id: `fractional-info-${product.id}`, icon: '⚖️' })
+                }}
+                className="relative w-fit pointer-events-auto before:absolute before:-inset-2.5 before:content-['']"
+                title={FRACTIONAL_INFO_TEXT}
+                aria-label={`Pesável. ${FRACTIONAL_INFO_TEXT}`}
+              >
+                <Badge tone="neutral" className="w-fit gap-1 normal-case tracking-normal">
+                  Pesável
+                  <Info className="h-3 w-3 text-[#8A6A3A]" aria-hidden="true" />
+                </Badge>
+              </button>
             )}
           </div>
         )}
@@ -207,7 +222,10 @@ export function StoreProductCard({
       <div className="flex flex-1 flex-col p-3">
         <div className="space-y-0.5">
           {viewModel.eyebrow && (
-            <p className="text-label font-semibold uppercase leading-tight tracking-[0.04em] text-[#8A6A3A]">
+            <p
+              className="text-label font-semibold uppercase leading-tight tracking-[0.04em] text-[#8A6A3A]"
+              title={viewModel.isFractional && !viewModel.missingFractionStep ? FRACTIONAL_INFO_TEXT : undefined}
+            >
               {viewModel.eyebrow}
             </p>
           )}

@@ -356,6 +356,7 @@ function ProductPurchasePanel({ product }: { product: Product }) {
   const [unitMode, setUnitMode] = useState<'unit' | 'weight'>('unit')
 
   const viewModel = useMemo(() => getProductCardViewModel(product), [product])
+  const pricing = useMemo(() => getProductPricePresentation(product), [product])
   const cartItem = cart.find((item) => item.productId === product.id)
   const quantity = cartItem?.quantity || 0
 
@@ -424,6 +425,12 @@ function ProductPurchasePanel({ product }: { product: Product }) {
             Peso
           </Button>
         </div>
+      )}
+
+      {product.isFractional && !viewModel.missingFractionStep && (
+        <p className="rounded-lg border border-[#E8D7B0]/70 bg-[#FBF7F0] px-3 py-2 text-xs leading-relaxed text-[#5d4f33]">
+          Esse produto é vendido por peso. Você paga pela porção mínima de {pricing.portionLabel} ao adicionar ao carrinho, e a nossa equipe ajusta o valor final conforme o peso real do item na separação do pedido.
+        </p>
       )}
 
       {quantity === 0 ? (
