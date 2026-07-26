@@ -75,6 +75,54 @@ const toDisplayLabel = (code: string) => {
     .join(' ');
 };
 
+/** Campos do produto expostos ao storefront (mesmo shape de /products). */
+const STOREFRONT_PRODUCT_SELECT = {
+  id: true,
+  ean: true,
+  name: true,
+  alternativeDescription: true,
+  price: true,
+  promotionalPrice: true,
+  stock: true,
+  isFractional: true,
+  fractionStep: true,
+  unit: true,
+  badges: true,
+  titleMask: true,
+  titleMaskShort: true,
+  syncOption: true,
+  category: true,
+  origin: true,
+  active: true,
+} as const;
+
+type ShelfProduct = {
+  id: string;
+  ean: string;
+  name: string;
+  alternativeDescription: string | null;
+  price: number;
+  promotionalPrice: number | null;
+  stock: number | null;
+  isFractional: boolean;
+  fractionStep: number | null;
+  unit: string;
+  badges: string | null;
+  titleMask: string | null;
+  titleMaskShort: string | null;
+  syncOption: string;
+  category: string;
+  origin: string | null;
+  active: boolean;
+};
+
+/** Mesma mascara de nome que /products aplica — sem isso a vitrine mostra o nome cru do ERP. */
+const toCustomerFacingProduct = <T extends ShelfProduct>(product: T) => {
+  const mask =
+    String(product.titleMask || '').trim() || String(product.titleMaskShort || '').trim();
+  return mask ? { ...product, name: mask } : product;
+};
+
 @Injectable()
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
@@ -193,25 +241,7 @@ export class CategoriesService {
             orderBy: { order: 'asc' },
             include: {
               product: {
-                select: {
-                  id: true,
-                  ean: true,
-                  name: true,
-                  alternativeDescription: true,
-                  price: true,
-                  promotionalPrice: true,
-                  stock: true,
-                  isFractional: true,
-                  fractionStep: true,
-                  unit: true,
-                  badges: true,
-                  titleMask: true,
-                  titleMaskShort: true,
-                  syncOption: true,
-                  category: true,
-                  origin: true,
-                  active: true,
-                },
+                select: STOREFRONT_PRODUCT_SELECT,
               },
             },
           },
@@ -254,18 +284,37 @@ export class CategoriesService {
     const eligibleEans = new Set(
       products.filter(isEligibleForStorefront).map((item) => item.ean),
     );
-    const eanMappingCountByCategoryId = new Map<string, number>();
-    const seenEanPerCategory = new Set<string>();
+    // `ean` e unique na tabela, entao cada EAN aparece uma unica vez por categoria.
+    const eansByCategoryId = new Map<string, string[]>();
     for (const row of eanMappingRows) {
       if (!eligibleEans.has(row.ean)) continue;
-      const dedupeKey = `${row.categoryId}:${row.ean}`;
-      if (seenEanPerCategory.has(dedupeKey)) continue;
-      seenEanPerCategory.add(dedupeKey);
-      eanMappingCountByCategoryId.set(
-        row.categoryId,
-        (eanMappingCountByCategoryId.get(row.categoryId) || 0) + 1,
-      );
+      const bucket = eansByCategoryId.get(row.categoryId);
+      if (bucket) bucket.push(row.ean);
+      else eansByCategoryId.set(row.categoryId, [row.ean]);
     }
+
+    // Vitrines da Home servidas junto da taxonomia: a alternativa e uma
+    // requisicao /products?category= por categoria, que multiplica a carga por
+    // pagina e aproxima o storefront do throttler (20 req/min) sem ganho nenhum.
+    // ponytail: monta vitrine para toda categoria ativa (~65, ~370ms) e a Home
+    // usa ~12; se o payload incomodar, aceitar ?shelves=CODIGO,CODIGO depois.
+    const shelfCategories = categories.filter((category) => category.active);
+    const shelves = await this.prisma.$transaction(
+      shelfCategories.map((category) =>
+        this.prisma.product.findMany({
+          where: { ean: { in: eansByCategoryId.get(category.id) || [] } },
+          orderBy: { name: 'asc' }, // mesma ordem de /products?category=
+          take: Math.max(1, Math.min(50, category.limit || 6)),
+          select: STOREFRONT_PRODUCT_SELECT,
+        }),
+      ),
+    );
+    const productsByCategoryId = new Map(
+      shelfCategories.map((category, index) => [
+        category.id,
+        (shelves[index] || []).map(toCustomerFacingProduct),
+      ]),
+    );
 
     // Fallback historico pelo campo `category` do produto, mantido apenas para
     // categorias que existem no catalogo mas nao no CMS (bloco mais abaixo).
@@ -286,25 +335,9 @@ export class CategoriesService {
       bannerUrl?: string | null;
       productCount: number;
       curatedProductIds: string[];
-      curatedProducts: Array<{
-        id: string;
-        ean: string;
-        name: string;
-        alternativeDescription: string | null;
-        price: number;
-        promotionalPrice: number | null;
-        stock: number | null;
-        isFractional: boolean;
-        fractionStep: number | null;
-        unit: string;
-        badges: string | null;
-        titleMask: string | null;
-        titleMaskShort: string | null;
-        syncOption: string;
-        category: string;
-        origin: string | null;
-        active: boolean;
-      }>;
+      curatedProducts: ShelfProduct[];
+      /** Produtos da vitrine, ja limitados por `limit`. Evita 1 request por categoria na Home. */
+      products: ShelfProduct[];
       source: 'cms' | 'fallback';
     }>();
 
@@ -337,7 +370,7 @@ export class CategoriesService {
       // O campo `product.category` NAO entra aqui: 99,8% do catalogo esta como
       // "GERAL", entao contaria uma categoria que a listagem nao sabe filtrar.
       const mappingBasedCount =
-        (eanMappingCountByCategoryId.get(category.id) || 0) ||
+        (eansByCategoryId.get(category.id) || []).length ||
         countProductsForMappings(category.classificationMappings as Array<{ classificationLevel: number; classificationValue: string }>);
       byCode.set(code, {
         id: category.id,
@@ -349,7 +382,8 @@ export class CategoriesService {
         bannerUrl: category.bannerUrl,
         productCount: mappingBasedCount,
         curatedProductIds: category.curatedProducts.map((item) => item.productId),
-        curatedProducts: category.curatedProducts.map((item) => item.product),
+        curatedProducts: category.curatedProducts.map((item) => toCustomerFacingProduct(item.product)),
+        products: productsByCategoryId.get(category.id) || [],
         source: 'cms',
       });
     }
@@ -366,6 +400,7 @@ export class CategoriesService {
         productCount,
         curatedProductIds: [],
         curatedProducts: [],
+        products: [],
         source: 'fallback',
       });
     }

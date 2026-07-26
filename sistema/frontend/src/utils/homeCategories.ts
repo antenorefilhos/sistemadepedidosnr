@@ -95,24 +95,10 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
   CONSUMO_RAPIDO: 'praticos',
 }
 
-/**
- * Inverso — define QUAL codigo e consultado no backend (`?category=`) para
- * montar a vitrine, entao aponta sempre para o codigo vigente.
- */
-export const RULE_ID_TO_CMS_CODE: Record<string, string> = {
-  carnes: 'CARNES',
-  churrasco: 'CHURRASCO',
-  hortifruti: 'HORTIFRUTI',
-  padaria: 'PADARIA',
-  bebidas: 'BEBIDAS_SEM_ALCOOL',
-  cervejas: 'CERVEJAS',
-  vinhos: 'ADEGA',
-  praticos: 'CONGELADOS',
-  doces: 'CHOCOLATES_BALAS_E_SNACKS',
-  limpeza: 'LIMPEZA',
-  higiene: 'HIGIENE_PESSOAL',
-  perfumaria: 'PERFUMARIA_E_BELEZA',
-}
+// Nao ha mais mapa inverso rule.id -> codigo do CMS: cada vitrine/atalho usa o
+// `code` que o proprio /cms/categories/commercial devolveu (ver useHomeShelves e
+// homeCategories). Um mapa fixo aqui reapontava para categorias extintas quando a
+// taxonomia mudava — foi o que deixou a Adega e "Pronto pra Comer" vazias.
 
 export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   hortifruti: Apple,

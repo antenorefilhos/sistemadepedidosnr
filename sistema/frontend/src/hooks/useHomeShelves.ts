@@ -4,12 +4,10 @@ import {
   CMS_CATEGORY_TO_RULE_ID,
   HOME_CATEGORY_RULES,
   HOME_COMMERCIAL_PRIORITY,
-  RULE_ID_TO_CMS_CODE,
   normalizeCategoryCode,
   toCategoryUrlParam,
   type HomeCategoryRule,
 } from '../utils/homeCategories'
-import { useCategoryProducts } from './useCategoryProducts'
 
 /** Item vindo da API de taxonomia comercial do CMS (contrato fraco). */
 type CMSCategoryItem = {
@@ -20,14 +18,20 @@ type CMSCategoryItem = {
   priority?: number
   productCount?: number
   curatedProducts?: Array<{ product?: Product }>
+  /** Vitrine ja montada pelo backend (filtro por ProductCategoryMapping). */
+  products?: Product[]
 }
 
 type CMSCategoryConfig = {
   rule: HomeCategoryRule
+  /** Codigo real da categoria no CMS — usado para montar links `?cat=`. */
+  code: string
   limit: number
   priority: number
   productCount: number
   curatedProducts: Product[]
+  /** Produtos da vitrine ja vindos do backend (evita 1 request por categoria). */
+  products: Product[]
 }
 
 type TopSellingItem = { product?: Product }
@@ -98,8 +102,8 @@ export function useHomeShelves({
     list
       .filter((item) => item?.active !== false)
       .forEach((item) => {
-        const categoryCode = String(item?.code || item?.name || '')
-        const ruleId = CMS_CATEGORY_TO_RULE_ID[normalizeCategoryCode(categoryCode)]
+        const categoryCode = normalizeCategoryCode(String(item?.code || item?.name || ''))
+        const ruleId = CMS_CATEGORY_TO_RULE_ID[categoryCode]
         if (!ruleId) return
 
         const rule = HOME_CATEGORY_RULES.find((r) => r.id === ruleId)
@@ -107,44 +111,31 @@ export function useHomeShelves({
 
         configs.push({
           rule,
+          code: categoryCode,
           limit: item?.limit ?? 6,
           priority: item?.priority ?? 0,
           productCount: Number(item?.productCount ?? 0),
           curatedProducts: Array.isArray(item?.curatedProducts)
             ? (item.curatedProducts as unknown as Product[])
             : [],
+          products: Array.isArray(item?.products) ? (item.products as Product[]) : [],
         })
       })
 
     if (configs.length === 0) {
       return HOME_CATEGORY_RULES.map((rule) => ({
         rule,
+        code: '',
         limit: 6,
         priority: HOME_COMMERCIAL_PRIORITY[rule.id] ?? 999,
         productCount: 0,
         curatedProducts: [],
+        products: [],
       }))
     }
 
     return configs.sort((a, b) => a.priority - b.priority)
   }, [cmsCategories])
-
-  /**
-   * Codigos CMS das categorias ativas — a chave do fetch por categoria.
-   *
-   * Enquanto o CMS nao respondeu, `enabledHomeRules` cai no fallback com TODAS
-   * as regras locais. Disparar por elas geraria uma rajada descartavel que e
-   * refeita logo em seguida — e o backend limita a 20 req/min. Entao so busca
-   * quando a taxonomia real chegou.
-   */
-  const categoryCodes = useMemo(() => {
-    if (!Array.isArray(cmsCategories) || cmsCategories.length === 0) return []
-    return enabledHomeRules
-      .map((config) => RULE_ID_TO_CMS_CODE[config.rule.id])
-      .filter((code): code is string => Boolean(code))
-  }, [cmsCategories, enabledHomeRules])
-
-  const categoryProducts = useCategoryProducts(categoryCodes)
 
   const categorized = useMemo(() => {
     const usedKeys = new Set<string>()
@@ -152,17 +143,16 @@ export function useHomeShelves({
     /**
      * Fonte de cada secao, na ordem de autoridade do Admin:
      * 1) curadoria manual da categoria no CMS;
-     * 2) filtro por categoria (EAN -> categoria), a mesma fonte do productCount.
-     * O teto de itens tambem vem do CMS (`limit`).
+     * 2) vitrine ja montada pelo backend (`config.products`, filtro EAN -> categoria).
+     * Uma unica resposta de /cms/categories/commercial traz tudo — sem 1 request
+     * por categoria, que batia no throttler (20 req/min). O teto vem do CMS (`limit`).
      */
     const take = (ruleId: string, fallbackLimit: number) => {
       const config = enabledHomeRules.find((item) => item.rule.id === ruleId)
       if (!config) return []
 
       const source =
-        config.curatedProducts.length > 0
-          ? config.curatedProducts
-          : categoryProducts[RULE_ID_TO_CMS_CODE[ruleId]] || []
+        config.curatedProducts.length > 0 ? config.curatedProducts : config.products
 
       const limit = config.limit || fallbackLimit
       const picked: Product[] = []
@@ -191,13 +181,14 @@ export function useHomeShelves({
         return true
       }),
     }
-  }, [enabledHomeRules, categoryProducts, productsList])
+  }, [enabledHomeRules, productsList])
 
   const homeCategories = useMemo(
     () =>
       enabledHomeRules
         .map((config) => ({
           id: config.rule.id,
+          code: config.code,
           label: config.rule.label,
           query: config.rule.query,
           count:
@@ -222,7 +213,7 @@ export function useHomeShelves({
     if (!selected) return null
 
     const cleanLabel = selected.rule.label.replace(/^\S+\s*/, '').trim()
-    const cmsCode = RULE_ID_TO_CMS_CODE[selected.rule.id] || selected.rule.id.toUpperCase()
+    const cmsCode = selected.code || selected.rule.id.toUpperCase()
     const isWine = selected.rule.id === 'vinhos'
 
     return {

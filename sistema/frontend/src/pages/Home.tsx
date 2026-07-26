@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useHomeShelves } from '../hooks/useHomeShelves'
 import {
   CATEGORY_ICONS,
-  RULE_ID_TO_CMS_CODE,
   normalizeWineLink,
   toCategoryUrlParam,
 } from '../utils/homeCategories'
@@ -345,7 +344,7 @@ export default function Home() {
                 return (
                   <Link
                     key={category.id}
-                    to={`/mercado?cat=${toCategoryUrlParam(RULE_ID_TO_CMS_CODE[category.id] || category.id.toUpperCase())}`}
+                    to={`/mercado?cat=${toCategoryUrlParam(category.code || category.id.toUpperCase())}`}
                     style={{ touchAction: 'manipulation' }}
                     className="snap-start shrink-0 flex flex-col items-center gap-1 min-w-[64px] text-center cursor-pointer group"
                   >
@@ -547,7 +546,7 @@ export default function Home() {
                 return (
                   <Link
                     key={category.id}
-                    to={`/mercado?cat=${toCategoryUrlParam(RULE_ID_TO_CMS_CODE[category.id] || category.id.toUpperCase())}`}
+                    to={`/mercado?cat=${toCategoryUrlParam(category.code || category.id.toUpperCase())}`}
                     className="snap-start shrink-0 flex flex-col items-center gap-1.5 px-4 py-3 rounded-lg bg-[#FBF7F0] border border-[#E8D7B0]/40 hover:bg-[#F3E7C9] hover:border-[#D2BB8A] hover:scale-105 transition-all duration-200 min-w-[90px] text-center group cursor-pointer"
                   >
                     <IconComponent size={20} className="text-[#5D082A] group-hover:scale-110 transition-transform duration-200" strokeWidth={1.8} />
