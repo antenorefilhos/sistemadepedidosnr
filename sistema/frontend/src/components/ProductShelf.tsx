@@ -82,7 +82,7 @@ export function ProductShelf({
       {isCarousel ? (
         <div
           ref={scrollRef}
-          className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-3"
+          className="no-scrollbar flex snap-x gap-3 overflow-x-auto pb-3"
         >
           {products.map((product) => (
             <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
