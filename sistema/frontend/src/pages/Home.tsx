@@ -721,11 +721,11 @@ export default function Home() {
         )}
 
         {intentShelves.length > 0 && (
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
+        <div className="space-y-10">
           {intentShelves.map((shelf) => (
             <ProductShelf
               key={shelf.key}
-              layout="grid"
+              layout="carousel"
               eyebrow={shelf.eyebrow}
               title={shelf.title}
               icon={shelf.icon}
