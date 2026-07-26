@@ -24,7 +24,7 @@ import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock, Home as HomeIcon,
-  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag
+  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
@@ -105,6 +105,63 @@ export default function Home() {
     marginShowcase,
   })
 
+  // Vitrines de intencao do grid desktop (xl:grid-cols-3). Filtra vazias ANTES de
+  // renderizar: ProductShelf ja retorna null sem produto, mas a celula do grid so
+  // deixa de existir de fato quando a vitrine nunca entra no array — e o wrapper
+  // some por inteiro (sem margem de space-y sobrando) se todas estiverem vazias.
+  const intentShelves = useMemo(() => ([
+    {
+      key: 'rebuy',
+      eyebrow: user ? 'Historico de compra' : 'Compra recorrente',
+      title: user ? 'Recompre em poucos cliques' : 'Mais fáceis de repetir',
+      icon: ShoppingCart,
+      products: rebuyShelf.slice(0, 6),
+      to: '/mercado',
+    },
+    {
+      key: 'offers',
+      eyebrow: 'Ofertas e oportunidade',
+      title: 'Melhores escolhas de hoje',
+      icon: Sparkles,
+      products: offersShelf.slice(0, 6),
+      to: '/promocoes',
+    },
+    {
+      key: 'fresh',
+      eyebrow: 'Frescos e balcão',
+      title: 'Para levar fresco agora',
+      icon: Apple,
+      products: freshShelf.slice(0, 6),
+      to: '/mercado?cat=hortifruti',
+    },
+    {
+      key: 'churrasco',
+      eyebrow: 'Ocasião pronta',
+      title: 'Churrasco sem garimpo',
+      icon: Flame,
+      products: churrascoOccasionShelf.slice(0, 6),
+      to: '/mercado?q=churrasco',
+    },
+    {
+      key: 'fair',
+      eyebrow: 'Feira e hortifruti',
+      title: 'Reposição fresca da semana',
+      icon: Apple,
+      products: fairShelf.slice(0, 6),
+      to: '/mercado?cat=hortifruti',
+    },
+    {
+      key: 'recurring',
+      eyebrow: 'Compra recorrente',
+      title: 'Itens que sempre voltam',
+      icon: ShoppingBag,
+      products: recurringShelf.slice(0, 6),
+      to: '/mercado?q=recorrentes',
+    },
+  ]).filter((shelf) => shelf.products.length > 0), [
+    user, rebuyShelf, offersShelf, freshShelf, churrascoOccasionShelf, fairShelf, recurringShelf,
+  ])
+
   const [currentSlide, setCurrentSlide] = useState(0)
 
   const slides = useMemo(() => {
@@ -145,6 +202,18 @@ export default function Home() {
   const promoBanner1 = getPromoBanner(0)
   const promoBanner2 = getPromoBanner(1)
   const promoBanner3 = getPromoBanner(2)
+
+  // Ponto de ajuda/contato da Home (heuristica "ajuda e documentacao": a Home nao
+  // tinha nenhum contato). Reaproveita o mesmo padrao ja usado em Account.tsx:
+  // contactWhatsapp do CMS (Admin > Marca), com fallback para VITE_CONTACT_WHATSAPP.
+  const whatsappHelpUrl = useMemo(() => {
+    const digits = (brand.contactWhatsapp || import.meta.env.VITE_CONTACT_WHATSAPP || '').replace(/\D/g, '')
+    const message = encodeURIComponent('Olá! Preciso de ajuda com meu pedido no site.')
+    // TODO: numero real do WhatsApp — nao configurado hoje em contactWhatsapp (Admin >
+    // Marca) nem em VITE_CONTACT_WHATSAPP (.env). Assim que houver um numero, o link
+    // passa a funcionar sozinho; ate la aponta para um placeholder inerte.
+    return digits ? `https://wa.me/${digits}?text=${message}` : '#whatsapp-nao-configurado'
+  }, [brand.contactWhatsapp])
 
   useEffect(() => {
     trackEvent('VIEW_CATEGORY', 'HOME', 'General')
@@ -219,7 +288,7 @@ export default function Home() {
               <span className="flex items-center gap-1 text-white/85 text-xs min-w-0 pointer-events-none">
                 <MapPin size={12} className="text-[#D2BB8A] shrink-0" />
                 <span className="truncate">
-                  {deliveryAddressLabel || 'Enviar para: CLIQUE AQUI'}
+                  {deliveryAddressLabel || 'Escolher endereço de entrega'}
                 </span>
               </span>
             </Button>
@@ -307,7 +376,7 @@ export default function Home() {
             >
               <MapPin size={14} className="shrink-0 text-[#5D082A]" />
               <span className="truncate">
-                {deliveryAddressLabel || 'Enviar para: CLIQUE AQUI'}
+                {deliveryAddressLabel || 'Escolher endereço de entrega'}
               </span>
             </Button>
             <div className={`inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-1 text-caption ${deliveryOperation.isOpen ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-[#D2BB8A]/60 bg-[#FBFAF7] text-[#5d4f33]'}`}>
@@ -652,56 +721,21 @@ export default function Home() {
           </section>
         )}
 
+        {intentShelves.length > 0 && (
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
-          <ProductShelf
-            layout="grid"
-            eyebrow={user ? 'Historico de compra' : 'Compra recorrente'}
-            title={user ? 'Recompre em poucos cliques' : 'Mais fáceis de repetir'}
-            icon={ShoppingCart}
-            products={rebuyShelf.slice(0, 6)}
-            to="/mercado"
-          />
-          <ProductShelf
-            layout="grid"
-            eyebrow="Ofertas e oportunidade"
-            title="Melhores escolhas de hoje"
-            icon={Sparkles}
-            products={offersShelf.slice(0, 6)}
-            to="/promocoes"
-          />
-          <ProductShelf
-            layout="grid"
-            eyebrow="Frescos e balcão"
-            title="Para levar fresco agora"
-            icon={Apple}
-            products={freshShelf.slice(0, 6)}
-            to="/mercado?cat=hortifruti"
-          />
-          <ProductShelf
-            layout="grid"
-            eyebrow="Ocasião pronta"
-            title="Churrasco sem garimpo"
-            icon={Flame}
-            products={churrascoOccasionShelf.slice(0, 6)}
-            to="/mercado?q=churrasco"
-          />
-          <ProductShelf
-            layout="grid"
-            eyebrow="Feira e hortifruti"
-            title="Reposição fresca da semana"
-            icon={Apple}
-            products={fairShelf.slice(0, 6)}
-            to="/mercado?cat=hortifruti"
-          />
-          <ProductShelf
-            layout="grid"
-            eyebrow="Compra recorrente"
-            title="Itens que sempre voltam"
-            icon={ShoppingBag}
-            products={recurringShelf.slice(0, 6)}
-            to="/mercado?q=recorrentes"
-          />
+          {intentShelves.map((shelf) => (
+            <ProductShelf
+              key={shelf.key}
+              layout="grid"
+              eyebrow={shelf.eyebrow}
+              title={shelf.title}
+              icon={shelf.icon}
+              products={shelf.products}
+              to={shelf.to}
+            />
+          ))}
         </div>
+        )}
 
         {bestSellers.length > 0 && (
         <section className="fade-in-section">
@@ -879,6 +913,21 @@ export default function Home() {
          </section>
       </main>
       )}
+
+      {/* ── Ajuda / contato — discreto, aponta para o WhatsApp da loja ── */}
+      <section className="px-4 py-6 md:px-0">
+        <div className="md:max-w-7xl md:mx-auto">
+          <a
+            href={whatsappHelpUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-[#D2BB8A]/40 bg-[#F8F4EA] px-4 py-3 text-caption font-semibold text-[#5D082A] transition-colors hover:bg-[#F3E7C9]"
+          >
+            <MessageCircle size={16} className="shrink-0" />
+            Precisa de ajuda? Fale com a gente no WhatsApp
+          </a>
+        </div>
+      </section>
 
       {/* ── MOBILE Bottom Navigation ── */}
       {!isDesktop && (
