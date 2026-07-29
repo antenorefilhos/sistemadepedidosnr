@@ -79,8 +79,11 @@ async function main() {
   await prisma.pushSubscription.deleteMany()
   await prisma.admin.deleteMany()
 
-  // Criar admin
-  const adminPassword = await bcrypt.hash('admin2026', 10)
+  // Criar admin. Senha vem do ambiente: hardcoded aqui ela vaza no repositorio.
+  if (!process.env.ADMIN_PASSWORD) {
+    throw new Error('Defina ADMIN_PASSWORD no .env antes de rodar o seed.')
+  }
+  const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10)
   await prisma.admin.create({
     data: {
       email: 'admin@antenor.com.br',

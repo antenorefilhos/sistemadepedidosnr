@@ -50,7 +50,7 @@ function apiBase() {
 function ensureQaDeliveryZone() {
   cy.request('POST', `${apiBase()}/auth/login`, {
     email: 'admin@antenor.com.br',
-    password: 'admin2026',
+    password: Cypress.env('ADMIN_PASSWORD'),
   }).then(({ body }) => {
     const headers = { Authorization: `Bearer ${body.access_token}` }
 
@@ -82,7 +82,7 @@ function ensureQaDeliveryZone() {
 function ensureQaDeliverySlot() {
   cy.request('POST', `${apiBase()}/auth/login`, {
     email: 'admin@antenor.com.br',
-    password: 'admin2026',
+    password: Cypress.env('ADMIN_PASSWORD'),
   }).then(({ body }) => {
     const headers = { Authorization: `Bearer ${body.access_token}` }
     const from = new Date(Date.now() - 60_000).toISOString()

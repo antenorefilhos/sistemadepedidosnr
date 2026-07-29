@@ -22,10 +22,13 @@ function base64Url(input: string) {
 function createLocalAdminAuth(): AdminAuth {
   if (cachedAdminAuth) return cachedAdminAuth;
 
-  const secret =
-    process.env.CYPRESS_ADMIN_JWT_SECRET ||
-    process.env.JWT_SECRET ||
-    "antenor_local_stack_jwt_secret_2026_min_32_chars";
+  // Sem fallback literal: um segredo versionado permite forjar token de admin.
+  const secret = process.env.CYPRESS_ADMIN_JWT_SECRET || process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error(
+      "Defina JWT_SECRET (ou CYPRESS_ADMIN_JWT_SECRET) para rodar os testes do admin.",
+    );
+  }
   const now = Math.floor(Date.now() / 1000);
   const admin = {
     id: "qa-admin-cypress",

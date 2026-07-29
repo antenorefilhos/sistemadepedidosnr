@@ -4,8 +4,12 @@ import * as bcrypt from 'bcrypt'
 const prisma = new PrismaClient()
 
 async function main() {
-  const adminPassword = await bcrypt.hash('admin2026', 10)
-  const customerPassword = await bcrypt.hash('qa2026', 10)
+  // Senhas vem do ambiente: hardcoded aqui elas vazam no repositorio.
+  if (!process.env.ADMIN_PASSWORD) {
+    throw new Error('Defina ADMIN_PASSWORD no .env antes de rodar o seed de QA.')
+  }
+  const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10)
+  const customerPassword = await bcrypt.hash(process.env.QA_CUSTOMER_PASSWORD || 'qa2026', 10)
 
   const admin = await prisma.admin.upsert({
     where: { email: 'qa.admin@antenor.com.br' },

@@ -8,7 +8,7 @@ param(
   [string]$StorefrontUrl = 'http://localhost:3000',
   [string]$AdminUrl = 'http://localhost:3002',
   [string]$AdminEmail = 'admin@antenor.com.br',
-  [string]$AdminPassword = 'admin2026'
+  [string]$AdminPassword = $env:ADMIN_PASSWORD
 )
 
 $ErrorActionPreference = 'Stop'

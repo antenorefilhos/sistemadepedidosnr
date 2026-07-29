@@ -27,7 +27,7 @@
 }
 
 # 1. Login
-$loginBody = @{ email = "admin@antenor.com.br"; password = "admin2026" } | ConvertTo-Json
+$loginBody = @{ email = "admin@antenor.com.br"; password = $env:ADMIN_PASSWORD } | ConvertTo-Json
 $loginResult = Run-Test "Admin Login" "http://localhost:3001/auth/login" "POST" $loginBody
 $token = $loginResult.Content.access_token
 

@@ -2,6 +2,7 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "//": "deleteOutDir fica false: com watch, apagar o outDir a cada start faz o node carregar dist/main antes da recompilacao terminar e morrer com MODULE_NOT_FOUND. Para limpar de verdade: rm -rf dist tsconfig.tsbuildinfo.",
+    "deleteOutDir": false
   }
 }

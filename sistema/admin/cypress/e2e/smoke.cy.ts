@@ -24,7 +24,7 @@ describe('Smoke Test - Painel Admin', () => {
     cy.intercept('POST', '**/auth/login', (req) => {
       expect(req.body).to.deep.eq({
         email: 'admin@antenor.com.br',
-        password: 'admin2026',
+        password: Cypress.env('ADMIN_PASSWORD'),
       })
 
       req.reply({
@@ -38,7 +38,7 @@ describe('Smoke Test - Painel Admin', () => {
 
     cy.visit('/login')
     cy.get('input[type="email"]').type('admin@antenor.com.br')
-    cy.get('input[type="password"]').type('admin2026')
+    cy.get('input[type="password"]').type(Cypress.env('ADMIN_PASSWORD'))
     cy.get('button').contains('Entrar').click()
     cy.wait('@login')
     
