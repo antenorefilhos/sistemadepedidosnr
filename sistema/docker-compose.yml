@@ -7,7 +7,7 @@ services:
       environment:
         POSTGRES_DB: antenor_db
         POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: antenor_password_2026
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-antenor_password_2026}
       volumes:
         - pgdata:/var/lib/postgresql/data
       networks:
@@ -29,7 +29,7 @@ services:
     container_name: antenor_meili
     restart: always
     environment:
-      MEILI_MASTER_KEY: antenor_meili_master_2026
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-antenor_meili_master_2026}
       MEILI_NO_ANALYTICS: "true"
     volumes:
       - meili_data:/meili_data
@@ -46,16 +46,17 @@ services:
     container_name: antenor_api
     restart: always
     environment:
-      DATABASE_URL: postgresql://postgres:antenor_password_2026@db:5432/antenor_db?schema=public
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-antenor_password_2026}@db:5432/antenor_db?schema=public
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
-      JWT_SECRET: antenor_local_stack_jwt_secret_2026_min_32_chars
+      JWT_SECRET: ${JWT_SECRET:-antenor_local_stack_jwt_secret_2026_min_32_chars}
       CORS_ORIGIN: http://localhost:3000,http://localhost:3002,https://localhost:3443,https://localhost:3444
       FRONTEND_URL: http://localhost:3000
       ADMIN_URL: http://localhost:3002
       PORT: 3001
       MEILI_HOST: http://meili:7700
-      MEILI_MASTER_KEY: antenor_meili_master_2026
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-antenor_meili_master_2026}
+      USE_MEILISEARCH: ${USE_MEILISEARCH:-true}
       ALLOW_GUEST_CHECKOUT: ${ALLOW_GUEST_CHECKOUT:-true}
       ENABLE_LEGACY_CLASSIFICATION_MAPPINGS: ${ENABLE_LEGACY_CLASSIFICATION_MAPPINGS:-false}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}

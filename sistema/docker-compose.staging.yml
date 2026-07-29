@@ -22,7 +22,7 @@ services:
     environment:
       POSTGRES_DB: antenor_staging
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: antenor_staging_2026
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:-antenor_staging_2026}
     volumes:
       - pgdata_staging:/var/lib/postgresql/data
     networks:
@@ -42,7 +42,7 @@ services:
     container_name: antenor_meili_staging
     restart: unless-stopped
     environment:
-      MEILI_MASTER_KEY: antenor_meili_staging_2026
+      MEILI_MASTER_KEY: ${STAGING_MEILI_MASTER_KEY:-antenor_meili_staging_2026}
       MEILI_NO_ANALYTICS: "true"
     volumes:
       - meili_staging_data:/meili_data
@@ -58,12 +58,13 @@ services:
     container_name: antenor_api_staging
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://postgres:antenor_staging_2026@db_staging:5432/antenor_staging?schema=public
+      DATABASE_URL: postgresql://postgres:${STAGING_POSTGRES_PASSWORD:-antenor_staging_2026}@db_staging:5432/antenor_staging?schema=public
       REDIS_URL: redis://redis_staging:6379
       NODE_ENV: staging
       PORT: 3001
       MEILI_HOST: http://meili_staging:7700
-      MEILI_MASTER_KEY: antenor_meili_staging_2026
+      MEILI_MASTER_KEY: ${STAGING_MEILI_MASTER_KEY:-antenor_meili_staging_2026}
+      USE_MEILISEARCH: ${USE_MEILISEARCH:-true}
       JWT_SECRET: ${STAGING_JWT_SECRET:-staging-jwt-secret-change-before-production}
       CORS_ORIGIN: ${STAGING_CORS_ORIGIN:-http://localhost:4000,http://localhost:4002}
       FRONTEND_URL: ${STAGING_FRONTEND_URL:-http://localhost:4000}
