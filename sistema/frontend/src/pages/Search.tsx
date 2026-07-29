@@ -171,7 +171,9 @@ export default function MercadoPage() {
         setIsSuggesting(true)
         const response = await productsAPI.suggest(value, 6)
         if (!cancelled) {
-          const next = (response.data?.data || []) as string[]
+          // Dedup: o ERP tem SKUs distintos com nome identico, e o nome e a key
+          // da lista de sugestoes — repetido gera warning de chave duplicada.
+          const next = [...new Set((response.data?.data || []) as string[])]
           setSuggestions(next)
           setShowSuggestions(isInputFocused && next.length > 0)
         }
