@@ -675,6 +675,24 @@ export class ProductsService {
       }
     }
 
+    // Busca textual acento-insensivel. O caminho Prisma (contains/ILIKE) e
+    // case-insensitive mas NAO ignora acento: "moido" nao achava "Patinho
+    // Bovino Moído". Fora de uma categoria mapeada, usa o match por regex (~*)
+    // que trata as duas grafias e ja respeita a visibilidade do storefront.
+    if (parsed.text && categoryMappingFilter === undefined) {
+      const accentAware = await this.findAllAccentTolerant(
+        effectiveParsed,
+        safePage,
+        safeLimit,
+        effectiveCategory,
+        mercadologicalFilters,
+      )
+      return {
+        ...accentAware,
+        data: (accentAware.data as any[]).map((item) => this.toCustomerFacingProduct(item)),
+      }
+    }
+
     const where = this.buildPrismaWhere(effectiveParsed, effectiveCategory, mercadologicalFilters)
     Object.assign(where, tenantStoreWhere(context))
 
@@ -696,22 +714,6 @@ export class ProductsService {
       }),
       this.prisma.product.count({ where }),
     ])
-
-    if (parsed.text && total === 0 && useSearchBackend) {
-      const accentAware = await this.findAllAccentTolerant(
-        effectiveParsed,
-        safePage,
-        safeLimit,
-        effectiveCategory,
-        mercadologicalFilters,
-      )
-      if (accentAware.total > 0) {
-        return {
-          ...accentAware,
-          data: (accentAware.data as any[]).map((item) => this.toCustomerFacingProduct(item)),
-        }
-      }
-    }
 
     return {
       data: data.map((item) => this.toCustomerFacingProduct(item)),
