@@ -653,8 +653,14 @@ export class ProductsService {
       }
     }
 
-    // Busca via MeiliSearch para maior tolerância a erros e melhor relevância.
-    const useSearchBackend = false
+    // Busca via MeiliSearch: typo tolerance ("fango"->frango), sinonimos e
+    // ranking por relevancia. Ligado por env (USE_MEILISEARCH=true) e so quando
+    // o servico esta habilitado (MEILI_HOST presente). Se o Meili falhar ou
+    // devolver 0, `searchProducts` retorna null e a busca cai no Postgres —
+    // nenhum risco em ligar antes de o indice/credencial estarem 100%.
+    const useSearchBackend =
+      String(process.env.USE_MEILISEARCH || '').toLowerCase() === 'true' &&
+      this.productSearchService.isEnabled()
     if (parsed.text && parsed.excludes.length === 0 && useSearchBackend) {
       const meili = await this.productSearchService.searchProducts(parsed.text, safePage, safeLimit, {
         tenantId: context?.tenantId,
