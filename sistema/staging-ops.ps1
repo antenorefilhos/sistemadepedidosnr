@@ -42,13 +42,15 @@ switch ($Command) {
 
   "seed" {
     Write-Step "Aplicando seed completo no staging..."
-    $env:DATABASE_URL = "postgresql://postgres:antenor_staging_2026@localhost:5433/antenor_staging?schema=public"
+    # Senha vem do ambiente; nao versionar credencial neste script.
+    $stagingPass = if ($env:STAGING_POSTGRES_PASSWORD) { $env:STAGING_POSTGRES_PASSWORD } else { Read-Host "Senha do Postgres de staging" }
+    $env:DATABASE_URL = "postgresql://postgres:$stagingPass@localhost:5433/antenor_staging?schema=public"
     Push-Location backend
     try {
       npm run prisma:seed
       npm run seed:qa
-      Write-Host "Seed staging aplicado: admin@antenor.com.br / admin2026" -ForegroundColor Green
-      Write-Host "QA admin adicional: qa.admin@antenor.com.br / admin2026" -ForegroundColor Green
+      Write-Host "Seed staging aplicado: admin@antenor.com.br / (senha definida no seed)" -ForegroundColor Green
+      Write-Host "QA admin adicional: qa.admin@antenor.com.br / (senha definida no seed)" -ForegroundColor Green
     } finally {
       Pop-Location
       Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue

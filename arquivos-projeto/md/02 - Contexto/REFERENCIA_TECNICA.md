@@ -14,7 +14,7 @@ Versao de referencia: 1.24.138-alpha
 
 - Script: `cd sistema/backend && npm run seed:staging-recipes`.
 - Gate: `cd sistema/backend && npm run validate:staging-recipes`.
-- Banco staging host: `postgresql://postgres:antenor_staging_2026@localhost:5433/antenor_staging?schema=public`.
+- Banco staging host: `postgresql://postgres:<STAGING_POSTGRES_PASSWORD>@localhost:5433/antenor_staging?schema=public` (senha no `.env`, nao versionada).
 - Categorias publicadas pelo seed: `jantar-pratico`, `churrasco-completo`, `lanches-e-praticos` e `adega-e-harmonizacao`.
 - Receitas publicadas pelo seed: `picadinho-de-acem-da-casa`, `churrasco-de-familia-antenor`, `noite-de-pizza-crocante`, `lanche-quente-da-padaria` e `tabua-de-vinhos-e-snacks`.
 - Capas finais usam WebP locais do storefront em `/recipes/*.webp`.

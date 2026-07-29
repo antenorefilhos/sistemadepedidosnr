@@ -77,7 +77,7 @@ Invoke-RestMethod http://localhost:3001/health/detail | ConvertTo-Json -Depth 3
 | **Painel admin** | http://localhost:3002 | `admin@antenor.com.br` / `admin2026` |
 | **API REST** | http://localhost:3001 | JWT (via login) |
 | **Swagger UI** | http://localhost:3001/api | — |
-| **PostgreSQL** | `localhost:5432` | user: `postgres` / pass: `antenor_password_2026` / db: `antenor_db` |
+| **PostgreSQL** | `localhost:5432` | user: `postgres` / pass: ver `POSTGRES_PASSWORD` no `.env` / db: `antenor_db` |
 | **MeiliSearch** | http://localhost:7700 | — |
 
 ---

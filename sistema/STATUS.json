@@ -67,7 +67,7 @@
   },
   "environment_variables": {
     "backend": {
-      "DATABASE_URL": "postgresql://postgres:antenor_password_2026@localhost:5432/antenor_db?schema=public",
+      "DATABASE_URL": "postgresql://postgres:<SENHA>@localhost:5432/antenor_db?schema=public",
       "JWT_SECRET": "definir secret forte",
       "CORS_ORIGIN": "http://localhost:3000,http://localhost:3002",
       "SOLIDCOM_API_URL": "http://45.239.193.56:5000"
