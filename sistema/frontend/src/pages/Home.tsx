@@ -333,9 +333,9 @@ export default function Home() {
         </div>
         {/* Mobile Category Chips */}
         {homeCategories.length > 0 && (
-          <div className="bg-white border-b border-gray-100">
+          <div className="bg-white border-b border-gray-100 px-4">
             <div
-              className="flex overflow-x-auto no-scrollbar px-4 py-3 gap-3 snap-x"
+              className="flex overflow-x-auto no-scrollbar py-3 gap-3 snap-x"
               style={{ touchAction: 'pan-x' }}
             >
               {homeCategories.map((category) => {
