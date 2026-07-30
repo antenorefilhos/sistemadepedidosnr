@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon'
 import { point, polygon } from '@turf/helpers'
 import { PrismaService } from '../../common/prisma.service'
+import { NotificationsService } from '../notifications/notifications.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import { CreateDeliveryZoneDto, UpdateDeliveryZoneDto } from './dto/delivery-zone.dto'
@@ -47,7 +48,10 @@ type SlotValidationOptions = {
 
 @Injectable()
 export class DeliveryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async listZones() {
     return this.prisma.deliveryZone.findMany({
@@ -480,10 +484,15 @@ export class DeliveryService {
 
     if (status === 'DELIVERED') {
       await this.updateOrderFulfillmentStatus(scoped, stop.orderId, 'DELIVERED', 'order.delivered', { routeId, stopId, notes: dto.notes || null }, actor)
+      this.notificationsService.notifyOrderStatusChange(stop.orderId, 'DELIVERED').catch(() => {})
     } else if (status === 'OUT_FOR_DELIVERY' || status === 'ARRIVED') {
       await this.updateOrderFulfillmentStatus(scoped, stop.orderId, 'OUT_FOR_DELIVERY', 'order.out_for_delivery', { routeId, stopId, stopStatus: status }, actor)
+      if (status === 'OUT_FOR_DELIVERY') {
+        this.notificationsService.notifyOrderStatusChange(stop.orderId, 'OUT_FOR_DELIVERY').catch(() => {})
+      }
     } else if (status === 'FAILED') {
       await this.recordOrderEvent(scoped, stop.orderId, 'order.delivery_failed', { routeId, stopId, notes: dto.notes || null }, actor)
+      this.notificationsService.notifyOrderStatusChange(stop.orderId, 'FAILED_DELIVERY').catch(() => {})
     }
 
     await this.recordFulfillmentEvent({

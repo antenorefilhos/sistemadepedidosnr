@@ -30,16 +30,17 @@ export class AuthService {
 
     const tenantId = admin.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
+    const role = admin.role || 'admin'
     const access_token = this.jwtService.sign({
       id: admin.id,
       email: admin.email,
       name: admin.name,
-      role: 'admin',
+      role,
       tenantId,
       storeId,
     })
 
-    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role: 'admin', tenantId, storeId } }
+    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role, tenantId, storeId } }
   }
 
   async customerLogin(loginDto: LoginDto) {
@@ -96,16 +97,17 @@ export class AuthService {
 
     const tenantId = admin.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
+    const role = admin.role || 'admin'
     const access_token = this.jwtService.sign({
       id: admin.id,
       email: admin.email,
       name: admin.name,
-      role: 'admin',
+      role,
       tenantId,
       storeId,
     })
 
-    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role: 'admin', tenantId, storeId } }
+    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role, tenantId, storeId } }
   }
 
   async customerRegister(dto: CreateCustomerRegisterDto) {

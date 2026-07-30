@@ -1,0 +1,14 @@
+{
+  "name": "antenor-notificador",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Notificador Windows — alerta pedidos novos/pendentes na tela",
+  "main": "notifier.js",
+  "scripts": {
+    "start": "node notifier.js"
+  },
+  "dependencies": {
+    "node-notifier": "^10.0.1",
+    "systray2": "^2.1.4"
+  }
+}

@@ -794,6 +794,16 @@ export interface AdminOrder {
   cancellationReason?: string | null
   channel?: string
   fulfillmentType?: string
+  addressSnapshot?: {
+    street?: string
+    number?: string
+    complement?: string
+    neighborhood?: string
+    city?: string
+    state?: string
+    zipCode?: string
+    reference?: string
+  } | null
   createdAt: string
   events?: AdminOrderEvent[]
 }
@@ -1159,6 +1169,7 @@ export const pickingAPI = {
   assignTask: (id: string, pickerId: string) =>
     api.post<PickingTask>(`/admin/picking/tasks/${id}/assign`, { pickerId }),
   startTask: (id: string) => api.post<PickingTask>(`/admin/picking/tasks/${id}/start`),
+  cancelTask: (id: string) => api.post<PickingTask>(`/admin/picking/tasks/${id}/cancel`),
   pickItem: (taskId: string, itemId: string, data: { quantity: number; finalWeight?: number; barcode?: string; notes?: string }) =>
     api.post<PickingTask>(`/admin/picking/tasks/${taskId}/items/${itemId}/pick`, data),
   markMissing: (taskId: string, itemId: string, data: { reason: string; requestSubstitution?: boolean; notes?: string }) =>

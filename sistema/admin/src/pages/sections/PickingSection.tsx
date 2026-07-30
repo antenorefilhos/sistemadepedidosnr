@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ClipboardCheck, ClipboardList, PackageCheck, Play, RefreshCw, Replace, ScanLine, UserPlus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, CheckCircle2, ClipboardCheck, ClipboardList, PackageCheck, Play, RefreshCw, Replace, ScanLine, Search, UserPlus, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -136,6 +136,10 @@ export default function PickingSection() {
   const [actionError, setActionError] = useState('')
   const [itemActionDraft, setItemActionDraft] = useState<ItemActionDraft | null>(null)
   const [taskActionDraft, setTaskActionDraft] = useState<TaskActionDraft | null>(null)
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const autoRefreshRef = useRef(autoRefresh)
+  autoRefreshRef.current = autoRefresh
 
   const load = useCallback(async () => {
     try {
@@ -161,6 +165,21 @@ export default function PickingSection() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (!autoRefresh) return
+    const id = setInterval(load, 30_000)
+    return () => clearInterval(id)
+  }, [autoRefresh, load])
+
+  const displayedTasks = useMemo(() => {
+    if (!customerSearch.trim()) return tasks
+    const q = customerSearch.toLowerCase()
+    return tasks.filter((task) => {
+      const name = task.order?.customer?.name || ''
+      return name.toLowerCase().includes(q)
+    })
+  }, [tasks, customerSearch])
 
   const activeTasks = useMemo(() => tasks.filter((task) => !['COMPLETED', 'CANCELLED'].includes(task.status)), [tasks])
   const inProgress = useMemo(() => tasks.filter((task) => task.status === 'IN_PROGRESS').length, [tasks])
@@ -329,7 +348,7 @@ export default function PickingSection() {
 
       <SectionToolbar>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[minmax(220px,1fr)_220px]">
+          <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[minmax(220px,1fr)_220px_220px]">
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-[#9e7080]">Pedido</label>
               <div className="flex gap-2">
@@ -372,8 +391,35 @@ export default function PickingSection() {
                 ))}
               </Select>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#9e7080]">Cliente</label>
+              <div className="relative">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input
+                  value={customerSearch}
+                  onChange={(event) => setCustomerSearch(event.target.value)}
+                  placeholder="Buscar por cliente..."
+                  className="h-11 rounded-xl border-[#ead7df] bg-white pl-9 text-sm text-gray-700 shadow-none focus-visible:ring-[#5d082a]/20"
+                />
+              </div>
+            </div>
           </div>
 
+          <Button
+            type="button"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            variant="outline"
+            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+              autoRefresh
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                : 'border-[#ead7df] bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+            title={autoRefresh ? 'Auto-refresh ligado (30s)' : 'Ligar auto-refresh'}
+          >
+            <RefreshCw size={16} className={autoRefresh ? 'animate-spin' : ''} style={autoRefresh ? { animationDuration: '3s' } : undefined} />
+            {autoRefresh ? '30s' : 'Auto'}
+          </Button>
           <Button
             type="button"
             onClick={load}
@@ -390,13 +436,13 @@ export default function PickingSection() {
       <SectionPanel>
         {loading ? (
           <div className="p-6 text-sm text-gray-500">Carregando fila...</div>
-        ) : tasks.length === 0 ? (
+        ) : displayedTasks.length === 0 ? (
           <div className="p-6">
-            <SectionEmptyState title="Nenhuma tarefa de separacao" description="Crie uma tarefa a partir de um pedido confirmado ou ajuste o filtro." />
+            <SectionEmptyState title="Nenhuma tarefa de separacao" description={customerSearch.trim() ? 'Nenhuma tarefa encontrada para este cliente.' : 'Crie uma tarefa a partir de um pedido confirmado ou ajuste o filtro.'} />
           </div>
         ) : (
           <div className="divide-y divide-[#f1dbe3]">
-            {tasks.map((task) => {
+            {displayedTasks.map((task) => {
               const customerName = task.order?.customer?.name || 'Cliente nao identificado'
               const taskProgress = getTaskProgress(task)
               const sectorProgress = getSectorProgress(task)
@@ -491,6 +537,16 @@ export default function PickingSection() {
                       >
                         <PackageCheck size={14} />
                         Embalar
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => runAction(`cancel-${task.id}`, () => pickingAPI.cancelTask(task.id))}
+                        disabled={taskActionDisabled(`cancel-${task.id}`) || ['COMPLETED', 'CANCELLED'].includes(task.status)}
+                        variant="outline"
+                        className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100 disabled:opacity-60 sm:min-h-10"
+                      >
+                        <XCircle size={14} />
+                        Cancelar
                       </Button>
                     </div>
                   </div>

@@ -632,18 +632,7 @@ export class OrdersService {
       )
     }
 
-    await this.whatsappService.sendStatusUpdate(
-      order.customer.whatsapp,
-      order.id.slice(-8).toUpperCase(),
-      order.status,
-    )
-
-    await this.notificationsService.create({
-      type: 'ORDER_UPDATE',
-      title: `Pedido ${order.id.slice(-8).toUpperCase()} atualizado`,
-      body: `Seu pedido agora está com status: ${order.status}.`,
-      customerId: order.customerId,
-    })
+    this.notificationsService.notifyOrderStatusChange(order.id, status).catch(() => {})
 
     if (status === 'CONFIRMED') {
       await this.inventoryService.consumeOrderReservations(order.id)

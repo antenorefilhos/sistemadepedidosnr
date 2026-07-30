@@ -108,6 +108,7 @@ model Admin {
   email     String   @unique
   password  String
   name      String
+  role      String   @default("admin")
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -637,6 +638,7 @@ model Order {
   cancellationReason String?
   paymentMethod String @default("CASH")
   notes     String?
+  deliveryInstructions String?
   deviceId  String?
   clientIp  String?
   deliveryAreaId String?
@@ -653,6 +655,7 @@ model Order {
   businessApprovedAt DateTime?
   businessPaymentTerms String?
   businessInvoiceSnapshot Json?
+  deliveryStops DeliveryStop[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1921,6 +1924,7 @@ model Driver {
   id        String          @id @default(cuid())
   tenantId  String          @default("tenant_default")
   storeId   String          @default("store_default")
+  adminId   String?         @unique
   name      String
   phone     String?
   status    String          @default("ACTIVE")
@@ -1957,6 +1961,7 @@ model DeliveryStop {
   routeId     String
   route       DeliveryRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
   orderId     String
+  order       Order         @relation(fields: [orderId], references: [id])
   sequence    Int
   status      String        @default("PENDING")
   eta         DateTime?

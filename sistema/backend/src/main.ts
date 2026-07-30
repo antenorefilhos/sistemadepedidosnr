@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { NestFactory } from '@nestjs/core'
 import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common'
 import helmet from 'helmet'

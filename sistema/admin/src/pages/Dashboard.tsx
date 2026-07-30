@@ -310,6 +310,7 @@ export default function AdminDashboard() {
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null)
   const [updatingOrderStatus, setUpdatingOrderStatus] = useState(false)
   const [orderFeedback, setOrderFeedback] = useState<OrderFeedback | null>(null)
+  const [ordersAutoRefresh, setOrdersAutoRefresh] = useState(false)
 
   // Customers state
   const [customers, setCustomers] = useState<AdminCustomer[]>([])
@@ -623,6 +624,12 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeSection === 'orders') loadOrders()
   }, [activeSection, loadOrders])
+
+  useEffect(() => {
+    if (!ordersAutoRefresh || activeSection !== 'orders') return
+    const id = setInterval(loadOrders, 30_000)
+    return () => clearInterval(id)
+  }, [ordersAutoRefresh, activeSection, loadOrders])
 
   useEffect(() => {
     if (activeSection === 'customers') loadCustomers()
@@ -1012,7 +1019,7 @@ export default function AdminDashboard() {
   }
 
   const sidebarNavButtonClass =
-    'block w-full min-h-[44px] px-6 py-3 text-left transition-colors duration-150 flex items-center gap-3 focus:outline-none focus-visible:bg-[#5d082a] focus-visible:shadow-[inset_3px_0_0_#d2bb8a]'
+    'block w-full min-h-[44px] px-6 py-3 text-left transition-colors duration-150 flex items-center gap-3 focus:outline-none focus-visible:bg-[#5d082a] focus-visible:shadow-[inset_3px_0_0_#d2bb8a] hover:text-[#fde8ef]'
 
   const sidebarNavActiveClass = 'bg-[#5d082a] font-semibold shadow-[inset_3px_0_0_#d2bb8a]'
   const sidebarSecondaryButtonClass =
@@ -1572,6 +1579,8 @@ export default function AdminDashboard() {
                 ordersViewMode={ordersViewMode}
                 onOrdersViewModeChange={setOrdersViewMode}
                 onReloadOrders={loadOrders}
+                autoRefresh={ordersAutoRefresh}
+                onAutoRefreshChange={setOrdersAutoRefresh}
                 ordersLoading={ordersLoading}
                 filteredOrders={filteredOrders}
                 orderStatusOptions={ORDER_STATUS_OPTIONS}

@@ -173,16 +173,43 @@ export class PushNotificationService {
     orderId: string,
     status: string,
   ): Promise<void> {
-    const messages: Record<string, string> = {
-      PENDING: `Pedido #${orderId} recebido`,
-      SEPARATING: `Pedido #${orderId} em separação`,
-      DELIVERING: `Pedido #${orderId} saiu para entrega`,
-      DELIVERED: `Pedido #${orderId} entregue com sucesso!`,
+    const titles: Record<string, string> = {
+      PENDING: '⏳ Pedido Recebido',
+      CONFIRMED: '✅ Pedido Confirmado',
+      PICKING_PENDING: '📋 Na Fila de Separacao',
+      PICKING: '🛒 Em Separacao',
+      CONFERENCE_PENDING: '🔍 Em Conferencia',
+      READY_FOR_CHECKOUT: '💳 No Caixa',
+      READY_FOR_DELIVERY: '📦 Pronto para Entrega',
+      READY_FOR_PICKUP: '📦 Pronto para Retirada',
+      OUT_FOR_DELIVERY: '🚚 Saiu para Entrega',
+      DELIVERED: '✅ Entregue',
+      COMPLETED: '🎉 Concluido',
+      CANCELLED: '⚠️ Cancelado',
+      FAILED_DELIVERY: '⚠️ Entrega Falhou',
     }
 
+    const messages: Record<string, string> = {
+      PENDING: `Pedido #${orderId} recebido`,
+      CONFIRMED: `Pedido #${orderId} confirmado e em preparo`,
+      PICKING_PENDING: `Pedido #${orderId} na fila de separacao`,
+      PICKING: `Pedido #${orderId} sendo separado`,
+      CONFERENCE_PENDING: `Pedido #${orderId} separado, em conferencia`,
+      READY_FOR_CHECKOUT: `Pedido #${orderId} no caixa`,
+      READY_FOR_DELIVERY: `Pedido #${orderId} pronto para entrega`,
+      READY_FOR_PICKUP: `Pedido #${orderId} pronto para retirada na loja`,
+      OUT_FOR_DELIVERY: `Pedido #${orderId} saiu para entrega`,
+      DELIVERED: `Pedido #${orderId} entregue com sucesso!`,
+      COMPLETED: `Pedido #${orderId} concluido!`,
+      CANCELLED: `Pedido #${orderId} cancelado`,
+      FAILED_DELIVERY: `Nao conseguimos entregar o pedido #${orderId}`,
+    }
+
+    if (!messages[status]) return
+
     await this.sendNotification(customerId, {
-      title: '📦 Atualização de Pedido',
-      body: messages[status] || `Status: ${status}`,
+      title: titles[status] || '📦 Atualizacao de Pedido',
+      body: messages[status],
       icon: '/logo.png',
     })
   }

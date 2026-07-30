@@ -1,4 +1,4 @@
-import { Columns, Download, Eye, LayoutList, RefreshCw, Search, X, Filter, Banknote, QrCode, CreditCard, ChevronDown, AlertTriangle } from 'lucide-react'
+import { Columns, Download, Eye, LayoutList, RefreshCw, Search, X, Filter, Banknote, QrCode, CreditCard, ChevronDown, AlertTriangle, Printer, ChevronLeft, ChevronRight, MapPin } from 'lucide-react'
 import { useState, useEffect, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,7 +29,8 @@ function exportOrdersCSV(orders: AdminOrder[]) {
   URL.revokeObjectURL(url)
 }
 
-const STATUS_TIMELINE = ['PENDING', 'CONFIRMED', 'PICKING', 'CONFERENCE_PENDING', 'PACKING', 'READY_FOR_DELIVERY', 'COMPLETED'] as const
+const STATUS_TIMELINE = ['PENDING', 'CONFIRMED', 'PICKING', 'CONFERENCE_PENDING', 'PACKING', 'READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'] as const
+const STATUS_TIMELINE_PICKUP = ['PENDING', 'CONFIRMED', 'PICKING', 'CONFERENCE_PENDING', 'PACKING', 'READY_FOR_PICKUP', 'COMPLETED'] as const
 const STATUS_TIMELINE_LABEL: Record<string, string> = {
   PENDING: 'Pendente',
   CONFIRMED: 'Confirmado',
@@ -38,25 +39,47 @@ const STATUS_TIMELINE_LABEL: Record<string, string> = {
   PACKING: 'Embalagem',
   READY_FOR_PICKUP: 'Pronto retirada',
   READY_FOR_DELIVERY: 'Pronto entrega',
+  OUT_FOR_DELIVERY: 'Saiu p/ entrega',
   DELIVERED: 'Entregue',
   COMPLETED: 'Concluído',
   CANCELLED: 'Cancelado',
 }
 
-function OrderStatusTimeline({ currentStatus }: { currentStatus: string }) {
-  if (currentStatus === 'CANCELLED') {
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  'order.created': 'Pedido criado',
+  'order.confirmed': 'Pedido confirmado',
+  'order.cancelled': 'Pedido cancelado',
+  'order.status_changed': 'Status atualizado',
+  'order.picking_assigned': 'Separador atribuido',
+  'order.picking_started': 'Separacao iniciada',
+  'order.picking_finished': 'Separacao concluida',
+  'order.picking_conferenced': 'Conferencia registrada',
+  'order.packing_completed': 'Embalagem concluida',
+  'order.payment_updated': 'Pagamento atualizado',
+  'order.item_cancelled': 'Item cancelado',
+  'order.item_substituted': 'Item substituido',
+  'order.item_missing': 'Item faltante',
+  'order.recalculated': 'Pedido recalculado',
+  'order.business_approved': 'Aprovado conta PJ',
+}
+
+function OrderStatusTimeline({ currentStatus, fulfillmentType }: { currentStatus: string; fulfillmentType?: string }) {
+  if (['CANCELLED', 'PARTIALLY_CANCELLED', 'REFUNDED'].includes(currentStatus)) {
+    const labels: Record<string, string> = { CANCELLED: 'Cancelado', PARTIALLY_CANCELLED: 'Parcialmente cancelado', REFUNDED: 'Estornado' }
     return (
       <div className="flex items-center gap-2 py-1">
         <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
-        <span className="text-sm font-semibold text-red-700">Cancelado</span>
+        <span className="text-sm font-semibold text-red-700">{labels[currentStatus] || currentStatus}</span>
       </div>
     )
   }
-  const currentIdx = STATUS_TIMELINE.indexOf(currentStatus as typeof STATUS_TIMELINE[number])
+  const isPickup = fulfillmentType === 'PICKUP' || currentStatus === 'READY_FOR_PICKUP'
+  const timeline: readonly string[] = isPickup ? STATUS_TIMELINE_PICKUP : STATUS_TIMELINE
+  const currentIdx = timeline.indexOf(currentStatus as never)
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      {STATUS_TIMELINE.map((step, i) => {
-        const done = i < currentIdx
+      {timeline.map((step, i) => {
+        const done = currentIdx >= 0 ? i < currentIdx : false
         const active = i === currentIdx
         return (
           <div key={step} className="flex items-center gap-1.5">
@@ -64,12 +87,17 @@ function OrderStatusTimeline({ currentStatus }: { currentStatus: string }) {
               active ? 'bg-[#5D082A] text-white' : done ? 'bg-[#F8F0DC] text-[#5D082A]' : 'bg-gray-100 text-gray-400'
             }`}>
               {done && <span>✓</span>}
-              {STATUS_TIMELINE_LABEL[step]}
+              {STATUS_TIMELINE_LABEL[step] ?? step}
             </div>
-            {i < STATUS_TIMELINE.length - 1 && <span className={`text-xs ${done ? 'text-[#5D082A]' : 'text-gray-300'}`}>→</span>}
+            {i < timeline.length - 1 && <span className={`text-xs ${done ? 'text-[#5D082A]' : 'text-gray-300'}`}>→</span>}
           </div>
         )
       })}
+      {currentIdx === -1 && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-[#5D082A] text-white">
+          {STATUS_TIMELINE_LABEL[currentStatus] ?? currentStatus}
+        </div>
+      )}
     </div>
   )
 }
@@ -151,6 +179,14 @@ function getPaymentMethodIcon(method?: string | null) {
   return <Banknote size={13} className="text-[#5D082A] shrink-0" />
 }
 
+function formatOrderDate(dateStr: string) {
+  const date = new Date(dateStr)
+  const today = new Date()
+  const isToday = date.toDateString() === today.toDateString()
+  if (isToday) return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleDateString('pt-BR')
+}
+
 type Props = {
   ordersSearch: string
   onOrdersSearchChange: (value: string) => void
@@ -165,6 +201,8 @@ type Props = {
   ordersViewMode: 'list' | 'kanban'
   onOrdersViewModeChange: (value: 'list' | 'kanban') => void
   onReloadOrders: () => void
+  autoRefresh: boolean
+  onAutoRefreshChange: (v: boolean) => void
   ordersLoading: boolean
   filteredOrders: AdminOrder[]
   orderStatusOptions: readonly string[]
@@ -197,6 +235,8 @@ export default function OrdersSection({
   ordersViewMode,
   onOrdersViewModeChange,
   onReloadOrders,
+  autoRefresh,
+  onAutoRefreshChange,
   ordersLoading,
   filteredOrders,
   orderStatusOptions,
@@ -217,6 +257,18 @@ export default function OrdersSection({
   const [showFilterBar, setShowFilterBar] = useState(false)
   const [cancellationReason, setCancellationReason] = useState('')
   const [showCancellationReason, setShowCancellationReason] = useState(false)
+  const [slaTick, setSlaTick] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [kanbanCancelTarget, setKanbanCancelTarget] = useState<{ orderId: string } | null>(null)
+  const [kanbanCancelReason, setKanbanCancelReason] = useState('')
+  const ITEMS_PER_PAGE = 20
+
+  useEffect(() => {
+    const id = setInterval(() => setSlaTick((t) => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => { setCurrentPage(1) }, [ordersSearch, ordersStatusFilter, ordersDateFilter, ordersPaymentFilter, ordersChangeFilter])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -235,6 +287,10 @@ export default function OrdersSection({
   const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0)
   const avgTicket = filteredOrders.length > 0 ? totalRevenue / filteredOrders.length : 0
   const withChangeOrders = filteredOrders.filter((order) => parseChangeForFromNotes(order.notes) != null).length
+
+  void slaTick
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ITEMS_PER_PAGE))
+  const paginatedOrders = filteredOrders.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
   const activeFilterCount = [
     ordersStatusFilter,
@@ -358,6 +414,20 @@ export default function OrdersSection({
               </div>
 
               {/* Ações */}
+              <Button
+                type="button"
+                onClick={() => onAutoRefreshChange(!autoRefresh)}
+                variant="outline"
+                className={`min-h-11 rounded-xl px-4 text-sm ${
+                  autoRefresh
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                    : 'border-[#ead7df] bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+                title={autoRefresh ? 'Auto-refresh ligado (30s)' : 'Ligar auto-refresh'}
+              >
+                <RefreshCw size={14} className={autoRefresh ? 'animate-spin' : ''} style={autoRefresh ? { animationDuration: '3s' } : undefined} />
+                <span>{autoRefresh ? '30s' : 'Auto'}</span>
+              </Button>
               <Button type="button" onClick={onReloadOrders} variant="outline" className="min-h-11 rounded-xl border-[#ead7df] bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
                 <RefreshCw size={14} />
                 <span>Atualizar</span>
@@ -467,6 +537,7 @@ export default function OrdersSection({
               <SectionEmptyState title="Nenhum pedido encontrado" description="Refine a busca ou ajuste os filtros para encontrar pedidos específicos." />
             </div>
           ) : (
+            <>
             <Table className="min-w-full text-sm">
               <TableHeader className="border-b border-[#f1dbe3] bg-[#fff7fa] text-gray-600">
                 <TableRow className="hover:bg-transparent">
@@ -482,7 +553,7 @@ export default function OrdersSection({
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-[#f3e4ea]">
-                {filteredOrders.map((order) => {
+                {paginatedOrders.map((order) => {
                   const sla = getOrderSlaView(order)
                   return (
                   <TableRow key={order.id} className="group border-[#f3e4ea] transition-colors duration-150 hover:bg-[#fff8fb]">
@@ -493,7 +564,7 @@ export default function OrdersSection({
                     </TableCell>
                     <TableCell className="px-6 py-4 font-semibold text-gray-800">{order.customer?.name ?? '—'}</TableCell>
                     <TableCell className="px-6 py-4">{renderWhatsAppBadge(order.customer?.whatsapp)}</TableCell>
-                    <TableCell className="px-6 py-4 text-gray-500">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</TableCell>
+                    <TableCell className="px-6 py-4 text-gray-500">{formatOrderDate(order.createdAt)}</TableCell>
                     <TableCell className="px-6 py-4">
                       <Badge variant="outline" className={`rounded-full px-2.5 py-1 text-[11px] font-black ${sla.className}`}>
                         {sla.label}
@@ -552,6 +623,23 @@ export default function OrdersSection({
                 })}
               </TableBody>
             </Table>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-[#f1dbe3] px-6 py-3">
+                <span className="text-xs text-gray-500">
+                  {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredOrders.length)} de {filteredOrders.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)} className="h-8 rounded-lg border-[#ead7df] px-2 text-xs">
+                    <ChevronLeft size={14} />
+                  </Button>
+                  <span className="text-xs font-semibold text-gray-700">{currentPage}/{totalPages}</span>
+                  <Button type="button" variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)} className="h-8 rounded-lg border-[#ead7df] px-2 text-xs">
+                    <ChevronRight size={14} />
+                  </Button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </SectionPanel>
       ) : (
@@ -566,6 +654,12 @@ export default function OrdersSection({
                   if (!draggingOrderId) return
                   const dragged = filteredOrders.find((order) => order.id === draggingOrderId)
                   if (!dragged || dragged.status === columnStatus) return
+                  if (columnStatus === 'CANCELLED') {
+                    setKanbanCancelTarget({ orderId: draggingOrderId })
+                    setKanbanCancelReason('')
+                    onDraggingOrderIdChange(null)
+                    return
+                  }
                   await onUpdateOrderStatus(draggingOrderId, columnStatus)
                   onDraggingOrderIdChange(null)
                 }}
@@ -595,7 +689,7 @@ export default function OrdersSection({
                         </Button>
                       </div>
                       <div className="mt-3 text-[11px] text-gray-500 space-y-1.5">
-                        <p>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</p>
+                        <p>{formatOrderDate(order.createdAt)}</p>
                         <Badge variant="outline" className={`rounded-full px-2 py-0.5 text-[10px] font-black ${getOrderSlaView(order).className}`}>
                           {getOrderSlaView(order).label}
                         </Badge>
@@ -634,6 +728,41 @@ export default function OrdersSection({
       )}
 
       </div>
+
+      {/* Kanban Cancel Reason Modal */}
+      {kanbanCancelTarget && (
+        <>
+          <div onClick={() => setKanbanCancelTarget(null)} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[4px]" />
+          <div className="fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-5 shadow-xl border border-[#f1dbe3]">
+            <h3 className="text-base font-bold text-gray-900">Cancelar pedido</h3>
+            <p className="mt-1 text-sm text-gray-500">Informe o motivo do cancelamento (opcional).</p>
+            <Input
+              value={kanbanCancelReason}
+              onChange={(e) => setKanbanCancelReason(e.target.value)}
+              placeholder="Motivo..."
+              className="mt-3 h-11 rounded-xl border-[#ead7df] text-sm"
+              autoFocus
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setKanbanCancelTarget(null)} className="rounded-xl border-[#ead7df]">
+                Voltar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={updatingOrderStatus}
+                onClick={async () => {
+                  await onUpdateOrderStatus(kanbanCancelTarget.orderId, 'CANCELLED', kanbanCancelReason.trim() || undefined)
+                  setKanbanCancelTarget(null)
+                }}
+                className="rounded-xl bg-red-600 text-white hover:bg-red-700"
+              >
+                {updatingOrderStatus ? 'Cancelando...' : 'Confirmar cancelamento'}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Slide-Over de Detalhes do Pedido */}
       {selectedOrder && (
@@ -697,7 +826,7 @@ export default function OrdersSection({
                       Progresso do Status
                     </span>
                     <div className="pt-2">
-                      <OrderStatusTimeline currentStatus={selectedOrder.status} />
+                      <OrderStatusTimeline currentStatus={selectedOrder.status} fulfillmentType={selectedOrder.fulfillmentType} />
                     </div>
                   </div>
 
@@ -808,10 +937,10 @@ export default function OrdersSection({
                       {(selectedOrder.events || []).slice().reverse().slice(0, 8).map((event) => (
                         <div key={event.id} className="rounded-xl border border-gray-100 bg-slate-50 px-3 py-2 text-xs">
                           <div className="flex items-center justify-between gap-3">
-                            <span className="font-bold text-gray-800">{event.type}</span>
-                            <span className="text-gray-500">{new Date(event.createdAt).toLocaleString('pt-BR')}</span>
+                            <span className="font-bold text-gray-800">{EVENT_TYPE_LABELS[event.type] ?? event.type}</span>
+                            <span className="text-gray-500">{new Date(event.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
                           </div>
-                          <div className="mt-1 text-gray-500">{event.actorType}{event.actorId ? ` - ${event.actorId}` : ''}</div>
+                          <div className="mt-1 text-gray-500">{event.actorType === 'SYSTEM' ? 'Sistema' : event.actorType}{event.actorId ? ` — ${event.actorId}` : ''}</div>
                         </div>
                       ))}
                       {(!selectedOrder.events || selectedOrder.events.length === 0) && (
@@ -837,6 +966,35 @@ export default function OrdersSection({
                       )}
                     </div>
                   </div>
+
+                  {/* Endereco de Entrega */}
+                  {selectedOrder.addressSnapshot && (
+                    <div className="bg-white border border-[#ead7df] rounded-2xl p-5 space-y-4 shadow-sm">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#5d082a] block border-b border-[#f1dbe3]/60 pb-2">
+                        <MapPin size={12} className="inline mr-1 -mt-0.5" />
+                        Endereco de Entrega
+                      </span>
+                      <div className="text-sm pt-2 space-y-1 text-gray-700">
+                        <p className="font-semibold">
+                          {selectedOrder.addressSnapshot.street}{selectedOrder.addressSnapshot.number ? `, ${selectedOrder.addressSnapshot.number}` : ''}
+                        </p>
+                        {selectedOrder.addressSnapshot.complement && <p className="text-gray-500">{selectedOrder.addressSnapshot.complement}</p>}
+                        <p>{[selectedOrder.addressSnapshot.neighborhood, selectedOrder.addressSnapshot.city, selectedOrder.addressSnapshot.state].filter(Boolean).join(' - ')}</p>
+                        {selectedOrder.addressSnapshot.zipCode && <p className="font-mono text-xs text-gray-500">CEP: {selectedOrder.addressSnapshot.zipCode}</p>}
+                        {selectedOrder.addressSnapshot.reference && <p className="text-xs text-gray-500 italic">Ref: {selectedOrder.addressSnapshot.reference}</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notas do Pedido */}
+                  {selectedOrder.notes && (
+                    <div className="bg-white border border-[#ead7df] rounded-2xl p-5 space-y-4 shadow-sm">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#5d082a] block border-b border-[#f1dbe3]/60 pb-2">
+                        Observacoes do Cliente
+                      </span>
+                      <p className="text-sm text-gray-700 pt-2 whitespace-pre-wrap">{selectedOrder.notes}</p>
+                    </div>
+                  )}
 
                   {/* Resumo Financeiro */}
                   <div className="bg-white border border-[#ead7df] rounded-2xl p-5 space-y-3 shadow-sm">
@@ -929,7 +1087,22 @@ export default function OrdersSection({
             </div>
 
             {/* Footer */}
-            <div className="border-t border-[#f1dbe3] bg-white px-6 py-4 flex justify-end rounded-b-2xl">
+            <div className="border-t border-[#f1dbe3] bg-white px-6 py-4 flex justify-between rounded-b-2xl">
+              <Button
+                type="button"
+                onClick={() => {
+                  const order = selectedOrder
+                  const addr = order.addressSnapshot
+                  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pedido #${order.id.slice(-8).toUpperCase()}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:20px;font-size:12px;color:#333}h1{font-size:16px;margin-bottom:4px}h2{font-size:13px;margin:12px 0 4px;border-bottom:1px solid #ccc;padding-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;font-size:11px}th{background:#f5f5f5;font-weight:bold}.total{text-align:right;font-weight:bold;font-size:13px;margin-top:8px}.meta{display:flex;gap:24px;flex-wrap:wrap;margin:6px 0}.meta span{font-size:11px}@media print{body{padding:10px}}</style></head><body><h1>Pedido #${order.id.slice(-8).toUpperCase()}</h1><div class="meta"><span><b>Cliente:</b> ${order.customer?.name || '-'}</span><span><b>WhatsApp:</b> ${order.customer?.whatsapp || '-'}</span><span><b>Data:</b> ${new Date(order.createdAt).toLocaleString('pt-BR')}</span><span><b>Status:</b> ${order.status}</span><span><b>Pagamento:</b> ${order.paymentMethod || '-'}</span></div>${addr ? `<h2>Endereco de Entrega</h2><p>${addr.street || ''}${addr.number ? ', ' + addr.number : ''}${addr.complement ? ' - ' + addr.complement : ''}<br>${[addr.neighborhood, addr.city, addr.state].filter(Boolean).join(' - ')}${addr.zipCode ? ' - CEP ' + addr.zipCode : ''}${addr.reference ? '<br>Ref: ' + addr.reference : ''}</p>` : ''}${order.notes ? `<h2>Observacoes</h2><p>${order.notes}</p>` : ''}<h2>Itens</h2><table><thead><tr><th>Produto</th><th>Qtd</th><th>Qtd Final</th><th>Status</th><th>Subtotal</th></tr></thead><tbody>${(order.items || []).map(i => `<tr><td>${i.product?.name || i.productId}</td><td>${i.requestedQuantity ?? i.quantity}</td><td>${i.fulfilledQuantity ?? i.quantity}</td><td>${i.status || 'PENDING'}</td><td>R$ ${(Number(i.finalSubtotal) || i.subtotal).toFixed(2)}</td></tr>`).join('')}</tbody></table><div class="total">Subtotal: R$ ${order.subtotal.toFixed(2)}${order.discount > 0 ? ' | Desconto: -R$ ' + order.discount.toFixed(2) : ''}${order.delivery > 0 ? ' | Frete: R$ ' + order.delivery.toFixed(2) : ''} | <b>Total: R$ ${order.total.toFixed(2)}</b></div></body></html>`
+                  const w = window.open('', '_blank')
+                  if (w) { w.document.write(html); w.document.close(); w.print() }
+                }}
+                variant="outline"
+                className="min-h-11 rounded-xl border-[#ead7df] px-4 text-sm text-gray-600 hover:bg-gray-50 gap-2"
+              >
+                <Printer size={14} />
+                Imprimir
+              </Button>
               <Button
                 type="button"
                 onClick={() => onSelectOrder(null)}

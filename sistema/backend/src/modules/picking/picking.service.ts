@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
+import { NotificationsService } from '../notifications/notifications.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import {
@@ -32,7 +33,105 @@ const FINAL_ITEM_STATUSES = ['PICKED', 'MISSING', 'SUBSTITUTED', 'CANCELLED']
 
 @Injectable()
 export class PickingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
+
+  async searchOrders(
+    context: Partial<PickingTenantContext>,
+    filters: { q?: string; status?: string; dateFrom?: string; dateTo?: string } = {},
+  ) {
+    const scopedWhere = tenantStoreWhere(context)
+    const where: Prisma.OrderWhereInput = { ...scopedWhere }
+
+    if (filters.status) {
+      where.status = filters.status
+    }
+    if (filters.dateFrom) {
+      where.createdAt = { ...(where.createdAt as any || {}), gte: new Date(filters.dateFrom) }
+    }
+    if (filters.dateTo) {
+      const end = new Date(filters.dateTo)
+      end.setHours(23, 59, 59, 999)
+      where.createdAt = { ...(where.createdAt as any || {}), lte: end }
+    }
+    if (filters.q) {
+      const q = filters.q.trim()
+      where.OR = [
+        { id: { contains: q } },
+        { customer: { name: { contains: q, mode: 'insensitive' } } },
+        { customer: { cpf: { contains: q } } },
+      ]
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where,
+      include: {
+        customer: true,
+        items: { include: { product: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 100,
+    })
+
+    const tasksByOrder = await this.prisma.pickingTask.findMany({
+      where: { ...scopedWhere, orderId: { in: orders.map(o => o.id) } },
+      include: { items: true },
+    })
+    const taskMap = new Map(tasksByOrder.map(t => [t.orderId, t]))
+
+    return orders.map(order => ({
+      ...order,
+      pickingTask: taskMap.get(order.id) || null,
+    }))
+  }
+
+  async sendToCashier(
+    orderId: string,
+    context: Partial<PickingTenantContext>,
+    actor?: PickingActor,
+    deliveryInstructions?: string,
+  ) {
+    const order = await this.findOrderForPicking(orderId, context)
+    const task = await this.prisma.pickingTask.findFirst({
+      where: { orderId, ...tenantStoreWhere(context) },
+      include: { items: true },
+    })
+
+    if (task) {
+      const pendingItems = task.items.filter(item => !FINAL_ITEM_STATUSES.includes(item.status))
+      if (pendingItems.length > 0) {
+        throw new BadRequestException('Ainda existem itens pendentes de separacao.')
+      }
+      if (!['COMPLETED', 'CONFERENCE_PENDING', 'PACKING'].includes(task.status)) {
+        await this.prisma.pickingTask.update({
+          where: { id: task.id },
+          data: { status: 'COMPLETED', completedAt: task.completedAt || new Date() },
+        })
+      }
+    }
+
+    const updateData: any = { status: 'READY_FOR_CHECKOUT' }
+    if (deliveryInstructions !== undefined) {
+      updateData.deliveryInstructions = deliveryInstructions || null
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: order.id },
+      data: updateData,
+      include: { customer: true, items: { include: { product: true } } },
+    })
+
+    await this.recordOrderEvent(updated, 'order.sent_to_cashier', {
+      taskId: task?.id || null,
+      deliveryInstructions: deliveryInstructions || null,
+    }, actor)
+
+    this.notificationsService.notifyOrderStatusChange(order.id, 'READY_FOR_CHECKOUT').catch(() => {})
+
+    return updated
+  }
 
   async listEligibleOrders(context: Partial<PickingTenantContext>, limit = 50) {
     const scopedWhere = tenantStoreWhere(context)
@@ -146,6 +245,8 @@ export class PickingService {
       itemCount: task.items.length,
     }, actor)
 
+    this.notificationsService.notifyOrderStatusChange(order.id, 'PICKING_PENDING').catch(() => {})
+
     const [detailed] = await this.attachTaskDetails([task], context)
     return detailed
   }
@@ -198,6 +299,8 @@ export class PickingService {
       assignedToId,
       startedAt: startedAt.toISOString(),
     }, actor)
+
+    this.notificationsService.notifyOrderStatusChange(task.orderId, 'PICKING').catch(() => {})
 
     const [detailed] = await this.attachTaskDetails([updated], context)
     return detailed
@@ -443,6 +546,20 @@ export class PickingService {
     return this.findTask(task.id, context)
   }
 
+  async cancelTask(id: string, context: Partial<PickingTenantContext>, actor?: PickingActor) {
+    const task = await this.findTaskForOperation(id, context)
+    if (['COMPLETED', 'CANCELLED'].includes(task.status)) {
+      throw new BadRequestException('Tarefa ja esta encerrada.')
+    }
+    const updated = await this.prisma.pickingTask.update({
+      where: { id: task.id },
+      data: { status: 'CANCELLED' },
+      include: { items: true },
+    })
+    const [detailed] = await this.attachTaskDetails([updated], context)
+    return detailed
+  }
+
   async finishTask(id: string, dto: FinishPickingTaskDto, context: Partial<PickingTenantContext>, actor?: PickingActor) {
     const task = await this.findTaskForOperation(id, context)
     const pendingItems = task.items.filter((item) => !FINAL_ITEM_STATUSES.includes(item.status))
@@ -478,6 +595,8 @@ export class PickingService {
       missingItems: task.items.filter((item) => item.status === 'MISSING').length,
       substitutions: task.items.filter((item) => item.status === 'SUBSTITUTED').length,
     }, actor)
+
+    this.notificationsService.notifyOrderStatusChange(task.orderId, 'CONFERENCE_PENDING').catch(() => {})
 
     const [detailed] = await this.attachTaskDetails([updated], context)
     return detailed
@@ -609,6 +728,8 @@ export class PickingService {
       metadata: dto.metadata || {},
     }, actor)
     await this.recordPerformanceSnapshot(updatedTask)
+
+    this.notificationsService.notifyOrderStatusChange(task.orderId, readyStatus).catch(() => {})
 
     const [detailed] = await this.attachTaskDetails([updatedTask], context)
     return detailed

@@ -92,6 +92,44 @@ async function main() {
     },
   })
 
+  // Picker (separador)
+  const pickerPw = process.env.PICKER_PASSWORD || process.env.ADMIN_PASSWORD
+  if (pickerPw) {
+    await prisma.admin.create({
+      data: {
+        email: 'separador@antenor.com.br',
+        password: await bcrypt.hash(pickerPw, 10),
+        name: 'Separador Antenor',
+        role: 'picker',
+      },
+    })
+    console.log('✅ Usuário picker criado: separador@antenor.com.br')
+  }
+
+  // Driver (motorista)
+  const driverPw = process.env.DRIVER_PASSWORD || process.env.ADMIN_PASSWORD
+  if (driverPw) {
+    const driverAdmin = await prisma.admin.create({
+      data: {
+        email: 'motorista@antenor.com.br',
+        password: await bcrypt.hash(driverPw, 10),
+        name: 'Motorista Antenor',
+        role: 'driver',
+      },
+    })
+    // Vincular ao Driver model se existir
+    try {
+      await prisma.driver.create({
+        data: {
+          name: 'Motorista Antenor',
+          phone: '',
+          adminId: driverAdmin.id,
+        },
+      })
+    } catch {}
+    console.log('✅ Usuário driver criado: motorista@antenor.com.br')
+  }
+
   // Criar clientes
   const hashedPassword = await bcrypt.hash('123456', 10)
   const customers = await Promise.all([

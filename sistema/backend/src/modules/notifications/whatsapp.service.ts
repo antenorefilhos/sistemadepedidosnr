@@ -110,14 +110,23 @@ Seu carrinho está te esperando! Finalize seu pedido agora e receba em casa com 
     status: string,
   ): Promise<WhatsAppDispatchResult | null> {
     const messages: Record<string, string> = {
-      PENDING: `⏳ Seu pedido ${orderId} foi recebido!`,
-      CONFIRMED: `✅ Seu pedido ${orderId} foi confirmado e entrou em preparo!`,
-      COMPLETED: `🎉 Seu pedido ${orderId} foi concluido com sucesso!`,
-      DELIVERED: `✅ Seu pedido ${orderId} foi entregue! Obrigado! 🏬`,
-      CANCELLED: `⚠️ Seu pedido ${orderId} foi cancelado. Se precisar, fale conosco no WhatsApp.`,
+      PENDING: `⏳ Seu pedido #${orderId} foi recebido!`,
+      CONFIRMED: `✅ Seu pedido #${orderId} foi confirmado e entrou em preparo!`,
+      PICKING_PENDING: `📋 Seu pedido #${orderId} esta na fila de separacao!`,
+      PICKING: `🛒 Seu pedido #${orderId} esta sendo separado!`,
+      CONFERENCE_PENDING: `🔍 Seu pedido #${orderId} foi separado e esta em conferencia!`,
+      READY_FOR_CHECKOUT: `💳 Seu pedido #${orderId} esta no caixa sendo finalizado!`,
+      READY_FOR_DELIVERY: `📦 Seu pedido #${orderId} esta pronto para entrega!`,
+      READY_FOR_PICKUP: `📦 Seu pedido #${orderId} esta pronto para retirada na loja!`,
+      OUT_FOR_DELIVERY: `🚚 Seu pedido #${orderId} saiu para entrega!`,
+      DELIVERED: `✅ Seu pedido #${orderId} foi entregue! Obrigado pela preferencia! 🏬`,
+      COMPLETED: `🎉 Seu pedido #${orderId} foi concluido com sucesso!`,
+      CANCELLED: `⚠️ Seu pedido #${orderId} foi cancelado. Se precisar, fale conosco no WhatsApp.`,
+      FAILED_DELIVERY: `⚠️ Nao conseguimos entregar seu pedido #${orderId}. Entraremos em contato!`,
     }
 
-    const message = messages[status] || `Status atualizado: ${status}`
+    const message = messages[status]
+    if (!message) return null
     return this.sendMessage(whatsappNumber, message)
   }
 

@@ -70,6 +70,12 @@ export class AdminPickingController {
     return this.pickingService.assignTask(id, dto.pickerId, getTenantContext(req), this.actorFromRequest(req))
   }
 
+  @Post('tasks/:id/cancel')
+  @ApiOperation({ summary: 'Cancelar tarefa de separacao' })
+  async cancelTask(@Param('id') id: string, @Req() req: TenantContextRequest) {
+    return this.pickingService.cancelTask(id, getTenantContext(req), this.actorFromRequest(req))
+  }
+
   @Post('tasks/:id/start')
   @ApiOperation({ summary: 'Iniciar separacao' })
   async startTask(@Param('id') id: string, @Req() req: TenantContextRequest) {
