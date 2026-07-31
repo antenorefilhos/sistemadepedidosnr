@@ -60,6 +60,7 @@ export class DeliveryService {
   }
 
   async createZone(dto: CreateDeliveryZoneDto) {
+    this.validateZonePayload(dto)
     return this.prisma.deliveryZone.create({
       data: {
         name: dto.name,
@@ -77,10 +78,147 @@ export class DeliveryService {
 
   async updateZone(id: string, dto: UpdateDeliveryZoneDto) {
     await this.findZoneOrThrow(id)
+    this.validateZonePayload(dto)
     return this.prisma.deliveryZone.update({
       where: { id },
       data: { ...dto },
     })
+  }
+
+  async testZone(params: { cep?: string; lat?: number; lng?: number; subtotal?: number }) {
+    const { cep, lat, lng, subtotal } = params
+    const zones = await this.prisma.deliveryZone.findMany({
+      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+    })
+    const matches: Array<{ zone: typeof zones[number]; matchedBy: 'CEP' | 'POLYGON' }> = []
+    if (typeof lat === 'number' && typeof lng === 'number') {
+      for (const zone of zones) {
+        if (!zone.active) continue
+        if (zone.type !== 'GEO_POLYGON' || !zone.polygonGeoJSON) continue
+        const feature = this.parsePolygonFeature(zone.polygonGeoJSON)
+        if (feature && booleanPointInPolygon(point([lng, lat]), feature)) {
+          matches.push({ zone, matchedBy: 'POLYGON' })
+        }
+      }
+    }
+    if (cep) {
+      const cepNum = this.cepToNumber(cep)
+      if (cepNum !== null) {
+        for (const zone of zones) {
+          if (!zone.active) continue
+          if (zone.type !== 'CEP_RANGE' || !zone.cepStart || !zone.cepEnd) continue
+          const start = this.cepToNumber(zone.cepStart)
+          const end = this.cepToNumber(zone.cepEnd)
+          if (start !== null && end !== null && cepNum >= start && cepNum <= end) {
+            matches.push({ zone, matchedBy: 'CEP' })
+          }
+        }
+      }
+    }
+    const calculation = await this.calculate({ cep, lat, lng, subtotal })
+    return { calculation, matches: matches.map((m) => ({ id: m.zone.id, name: m.zone.name, fee: Number(m.zone.fee), priority: m.zone.priority, matchedBy: m.matchedBy })) }
+  }
+
+  async checkZoneOverlap(payload: { id?: string; type: string; cepStart?: string | null; cepEnd?: string | null; polygonGeoJSON?: string | null }) {
+    const zones = await this.prisma.deliveryZone.findMany({ where: { active: true } })
+    const overlaps: Array<{ id: string; name: string; reason: string }> = []
+    if (payload.type === 'CEP_RANGE') {
+      const s = this.cepToNumber(payload.cepStart)
+      const e = this.cepToNumber(payload.cepEnd)
+      if (s !== null && e !== null) {
+        for (const zone of zones) {
+          if (payload.id && zone.id === payload.id) continue
+          if (zone.type !== 'CEP_RANGE') continue
+          const zs = this.cepToNumber(zone.cepStart)
+          const ze = this.cepToNumber(zone.cepEnd)
+          if (zs === null || ze === null) continue
+          if (s <= ze && zs <= e) {
+            overlaps.push({ id: zone.id, name: zone.name, reason: `CEP ${zone.cepStart}-${zone.cepEnd} intersecta com faixa nova` })
+          }
+        }
+      }
+    } else if (payload.type === 'GEO_POLYGON' && payload.polygonGeoJSON) {
+      const newFeature = this.parsePolygonFeature(payload.polygonGeoJSON)
+      if (newFeature) {
+        for (const zone of zones) {
+          if (payload.id && zone.id === payload.id) continue
+          if (zone.type !== 'GEO_POLYGON' || !zone.polygonGeoJSON) continue
+          const existingFeature = this.parsePolygonFeature(zone.polygonGeoJSON)
+          if (!existingFeature) continue
+          const newRing: [number, number][] = newFeature.geometry.coordinates[0].map((c: number[]) => [c[0], c[1]])
+          const anyInside = newRing.some((c) => booleanPointInPolygon(point(c), existingFeature))
+          if (anyInside) {
+            overlaps.push({ id: zone.id, name: zone.name, reason: 'Poligono se sobrepoe com area existente' })
+          }
+        }
+      }
+    }
+    return { overlaps }
+  }
+
+  async bulkImportZones(zones: Array<CreateDeliveryZoneDto>) {
+    if (!Array.isArray(zones) || zones.length === 0) {
+      throw new BadRequestException('Lista de zonas vazia.')
+    }
+    if (zones.length > 500) {
+      throw new BadRequestException('Limite de 500 zonas por importacao.')
+    }
+    const created: unknown[] = []
+    const errors: Array<{ index: number; error: string; name?: string }> = []
+    for (let i = 0; i < zones.length; i++) {
+      try {
+        this.validateZonePayload(zones[i])
+        const zone = await this.prisma.deliveryZone.create({
+          data: {
+            name: zones[i].name,
+            type: zones[i].type ?? 'CEP_RANGE',
+            cepStart: zones[i].cepStart ?? null,
+            cepEnd: zones[i].cepEnd ?? null,
+            polygonGeoJSON: zones[i].polygonGeoJSON ?? null,
+            fee: zones[i].fee,
+            freeAbove: zones[i].freeAbove ?? null,
+            active: zones[i].active ?? true,
+            priority: zones[i].priority ?? 0,
+          },
+        })
+        created.push(zone)
+      } catch (e) {
+        errors.push({ index: i, name: zones[i]?.name, error: e instanceof Error ? e.message : 'Erro desconhecido' })
+      }
+    }
+    return { created: created.length, errors }
+  }
+
+  private validateZonePayload(dto: { type?: string; cepStart?: string | null; cepEnd?: string | null; polygonGeoJSON?: string | null; fee?: number; freeAbove?: number | null }) {
+    if (dto.fee !== undefined && (typeof dto.fee !== 'number' || dto.fee < 0 || !Number.isFinite(dto.fee))) {
+      throw new BadRequestException('Taxa deve ser numero maior ou igual a zero.')
+    }
+    if (dto.freeAbove != null && (typeof dto.freeAbove !== 'number' || dto.freeAbove < 0 || !Number.isFinite(dto.freeAbove))) {
+      throw new BadRequestException('Frete gratis acima de deve ser numero maior ou igual a zero.')
+    }
+    if (dto.type === 'CEP_RANGE') {
+      const start = this.cepToNumber(dto.cepStart)
+      const end = this.cepToNumber(dto.cepEnd)
+      if (start === null || end === null) {
+        throw new BadRequestException('CEP inicial e final devem ter 8 digitos.')
+      }
+      if (start > end) {
+        throw new BadRequestException('CEP inicial deve ser menor ou igual ao CEP final.')
+      }
+    }
+    if (dto.type === 'GEO_POLYGON') {
+      if (!dto.polygonGeoJSON) throw new BadRequestException('Poligono geografico obrigatorio.')
+      if (!this.parsePolygonFeature(dto.polygonGeoJSON)) {
+        throw new BadRequestException('Poligono invalido: forneca um GeoJSON valido.')
+      }
+    }
+  }
+
+  private cepToNumber(value?: string | null): number | null {
+    const digits = this.cleanCep(value)
+    if (digits.length !== 8) return null
+    const num = Number(digits)
+    return Number.isFinite(num) ? num : null
   }
 
   async deleteZone(id: string) {
@@ -304,13 +442,17 @@ export class DeliveryService {
     if (!slot) return null
 
     const releasedItems = Math.max(0, Math.ceil(itemCount || 0))
-    const updated = await this.prisma.fulfillmentSlot.update({
-      where: { id: slot.id },
-      data: {
-        reservedOrders: Math.max(0, slot.reservedOrders - 1),
-        reservedItems: Math.max(0, slot.reservedItems - releasedItems),
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.fulfillmentSlot.findUnique({ where: { id: slot.id } })
+      if (!current) return null
+      const nextOrders = Math.max(0, current.reservedOrders - 1)
+      const nextItems = Math.max(0, current.reservedItems - releasedItems)
+      return tx.fulfillmentSlot.update({
+        where: { id: slot.id },
+        data: { reservedOrders: nextOrders, reservedItems: nextItems },
+      })
     })
+    if (!updated) return null
 
     await this.recordFulfillmentEvent({
       tenantId: scoped.tenantId,
@@ -564,12 +706,13 @@ export class DeliveryService {
     }
 
     if (cep) {
-      const cleanCep = this.cleanCep(cep)
+      const cepNum = this.cepToNumber(cep)
+      if (cepNum === null) return this.outOfAreaCalculation()
       const matched = zones.find((zone) => {
         if (zone.type !== 'CEP_RANGE' || !zone.cepStart || !zone.cepEnd) return false
-        const start = this.cleanCep(zone.cepStart)
-        const end = this.cleanCep(zone.cepEnd)
-        return cleanCep >= start && cleanCep <= end
+        const start = this.cepToNumber(zone.cepStart)
+        const end = this.cepToNumber(zone.cepEnd)
+        return start !== null && end !== null && cepNum >= start && cepNum <= end
       })
 
       return matched ? this.zoneToCalculation(matched, subtotal) : this.outOfAreaCalculation()
@@ -583,10 +726,10 @@ export class DeliveryService {
     const type = this.normalizeAreaType(area.type)
 
     if (type === 'CEP_RANGE' && lookup.cep) {
-      const start = this.cleanCep(this.ruleString(rule, ['cepStart', 'start', 'from']))
-      const end = this.cleanCep(this.ruleString(rule, ['cepEnd', 'end', 'to']))
-      const cleanCep = this.cleanCep(lookup.cep)
-      return Boolean(start && end && cleanCep >= start && cleanCep <= end)
+      const start = this.cepToNumber(this.ruleString(rule, ['cepStart', 'start', 'from']))
+      const end = this.cepToNumber(this.ruleString(rule, ['cepEnd', 'end', 'to']))
+      const cepNum = this.cepToNumber(lookup.cep)
+      return start !== null && end !== null && cepNum !== null && cepNum >= start && cepNum <= end
     }
 
     if ((type === 'POLYGON' || type === 'GEO_POLYGON') && typeof lookup.lat === 'number' && typeof lookup.lng === 'number') {

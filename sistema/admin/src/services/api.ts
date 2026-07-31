@@ -1529,6 +1529,12 @@ export const deliveryAPI = {
         ...(lng != null ? { lng } : {}),
       },
     }),
+  testZone: (data: { cep?: string; lat?: number; lng?: number; subtotal?: number }) =>
+    api.post<{ calculation: any; matches: Array<{ id: string; name: string; fee: number; priority: number; matchedBy: 'CEP' | 'POLYGON' }> }>('/delivery/zones/test', data),
+  checkOverlap: (data: { id?: string; type: string; cepStart?: string | null; cepEnd?: string | null; polygonGeoJSON?: string | null }) =>
+    api.post<{ overlaps: Array<{ id: string; name: string; reason: string }> }>('/delivery/zones/overlap-check', data),
+  bulkImportZones: (zones: DeliveryZonePayload[]) =>
+    api.post<{ created: number; errors: Array<{ index: number; name?: string; error: string }> }>('/delivery/zones/bulk-import', { zones }),
 }
 
 export const fulfillmentAPI = {

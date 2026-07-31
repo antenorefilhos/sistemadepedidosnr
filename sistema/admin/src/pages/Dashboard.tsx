@@ -19,8 +19,8 @@ import {
   type MercadologicalTreeLevel1,
   type ProductAvailabilityMetricsResponse,
 } from '../services/api'
-import { BarChart3, Bot, Package, ShoppingCart, Users, LogOut, Menu, Sparkles, MessageCircle, Workflow, Tag, Truck, Image, Palette, Clock3, ShieldAlert, BellRing, ChefHat, ClipboardCheck, Briefcase, CreditCard } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { MessageCircle } from 'lucide-react'
+import { TopMenuBar, SECTION_LABELS } from '@/components/TopMenuBar'
 import type { DashboardAnalytics } from './types'
 
 export type Section =
@@ -258,7 +258,6 @@ export default function AdminDashboard() {
   const navigate = useNavigate()
   const { logout, getAdminData } = useAuth()
   const admin = getAdminData()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<Section>('dashboard')
   const [stats, setStats] = useState({
     orders: 0,
@@ -1020,13 +1019,6 @@ export default function AdminDashboard() {
     navigate('/login')
   }
 
-  const sidebarNavButtonClass =
-    'block w-full min-h-[44px] px-6 py-3 text-left transition-colors duration-150 flex items-center gap-3 focus:outline-none focus-visible:bg-[#5d082a] focus-visible:shadow-[inset_3px_0_0_#d2bb8a] hover:text-[#fde8ef]'
-
-  const sidebarNavActiveClass = 'bg-[#5d082a] font-semibold shadow-[inset_3px_0_0_#d2bb8a]'
-  const sidebarSecondaryButtonClass =
-    'block w-full min-h-[44px] rounded-xl px-4 py-3 text-left transition-all duration-150 flex items-center gap-3 focus:outline-none focus-visible:bg-[#7a1038] focus-visible:shadow-[inset_3px_0_0_#d2bb8a]'
-
   const handleAnalyticsChange = useCallback((updates: Partial<DashboardAnalytics>) => {
     if (updates.salesPeriod !== undefined) setSalesPeriod(updates.salesPeriod)
     if (updates.salesSeries !== undefined) setSalesSeries(updates.salesSeries)
@@ -1047,430 +1039,21 @@ export default function AdminDashboard() {
   // }
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Overlay para mobile sidebar */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-30 md:hidden transition-opacity duration-200"
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-      
-      {/* Sidebar */}
-      <aside
-        id="sidebar"
-        className={`${
-          sidebarOpen ? 'fixed md:relative' : 'hidden'
-        } md:flex flex-col w-64 h-screen bg-[#4a0622] text-white shadow-lg z-40 transition-all duration-300 ease-out`}
-        role="navigation"
-        aria-label="Menu Principal"
-      >
-        <div className="p-6 border-b border-[#5d082a]">
-          <img
-            src="/branding/logo-horizontal-branco.png"
-            alt="Logo Antenor & Filhos"
-            className="h-10 w-auto max-w-[180px] object-contain"
-          />
-        </div>
+    <div className="flex flex-col h-screen bg-gray-100">
+      <TopMenuBar
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+        adminName={admin?.name}
+        onLogout={handleLogout}
+      />
 
-        <nav className="mt-6 flex-1 overflow-y-auto">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setActiveSection('dashboard')
-              setSidebarOpen(false)
-            }}
-            aria-current={activeSection === 'dashboard' ? 'page' : undefined}
-            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
-              activeSection === 'dashboard' ? sidebarNavActiveClass : ''
-            }`}
-            aria-label="Dashboard"
-          >
-            <BarChart3 className="flex-shrink-0" size={20} />
-            <span>Dashboard</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setActiveSection('products')
-              setSidebarOpen(false)
-            }}
-            aria-current={activeSection === 'products' ? 'page' : undefined}
-            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
-              activeSection === 'products' ? sidebarNavActiveClass : ''
-            }`}
-            aria-label="Produtos"
-          >
-            <Package className="flex-shrink-0" size={20} />
-            <span>Produtos</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setActiveSection('orders')
-              setSidebarOpen(false)
-            }}
-            aria-current={activeSection === 'orders' ? 'page' : undefined}
-            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
-              activeSection === 'orders' ? sidebarNavActiveClass : ''
-            }`}
-            aria-label="Pedidos"
-          >
-            <ShoppingCart className="flex-shrink-0" size={20} />
-            <span>Pedidos</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setActiveSection('picking')
-              setSidebarOpen(false)
-            }}
-            aria-current={activeSection === 'picking' ? 'page' : undefined}
-            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
-              activeSection === 'picking' ? sidebarNavActiveClass : ''
-            }`}
-            aria-label="Separacao"
-          >
-            <ClipboardCheck className="flex-shrink-0" size={20} />
-            <span>Separacao</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setActiveSection('staff')
-              setSidebarOpen(false)
-            }}
-            aria-current={activeSection === 'staff' ? 'page' : undefined}
-            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
-              activeSection === 'staff' ? sidebarNavActiveClass : ''
-            }`}
-            aria-label="Equipe"
-          >
-            <Users className="flex-shrink-0" size={20} />
-            <span>Equipe</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setActiveSection('businessAccounts')
-              setSidebarOpen(false)
-            }}
-            aria-current={activeSection === 'businessAccounts' ? 'page' : undefined}
-            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
-              activeSection === 'businessAccounts' ? sidebarNavActiveClass : ''
-            }`}
-            aria-label="Contas B2B"
-          >
-            <Briefcase className="flex-shrink-0" size={20} />
-            <span>Contas B2B</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setActiveSection('customers')
-              setSidebarOpen(false)
-            }}
-            aria-current={activeSection === 'customers' ? 'page' : undefined}
-            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
-              activeSection === 'customers' ? sidebarNavActiveClass : ''
-            }`}
-            aria-label="Clientes"
-          >
-            <Users className="flex-shrink-0" size={20} />
-            <span>Clientes</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setActiveSection('layout')
-              setSidebarOpen(false)
-            }}
-            aria-current={activeSection === 'layout' ? 'page' : undefined}
-            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
-              activeSection === 'layout' ? sidebarNavActiveClass : ''
-            }`}
-            aria-label="Layout do Site"
-          >
-            <Sparkles className="flex-shrink-0" size={20} />
-            <span>Layout do Site</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setActiveSection('categories')
-              setSidebarOpen(false)
-            }}
-            aria-current={activeSection === 'categories' ? 'page' : undefined}
-            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
-              activeSection === 'categories' ? sidebarNavActiveClass : ''
-            }`}
-            aria-label="Categorias"
-          >
-            <Tag className="flex-shrink-0" size={20} />
-            <span>Categorias</span>
-          </Button>
-          <div className="mt-6 px-3 pt-4 border-t border-[#6f1737]">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#c992a8]">
-              Ferramentas
-            </p>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('intelligence')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'intelligence' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'intelligence'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Inteligencia IA"
-            >
-              <Bot className="flex-shrink-0" size={18} />
-              <span>Inteligencia IA</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('integrations')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'integrations' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} mt-2 text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'integrations'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Integracoes"
-            >
-              <Workflow className="flex-shrink-0" size={18} />
-              <span>Integracoes</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('payments')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'payments' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} mt-2 text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'payments'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Pagamentos"
-            >
-              <CreditCard className="flex-shrink-0" size={18} />
-              <span>Pagamentos</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('deliveryZones')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'deliveryZones' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} mt-2 text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'deliveryZones'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Taxas de Entrega"
-            >
-              <Truck className="flex-shrink-0" size={18} />
-              <span>Taxas de Entrega</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('businessHours')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'businessHours' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} mt-2 text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'businessHours'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Horarios de Funcionamento"
-            >
-              <Clock3 className="flex-shrink-0" size={18} />
-              <span>Horarios</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('fraudAudit')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'fraudAudit' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} mt-2 text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'fraudAudit'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Anti-fraude"
-            >
-              <ShieldAlert className="flex-shrink-0" size={18} />
-              <span>Anti-fraude</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('notifications')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'notifications' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} mt-2 text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'notifications'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Notificacoes"
-            >
-              <BellRing className="flex-shrink-0" size={18} />
-              <span>Notificacoes</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('recipes')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'recipes' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} mt-2 text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'recipes'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Receitas"
-            >
-              <ChefHat className="flex-shrink-0" size={18} />
-              <span>Receitas</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('storeBanners')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'storeBanners' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} mt-2 text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'storeBanners'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Banners da Loja"
-            >
-              <Image className="flex-shrink-0" size={18} />
-              <span>Banners da Loja</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setActiveSection('brandIdentity')
-                setSidebarOpen(false)
-              }}
-              aria-current={activeSection === 'brandIdentity' ? 'page' : undefined}
-              className={`${sidebarSecondaryButtonClass} mt-2 text-[#fff4f8] bg-[#6a0d31] hover:bg-[#7a1038] ${
-                activeSection === 'brandIdentity'
-                  ? 'bg-[#7a1038] font-semibold shadow-[inset_3px_0_0_#d2bb8a,0_10px_30px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_6px_18px_rgba(0,0,0,0.08)]'
-              }`}
-              aria-label="Identidade Visual"
-            >
-              <Palette className="flex-shrink-0" size={18} />
-              <span>Identidade Visual</span>
-            </Button>
-          </div>
-        </nav>
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 shadow-sm">
+        <h1 className="text-lg font-semibold text-gray-800">
+          {SECTION_LABELS[activeSection] || activeSection}
+        </h1>
+      </div>
 
-        <div className="p-6 border-t border-[#5d082a]">
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white text-white px-4 py-2 rounded transition-colors duration-150 min-h-[44px]"
-            aria-label="Sair da conta"
-          >
-            <LogOut size={18} />
-            Sair
-          </Button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto flex flex-col" role="main">
-        {/* Header */}
-        <header className="bg-white shadow sticky top-0 z-20">
-          <div className="flex items-center justify-between px-4 sm:px-6 py-4 gap-4">
-            <div className="flex items-center gap-4 min-w-0">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="md:hidden p-2 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#5d082a] rounded transition-colors duration-150 min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
-                aria-label="Abrir menu principal"
-                aria-expanded={sidebarOpen}
-                aria-controls="sidebar"
-              >
-                <Menu size={24} />
-              </Button>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-800 truncate">
-                {activeSection === 'dashboard' && 'Dashboard'}
-                {activeSection === 'products' && 'Produtos'}
-                {activeSection === 'orders' && 'Pedidos'}
-                {activeSection === 'picking' && 'Separacao'}
-                {activeSection === 'staff' && 'Equipe'}
-                {activeSection === 'businessAccounts' && 'Contas B2B'}
-                {activeSection === 'customers' && 'Clientes'}
-                {activeSection === 'layout' && 'Layout do Site'}
-                {activeSection === 'categories' && 'Categorias'}
-                {activeSection === 'deliveryZones' && 'Taxas de Entrega'}
-                {activeSection === 'businessHours' && 'Horarios de Funcionamento'}
-                {activeSection === 'fraudAudit' && 'Anti-fraude'}
-                {activeSection === 'notifications' && 'Notificacoes'}
-                {activeSection === 'recipes' && 'Receitas'}
-                {activeSection === 'storeBanners' && 'Banners da Loja'}
-                {activeSection === 'brandIdentity' && 'Identidade Visual'}
-                {activeSection === 'intelligence' && 'Inteligencia (IA)'}
-                {activeSection === 'integrations' && 'Integracoes'}
-                {activeSection === 'payments' && 'Pagamentos'}
-              </h2>
-            </div>
-            <div className="flex items-center gap-3 sm:gap-4 ml-auto flex-shrink-0">
-              <span className="text-xs sm:text-sm text-gray-600 hidden sm:inline">{admin?.name}</span>
-              <div className="w-10 h-10 bg-[#fdf0f4] rounded-full flex items-center justify-center flex-shrink-0 ring-2 ring-gray-200" aria-label="Foto do perfil">
-                AF
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-4 sm:p-6 animate-in fade-in duration-300">
+      <main className="flex-1 overflow-auto p-4 sm:p-6" role="main">
           {activeSection === 'dashboard' && (
             <Suspense fallback={lazySectionFallback}>
               <DashboardSection
@@ -1736,7 +1319,6 @@ export default function AdminDashboard() {
               <PaymentEventsSection />
             </Suspense>
           )}
-        </div>
       </main>
     </div>
   )

@@ -96,6 +96,33 @@ export class DeliveryController {
   deleteZone(@Param('id') id: string) {
     return this.deliveryService.deleteZone(id)
   }
+
+  @Post('zones/test')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Testar CEP/coordenadas contra zonas cadastradas' })
+  testZone(@Body() body: { cep?: string; lat?: number; lng?: number; subtotal?: number }) {
+    return this.deliveryService.testZone(body || {})
+  }
+
+  @Post('zones/overlap-check')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Detectar sobreposicao de zonas' })
+  checkZoneOverlap(@Body() body: { id?: string; type: string; cepStart?: string | null; cepEnd?: string | null; polygonGeoJSON?: string | null }) {
+    return this.deliveryService.checkZoneOverlap(body)
+  }
+
+  @Post('zones/bulk-import')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Importar zonas em lote (array de CEP ranges)' })
+  bulkImportZones(@Body() body: { zones: Array<CreateDeliveryZoneDto> }) {
+    return this.deliveryService.bulkImportZones(body?.zones || [])
+  }
 }
 
 @ApiTags('Admin Fulfillment')
