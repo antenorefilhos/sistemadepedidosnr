@@ -70,5 +70,7 @@ PRODUCT.md
 SAUDE_PROJETO_E_RECOMENDACOES.md
 UIUX_QUICK_START.md
 VIABILIDADE_VERCEL_SUPABASE.md
+.gitignore
+.github/
 .overclock-app/
 .vscode/
