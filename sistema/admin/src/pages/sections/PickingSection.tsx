@@ -10,11 +10,11 @@ import { SectionEmptyState, SectionMetric, SectionPanel, SectionToolbar } from '
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendente',
-  IN_PROGRESS: 'Em separacao',
-  WAITING_SUBSTITUTION: 'Aguardando substituicao',
-  CONFERENCE_PENDING: 'Aguardando conferencia',
+  IN_PROGRESS: 'Em separação',
+  WAITING_SUBSTITUTION: 'Aguardando substituição',
+  CONFERENCE_PENDING: 'Aguardando conferência',
   PACKING: 'Embalagem',
-  COMPLETED: 'Concluida',
+  COMPLETED: 'Concluída',
   CANCELLED: 'Cancelada',
 }
 
@@ -22,7 +22,7 @@ const ITEM_STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendente',
   PICKED: 'Separado',
   MISSING: 'Faltante',
-  SUBSTITUTED: 'Substituido',
+  SUBSTITUTED: 'Substituído',
   CANCELLED: 'Cancelado',
 }
 
@@ -153,7 +153,7 @@ export default function PickingSection() {
       setEligibleOrders(eligibleRes.data)
       setPerformance(performanceRes.data)
     } catch (error) {
-      setActionError(getApiErrorMessage(error, 'Erro ao carregar separacao'))
+      setActionError(getApiErrorMessage(error, 'Erro ao carregar separação'))
       setTasks([])
       setEligibleOrders([])
       setPerformance(null)
@@ -194,7 +194,7 @@ export default function PickingSection() {
       await load()
       return true
     } catch (error) {
-      setActionError(getApiErrorMessage(error, 'Erro ao executar acao de separacao'))
+      setActionError(getApiErrorMessage(error, 'Erro ao executar acao de separação'))
       return false
     } finally {
       setBusyKey('')
@@ -341,7 +341,7 @@ export default function PickingSection() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <SectionMetric label="Fila ativa" value={activeTasks.length} tone="brand" />
-        <SectionMetric label="Em separacao" value={inProgress} tone="neutral" />
+        <SectionMetric label="Em separação" value={inProgress} tone="neutral" />
         <SectionMetric label="Atrasadas" value={delayed} tone={delayed > 0 ? 'default' : 'success'} />
         <SectionMetric label="Melhor ritmo" value={bestPicker ? `${bestPicker.itemsPerMinute}/min` : '-'} tone="success" />
       </div>
@@ -438,7 +438,7 @@ export default function PickingSection() {
           <div className="p-6 text-sm text-gray-500">Carregando fila...</div>
         ) : displayedTasks.length === 0 ? (
           <div className="p-6">
-            <SectionEmptyState title="Nenhuma tarefa de separacao" description={customerSearch.trim() ? 'Nenhuma tarefa encontrada para este cliente.' : 'Crie uma tarefa a partir de um pedido confirmado ou ajuste o filtro.'} />
+            <SectionEmptyState title="Nenhuma tarefa de separação" description={customerSearch.trim() ? 'Nenhuma tarefa encontrada para este cliente.' : 'Crie uma tarefa a partir de um pedido confirmado ou ajuste o filtro.'} />
           </div>
         ) : (
           <div className="divide-y divide-[#f1dbe3]">
@@ -466,12 +466,12 @@ export default function PickingSection() {
                       <h3 className="mt-2 truncate text-base font-bold text-gray-900">{customerName}</h3>
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                         <span>SLA: {formatDateTime(task.slaDueAt)}</span>
-                        <span>Inicio: {formatDateTime(task.startedAt)}</span>
-                        <span>Fim: {formatDateTime(task.completedAt)}</span>
+                        <span>Início: {task.startedAt ? formatDateTime(task.startedAt) : 'Não iniciada'}</span>
+                        <span>Fim: {task.completedAt ? formatDateTime(task.completedAt) : task.startedAt ? 'Em andamento' : '—'}</span>
                       </div>
                       <div className="mt-3 max-w-xl">
                         <div className="flex items-center justify-between text-xs font-bold text-gray-600">
-                          <span>Progresso da separacao</span>
+                          <span>Progresso da separação</span>
                           <span>{taskProgress}%</span>
                         </div>
                         <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
@@ -516,7 +516,7 @@ export default function PickingSection() {
                         className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-purple-100 bg-purple-50 px-3 py-2 text-xs font-bold text-purple-800 hover:bg-purple-100 disabled:opacity-60 sm:min-h-10"
                       >
                         <ClipboardList size={14} />
-                        Conferencia
+                        Enviar p/ conferência
                       </Button>
                       <Button
                         type="button"
@@ -748,8 +748,8 @@ export default function PickingSection() {
               <div>
                 <h3 id="picking-task-action-title" className="text-base font-black text-[#2e2226]">
                   {taskActionDraft.mode === 'assign' && 'Atribuir separador'}
-                  {taskActionDraft.mode === 'finish' && 'Enviar para conferencia'}
-                  {taskActionDraft.mode === 'conference' && 'Registrar conferencia'}
+                  {taskActionDraft.mode === 'finish' && 'Enviar para conferência'}
+                  {taskActionDraft.mode === 'conference' && 'Registrar conferência'}
                   {taskActionDraft.mode === 'packing' && 'Finalizar embalagem'}
                 </h3>
                 <p className="mt-1 text-sm text-gray-600">{orderLabel(taskActionDraft.task.order)}</p>
@@ -758,7 +758,7 @@ export default function PickingSection() {
 
             <label htmlFor="picking-task-action-value" className="mt-5 block space-y-1.5 text-xs font-bold uppercase tracking-wider text-[#9e7080]">
               {taskActionDraft.mode === 'assign' && 'ID do separador'}
-              {taskActionDraft.mode === 'finish' && 'Observacao final da separacao'}
+              {taskActionDraft.mode === 'finish' && 'Observacao final da separação'}
               {taskActionDraft.mode === 'conference' && 'Justificativa de divergencia'}
               {taskActionDraft.mode === 'packing' && 'Observacao da embalagem'}
               <Input

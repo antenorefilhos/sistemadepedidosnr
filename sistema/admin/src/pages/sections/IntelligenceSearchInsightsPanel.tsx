@@ -34,7 +34,7 @@ interface IntelligenceSearchInsightsPanelProps {
 }
 
 const TOTAL_COLLAPSIBLE_SECTIONS = 7
-const OPERATIONAL_PRESET_DESCRIPTION = 'Foco operacional: prioriza saude da busca e gaps de catalogo.'
+const OPERATIONAL_PRESET_DESCRIPTION = 'Foco operacional: prioriza saude da busca e gaps de catálogo.'
 const BALANCED_PRESET_DESCRIPTION = 'Foco balanceado: equilibrio entre saude geral e oportunidades comerciais.'
 const COMMERCIAL_PRESET_DESCRIPTION = 'Foco comercial: prioriza oportunidades para ads e conversao.'
 
@@ -62,7 +62,7 @@ export default function IntelligenceSearchInsightsPanel({
       ? 'Modo global: recolher tudo'
       : collapseMode === 'expanded'
         ? 'Modo global: expandir tudo'
-        : 'Ajuste manual por secao'
+        : 'Ajuste manual por seção'
   const collapseModeClassName =
     collapseMode === 'collapsed'
       ? 'border-amber-200 bg-amber-50 text-amber-700'
@@ -114,7 +114,7 @@ export default function IntelligenceSearchInsightsPanel({
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <h3 className="text-lg font-bold text-gray-800">Saude da Busca</h3>
+        <h3 className="text-lg font-bold text-gray-800">Saúde da Busca</h3>
         <div className="flex items-center gap-2">
           {onApplyPreset && (
             <>
@@ -174,7 +174,7 @@ export default function IntelligenceSearchInsightsPanel({
               disabled={preset === 'custom' && allExpanded}
               className="h-7 rounded-md border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Restaurar padrao
+              Restaurar padrão
             </Button>
           )}
           <Badge variant="outline" className={`text-[11px] ${collapseModeClassName}`}>
@@ -245,20 +245,20 @@ export default function IntelligenceSearchInsightsPanel({
         <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
           <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">Termos Corrigidos</p>
           <p className="text-2xl font-black text-emerald-700">{searchInsights.totals.correctedSearches}</p>
-          <p className="text-xs text-emerald-700/80 mt-1">erros de digitacao capturados</p>
+          <p className="text-xs text-emerald-700/80 mt-1">erros de digitação capturados</p>
         </div>
         <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 p-3">
           <p className="text-[10px] uppercase tracking-widest text-indigo-700 font-bold">Taxa de Correcao</p>
           <p className="text-2xl font-black text-indigo-700">{(searchInsights.totals.correctionRate * 100).toFixed(0)}%</p>
-          <p className="text-xs text-indigo-700/80 mt-1">potencial de ads por intencao real</p>
+          <p className="text-xs text-indigo-700/80 mt-1">potencial de ads por intenção real</p>
         </div>
         <div className="rounded-lg border border-amber-100 bg-amber-50/40 p-3">
           <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold">Media de Resultados</p>
           <p className="text-2xl font-black text-amber-700">{searchInsights.totals.avgResults.toFixed(1)}</p>
-          <p className="text-xs text-amber-700/80 mt-1">profundidade media por busca</p>
+          <p className="text-xs text-amber-700/80 mt-1">profundidade média por busca</p>
         </div>
         <div className="rounded-lg border border-rose-100 bg-rose-50/40 p-3">
-          <p className="text-[10px] uppercase tracking-widest text-rose-700 font-bold">Gaps de Catalogo</p>
+          <p className="text-[10px] uppercase tracking-widest text-rose-700 font-bold">Gaps de Catálogo</p>
           <p className="text-2xl font-black text-rose-700">{searchInsights.noResultTerms.length}</p>
           <p className="text-xs text-rose-700/80 mt-1">termos com demanda sem oferta</p>
         </div>
@@ -273,7 +273,7 @@ export default function IntelligenceSearchInsightsPanel({
         <div className="rounded-lg border border-cyan-100 bg-cyan-50/40 p-3">
           <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-bold">Conversao Busca-&gt;Carrinho</p>
           <p className="text-2xl font-black text-cyan-700">{(searchInsights.totals.searchConversionRate * 100).toFixed(0)}%</p>
-          <p className="text-xs text-cyan-700/80 mt-1">forca comercial para vender destaque</p>
+          <p className="text-xs text-cyan-700/80 mt-1">força comercial para vender destaque</p>
         </div>
       </div>
 

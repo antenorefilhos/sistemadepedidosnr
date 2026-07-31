@@ -133,6 +133,7 @@ export interface ProductAvailabilityMetricsResponse {
   lowStockProducts: number
   alwaysEnabledWithZeroStock: number
   inactiveWithStock: number
+  uncategorizedProducts: number
 }
 
 export interface SolidcomSyncHistoryItem {

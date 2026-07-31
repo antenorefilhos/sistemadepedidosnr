@@ -34,8 +34,8 @@ const STATUS_TIMELINE_PICKUP = ['PENDING', 'CONFIRMED', 'PICKING', 'CONFERENCE_P
 const STATUS_TIMELINE_LABEL: Record<string, string> = {
   PENDING: 'Pendente',
   CONFIRMED: 'Confirmado',
-  PICKING: 'Separacao',
-  CONFERENCE_PENDING: 'Conferencia',
+  PICKING: 'Separação',
+  CONFERENCE_PENDING: 'Conferência',
   PACKING: 'Embalagem',
   READY_FOR_PICKUP: 'Pronto retirada',
   READY_FOR_DELIVERY: 'Pronto entrega',
@@ -50,14 +50,14 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   'order.confirmed': 'Pedido confirmado',
   'order.cancelled': 'Pedido cancelado',
   'order.status_changed': 'Status atualizado',
-  'order.picking_assigned': 'Separador atribuido',
-  'order.picking_started': 'Separacao iniciada',
-  'order.picking_finished': 'Separacao concluida',
-  'order.picking_conferenced': 'Conferencia registrada',
-  'order.packing_completed': 'Embalagem concluida',
+  'order.picking_assigned': 'Separador atribuído',
+  'order.picking_started': 'Separação iniciada',
+  'order.picking_finished': 'Separação concluída',
+  'order.picking_conferenced': 'Conferência registrada',
+  'order.packing_completed': 'Embalagem concluída',
   'order.payment_updated': 'Pagamento atualizado',
   'order.item_cancelled': 'Item cancelado',
-  'order.item_substituted': 'Item substituido',
+  'order.item_substituted': 'Item substituído',
   'order.item_missing': 'Item faltante',
   'order.recalculated': 'Pedido recalculado',
   'order.business_approved': 'Aprovado conta PJ',
@@ -126,6 +126,18 @@ function getOrderAgeMinutes(order: AdminOrder) {
   return Math.max(0, Math.round((Date.now() - new Date(order.createdAt).getTime()) / 60000))
 }
 
+function formatAge(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  if (minutes < 60 * 24) {
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
+    return m > 0 ? `${h}h ${m}min` : `${h}h`
+  }
+  const days = Math.floor(minutes / (60 * 24))
+  const hoursLeft = Math.floor((minutes % (60 * 24)) / 60)
+  return hoursLeft > 0 ? `${days}d ${hoursLeft}h` : `${days}d`
+}
+
 function getOrderSlaView(order: AdminOrder) {
   const age = getOrderAgeMinutes(order)
   const status = String(order.status || '').toUpperCase()
@@ -133,12 +145,12 @@ function getOrderSlaView(order: AdminOrder) {
     return { label: 'Encerrado', className: 'border-slate-200 bg-slate-50 text-slate-600' }
   }
   if (status === 'FAILED_SYNC' || age >= 90) {
-    return { label: age >= 90 ? `Critico ${age} min` : 'Falha integracao', className: 'border-red-200 bg-red-50 text-red-800' }
+    return { label: age >= 90 ? `Crítico ${formatAge(age)}` : 'Falha integração', className: 'border-red-200 bg-red-50 text-red-800' }
   }
   if (status === 'WAITING_CUSTOMER_SUBSTITUTION' || age >= 45) {
-    return { label: age >= 45 ? `Atencao ${age} min` : 'Substituicao', className: 'border-amber-200 bg-amber-50 text-amber-800' }
+    return { label: age >= 45 ? `Atenção ${formatAge(age)}` : 'Substituição', className: 'border-amber-200 bg-amber-50 text-amber-800' }
   }
-  return { label: `${age} min`, className: 'border-emerald-200 bg-emerald-50 text-emerald-800' }
+  return { label: formatAge(age), className: 'border-emerald-200 bg-emerald-50 text-emerald-800' }
 }
 
 function toNumber(value?: number | string | null) {
@@ -158,7 +170,7 @@ function getItemStatusLabel(status?: string) {
     PENDING: 'Pendente',
     PICKED: 'Separado',
     MISSING: 'Faltante',
-    SUBSTITUTED: 'Substituido',
+    SUBSTITUTED: 'Substituído',
     CANCELLED: 'Cancelado',
   }
   return labels[status || ''] || status || 'Pendente'
@@ -183,8 +195,12 @@ function formatOrderDate(dateStr: string) {
   const date = new Date(dateStr)
   const today = new Date()
   const isToday = date.toDateString() === today.toDateString()
-  if (isToday) return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  return date.toLocaleDateString('pt-BR')
+  if (isToday) return `Hoje ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  const isYesterday = date.toDateString() === yesterday.toDateString()
+  if (isYesterday) return `Ontem ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 type Props = {
@@ -931,7 +947,7 @@ export default function OrdersSection({
 
                   <div className="bg-white border border-[#ead7df] rounded-2xl p-5 space-y-4 shadow-sm">
                     <span className="text-xs font-bold uppercase tracking-wider text-[#5d082a] block border-b border-[#f1dbe3]/60 pb-2">
-                      Historico Operacional
+                      Histórico Operacional
                     </span>
                     <div className="space-y-3">
                       {(selectedOrder.events || []).slice().reverse().slice(0, 8).map((event) => (
@@ -967,12 +983,12 @@ export default function OrdersSection({
                     </div>
                   </div>
 
-                  {/* Endereco de Entrega */}
+                  {/* Endereço de Entrega */}
                   {selectedOrder.addressSnapshot && (
                     <div className="bg-white border border-[#ead7df] rounded-2xl p-5 space-y-4 shadow-sm">
                       <span className="text-xs font-bold uppercase tracking-wider text-[#5d082a] block border-b border-[#f1dbe3]/60 pb-2">
                         <MapPin size={12} className="inline mr-1 -mt-0.5" />
-                        Endereco de Entrega
+                        Endereço de Entrega
                       </span>
                       <div className="text-sm pt-2 space-y-1 text-gray-700">
                         <p className="font-semibold">
@@ -1093,7 +1109,7 @@ export default function OrdersSection({
                 onClick={() => {
                   const order = selectedOrder
                   const addr = order.addressSnapshot
-                  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pedido #${order.id.slice(-8).toUpperCase()}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:20px;font-size:12px;color:#333}h1{font-size:16px;margin-bottom:4px}h2{font-size:13px;margin:12px 0 4px;border-bottom:1px solid #ccc;padding-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;font-size:11px}th{background:#f5f5f5;font-weight:bold}.total{text-align:right;font-weight:bold;font-size:13px;margin-top:8px}.meta{display:flex;gap:24px;flex-wrap:wrap;margin:6px 0}.meta span{font-size:11px}@media print{body{padding:10px}}</style></head><body><h1>Pedido #${order.id.slice(-8).toUpperCase()}</h1><div class="meta"><span><b>Cliente:</b> ${order.customer?.name || '-'}</span><span><b>WhatsApp:</b> ${order.customer?.whatsapp || '-'}</span><span><b>Data:</b> ${new Date(order.createdAt).toLocaleString('pt-BR')}</span><span><b>Status:</b> ${order.status}</span><span><b>Pagamento:</b> ${order.paymentMethod || '-'}</span></div>${addr ? `<h2>Endereco de Entrega</h2><p>${addr.street || ''}${addr.number ? ', ' + addr.number : ''}${addr.complement ? ' - ' + addr.complement : ''}<br>${[addr.neighborhood, addr.city, addr.state].filter(Boolean).join(' - ')}${addr.zipCode ? ' - CEP ' + addr.zipCode : ''}${addr.reference ? '<br>Ref: ' + addr.reference : ''}</p>` : ''}${order.notes ? `<h2>Observacoes</h2><p>${order.notes}</p>` : ''}<h2>Itens</h2><table><thead><tr><th>Produto</th><th>Qtd</th><th>Qtd Final</th><th>Status</th><th>Subtotal</th></tr></thead><tbody>${(order.items || []).map(i => `<tr><td>${i.product?.name || i.productId}</td><td>${i.requestedQuantity ?? i.quantity}</td><td>${i.fulfilledQuantity ?? i.quantity}</td><td>${i.status || 'PENDING'}</td><td>R$ ${(Number(i.finalSubtotal) || i.subtotal).toFixed(2)}</td></tr>`).join('')}</tbody></table><div class="total">Subtotal: R$ ${order.subtotal.toFixed(2)}${order.discount > 0 ? ' | Desconto: -R$ ' + order.discount.toFixed(2) : ''}${order.delivery > 0 ? ' | Frete: R$ ' + order.delivery.toFixed(2) : ''} | <b>Total: R$ ${order.total.toFixed(2)}</b></div></body></html>`
+                  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pedido #${order.id.slice(-8).toUpperCase()}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:20px;font-size:12px;color:#333}h1{font-size:16px;margin-bottom:4px}h2{font-size:13px;margin:12px 0 4px;border-bottom:1px solid #ccc;padding-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;font-size:11px}th{background:#f5f5f5;font-weight:bold}.total{text-align:right;font-weight:bold;font-size:13px;margin-top:8px}.meta{display:flex;gap:24px;flex-wrap:wrap;margin:6px 0}.meta span{font-size:11px}@media print{body{padding:10px}}</style></head><body><h1>Pedido #${order.id.slice(-8).toUpperCase()}</h1><div class="meta"><span><b>Cliente:</b> ${order.customer?.name || '-'}</span><span><b>WhatsApp:</b> ${order.customer?.whatsapp || '-'}</span><span><b>Data:</b> ${new Date(order.createdAt).toLocaleString('pt-BR')}</span><span><b>Status:</b> ${order.status}</span><span><b>Pagamento:</b> ${order.paymentMethod || '-'}</span></div>${addr ? `<h2>Endereço de Entrega</h2><p>${addr.street || ''}${addr.number ? ', ' + addr.number : ''}${addr.complement ? ' - ' + addr.complement : ''}<br>${[addr.neighborhood, addr.city, addr.state].filter(Boolean).join(' - ')}${addr.zipCode ? ' - CEP ' + addr.zipCode : ''}${addr.reference ? '<br>Ref: ' + addr.reference : ''}</p>` : ''}${order.notes ? `<h2>Observacoes</h2><p>${order.notes}</p>` : ''}<h2>Itens</h2><table><thead><tr><th>Produto</th><th>Qtd</th><th>Qtd Final</th><th>Status</th><th>Subtotal</th></tr></thead><tbody>${(order.items || []).map(i => `<tr><td>${i.product?.name || i.productId}</td><td>${i.requestedQuantity ?? i.quantity}</td><td>${i.fulfilledQuantity ?? i.quantity}</td><td>${i.status || 'PENDING'}</td><td>R$ ${(Number(i.finalSubtotal) || i.subtotal).toFixed(2)}</td></tr>`).join('')}</tbody></table><div class="total">Subtotal: R$ ${order.subtotal.toFixed(2)}${order.discount > 0 ? ' | Desconto: -R$ ' + order.discount.toFixed(2) : ''}${order.delivery > 0 ? ' | Frete: R$ ' + order.delivery.toFixed(2) : ''} | <b>Total: R$ ${order.total.toFixed(2)}</b></div></body></html>`
                   const w = window.open('', '_blank')
                   if (w) { w.document.write(html); w.document.close(); w.print() }
                 }}

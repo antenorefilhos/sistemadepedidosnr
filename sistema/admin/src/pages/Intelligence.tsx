@@ -338,7 +338,7 @@ export default function Intelligence() {
           ? { Authorization: `Bearer ${token}` }
           : undefined
 
-        // Fetch paralelo de datasets de inteligencia e busca
+        // Fetch paralelo de datasets de inteligência e busca
         const [catRes, originRes, heatRes, analyticsRes, comparisonRes, searchRes] = await Promise.allSettled([
           ordersAPI.getCategoryRevenue(),
           customersAPI.getOriginAnalytics(),

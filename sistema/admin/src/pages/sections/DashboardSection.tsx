@@ -41,14 +41,15 @@ interface DashboardSectionProps {
 interface StatCardProps {
   label: string
   value: string | number
-  trend: number
+  trend?: number
   trendComparisonPeriod?: string
+  hint?: string
   icon: typeof Banknote
   iconColor: string
   iconBg: string
 }
 
-function StatCard({ label, value, trend, trendComparisonPeriod = 'últimos 30 dias', icon: Icon, iconColor, iconBg }: StatCardProps) {
+function StatCard({ label, value, trend, trendComparisonPeriod = 'últimos 30 dias', hint, icon: Icon, iconColor, iconBg }: StatCardProps) {
   return (
     <div className="rounded-[14px] border border-[#ead7df] bg-[linear-gradient(180deg,#fffafc_0%,#ffffff_100%)] p-6 shadow-[0_18px_36px_rgba(93,8,42,0.08)] transition duration-200 hover:-translate-y-1 hover:shadow-[0_24px_50px_rgba(93,8,42,0.14)]">
       <div className="flex items-start justify-between gap-4">
@@ -60,7 +61,8 @@ function StatCard({ label, value, trend, trendComparisonPeriod = 'últimos 30 di
           <Icon size={22} className={iconColor} />
         </div>
       </div>
-      <div className="mt-4">{renderTrend(trend, trendComparisonPeriod)}</div>
+      {trend !== undefined && <div className="mt-4">{renderTrend(trend, trendComparisonPeriod)}</div>}
+      {hint && <p className="mt-4 text-xs text-gray-400">{hint}</p>}
     </div>
   )
 }
@@ -292,9 +294,8 @@ export function DashboardSection({
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Receita Total"
-          value={`R$ ${stats.revenue.toFixed(2)}`}
-          trend={12}
-          trendComparisonPeriod="últimos 30 dias"
+          value={stats.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          hint="Acumulado até hoje"
           icon={Banknote}
           iconColor="text-[#5d082a]"
           iconBg="bg-[#fdf0f4]"
@@ -302,8 +303,7 @@ export function DashboardSection({
         <StatCard
           label="Pedidos"
           value={stats.orders}
-          trend={8}
-          trendComparisonPeriod="últimos 7 dias"
+          hint="Total no periodo"
           icon={ShoppingCart}
           iconColor="text-sky-600"
           iconBg="bg-sky-50"
@@ -311,8 +311,7 @@ export function DashboardSection({
         <StatCard
           label="Clientes"
           value={stats.customers}
-          trend={5}
-          trendComparisonPeriod="últimos 30 dias"
+          hint="Cadastros ativos"
           icon={Users}
           iconColor="text-fuchsia-600"
           iconBg="bg-fuchsia-50"
@@ -320,8 +319,7 @@ export function DashboardSection({
         <StatCard
           label="Produtos"
           value={stats.products}
-          trend={3}
-          trendComparisonPeriod="últimos 30 dias"
+          hint="Catálogo ativo"
           icon={Package}
           iconColor="text-emerald-600"
           iconBg="bg-emerald-50"
@@ -332,33 +330,33 @@ export function DashboardSection({
         <OperationalQueueCard
           title="Operador"
           value={roleQueues.urgentOrders.length}
-          detail={`${roleQueues.activeOrders.length} pedidos ativos; prioridade por idade, falha ou substituicao.`}
+          detail={`${roleQueues.activeOrders.length} pedidos ativos; prioridade por idade, falha ou substituição.`}
           icon={Gauge}
           tone={roleQueues.urgentOrders.length > 0 ? 'critical' : 'success'}
         />
         <OperationalQueueCard
           title="Picking"
           value={roleQueues.slaRisk.length}
-          detail={`${roleQueues.activePicking.length} tarefas ativas; risco de SLA em ate 20 min.`}
+          detail={`${roleQueues.activePicking.length} tarefas ativas; risco de SLA em até 20 min.`}
           icon={ClipboardList}
           tone={roleQueues.slaRisk.length > 0 ? 'warning' : 'success'}
         />
         <OperationalQueueCard
           title="Ruptura"
           value={roleQueues.ruptureQueue}
-          detail="Itens faltantes ou substituidos aguardando atencao operacional."
+          detail="Itens faltantes ou substituídos aguardando atenção operacional."
           icon={AlertTriangle}
           tone={roleQueues.ruptureQueue > 0 ? 'critical' : 'success'}
         />
         <OperationalQueueCard
-          title="Catalogo"
+          title="Catálogo"
           value={roleQueues.catalogIssues}
           detail="Baixo estoque, estoque inconsistente ou produto ativo sem lastro."
           icon={Package}
           tone={roleQueues.catalogIssues > 0 ? 'warning' : 'success'}
         />
         <OperationalQueueCard
-          title="Integracoes"
+          title="Integrações"
           value={roleQueues.integrationFailures}
           detail={`${integrationOps?.connectors ?? 0} conectores; falhas em outbox/jobs/DLQ.`}
           icon={PlugZap}
@@ -367,7 +365,7 @@ export function DashboardSection({
         <OperationalQueueCard
           title="Campanhas"
           value={roleQueues.campaignSignals}
-          detail="Produtos com tracao para vitrine, oferta ou CRM."
+          detail="Produtos com tração para vitrine, oferta ou CRM."
           icon={Megaphone}
           tone={roleQueues.campaignSignals > 0 ? 'neutral' : 'warning'}
         />
@@ -375,8 +373,8 @@ export function DashboardSection({
 
       <SectionPanel>
         <div className="border-b border-[#f1dbe3] bg-[linear-gradient(180deg,#fffafc_0%,#fff_100%)] px-6 py-5">
-          <h3 className="text-lg font-semibold text-gray-800">Painel por funcao</h3>
-          <p className="mt-1 text-sm text-gray-500">Leitura rapida para operador, separador e gestor sem depender de treinamento longo.</p>
+          <h3 className="text-lg font-semibold text-gray-800">Painel por função</h3>
+          <p className="mt-1 text-sm text-gray-500">Leitura rápida para operador, separador e gestor sem depender de treinamento longo.</p>
         </div>
         <div className="grid grid-cols-1 divide-y divide-[#f1dbe3] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
           <RoleQueueCard
@@ -384,8 +382,8 @@ export function DashboardSection({
             title="Priorizar pedido parado"
             description={
               roleQueues.urgentOrders.length > 0
-                ? `${roleQueues.urgentOrders.length} pedido(s) exigem acao por SLA, falha ou substituicao.`
-                : 'Fila sem pedido critico neste momento.'
+                ? `${roleQueues.urgentOrders.length} pedido(s) exigem ação por SLA, falha ou substituição.`
+                : 'Fila sem pedido crítico neste momento.'
             }
             actionLabel="Ver pedidos"
             hasAttention={roleQueues.urgentOrders.length > 0}
@@ -396,7 +394,7 @@ export function DashboardSection({
             title="Concluir por setor e SLA"
             description={
               pickingPerformance
-                ? `${pickingPerformance.totals.completed}/${pickingPerformance.totals.tasks} tarefas concluidas no periodo; ${pickingPerformance.totals.delayed} atrasada(s).`
+                ? `${pickingPerformance.totals.completed}/${pickingPerformance.totals.tasks} tarefas concluídas no período; ${pickingPerformance.totals.delayed} atrasada(s).`
                 : 'Sem leitura de produtividade carregada.'
             }
             actionLabel="Ver separação"
@@ -408,8 +406,8 @@ export function DashboardSection({
             title="Enxergar gargalo"
             description={
               roleQueues.integrationFailures > 0 || roleQueues.catalogIssues > 0
-                ? `${roleQueues.catalogIssues} alerta(s) de catalogo e ${roleQueues.integrationFailures} falha(s) de integracao.`
-                : 'Catalogo e integracoes sem fila critica nos indicadores principais.'
+                ? `${roleQueues.catalogIssues} alerta(s) de catálogo e ${roleQueues.integrationFailures} falha(s) de integração.`
+                : 'Catálogo e integrações sem fila crítica nos indicadores principais.'
             }
             actionLabel="Ver integrações"
             hasAttention={roleQueues.integrationFailures > 0 || roleQueues.catalogIssues > 0}

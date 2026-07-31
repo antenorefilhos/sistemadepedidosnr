@@ -385,7 +385,7 @@ export default function ProductsSection({
     if (pendingAction.type === 'delete-product') {
       return {
         title: 'Inativar produto?',
-        description: `A acao vai inativar "${pendingAction.productName}" no catalogo administrativo.`,
+        description: `A acao vai inativar "${pendingAction.productName}" no catálogo administrativo.`,
         confirmLabel: 'Inativar produto',
         destructive: true,
       }
@@ -466,7 +466,7 @@ export default function ProductsSection({
               variant="ghost"
               size="icon"
               className={activeFeedback.tone === 'success' ? 'h-8 w-8 shrink-0 rounded-lg text-emerald-700 hover:bg-emerald-100' : 'h-8 w-8 shrink-0 rounded-lg text-red-700 hover:bg-red-100'}
-              aria-label="Dispensar aviso do catalogo"
+              aria-label="Dispensar aviso do catálogo"
             >
               <X size={15} />
             </Button>
@@ -548,10 +548,12 @@ export default function ProductsSection({
                   productsFilterUncategorized ? 'text-white/70' : 'text-slate-500'
                 }`} />
               </div>
-              <p className="mt-2 text-3xl font-black leading-none">-</p>
+              <p className="mt-2 text-3xl font-black leading-none">
+                {availabilityMetrics?.uncategorizedProducts ?? '—'}
+              </p>
               <p className={`mt-1 text-[10px] ${
                 productsFilterUncategorized ? 'text-white/60' : 'text-slate-500/60'
-              }`}>Sem departamento</p>
+              }`}>Sem classificação mercadológica</p>
             </div>
 
             {/* Card 4: Inativos */}

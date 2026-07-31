@@ -67,6 +67,7 @@ type ProductAvailabilityMetrics = {
   lowStockProducts: number
   alwaysEnabledWithZeroStock: number
   inactiveWithStock: number
+  uncategorizedProducts: number
 }
 
 type CategoryCatalogItem = {
@@ -902,7 +903,7 @@ export class ProductsService {
   }
 
   async getAvailabilityMetrics(): Promise<ProductAvailabilityMetrics> {
-    const [totalActive, outOfStock, lowStockProducts, alwaysEnabledWithZeroStock, inactiveWithStock] =
+    const [totalActive, outOfStock, lowStockProducts, alwaysEnabledWithZeroStock, inactiveWithStock, uncategorizedProducts] =
       await Promise.all([
         this.prisma.product.count({
           where: { active: true },
@@ -933,6 +934,15 @@ export class ProductsService {
             stock: { gt: 0 },
           },
         }),
+        this.prisma.product.count({
+          where: {
+            active: true,
+            OR: [
+              { classification01: null },
+              { classification01: '' },
+            ],
+          },
+        }),
       ])
 
     return {
@@ -941,6 +951,7 @@ export class ProductsService {
       lowStockProducts,
       alwaysEnabledWithZeroStock,
       inactiveWithStock,
+      uncategorizedProducts,
     }
   }
 

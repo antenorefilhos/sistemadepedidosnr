@@ -34,8 +34,8 @@ interface PaginatedRecipes {
 }
 
 const DIFFICULTY_LABEL: Record<string, string> = {
-  EASY: 'Facil',
-  MEDIUM: 'Medio',
+  EASY: 'Fácil',
+  MEDIUM: 'Médio',
   HARD: 'Dificil',
 }
 
@@ -164,7 +164,7 @@ export default function Recipes() {
   const handleSubmit = () => {
     setError(null)
     if (!form.title.trim() || !form.slug.trim()) {
-      setError('Titulo e slug sao obrigatorios.')
+      setError('Título e slug são obrigatórios.')
       return
     }
 
@@ -219,7 +219,7 @@ export default function Recipes() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label className="mb-1 block text-xs text-gray-600">Titulo *</Label>
+              <Label className="mb-1 block text-xs text-gray-600">Título *</Label>
               <Input
                 type="text"
                 value={form.title}
@@ -240,7 +240,7 @@ export default function Recipes() {
             </div>
 
             <div className="md:col-span-2">
-              <Label className="mb-1 block text-xs text-gray-600">Descricao</Label>
+              <Label className="mb-1 block text-xs text-gray-600">Descrição</Label>
               <Textarea
                 value={form.description}
                 onChange={(e) => handleChange('description', e.target.value)}
@@ -283,9 +283,9 @@ export default function Recipes() {
                 value={form.difficulty}
                 onChange={(e) => handleChange('difficulty', e.target.value)}
               >
-                <option value="">Sem classificacao</option>
-                <option value="EASY">Facil</option>
-                <option value="MEDIUM">Medio</option>
+                <option value="">Sem classificação</option>
+                <option value="EASY">Fácil</option>
+                <option value="MEDIUM">Médio</option>
                 <option value="HARD">Dificil</option>
               </Select>
             </div>
@@ -306,7 +306,7 @@ export default function Recipes() {
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs text-gray-600">Publicacao</Label>
+              <Label className="mb-1 block text-xs text-gray-600">Publicação</Label>
               <Input
                 type="datetime-local"
                 value={form.publishedAt}
@@ -353,14 +353,14 @@ export default function Recipes() {
         <div className="text-center py-20 text-gray-500">
           <ChefHat size={36} className="mx-auto mb-3 text-gray-300" />
           <p className="font-semibold">Nenhuma receita cadastrada.</p>
-          <p className="text-sm">Clique em "Nova receita" para comecar.</p>
+          <p className="text-sm">Clique em "Nova receita" para começar.</p>
         </div>
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50">
-                <TableHead>Titulo</TableHead>
+                <TableHead>Título</TableHead>
                 <TableHead>Categoria</TableHead>
                 <TableHead>Dificuldade</TableHead>
                 <TableHead className="text-center">Status</TableHead>
@@ -455,7 +455,7 @@ export default function Recipes() {
           <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
             <h2 className="text-lg font-bold text-gray-900">Excluir receita?</h2>
             <p className="mt-2 text-sm text-gray-600">
-              Esta acao remove "{deleteTarget.title}" do cadastro de receitas.
+              Esta ação remove "{deleteTarget.title}" do cadastro de receitas.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>

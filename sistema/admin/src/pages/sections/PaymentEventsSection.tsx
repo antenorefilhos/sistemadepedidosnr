@@ -93,7 +93,7 @@ function HealthStatusCard({ health }: { health: PaymentsHealthResponse }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-gray-800">Saude da Integracao</h3>
+        <h3 className="text-sm font-bold text-gray-800">Saúde da Integração</h3>
         <Badge
           variant="secondary"
           className={`text-[10px] font-bold uppercase tracking-wide ${
@@ -216,7 +216,7 @@ function TransactionRow({
           <TableCell colSpan={8} className="bg-gray-50 p-0">
             <div className="p-4 space-y-2">
               <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">
-                Eventos da transacao ({tx.events.length})
+                Eventos da transação ({tx.events.length})
               </p>
               <Table>
                 <TableHeader>
@@ -260,7 +260,7 @@ function TransactionRow({
       {expanded && (!tx.events || tx.events.length === 0) && (
         <TableRow>
           <TableCell colSpan={8} className="bg-gray-50 text-center text-xs text-gray-500 py-4">
-            Nenhum evento registrado para esta transacao.
+            Nenhum evento registrado para esta transação.
           </TableCell>
         </TableRow>
       )}
@@ -385,7 +385,7 @@ export default function PaymentEventsSection() {
             </p>
             <h2 className="text-2xl md:text-3xl font-black leading-tight">Pagamentos</h2>
             <p className="text-sm text-[#fdebf2] max-w-2xl">
-              Transacoes, webhooks e eventos do gateway de pagamento com trilha completa de auditoria.
+              Transações, webhooks e eventos do gateway de pagamento com trilha completa de auditoria.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -431,7 +431,7 @@ export default function PaymentEventsSection() {
           }`}
         >
           <CreditCard size={15} />
-          Transacoes
+          Transações
           <Badge variant="secondary" className="ml-1 text-[10px] bg-gray-200 text-gray-700">
             {txTotal}
           </Badge>
@@ -487,8 +487,8 @@ export default function PaymentEventsSection() {
           <SectionPanel bodyClassName="overflow-x-auto">
             {transactions.length === 0 ? (
               <SectionEmptyState
-                title="Nenhuma transacao encontrada"
-                description="As transacoes de pagamento aparecerao aqui quando o gateway estiver ativo e processando pedidos."
+                title="Nenhuma transação encontrada"
+                description="As transações de pagamento aparecerão aqui quando o gateway estiver ativo e processando pedidos."
               />
             ) : (
               <Table>
@@ -525,7 +525,7 @@ export default function PaymentEventsSection() {
           {webhookEvents.length === 0 ? (
             <SectionEmptyState
               title="Nenhum webhook recebido"
-              description="Os eventos de webhook do gateway de pagamento aparecerao aqui quando forem recebidos."
+              description="Os eventos de webhook do gateway de pagamento aparecerão aqui quando forem recebidos."
             />
           ) : (
             <Table>

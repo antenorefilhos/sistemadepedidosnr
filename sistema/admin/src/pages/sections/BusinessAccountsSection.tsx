@@ -94,9 +94,9 @@ function formatDateTime(value?: string | null) {
 
 function businessApprovalLabel(status?: string) {
   const normalized = String(status || '').toUpperCase()
-  if (normalized === 'PENDING') return 'Aguardando aprovacao'
+  if (normalized === 'PENDING') return 'Aguardando aprovação'
   if (normalized === 'APPROVED') return 'Aprovado'
-  if (normalized === 'NOT_REQUIRED') return 'Sem aprovacao'
+  if (normalized === 'NOT_REQUIRED') return 'Sem aprovação'
   return normalized || '-'
 }
 
@@ -372,7 +372,7 @@ export default function BusinessAccountsSection() {
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#9b3156]">Comercial</p>
             <h3 className="mt-1 text-2xl font-black text-[#2d0b18]">Contas B2B</h3>
             <p className="mt-1 max-w-2xl text-sm text-gray-600">
-              Empresas, precos proprios, aprovacao de compra e credito operacional em uma fila unica.
+              Empresas, preços próprios, aprovação de compra e crédito operacional em uma fila única.
             </p>
           </div>
           <Button
@@ -387,10 +387,10 @@ export default function BusinessAccountsSection() {
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-5">
           <SectionMetric label="Contas ativas" value={metrics.activeAccounts} tone="brand" />
-          <SectionMetric label="Usuarios B2B" value={metrics.users} tone="neutral" />
+          <SectionMetric label="Usuários B2B" value={metrics.users} tone="neutral" />
           <SectionMetric label="Tabelas B2B" value={metrics.priceLists} tone="neutral" />
           <SectionMetric label="Listas" value={metrics.lists} tone="neutral" />
-          <SectionMetric label="Aprovacoes" value={pendingOrders.length} tone={pendingOrders.length ? 'default' : 'success'} />
+          <SectionMetric label="Aprovações" value={pendingOrders.length} tone={pendingOrders.length ? 'default' : 'success'} />
         </div>
       </SectionToolbar>
 
@@ -461,7 +461,7 @@ export default function BusinessAccountsSection() {
                   <p className="mt-1 text-sm text-gray-500">{formatDocument(financial?.document || selectedAccount?.document || '')}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-right text-xs font-bold text-gray-600">
-                  <span className="rounded-lg border border-[#ead7df] px-3 py-2">Usuarios: {financial?.activeUsers ?? selectedAccount?._count?.users ?? 0}</span>
+                  <span className="rounded-lg border border-[#ead7df] px-3 py-2">Usuários: {financial?.activeUsers ?? selectedAccount?._count?.users ?? 0}</span>
                   <span className="rounded-lg border border-[#ead7df] px-3 py-2">Pedidos: {financial?.orderCount ?? selectedAccount?._count?.orders ?? 0}</span>
                 </div>
               </div>
@@ -484,7 +484,7 @@ export default function BusinessAccountsSection() {
                 <h4 className="text-lg font-black text-[#2d0b18]">Nova conta</h4>
               </div>
               <form onSubmit={handleCreateAccount} className="mt-4 space-y-3">
-                <Input required value={accountForm.name} onChange={(event) => setAccountForm((prev) => ({ ...prev, name: event.target.value }))} className="h-11 rounded-lg border-[#ead7df] text-sm shadow-none focus-visible:ring-[#5d082a]/20" placeholder="Razao social" />
+                <Input required value={accountForm.name} onChange={(event) => setAccountForm((prev) => ({ ...prev, name: event.target.value }))} className="h-11 rounded-lg border-[#ead7df] text-sm shadow-none focus-visible:ring-[#5d082a]/20" placeholder="Razão social" />
                 <Input required value={accountForm.document} onChange={(event) => setAccountForm((prev) => ({ ...prev, document: event.target.value }))} className="h-11 rounded-lg border-[#ead7df] text-sm shadow-none focus-visible:ring-[#5d082a]/20" placeholder="CNPJ/documento" />
                 <div className="grid grid-cols-2 gap-2">
                   <Input value={accountForm.creditLimit} onChange={(event) => setAccountForm((prev) => ({ ...prev, creditLimit: event.target.value }))} className="h-11 rounded-lg border-[#ead7df] text-sm shadow-none focus-visible:ring-[#5d082a]/20" placeholder="Limite" type="number" min="0" step="0.01" />
@@ -661,7 +661,7 @@ export default function BusinessAccountsSection() {
             </div>
             <div className="mt-4 overflow-x-auto">
               {pendingOrders.length === 0 ? (
-                <SectionEmptyState title="Sem pedidos aguardando aprovacao" description="Pedidos B2B com aprovacao obrigatoria aparecem aqui antes de seguirem para operacao." />
+                <SectionEmptyState title="Sem pedidos aguardando aprovação" description="Pedidos B2B com aprovação obrigatoria aparecem aqui antes de seguirem para operacao." />
               ) : (
                 <Table className="min-w-full text-sm">
                   <TableHeader className="bg-[#fff7fa] text-left text-xs font-black uppercase tracking-[0.16em] text-[#7a1038]">

@@ -102,7 +102,7 @@ export default function IntelligenceAutoInsightsPanel({
           {funnel && funnel.addedToCart > funnel.purchased && (
             <p>
               - <strong className="text-white">Carrinho Abandonado:</strong> {cartAbandonRate} dos clientes que adicionaram nao finalizaram. Ative as{' '}
-              <strong className="text-[#D2BB8A]">Notificacoes WhatsApp</strong> para recuperar essas vendas.
+              <strong className="text-[#D2BB8A]">Notificações WhatsApp</strong> para recuperar essas vendas.
             </p>
           )}
           {customerOrigin.length > 0 && (

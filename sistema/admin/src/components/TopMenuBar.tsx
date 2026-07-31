@@ -20,16 +20,16 @@ type MenuGroup = {
 
 const MENU_GROUPS: MenuGroup[] = [
   {
-    label: 'Operacoes',
+    label: 'Operações',
     items: [
       { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
       { key: 'orders', label: 'Pedidos', icon: ShoppingCart },
-      { key: 'picking', label: 'Separacao', icon: ClipboardCheck },
+      { key: 'picking', label: 'Separação', icon: ClipboardCheck },
       { key: 'staff', label: 'Equipe', icon: Users },
     ],
   },
   {
-    label: 'Catalogo',
+    label: 'Catálogo',
     items: [
       { key: 'products', label: 'Produtos', icon: Package },
       { key: 'categories', label: 'Categorias', icon: Tag },
@@ -51,15 +51,15 @@ const MENU_GROUPS: MenuGroup[] = [
       { key: 'storeBanners', label: 'Banners', icon: Image },
       { key: 'brandIdentity', label: 'Identidade Visual', icon: Palette },
       { key: 'deliveryZones', label: 'Taxas de Entrega', icon: Truck },
-      { key: 'businessHours', label: 'Horarios', icon: Clock3 },
+      { key: 'businessHours', label: 'Horários', icon: Clock3 },
     ],
   },
   {
     label: 'Sistema',
     items: [
-      { key: 'intelligence', label: 'Inteligencia IA', icon: Bot },
-      { key: 'integrations', label: 'Integracoes', icon: Workflow },
-      { key: 'notifications', label: 'Notificacoes', icon: BellRing },
+      { key: 'intelligence', label: 'Inteligência IA', icon: Bot },
+      { key: 'integrations', label: 'Integrações', icon: Workflow },
+      { key: 'notifications', label: 'Notificações', icon: BellRing },
       { key: 'fraudAudit', label: 'Anti-fraude', icon: ShieldAlert },
     ],
   },
