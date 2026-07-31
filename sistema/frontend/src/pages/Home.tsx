@@ -8,7 +8,8 @@ import {
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
-import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, type StoreBannerCMS } from '../hooks/useCMS'
+import { useCommercialTaxonomy, useStoreBanners, useHeroSlides, useTopSellingProducts, type StoreBannerCMS } from '../hooks/useCMS'
+import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
 import { useBrand } from '../hooks/useBrand'
@@ -65,8 +66,17 @@ export default function Home() {
   const { openModal: openDeliveryVerificationModal } = useDeliveryVerificationModal()
   const { data: rebuyProducts = [] } = useRebuyRecommendations(user?.id, 10)
   const { data: marginShowcase = [] } = useRecommendationShowcase(undefined, 12)
+  const { data: heroSlidesRaw = [] } = useHeroSlides()
 
   const productsList = (products || []) as Product[]
+
+  const activeHeroSlides = useMemo(
+    () =>
+      ((heroSlidesRaw || []) as HeroSlideCMS[])
+        .filter((slide) => slide.active !== false)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [heroSlidesRaw],
+  )
 
   const handleHeaderAddressClick = useCallback(() => {
     openDeliveryVerificationModal()
@@ -645,7 +655,11 @@ export default function Home() {
         </section>
       )}
 
-      {featuredCommercialSection && (
+      {activeHeroSlides.length > 0 ? (
+        <section className="md:hidden mx-4 mb-4">
+          <HeroSlider slides={activeHeroSlides} />
+        </section>
+      ) : featuredCommercialSection && (
         <section className="md:hidden mx-4 mb-4">
           <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-[#D2BB8A]/40 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-5 shadow-xl' })}>
             <div className="flex flex-col gap-4">
@@ -701,7 +715,11 @@ export default function Home() {
       {isDesktop && (
       <main className="hidden md:block max-w-7xl mx-auto px-4 py-8 space-y-12 pb-24">
         
-        {featuredCommercialSection && (
+        {activeHeroSlides.length > 0 ? (
+          <section className="fade-in-section">
+            <HeroSlider slides={activeHeroSlides} />
+          </section>
+        ) : featuredCommercialSection && (
           <section className="fade-in-section">
             <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-[#D2BB8A]/40 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-6 shadow-xl md:p-8' })}>
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
