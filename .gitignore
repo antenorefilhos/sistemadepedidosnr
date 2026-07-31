@@ -44,3 +44,31 @@ Thumbs.db
 
 # TS incremental build info
 *.tsbuildinfo
+
+# Non-system files (docs, tools, assets, scripts auxiliares)
+arquivos-projeto/
+Notificador/
+Python/
+logos/
+design/
+design-system/
+scripts/
+config.json
+agent.md
+*.lnk
+ANALISE_PROJETO.md
+CHANGELOG.md
+CLAUDE_CODE_BRIEFING.md
+DESIGN.md
+EXECUTAR_CHECKLIST.md
+GRAPHIFY_*.md
+IMPLEMENTACAO_GRAPHIFY_VAULT.md
+MELHORIAS_UIUX_TOPBENCHMARK.md
+PLANO_EXECUCAO_FINAL.md
+PLANO_IMPLEMENTACAO_UIUX.md
+PRODUCT.md
+SAUDE_PROJETO_E_RECOMENDACOES.md
+UIUX_QUICK_START.md
+VIABILIDADE_VERCEL_SUPABASE.md
+.overclock-app/
+.vscode/

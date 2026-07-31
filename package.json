@@ -4,7 +4,6 @@
   "scripts": {
     "dev:all": "npm --prefix sistema run dev:all",
     "install:all": "npm --prefix sistema run install:all",
-    "build:all": "npm --prefix sistema run build:all",
-    "validate:obsidian-links": "node scripts/validate-obsidian-links.js"
+    "build:all": "npm --prefix sistema run build:all"
   }
 }

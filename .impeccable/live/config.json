@@ -1,9 +1,0 @@
-{
-  "files": [
-    "sistema/frontend/index.html",
-    "sistema/admin/index.html"
-  ],
-  "insertBefore": "</body>",
-  "commentSyntax": "html",
-  "cspChecked": true
-}
