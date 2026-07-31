@@ -1590,3 +1590,22 @@ export const notificationsAdminAPI = {
     customerId?: string
   }) => api.post('/notifications/admin/broadcast', data),
 }
+
+export interface StaffMember {
+  id: string
+  email: string
+  name: string
+  role: string
+  active: boolean
+  createdAt: string
+}
+
+export const staffAPI = {
+  list: () => api.get<StaffMember[]>('/auth/staff'),
+  create: (data: { email: string; name: string; password: string; role: string }) =>
+    api.post('/auth/register', data),
+  update: (id: string, data: { name?: string; email?: string; role?: string; password?: string }) =>
+    api.patch<StaffMember>(`/auth/staff/${id}`, data),
+  toggleActive: (id: string) =>
+    api.post<StaffMember>(`/auth/staff/${id}/toggle-active`),
+}

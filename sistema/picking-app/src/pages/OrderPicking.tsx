@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   ArrowLeft, Camera, Keyboard, Check, X, AlertTriangle,
   Loader2, Package, ChevronDown, ChevronUp, Send, ClipboardList, Truck, Edit3,
+  Plus, Search, RotateCcw, Trash2,
 } from 'lucide-react'
 import { pickerApi, PickingTask, PickingTaskItem, Order } from '../services/api'
 import toast from 'react-hot-toast'
@@ -30,7 +31,13 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [confirm, setConfirm] = useState<ConfirmState>({ mode: null, itemId: null, taskItemId: null, ean: '' })
+  const [adjustQty, setAdjustQty] = useState<number>(0)
   const [missingItem, setMissingItem] = useState<{ taskItemId: string; reason: string } | null>(null)
+  const [addItemModal, setAddItemModal] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
+  const [productResults, setProductResults] = useState<Array<{ id: string; name: string; ean: string | null; price: number; promotionalPrice: number | null; unit: string | null }>>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [addQty, setAddQty] = useState(1)
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
   const [reviewMode, setReviewMode] = useState(false)
   const [deliveryInstructions, setDeliveryInstructions] = useState('')
@@ -100,6 +107,8 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   }
 
   const handleManualMode = (taskItem: PickingTaskItem) => {
+    const orderItem = getOrderItemForTaskItem(taskItem)
+    setAdjustQty(Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1))
     setConfirm({ mode: 'manual', itemId: null, taskItemId: taskItem.id, ean: '' })
   }
 
@@ -143,17 +152,18 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     const taskItem = task.items.find(i => i.id === confirm.taskItemId)
     if (!taskItem) return
     const orderItem = getOrderItemForTaskItem(taskItem)
+    const requested = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1)
 
     setActionLoading(true)
     try {
-      const qty = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1)
+      const isAdjusted = adjustQty !== requested
       const { data } = await pickerApi.pickItem(task.id, taskItem.id, {
-        quantity: qty,
-        notes: 'Marcacao manual',
+        quantity: adjustQty,
+        notes: isAdjusted ? `Quantidade corrigida: ${adjustQty}/${requested}` : 'Marcacao manual',
       })
       setTask(data)
       setOrder(data.order || null)
-      toast.success('Item separado')
+      toast.success(isAdjusted ? `Item separado (${adjustQty}/${requested})` : 'Item separado')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Erro ao separar')
     } finally {
@@ -174,6 +184,66 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       setMissingItem(null)
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Erro')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleResetItem = async (taskItemId: string) => {
+    if (!task) return
+    setActionLoading(true)
+    try {
+      const { data } = await pickerApi.resetItem(task.id, taskItemId)
+      setTask(data)
+      setOrder(data.order || null)
+      toast.success('Item reaberto para correcao')
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Erro ao desfazer')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleRemoveItem = async (taskItemId: string) => {
+    if (!task) return
+    setActionLoading(true)
+    try {
+      const { data } = await pickerApi.removeItem(task.id, taskItemId)
+      setTask(data)
+      setOrder(data.order || null)
+      toast.success('Item removido')
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Erro ao remover')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleSearchProducts = async (q: string) => {
+    setProductSearch(q)
+    if (q.trim().length < 2) { setProductResults([]); return }
+    setSearchLoading(true)
+    try {
+      const { data } = await pickerApi.searchProducts(q)
+      setProductResults(data)
+    } catch { setProductResults([]) }
+    finally { setSearchLoading(false) }
+  }
+
+  const handleAddItem = async (productId: string) => {
+    if (!order) return
+    setActionLoading(true)
+    try {
+      const { data } = await pickerApi.addItemToOrder(order.id, { productId, quantity: addQty })
+      setTask(data)
+      setOrder(data.order || null)
+      toast.success('Item incluido no pedido')
+      setAddItemModal(false)
+      setProductSearch('')
+      setProductResults([])
+      setAddQty(1)
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Erro ao incluir')
     } finally {
       setActionLoading(false)
     }
@@ -334,9 +404,23 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 key={item.id}
                 taskItem={item}
                 product={getProductForTaskItem(item)}
+                onReset={() => handleResetItem(item.id)}
+                onRemove={() => handleRemoveItem(item.id)}
+                disabled={actionLoading || isSentToCashier}
               />
             ))}
           </>
+        )}
+
+        {/* Add item button */}
+        {!isSentToCashier && task && (
+          <button
+            onClick={() => setAddItemModal(true)}
+            className="w-full h-12 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 text-sm font-medium flex items-center justify-center gap-2 active:bg-gray-50 mt-2"
+          >
+            <Plus size={16} />
+            Incluir Item no Pedido
+          </button>
         )}
 
         {taskItems.length === 0 && (
@@ -395,6 +479,8 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
         const taskItem = task?.items.find(i => i.id === confirm.taskItemId)
         const product = taskItem ? getProductForTaskItem(taskItem) : null
         const orderItem = taskItem ? getOrderItemForTaskItem(taskItem) : null
+        const requested = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)
+        const isAdjusted = adjustQty !== requested
         return (
           <Modal onClose={() => setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })}>
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
@@ -403,7 +489,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 <div>
                   <p className="text-sm font-semibold text-amber-800">Confirmacao Manual</p>
                   <p className="text-xs text-amber-700 mt-0.5">
-                    Confirme que separou este item fisicamente. Sem validacao por codigo.
+                    Confirme que separou este item. Ajuste a quantidade se necessario.
                   </p>
                 </div>
               </div>
@@ -411,9 +497,39 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             <div className="bg-gray-50 rounded-xl p-4 mb-4">
               <p className="font-semibold text-gray-900">{product?.name || 'Produto'}</p>
               {product?.ean && <p className="text-xs text-gray-500 mt-1">EAN: {product.ean}</p>}
-              <p className="text-sm text-gray-600 mt-1">
-                Qtd: {Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)} {product?.unit || 'un'}
-              </p>
+              <div className="mt-3">
+                <label className="text-xs text-gray-500 block mb-1">Quantidade separada (pedido: {requested} {product?.unit || 'un'})</label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAdjustQty(q => Math.max(1, q - 1))}
+                    className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={adjustQty}
+                    onChange={(e) => setAdjustQty(Math.max(1, Number(e.target.value) || 1))}
+                    className="flex-1 h-10 rounded-lg border border-gray-200 text-center text-lg font-semibold focus:outline-none focus:border-brand-500"
+                  />
+                  <button
+                    onClick={() => setAdjustQty(q => q + 1)}
+                    className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              {isAdjusted && (
+                <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                  <p className="text-xs text-orange-700">
+                    <Edit3 size={12} className="inline mr-1" />
+                    Enviando {adjustQty} de {requested} {product?.unit || 'un'} — o valor do pedido sera recalculado.
+                  </p>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <button
@@ -424,10 +540,10 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
               </button>
               <button
                 onClick={handleManualConfirm}
-                disabled={actionLoading}
-                className="flex-1 h-12 rounded-xl bg-amber-600 text-white font-semibold disabled:opacity-40"
+                disabled={actionLoading || adjustQty < 1}
+                className={`flex-1 h-12 rounded-xl text-white font-semibold disabled:opacity-40 ${isAdjusted ? 'bg-orange-600' : 'bg-amber-600'}`}
               >
-                {actionLoading ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Sim, Separei'}
+                {actionLoading ? <Loader2 size={18} className="animate-spin mx-auto" /> : isAdjusted ? `Enviar ${adjustQty}` : 'Sim, Separei'}
               </button>
             </div>
           </Modal>
@@ -458,6 +574,70 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             </button>
           </div>
         </Modal>
+      )}
+
+      {/* Add item modal */}
+      {addItemModal && (
+        <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col">
+          <header className="bg-brand-600 text-white px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
+            <div className="flex items-center gap-3">
+              <button onClick={() => { setAddItemModal(false); setProductSearch(''); setProductResults([]); setAddQty(1) }} className="w-10 h-10 flex items-center justify-center rounded-xl active:bg-white/10">
+                <ArrowLeft size={20} />
+              </button>
+              <p className="font-semibold">Incluir Item no Pedido</p>
+            </div>
+          </header>
+          <div className="px-4 py-3">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar produto por nome ou EAN..."
+                value={productSearch}
+                onChange={(e) => handleSearchProducts(e.target.value)}
+                autoFocus
+                className="w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-brand-500"
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 space-y-2">
+            {searchLoading && <div className="flex justify-center py-4"><Loader2 size={24} className="animate-spin text-brand-500" /></div>}
+            {!searchLoading && productSearch.length >= 2 && productResults.length === 0 && (
+              <p className="text-center text-gray-400 text-sm py-4">Nenhum produto encontrado</p>
+            )}
+            {productResults.map(p => (
+              <div key={p.id} className="bg-white rounded-xl border border-gray-100 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-gray-900 truncate">{p.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      R$ {(p.promotionalPrice ?? p.price).toFixed(2)} / {p.unit || 'un'}
+                      {p.ean && <span className="ml-2">EAN: {p.ean}</span>}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <button onClick={() => setAddQty(q => Math.max(1, q - 1))} className="w-8 h-8 rounded-lg bg-gray-200 text-gray-700 font-bold flex items-center justify-center">−</button>
+                  <input
+                    type="number"
+                    min={1}
+                    value={addQty}
+                    onChange={(e) => setAddQty(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-16 h-8 rounded-lg border border-gray-200 text-center text-sm font-semibold"
+                  />
+                  <button onClick={() => setAddQty(q => q + 1)} className="w-8 h-8 rounded-lg bg-gray-200 text-gray-700 font-bold flex items-center justify-center">+</button>
+                  <button
+                    onClick={() => handleAddItem(p.id)}
+                    disabled={actionLoading}
+                    className="flex-1 h-8 rounded-lg bg-brand-500 text-white text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-40"
+                  >
+                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <><Plus size={14} /> Incluir</>}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Review screen */}
@@ -497,13 +677,18 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 <div className="space-y-2">
                   {done.filter(i => i.status !== 'MISSING').map(item => {
                     const product = getProductForTaskItem(item)
-                    const orderItem = getOrderItemForTaskItem(item)
-                    const qty = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)
+                    const picked = Number(item.pickedQuantity ?? 0)
+                    const requested = Number(item.requestedQuantity ?? 0)
+                    const isAdjusted = picked > 0 && picked !== requested
                     return (
                       <div key={item.id} className="flex items-center gap-3 py-1">
-                        <Check size={14} className="text-green-600 flex-shrink-0" />
+                        {isAdjusted
+                          ? <Edit3 size={14} className="text-orange-600 flex-shrink-0" />
+                          : <Check size={14} className="text-green-600 flex-shrink-0" />}
                         <span className="flex-1 text-sm text-gray-900 truncate">{product?.name || 'Produto'}</span>
-                        <span className="text-sm text-gray-500">{qty} {product?.unit || 'un'}</span>
+                        <span className={`text-sm ${isAdjusted ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
+                          {isAdjusted ? `${picked}/${requested}` : (picked || requested)} {product?.unit || 'un'}
+                        </span>
                       </div>
                     )
                   })}
@@ -580,22 +765,31 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
           </div>
 
           {/* Bottom actions */}
-          <div className="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white border-t flex gap-2">
+          <div className="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white border-t space-y-2">
             {!sendConfirm ? (
               <>
                 <button
                   onClick={() => { setReviewMode(false); setSendConfirm(false) }}
-                  className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium"
+                  className="w-full h-11 rounded-xl border border-orange-300 text-orange-600 font-medium flex items-center justify-center gap-2 active:bg-orange-50"
                 >
-                  Voltar
+                  <Edit3 size={14} />
+                  Corrigir Pedido
                 </button>
-                <button
-                  onClick={() => setSendConfirm(true)}
-                  className="flex-1 h-12 rounded-xl bg-green-600 text-white font-semibold flex items-center justify-center gap-2 active:scale-[0.98]"
-                >
-                  <Send size={14} />
-                  Enviar ao Caixa
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setReviewMode(false); setSendConfirm(false) }}
+                    className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => setSendConfirm(true)}
+                    className="flex-1 h-12 rounded-xl bg-green-600 text-white font-semibold flex items-center justify-center gap-2 active:scale-[0.98]"
+                  >
+                    <Send size={14} />
+                    Enviar ao Caixa
+                  </button>
+                </div>
               </>
             ) : (
               <>
@@ -693,27 +887,50 @@ function ItemCard({
 }
 
 function DoneItemCard({
-  taskItem, product,
+  taskItem, product, onReset, onRemove, disabled,
 }: {
   taskItem: PickingTaskItem
   product?: { id: string; name: string; ean: string | null; unit: string | null } | null
+  onReset?: () => void
+  onRemove?: () => void
+  disabled?: boolean
 }) {
   const isMissing = taskItem.status === 'MISSING'
+  const picked = Number(taskItem.pickedQuantity ?? 0)
+  const requested = Number(taskItem.requestedQuantity ?? 0)
+  const isAdjusted = taskItem.status === 'PICKED' && picked > 0 && picked !== requested
+  const isAddedDuringPicking = taskItem.notes?.includes('Incluido durante separacao')
 
   return (
-    <div className={`rounded-xl px-4 py-3 flex items-center gap-3 ${isMissing ? 'bg-red-50 border border-red-100' : 'bg-green-50 border border-green-100'}`}>
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isMissing ? 'bg-red-100' : 'bg-green-100'}`}>
-        {isMissing ? <X size={16} className="text-red-600" /> : <Check size={16} className="text-green-600" />}
+    <div className={`rounded-xl px-4 py-3 ${isMissing ? 'bg-red-50 border border-red-100' : isAdjusted ? 'bg-orange-50 border border-orange-100' : 'bg-green-50 border border-green-100'}`}>
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isMissing ? 'bg-red-100' : isAdjusted ? 'bg-orange-100' : 'bg-green-100'}`}>
+          {isMissing ? <X size={16} className="text-red-600" /> : isAdjusted ? <Edit3 size={16} className="text-orange-600" /> : <Check size={16} className="text-green-600" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={`font-medium text-sm truncate ${isMissing ? 'text-red-900' : isAdjusted ? 'text-orange-900' : 'text-green-900'}`}>
+            {product?.name || 'Produto'}
+          </p>
+          <p className="text-xs text-gray-500">
+            {isAdjusted ? `Corrigido: ${picked}/${requested} ${product?.unit || 'un'}` : (ITEM_STATUS_LABEL[taskItem.status] || taskItem.status)}
+            {taskItem.notes && !isAdjusted && <span className="ml-1">· {taskItem.notes}</span>}
+          </p>
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className={`font-medium text-sm truncate ${isMissing ? 'text-red-900' : 'text-green-900'}`}>
-          {product?.name || 'Produto'}
-        </p>
-        <p className="text-xs text-gray-500">
-          {ITEM_STATUS_LABEL[taskItem.status] || taskItem.status}
-          {taskItem.notes && <span className="ml-1">· {taskItem.notes}</span>}
-        </p>
-      </div>
+      {!disabled && (onReset || (onRemove && isAddedDuringPicking)) && (
+        <div className="flex gap-2 mt-2 ml-11">
+          {onReset && (
+            <button onClick={onReset} className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 rounded-lg px-2.5 py-1.5 active:bg-blue-100">
+              <RotateCcw size={12} /> Desfazer
+            </button>
+          )}
+          {onRemove && isAddedDuringPicking && (
+            <button onClick={onRemove} className="flex items-center gap-1 text-xs text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5 active:bg-red-100">
+              <Trash2 size={12} /> Remover
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

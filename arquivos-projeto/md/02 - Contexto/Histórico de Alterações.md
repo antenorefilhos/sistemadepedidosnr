@@ -14,6 +14,77 @@ tags:
 
 # Histórico de Alterações
 
+## 2026-07-30
+
+### Mudança
+Picking app — features operacionais de separação.
+
+### Motivo
+Separadores precisam incluir itens durante a separação, desfazer/remover itens já separados e corrigir pedidos antes de enviar.
+
+### Decisões Arquiteturais
+- **Modal "Incluir Item"** com busca de produtos (preço, qty selector, botão de inclusão).
+- **DoneItemCard** com botões "Desfazer" (RotateCcw) e "Remover" (Trash2, só para itens adicionados durante separação).
+- **`isAdjusted`** substituiu `isPartial` para cobrir ajustes de quantidade (aumento E diminuição).
+- **Botão "Corrigir Pedido"** (laranja, Edit3) na tela de revisão acima de Voltar/Enviar.
+- **`imageUrl` removido** do select de `searchProducts` no backend e frontend (Product model não tem esse campo).
+
+### Impacto
+Separadores têm controle total sobre itens durante a separação, com UX de correção antes do envio.
+
+### Validação
+- Backend compilado e funcional após remoção de `imageUrl`.
+- Botão "Desfazer" funcionando (POST /picker/tasks/.../items/.../reset).
+- Docker image reconstruída e container reiniciado.
+
+---
+
+### Mudança
+Gestão de equipe — CRUD de separadores e entregadores no admin.
+
+### Motivo
+O admin não tinha onde cadastrar separadores (pickers) e entregadores (drivers). Esses usuários precisam ser geridos pelo painel administrativo.
+
+### Decisões Arquiteturais
+- **Seção "Equipe"** no Dashboard com ícone Users na sidebar.
+- **Filtro por role** e métricas de contagem (pickers, drivers, admins ativos).
+- **Formulário** com nome, email, senha (show/hide toggle) e role select.
+- **Toggle** ativar/desativar por membro.
+- **Backend:** `GET /auth/staff`, `PATCH /auth/staff/:id`, `POST /auth/staff/:id/toggle-active` (admin only).
+- **Auth service:** `listStaff`, `updateStaff`, `toggleStaffActive` com validação de role e hash de senha.
+- **Model `Admin`** armazena todos os staff (admin/picker/driver via campo `role`).
+
+### Impacto
+Admin pode criar, editar, ativar/desativar separadores e entregadores sem intervenção técnica.
+
+### Validação
+- Endpoints respondendo corretamente.
+- Seção renderizando no admin dashboard.
+
+---
+
+### Mudança
+Picking app e Delivery app adicionados ao Docker Compose.
+
+### Motivo
+Os apps de separação e entregas precisam rodar em containers para o ambiente de produção.
+
+### Decisões Arquiteturais
+- **Dockerfiles multi-stage** (node:20-alpine → nginx:alpine) para picking e delivery.
+- **nginx.conf** com proxy `/api/` → `http://api:3001/`.
+- **Docker Compose** com serviços `picking` (porta `${PICKING_PORT:-3003}:80`) e `delivery` (porta `${DELIVERY_PORT:-3004}:80`).
+- **CORS_ORIGIN** atualizado para incluir `http://localhost:3003,http://localhost:3004`.
+- **Portas configuráveis** via env vars para evitar conflito com dev servers.
+
+### Impacto
+Stack Docker completa com 6 serviços: db, api, admin, storefront, picking, delivery.
+
+### Validação
+- Docker images construídas e containers saudáveis.
+- Apps acessíveis nas portas configuradas.
+
+---
+
 ## 2026-06-05
 
 ### Mudança

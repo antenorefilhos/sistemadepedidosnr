@@ -4,7 +4,7 @@ status: ativo
 area: memoria
 prioridade: alta
 criado: 2026-05-24
-atualizado: 2026-06-06
+atualizado: 2026-07-30
 tags:
   - onde-parei
   - retomada
@@ -20,9 +20,9 @@ Auditoria Top-Tier P0-M20 encerrada e validada. UI kit shadcn/ui validado em sta
 
 ## Última Atividade
 
-- **Data:** 2026-06-06
-- **Atividade realizada:** Tooling de imagens removido por completo.
-- **Resultado:** Removidos scripts de importacao/auditoria/sumarizacao de imagens e artefatos `product-image-audit*`. Imagens ja existentes foram preservadas; a frente de fotos fica pausada ate uma solucao melhor.
+- **Data:** 2026-07-30
+- **Atividade realizada:** Picking app features, gestão de equipe e integração Docker.
+- **Resultado:** Picking app ganhou modal "Incluir Item", DoneItemCard com "Desfazer"/"Remover", flag `isAdjusted`, botão "Corrigir Pedido" na revisão e `searchProducts` corrigido. Seção "Equipe" criada no admin com CRUD completo de staff (separadores/entregadores/admins). Picking app e Delivery app containerizados e adicionados ao Docker Compose (portas 3003 e 3004). Documentação atualizada.
 
 ## Próxima Coisa a Fazer
 
@@ -176,7 +176,10 @@ Auditoria Top-Tier P0-M20 encerrada e validada. UI kit shadcn/ui validado em sta
 - [x] **Categorias no go-live:** `go-live-ops.ps1 preflight -CategoryTreeApiUrl http://localhost:4001` passou e registrou relatório em `artifacts/release/go-live-preflight-20260606-061403.json`.
 - [x] **Pagamento manual/troco local:** `CARD` tratado como offline/cartao na entrega, aliases manuais aceitos no admin, checkout Cypress 5/5, pedidos admin Cypress 5/5 e backend focado 28/28.
 - [x] **Frente de imagens pausada:** scripts e artefatos de importacao/auditoria/sumarizacao foram removidos; uploads existentes preservados.
-- [ ] **Próximo:** seguir para a proxima frente do projeto, sem trabalhar fotos agora.
+- [x] **Picking app features:** modal "Incluir Item", DoneItemCard com "Desfazer"/"Remover", `isAdjusted`, "Corrigir Pedido" e `searchProducts` corrigido.
+- [x] **Gestão de equipe:** seção "Equipe" no admin com listagem, filtro, métricas, CRUD e toggle ativar/desativar. Backend: `GET /auth/staff`, `PATCH /auth/staff/:id`, `POST /auth/staff/:id/toggle-active`.
+- [x] **Docker picking/delivery:** Dockerfiles multi-stage, nginx proxy, Docker Compose com serviços `picking` (3003) e `delivery` (3004), CORS atualizado.
+- [ ] **Próximo:** seguir para a proxima frente do projeto.
 
 ## Contexto Necessário
 

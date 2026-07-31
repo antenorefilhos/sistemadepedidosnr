@@ -6,9 +6,11 @@ import { RolesGuard } from '../../common/guards/roles.guard'
 import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import {
+  AddItemToOrderDto,
   FinishPickingTaskDto,
   MissingPickingItemDto,
   PickPickingItemDto,
+  ResetPickedItemDto,
   SubstitutePickingItemDto,
 } from './dto/picking.dto'
 import { PickingService } from './picking.service'
@@ -128,6 +130,60 @@ export class PickerController {
     @Req() req: TenantContextRequest,
   ) {
     return this.pickingService.substituteItem(id, itemId, dto, getTenantContext(req), this.actorFromRequest(req))
+  }
+
+  @Post('tasks/:id/items/:itemId/reset')
+  @ApiOperation({ summary: 'Desfazer separacao de item (reabrir para correcao)' })
+  async resetPickedItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: ResetPickedItemDto,
+    @Req() req: TenantContextRequest,
+  ) {
+    return this.pickingService.resetPickedItem(id, itemId, dto, getTenantContext(req), this.actorFromRequest(req))
+  }
+
+  @Post('tasks/:id/items/:itemId/remove')
+  @ApiOperation({ summary: 'Remover item incluido durante separacao' })
+  async removeAddedItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Req() req: TenantContextRequest,
+  ) {
+    return this.pickingService.removeAddedItem(id, itemId, getTenantContext(req), this.actorFromRequest(req))
+  }
+
+  @Post('orders/:orderId/add-item')
+  @ApiOperation({ summary: 'Incluir produto no pedido durante separacao' })
+  async addItemToOrder(
+    @Param('orderId') orderId: string,
+    @Body() dto: AddItemToOrderDto,
+    @Req() req: TenantContextRequest,
+  ) {
+    return this.pickingService.addItemToOrder(orderId, dto, getTenantContext(req), this.actorFromRequest(req))
+  }
+
+  @Get('products/search')
+  @ApiOperation({ summary: 'Buscar produtos para inclusao' })
+  async searchProducts(
+    @Query('q') q: string,
+    @Req() req: TenantContextRequest,
+  ) {
+    const ctx = getTenantContext(req)
+    if (!q || q.trim().length < 2) return []
+    return this.pickingService['prisma'].product.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        storeId: ctx.storeId,
+        active: true,
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { ean: { contains: q } },
+        ],
+      },
+      select: { id: true, name: true, ean: true, price: true, promotionalPrice: true, unit: true },
+      take: 10,
+    })
   }
 
   @Post('tasks/:id/finish')

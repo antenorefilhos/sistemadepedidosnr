@@ -5,12 +5,14 @@ import { NotificationsService } from '../notifications/notifications.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import {
+  AddItemToOrderDto,
   ConferencePickingTaskDto,
   CreatePickingTaskDto,
   FinishPickingTaskDto,
   MissingPickingItemDto,
   PackingChecklistDto,
   PickPickingItemDto,
+  ResetPickedItemDto,
   SubstitutePickingItemDto,
 } from './dto/picking.dto'
 
@@ -541,6 +543,164 @@ export class PickingService {
       subtotal,
       reason: dto.reason || null,
       notes: dto.notes || null,
+    }, actor)
+
+    return this.findTask(task.id, context)
+  }
+
+  async addItemToOrder(
+    orderId: string,
+    dto: AddItemToOrderDto,
+    context: Partial<PickingTenantContext>,
+    actor?: PickingActor,
+  ) {
+    const order = await this.findOrderForPicking(orderId, context)
+    if (['CANCELLED', 'COMPLETED', 'REFUNDED', 'READY_FOR_CHECKOUT'].includes(order.status)) {
+      throw new BadRequestException('Pedido nao permite inclusao de itens neste status.')
+    }
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: dto.productId, tenantId: order.tenantId, storeId: order.storeId, active: true },
+    })
+    if (!product) throw new NotFoundException('Produto nao encontrado.')
+
+    const unitPrice = product.promotionalPrice ?? product.price
+    const subtotal = this.roundMoney(unitPrice * dto.quantity)
+
+    const orderItem = await this.prisma.orderItem.create({
+      data: {
+        tenantId: order.tenantId,
+        storeId: order.storeId,
+        orderId: order.id,
+        productId: product.id,
+        quantity: dto.quantity,
+        unitPrice,
+        subtotal,
+        requestedQuantity: this.decimal3(dto.quantity),
+        fulfilledQuantity: this.decimal3(dto.quantity),
+        finalUnitPrice: this.decimal2(unitPrice),
+        finalSubtotal: this.decimal2(subtotal),
+        status: 'PICKED',
+        pickerNotes: dto.notes || 'Incluido durante separacao',
+      },
+      include: { product: true },
+    })
+
+    const task = await this.prisma.pickingTask.findFirst({
+      where: { orderId, ...tenantStoreWhere(context) },
+    })
+    if (task) {
+      await this.prisma.pickingTaskItem.create({
+        data: {
+          tenantId: order.tenantId,
+          storeId: order.storeId,
+          taskId: task.id,
+          orderItemId: orderItem.id,
+          productId: product.id,
+          requestedQuantity: this.decimal3(dto.quantity),
+          pickedQuantity: this.decimal3(dto.quantity),
+          status: 'PICKED',
+          notes: dto.notes || 'Incluido durante separacao',
+        },
+      })
+    }
+
+    const recalculated = await this.recalculateOrderTotals(order.id)
+    await this.recordOrderEvent(recalculated, 'order.item_added_by_picker', {
+      taskId: task?.id || null,
+      orderItemId: orderItem.id,
+      productId: product.id,
+      productName: product.name,
+      quantity: dto.quantity,
+      unitPrice,
+      subtotal,
+      notes: dto.notes || null,
+    }, actor)
+
+    if (task) return this.findTask(task.id, context)
+    return recalculated
+  }
+
+  async resetPickedItem(
+    taskId: string,
+    taskItemId: string,
+    dto: ResetPickedItemDto,
+    context: Partial<PickingTenantContext>,
+    actor?: PickingActor,
+  ) {
+    const task = await this.findTaskForOperation(taskId, context)
+    const taskItem = this.getTaskItem(task, taskItemId)
+
+    if (!FINAL_ITEM_STATUSES.includes(taskItem.status)) {
+      throw new BadRequestException('Item ainda nao foi separado.')
+    }
+
+    const orderItem = await this.findOrderItemForTask(task, taskItem.orderItemId)
+    const previousStatus = taskItem.status
+    const previousQty = this.numberValue(taskItem.pickedQuantity)
+
+    await Promise.all([
+      this.prisma.pickingTaskItem.update({
+        where: { id: taskItem.id },
+        data: { status: 'PENDING', pickedQuantity: null, finalWeight: null, barcode: null, notes: null },
+      }),
+      this.prisma.orderItem.update({
+        where: { id: orderItem.id },
+        data: { status: 'ACTIVE', fulfilledQuantity: null, finalSubtotal: null, pickerNotes: null, cutReason: null },
+      }),
+      this.prisma.pickingTask.update({
+        where: { id: task.id },
+        data: { status: 'IN_PROGRESS', completedAt: null },
+      }),
+    ])
+
+    await this.recalculateOrderTotals(task.orderId)
+    await this.prisma.order.update({
+      where: { id: task.orderId },
+      data: { status: 'PICKING' },
+    })
+
+    const order = await this.findOrderForPicking(task.orderId, context)
+    await this.recordOrderEvent(order, 'order.item_reset_by_picker', {
+      taskId: task.id,
+      taskItemId: taskItem.id,
+      orderItemId: orderItem.id,
+      productId: orderItem.productId,
+      productName: orderItem.product?.name || null,
+      previousStatus,
+      previousQuantity: previousQty,
+      reason: dto.reason || null,
+    }, actor)
+
+    return this.findTask(task.id, context)
+  }
+
+  async removeAddedItem(
+    taskId: string,
+    taskItemId: string,
+    context: Partial<PickingTenantContext>,
+    actor?: PickingActor,
+  ) {
+    const task = await this.findTaskForOperation(taskId, context)
+    const taskItem = this.getTaskItem(task, taskItemId)
+    const orderItem = await this.findOrderItemForTask(task, taskItem.orderItemId)
+
+    if (!orderItem.pickerNotes?.includes('Incluido durante separacao')) {
+      throw new BadRequestException('Somente itens incluidos durante separacao podem ser removidos.')
+    }
+
+    await Promise.all([
+      this.prisma.pickingTaskItem.delete({ where: { id: taskItem.id } }),
+      this.prisma.orderItem.delete({ where: { id: orderItem.id } }),
+    ])
+
+    const recalculated = await this.recalculateOrderTotals(task.orderId)
+    await this.recordOrderEvent(recalculated, 'order.added_item_removed', {
+      taskId: task.id,
+      taskItemId: taskItem.id,
+      orderItemId: orderItem.id,
+      productId: orderItem.productId,
+      productName: orderItem.product?.name || null,
     }, actor)
 
     return this.findTask(task.id, context)

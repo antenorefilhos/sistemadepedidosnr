@@ -50,7 +50,7 @@ services:
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET:-antenor_local_stack_jwt_secret_2026_min_32_chars}
-      CORS_ORIGIN: http://localhost:3000,http://localhost:3002,https://localhost:3443,https://localhost:3444
+      CORS_ORIGIN: http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,https://localhost:3443,https://localhost:3444
       FRONTEND_URL: http://localhost:3000
       ADMIN_URL: http://localhost:3002
       PORT: 3001
@@ -97,6 +97,34 @@ services:
     volumes:
       - ./certs:/etc/nginx/certs:ro
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # --- Picking App (Separacao) ---
+  picking:
+    build:
+      context: ./picking-app
+      dockerfile: Dockerfile
+    container_name: antenor_picking
+    restart: always
+    depends_on:
+      - api
+    networks:
+      - antenor_network
+    ports:
+      - "${PICKING_PORT:-3003}:80"
+
+  # --- Delivery App (Entregas) ---
+  delivery:
+    build:
+      context: ./delivery-app
+      dockerfile: Dockerfile
+    container_name: antenor_delivery
+    restart: always
+    depends_on:
+      - api
+    networks:
+      - antenor_network
+    ports:
+      - "${DELIVERY_PORT:-3004}:80"
 
   # --- Admin Dashboard ---
   admin:

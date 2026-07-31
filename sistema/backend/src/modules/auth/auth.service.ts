@@ -1,7 +1,7 @@
-import { Injectable, BadRequestException, UnauthorizedException, ConflictException } from '@nestjs/common'
+import { Injectable, BadRequestException, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { PrismaService } from '../../common/prisma.service'
-import { CreateAdminDto } from './dto/create-admin.dto'
+import { CreateAdminDto, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
 import { LoginDto } from './dto/login.dto'
@@ -87,27 +87,31 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(createAdminDto.password, 10)
 
+    const validRoles = ['admin', 'picker', 'driver']
+    const role = validRoles.includes(createAdminDto.role || '') ? createAdminDto.role! : 'admin'
+
     const admin = await this.prisma.admin.create({
       data: {
         email: createAdminDto.email,
         name: createAdminDto.name,
         password: hashedPassword,
+        role,
       },
     })
 
     const tenantId = admin.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
-    const role = admin.role || 'admin'
+    const adminRole = admin.role || role
     const access_token = this.jwtService.sign({
       id: admin.id,
       email: admin.email,
       name: admin.name,
-      role,
+      role: adminRole,
       tenantId,
       storeId,
     })
 
-    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role, tenantId, storeId } }
+    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role: adminRole, tenantId, storeId } }
   }
 
   async customerRegister(dto: CreateCustomerRegisterDto) {
@@ -197,6 +201,45 @@ export class AuthService {
     })
 
     return this.buildCustomerTokenResponse(customer)
+  }
+
+  async listStaff(tenantId: string) {
+    return this.prisma.admin.findMany({
+      where: { tenantId },
+      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  async updateStaff(id: string, dto: UpdateStaffDto) {
+    const staff = await this.prisma.admin.findUnique({ where: { id } })
+    if (!staff) throw new NotFoundException('Membro nao encontrado')
+
+    const data: Record<string, unknown> = {}
+    if (dto.name) data.name = dto.name
+    if (dto.email) data.email = dto.email
+    if (dto.role) {
+      const validRoles = ['admin', 'picker', 'driver']
+      if (!validRoles.includes(dto.role)) throw new BadRequestException('Role invalida')
+      data.role = dto.role
+    }
+    if (dto.password) data.password = await bcrypt.hash(dto.password, 10)
+
+    return this.prisma.admin.update({
+      where: { id },
+      data,
+      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+    })
+  }
+
+  async toggleStaffActive(id: string) {
+    const staff = await this.prisma.admin.findUnique({ where: { id } })
+    if (!staff) throw new NotFoundException('Membro nao encontrado')
+    return this.prisma.admin.update({
+      where: { id },
+      data: { active: !staff.active },
+      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+    })
   }
 
   private buildCustomerTokenResponse(customer: {

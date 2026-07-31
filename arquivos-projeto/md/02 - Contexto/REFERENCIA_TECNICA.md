@@ -1,13 +1,15 @@
 # REFERENCIA_TECNICA.md - Stack e Superficies Reais
 
-Data: 6 de junho de 2026
-Versao de referencia: 1.24.138-alpha
+Data: 30 de julho de 2026
+Versao de referencia: 1.24.160-alpha
 
 ## Stack atual
 
-- backend: NestJS 10, TypeScript, Prisma 5.22.0, PostgreSQL 15, Redis 7
-- storefront: React 18, TypeScript, Vite 4, Tailwind CSS, React Query, react-helmet-async
-- admin: React 18, TypeScript, Vite 4, Tailwind CSS, React Query, ApexCharts
+- backend: NestJS 11, TypeScript, Prisma 5.22.0, PostgreSQL 15, Redis 7
+- storefront: React 18, TypeScript, Vite 7, Tailwind CSS, React Query, react-helmet-async
+- admin: React 18, TypeScript, Vite 7, Tailwind CSS, React Query, ApexCharts
+- picking-app: React 18, TypeScript, Vite, Tailwind CSS (porta 3003)
+- delivery-app: React 18, TypeScript, Vite, Tailwind CSS (porta 3004)
 - infraestrutura: Docker Compose, Nginx Alpine, volumes persistentes, rede antenor_network e MeiliSearch
 
 ## Storefront Receitas / Seed Editorial Staging
@@ -700,11 +702,13 @@ Versao de referencia: 1.24.138-alpha
 - Compose: `sistema/docker-compose.staging.yml`
 - Script operacional: `sistema/staging-ops.ps1 [up|down|reset|seed|smoke|status]`
 - Portas staging vs local:
-  - loja:  4000 (local: 3000)
-  - api:   4001 (local: 3001)
-  - admin: 4002 (local: 3002)
-  - banco: 5433 (local: 5432)
-  - meili: 7701 (local: 7700)
+  - loja:     4000 (local: 3000)
+  - api:      4001 (local: 3001)
+  - admin:    4002 (local: 3002)
+  - picking:  ${PICKING_PORT:-3003} (local: 3003)
+  - delivery: ${DELIVERY_PORT:-3004} (local: 3004)
+  - banco:    5433 (local: 5432)
+  - meili:    7701 (local: 7700)
 - Banco isolado: `antenor_staging` — nunca compartilha dados com `antenor_db`.
 - Credencial admin staging: `admin@antenor.com.br` / `admin2026`.
 - Seed recomendado do staging: `.\staging-ops.ps1 seed` ou, manualmente, `npm run prisma:seed` + `npm run seed:qa` em `sistema/backend` apontando `DATABASE_URL` para a porta `5433`.
@@ -823,6 +827,16 @@ raiz/
           changeOptions.ts
           device.ts
           validators.ts
+    picking-app/
+      .dockerignore
+      Dockerfile
+      nginx.conf
+      src/
+    delivery-app/
+      .dockerignore
+      Dockerfile
+      nginx.conf
+      src/
     docker-compose.yml
     ecosystem.config.js
     package.json
@@ -844,6 +858,22 @@ raiz/
 - cms
 - audit-log
 - analytics
+
+Secoes do admin Dashboard (tipo `Section` em `Dashboard.tsx`):
+- `dashboard`, `orders`, `products`, `customers`, `categories`, `picking`, `layout`, `recipes`, `delivery-zones`, `business-accounts`, `intelligence`, `integrations`, `notifications-broadcast`, `fraud-audit`, `system-health`, `payment-events`, `staff`
+
+Picking app (`sistema/picking-app`, porta 3003):
+- Dockerfile multi-stage (node:20-alpine → nginx:alpine)
+- nginx.conf com proxy `/api/` → `http://api:3001/`
+- Vite proxy em dev: `/auth` e `/picker` → localhost:3005
+- Auth JWT com role `picker`
+- Telas: login, lista de tarefas, separação item a item, revisão, modal "Incluir Item"
+
+Delivery app (`sistema/delivery-app`, porta 3004):
+- Dockerfile multi-stage (node:20-alpine → nginx:alpine)
+- nginx.conf com proxy `/api/` → `http://api:3001/`
+- Vite proxy em dev: `/auth` e `/driver` → localhost:3005
+- Auth JWT com role `driver`
 
 Arquivos do modulo notifications:
 - notifications.controller.ts (`POST /notifications/push-subscribe` aceita payload interno e `PushSubscriptionJSON` do navegador)
@@ -1038,6 +1068,19 @@ Superficies do painel Integrations:
 - POST /auth/customer/register
 - POST /auth/customer/guest-checkout
 - POST /auth/register
+- GET /auth/staff (admin only — lista todos os staff do tenant)
+- PATCH /auth/staff/:id (admin only — atualiza nome/email/role/senha)
+- POST /auth/staff/:id/toggle-active (admin only — ativa/desativa staff)
+
+### Picker (picking-app)
+- GET /picker/tasks (tarefas de separação do picker autenticado)
+- GET /picker/tasks/:taskId (detalhes da tarefa)
+- POST /picker/tasks/:taskId/items/:itemId/pick (separar item)
+- POST /picker/tasks/:taskId/items/:itemId/reset (desfazer separação)
+- POST /picker/tasks/:taskId/items/:itemId/remove (remover item adicionado)
+- POST /picker/tasks/:taskId/items (adicionar item durante separação)
+- POST /picker/tasks/:taskId/submit (enviar tarefa para conferência)
+- GET /picker/products/search (busca de produtos para inclusão)
 
 ### Produtos
 - GET /products

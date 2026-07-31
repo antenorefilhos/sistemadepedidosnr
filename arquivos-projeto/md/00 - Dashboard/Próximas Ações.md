@@ -4,7 +4,7 @@ status: ativo
 area: memory-wiki
 prioridade: alta
 criado: 2026-05-24
-atualizado: 2026-06-06
+atualizado: 2026-07-30
 tags:
   - dashboard
   - roadmap
@@ -108,6 +108,10 @@ Abaixo estão as próximas ações operacionais mapeadas para a retomada do proj
 - [x] M33 Notificações: confirmar visualmente o recebimento do Web Push no navegador/dispositivo e registrar `web-push-visual-confirmation.json`.
 - [x] Proxima frente de produto: finalizar o pacote `20260606T085300Z-final` com confirmação visual, relatório final e manifesto verificado.
 - [x] Categorias: validação HTTP da árvore em staging local e staging HTTPS publicada com `validate:category-tree`, evidenciando 65 categorias CMS, 72 categorias comerciais, 45 raízes e 20 filhos.
+- [x] Picking App: modal "Incluir Item", DoneItemCard com "Desfazer"/"Remover", flag `isAdjusted`, botão "Corrigir Pedido" na revisão e `searchProducts` corrigido.
+- [x] Delivery App: containerizado com Dockerfile multi-stage e nginx proxy.
+- [x] Docker Compose: serviços `picking` (3003) e `delivery` (3004) adicionados com CORS_ORIGIN atualizado.
+- [x] Gestão de Equipe: seção "Equipe" no admin com CRUD de staff, filtro por role, métricas, toggle ativar/desativar e endpoints backend.
 - [ ] Produção final: repetir `validate:category-tree` contra `pedidos.antenorefilhos.com.br`/API final quando DNS/deploy estiver ativo.
 
 Para acompanhar a lista detalhada de tarefas pendentes, consulte [[Pendências]].

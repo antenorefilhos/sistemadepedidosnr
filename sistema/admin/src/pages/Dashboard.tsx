@@ -28,6 +28,7 @@ export type Section =
   | 'products'
   | 'orders'
   | 'picking'
+  | 'staff'
   | 'businessAccounts'
   | 'customers'
   | 'layout'
@@ -251,6 +252,7 @@ const PickingSection = lazy(() => import('./sections/PickingSection'))
 const BusinessAccountsSection = lazy(() => import('./sections/BusinessAccountsSection'))
 const CustomersSection = lazy(() => import('./sections/CustomersSection'))
 const PaymentEventsSection = lazy(() => import('./sections/PaymentEventsSection'))
+const StaffSection = lazy(() => import('./sections/StaffSection'))
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -1141,6 +1143,22 @@ export default function AdminDashboard() {
             type="button"
             variant="ghost"
             onClick={() => {
+              setActiveSection('staff')
+              setSidebarOpen(false)
+            }}
+            aria-current={activeSection === 'staff' ? 'page' : undefined}
+            className={`${sidebarNavButtonClass} text-[#fde8ef] hover:bg-[#5d082a] ${
+              activeSection === 'staff' ? sidebarNavActiveClass : ''
+            }`}
+            aria-label="Equipe"
+          >
+            <Users className="flex-shrink-0" size={20} />
+            <span>Equipe</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
               setActiveSection('businessAccounts')
               setSidebarOpen(false)
             }}
@@ -1425,6 +1443,7 @@ export default function AdminDashboard() {
                 {activeSection === 'products' && 'Produtos'}
                 {activeSection === 'orders' && 'Pedidos'}
                 {activeSection === 'picking' && 'Separacao'}
+                {activeSection === 'staff' && 'Equipe'}
                 {activeSection === 'businessAccounts' && 'Contas B2B'}
                 {activeSection === 'customers' && 'Clientes'}
                 {activeSection === 'layout' && 'Layout do Site'}
@@ -1604,6 +1623,12 @@ export default function AdminDashboard() {
           {activeSection === 'picking' && (
             <Suspense fallback={lazySectionFallback}>
               <PickingSection />
+            </Suspense>
+          )}
+
+          {activeSection === 'staff' && (
+            <Suspense fallback={lazySectionFallback}>
+              <StaffSection />
             </Suspense>
           )}
 

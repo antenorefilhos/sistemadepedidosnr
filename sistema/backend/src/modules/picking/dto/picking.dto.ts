@@ -72,6 +72,25 @@ export class SubstitutePickingItemDto {
   notes?: string
 }
 
+export class AddItemToOrderDto {
+  @IsString()
+  productId: string
+
+  @IsNumber()
+  @Min(0.000001)
+  quantity: number
+
+  @IsOptional()
+  @IsString()
+  notes?: string
+}
+
+export class ResetPickedItemDto {
+  @IsOptional()
+  @IsString()
+  reason?: string
+}
+
 export class FinishPickingTaskDto {
   @IsOptional()
   @IsString()

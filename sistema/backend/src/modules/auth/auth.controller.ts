@@ -1,8 +1,8 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common'
+import { Controller, Post, Body, Get, Patch, Param, HttpCode, HttpStatus, UseGuards, Req } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
 import { AuthService } from './auth.service'
-import { CreateAdminDto } from './dto/create-admin.dto'
+import { CreateAdminDto, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
 import { LoginDto } from './dto/login.dto'
@@ -144,5 +144,33 @@ export class AuthController {
   })
   register(@Body() createAdminDto: CreateAdminDto) {
     return this.authService.register(createAdminDto)
+  }
+
+  @Get('staff')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Listar membros da equipe' })
+  listStaff(@Req() req: any) {
+    const tenantId = req.user?.tenantId || 'tenant_default'
+    return this.authService.listStaff(tenantId)
+  }
+
+  @Patch('staff/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Editar membro da equipe' })
+  updateStaff(@Param('id') id: string, @Body() dto: UpdateStaffDto) {
+    return this.authService.updateStaff(id, dto)
+  }
+
+  @Post('staff/:id/toggle-active')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Ativar/desativar membro da equipe' })
+  toggleStaffActive(@Param('id') id: string) {
+    return this.authService.toggleStaffActive(id)
   }
 }

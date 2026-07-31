@@ -112,6 +112,18 @@ export const pickerApi = {
     notes?: string
   }) => api.post(`/picker/tasks/${taskId}/items/${itemId}/missing`, data),
 
+  resetItem: (taskId: string, itemId: string, reason?: string) =>
+    api.post<PickingTask>(`/picker/tasks/${taskId}/items/${itemId}/reset`, { reason }),
+
+  removeItem: (taskId: string, itemId: string) =>
+    api.post<PickingTask>(`/picker/tasks/${taskId}/items/${itemId}/remove`),
+
+  addItemToOrder: (orderId: string, data: { productId: string; quantity: number; notes?: string }) =>
+    api.post<PickingTask>(`/picker/orders/${orderId}/add-item`, data),
+
+  searchProducts: (q: string) =>
+    api.get<Array<{ id: string; name: string; ean: string | null; price: number; promotionalPrice: number | null; unit: string | null }>>('/picker/products/search', { params: { q } }),
+
   finishTask: (id: string, notes?: string) =>
     api.post<PickingTask>(`/picker/tasks/${id}/finish`, { notes }),
 }
