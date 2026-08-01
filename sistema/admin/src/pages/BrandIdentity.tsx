@@ -10,16 +10,12 @@ interface BrandConfig {
   storeName: string
   logoDesktopUrl: string | null
   logoMobileUrl: string | null
-  primaryColor: string
-  secondaryColor: string
 }
 
 const DEFAULTS: BrandConfig = {
   storeName: 'Antenor & Filhos',
   logoDesktopUrl: '/branding/logo-horizontal-bordo.png',
   logoMobileUrl: '/branding/logo-bordo.png',
-  primaryColor: '#5D082A',
-  secondaryColor: '#D2BB8A',
 }
 
 function LogoUploader({
@@ -129,8 +125,6 @@ export default function BrandIdentity() {
         storeName: data.storeName ?? DEFAULTS.storeName,
         logoDesktopUrl: data.logoDesktopUrl ?? DEFAULTS.logoDesktopUrl,
         logoMobileUrl: data.logoMobileUrl ?? DEFAULTS.logoMobileUrl,
-        primaryColor: data.primaryColor ?? DEFAULTS.primaryColor,
-        secondaryColor: data.secondaryColor ?? DEFAULTS.secondaryColor,
       })
       return data
     },
@@ -154,8 +148,6 @@ export default function BrandIdentity() {
       storeName: form.storeName,
       logoDesktopUrl: form.logoDesktopUrl || null,
       logoMobileUrl: form.logoMobileUrl || null,
-      primaryColor: form.primaryColor,
-      secondaryColor: form.secondaryColor,
     })
   }
 
@@ -222,60 +214,10 @@ export default function BrandIdentity() {
           />
         </div>
 
-        {/* Cores */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div>
-            <Label className="mb-1 block text-xs text-gray-600">Cor primária</Label>
-            <div className="flex items-center gap-3">
-              <Input
-                type="color"
-                value={form.primaryColor}
-                onChange={(e) => set('primaryColor', e.target.value)}
-                className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
-                aria-label="Selecionar cor primária"
-              />
-              <Input
-                type="text"
-                value={form.primaryColor}
-                onChange={(e) => set('primaryColor', e.target.value)}
-                maxLength={7}
-                className="flex-1 font-mono"
-                placeholder="#5D082A"
-              />
-            </div>
-            <p className="text-xs text-gray-400 mt-1">Botões, destaques e links principais.</p>
-          </div>
-
-          <div>
-            <Label className="mb-1 block text-xs text-gray-600">Cor secundária</Label>
-            <div className="flex items-center gap-3">
-              <Input
-                type="color"
-                value={form.secondaryColor}
-                onChange={(e) => set('secondaryColor', e.target.value)}
-                className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
-                aria-label="Selecionar cor secundária"
-              />
-              <Input
-                type="text"
-                value={form.secondaryColor}
-                onChange={(e) => set('secondaryColor', e.target.value)}
-                maxLength={7}
-                className="flex-1 font-mono"
-                placeholder="#D2BB8A"
-              />
-            </div>
-            <p className="text-xs text-gray-400 mt-1">Acentos dourados, bordas e elementos de apoio.</p>
-          </div>
-        </div>
-
         {/* Preview */}
         <div>
           <p className="text-xs font-semibold text-gray-600 mb-2">Previsualização do header</p>
-          <div
-            className="rounded-lg px-4 py-3 flex items-center gap-3 border"
-            style={{ borderColor: form.secondaryColor + '66', background: '#fff' }}
-          >
+          <div className="rounded-lg px-4 py-3 flex items-center gap-3 border border-[#D2BB8A]/40 bg-white">
             {/* Mobile: só logo mobile ou inicial */}
             <div className="sm:hidden">
               {form.logoMobileUrl ? (
@@ -285,10 +227,7 @@ export default function BrandIdentity() {
                   className="h-9 w-9 object-contain rounded"
                 />
               ) : (
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                  style={{ background: form.primaryColor }}
-                >
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-[#5D082A] text-white font-bold text-sm">
                   {(form.storeName[0] || 'A').toUpperCase()}
                 </div>
               )}
@@ -302,23 +241,13 @@ export default function BrandIdentity() {
                   className="h-9 max-w-[160px] object-contain"
                 />
               ) : (
-                <span className="text-lg font-bold" style={{ color: '#231F20' }}>
+                <span className="text-lg font-bold text-[#231F20]">
                   {form.storeName.split(' ').slice(0, -1).join(' ')}{' '}
-                  <span style={{ color: form.primaryColor }}>
+                  <span className="text-[#5D082A]">
                     {form.storeName.split(' ').slice(-1)[0]}
                   </span>
                 </span>
               )}
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <div
-                className="w-6 h-6 rounded-full"
-                style={{ background: form.primaryColor }}
-              />
-              <div
-                className="w-6 h-6 rounded-full"
-                style={{ background: form.secondaryColor }}
-              />
             </div>
           </div>
         </div>
