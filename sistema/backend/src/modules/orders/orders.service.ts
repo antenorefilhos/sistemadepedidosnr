@@ -15,6 +15,7 @@ import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-cont
 import { InventoryService } from '../inventory/inventory.service'
 import { PricingService } from '../pricing/pricing.service'
 import { PublicApiService } from '../public-api/public-api.service'
+import { resolveEffectiveFractional } from '../../common/fractional.util'
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
   include: {
@@ -1317,6 +1318,12 @@ export class OrdersService {
       },
       items: order.items.map((item) => {
         const source = sourceByProduct.get(item.productId)
+        const { isFractional, fractionStep } = item.product
+          ? resolveEffectiveFractional(item.product)
+          : { isFractional: false, fractionStep: null }
+        const listUnitPrice = item.product
+          ? Number(item.product.promotionalPrice ?? item.product.price)
+          : item.unitPrice
 
         return {
           productId: item.productId,
@@ -1326,6 +1333,9 @@ export class OrdersService {
           unitPrice: item.unitPrice,
           subtotal: item.subtotal,
           scannedCode: source?.scannedCode || null,
+          isFractional,
+          fractionStep,
+          listUnitPrice,
         }
       }),
     }

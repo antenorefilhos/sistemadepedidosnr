@@ -14,7 +14,7 @@ import {
 import { formatPrice } from '../utils/format'
 import { getApiErrorMessage } from '../utils/apiError'
 import { authAPI, deliveryAPI, type CheckoutQuoteResponse, type FulfillmentSlot, type WhatsAppDispatch } from '../services/api'
-import { Loader2, User, Banknote, QrCode, CreditCard, AlertTriangle, CheckCircle2, MapPin } from 'lucide-react'
+import { Loader2, User, Banknote, QrCode, CreditCard, AlertTriangle, CheckCircle2, MapPin, ArrowLeft, ShoppingBag } from 'lucide-react'
 import { LoadingButton } from '../components/LoadingButton'
 import { getDeviceId } from '../utils/device'
 import { trackEvent } from '../utils/analytics'
@@ -1055,18 +1055,18 @@ export default function Checkout() {
             <div className="sticky bottom-0 z-40 -mx-4 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
               {/* Primary Actions */}
               <div className="flex gap-3">
-                {step !== 'address' && (
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      if (step === 'payment') setStep('address')
-                    }}
-                    variant="outline"
-                    className="min-h-14 flex-1 py-3.5"
-                  >
-                    ← Voltar
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (step === 'payment') setStep('address')
+                    else navigate('/cart')
+                  }}
+                  variant="outline"
+                  className="min-h-14 flex-1 py-3.5"
+                >
+                  <ArrowLeft size={16} />
+                  Voltar
+                </Button>
                 <LoadingButton
                   type="submit"
                   isLoading={checkoutIsPending}
@@ -1076,15 +1076,15 @@ export default function Checkout() {
                   {step === 'payment' ? '✓ Finalizar pedido' : 'Continuar →'}
                 </LoadingButton>
               </div>
-              
+
               {/* Secondary: Continue Shopping */}
               <Button
                 type="button"
                 onClick={() => navigate('/')}
                 variant="secondary"
-                className="mt-3 hidden w-full items-center justify-center gap-2 py-3 text-sm md:flex"
+                className="mt-3 flex w-full items-center justify-center gap-2 py-3 text-sm"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                <ShoppingBag size={16} />
                 Continuar comprando
               </Button>
             </div>

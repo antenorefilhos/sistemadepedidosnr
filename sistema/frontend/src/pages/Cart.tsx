@@ -7,7 +7,7 @@ import { useTopSellingProducts } from '../hooks/useCMS'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
-import { getProductLineTotal, getProductPricePresentation } from '../utils/productPricing'
+import { getProductLineTotal, getProductPricePresentation, formatProductQuantity, getProductStep, formatPortionFromStep, getFractionDisplayUnit } from '../utils/productPricing'
 import { Trash2, Plus, Minus, ArrowLeft, ShoppingCart } from 'lucide-react'
 import { FreeShippingBar } from '../components/FreeShippingBar'
 import { Badge } from '../components/ui/badge'
@@ -37,6 +37,7 @@ export default function Cart() {
   const { cart, removeItem, updateQuantity, updateAllowSubstitution, clear, total, subtotal, discount, couponCode, applyCoupon, removeCoupon } = useCart()
   const [couponInput, setCouponInput] = useState(couponCode || '')
   const [couponFeedback, setCouponFeedback] = useState<string | null>(null)
+  const [unitModeByItem, setUnitModeByItem] = useState<Record<string, 'unit' | 'weight'>>({})
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0)
   const anchorProductId = cart[0]?.productId || ''
   const { data: contextualRecommendations = [] } = useProductRecommendations(anchorProductId, 8)
@@ -179,7 +180,39 @@ export default function Cart() {
                       </Button>
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between gap-3">
+                    {item.product?.isFractional && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <div className="flex flex-1 gap-1 rounded-lg bg-[#f5f2ec] p-1 border border-[#D2BB8A]/40">
+                          <button
+                            type="button"
+                            onClick={() => setUnitModeByItem((prev) => ({ ...prev, [item.productId]: 'unit' }))}
+                            className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-colors ${
+                              (unitModeByItem[item.productId] ?? 'unit') === 'unit'
+                                ? 'bg-[#5D082A] text-white'
+                                : 'text-[#5d4f33] hover:bg-white/60'
+                            }`}
+                          >
+                            Unidades
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setUnitModeByItem((prev) => ({ ...prev, [item.productId]: 'weight' }))}
+                            className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-colors ${
+                              unitModeByItem[item.productId] === 'weight'
+                                ? 'bg-[#5D082A] text-white'
+                                : 'text-[#5d4f33] hover:bg-white/60'
+                            }`}
+                          >
+                            Peso
+                          </button>
+                        </div>
+                        <span className="text-[11px] text-[#8A6A3A] font-semibold whitespace-nowrap">
+                          cada {formatPortionFromStep(getProductStep(item.product), getFractionDisplayUnit(item.product))}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="mt-3 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 bg-[#f5f2ec] rounded-lg p-1 border border-[#D2BB8A]/40">
                         <Button
                           onClick={() => updateQuantity(item.productId, Math.max(1, item.quantity - 1))}
@@ -190,7 +223,11 @@ export default function Cart() {
                         >
                           <Minus size={16} />
                         </Button>
-                        <span className="w-8 text-center font-bold text-[#231F20]">{item.quantity}</span>
+                        <span className="min-w-[3rem] text-center font-bold text-[#231F20] text-sm">
+                          {item.product && unitModeByItem[item.productId] === 'weight'
+                            ? formatProductQuantity(item.product, item.quantity)
+                            : `${item.quantity} un.`}
+                        </span>
                         <Button
                           onClick={() => updateQuantity(item.productId, item.quantity + 1)}
                           variant="ghost"

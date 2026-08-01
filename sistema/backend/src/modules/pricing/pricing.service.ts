@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext } from '../../common/tenant/tenant-context'
+import { resolveEffectiveFractional } from '../../common/fractional.util'
 
 type PricingContext = Partial<Pick<TenantContext, 'tenantId' | 'storeId'>>
 
@@ -34,6 +35,10 @@ type QuoteProduct = {
   promotionalPrice: number | null
   active: boolean
   syncOption: string
+  isFractional: boolean
+  fractionStep: number | null
+  manualIsFractional: boolean | null
+  manualFractionStep: number | null
 }
 
 type QuoteItem = {
@@ -211,6 +216,10 @@ export class PricingService {
         promotionalPrice: true,
         active: true,
         syncOption: true,
+        isFractional: true,
+        fractionStep: true,
+        manualIsFractional: true,
+        manualFractionStep: true,
       },
     })
     const productsById = new Map(products.map((product) => [product.id, product as QuoteProduct]))
@@ -234,10 +243,19 @@ export class PricingService {
       }
 
       const priceListItem = priceByProduct.get(item.productId)
-      const unitPrice = Number(priceListItem?.price ?? product.promotionalPrice ?? product.price)
-      if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      const listUnitPrice = Number(priceListItem?.price ?? product.promotionalPrice ?? product.price)
+      if (!Number.isFinite(listUnitPrice) || listUnitPrice <= 0) {
         throw new BadRequestException(`Produto sem preco valido: ${product.name}`)
       }
+
+      // Produtos pesaveis vendem por step fracional (ex: 0.4kg), nao por
+      // unidade cheia. `item.quantity` e o numero de steps que o cliente
+      // escolheu -- o preco por step precisa multiplicar unitPrice pelo
+      // fractionStep efetivo (ERP ou override manual) antes do subtotal,
+      // senao o cliente e cobrado o preco de 1kg inteiro por step.
+      const { isFractional, fractionStep } = resolveEffectiveFractional(product)
+      const step = isFractional && fractionStep ? fractionStep : 1
+      const unitPrice = this.round2(listUnitPrice * step)
 
       const cost = priceListItem?.cost == null ? null : Number(priceListItem.cost)
       const margin = cost == null ? null : this.round2(((unitPrice - cost) / unitPrice) * 100)

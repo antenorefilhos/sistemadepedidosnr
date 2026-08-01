@@ -14,6 +14,14 @@ export interface InternalOrderItemContract {
   unitPrice: number
   subtotal: number
   scannedCode?: string | null
+  /** true quando o produto e vendido por peso (ERP ou override manual). */
+  isFractional?: boolean
+  /** Passo de fracionamento efetivo (ex: 0.4 = 400g), null quando nao fracionado. */
+  fractionStep?: number | null
+  /** Preco de lista por unidade "cheia" (ex: por kg) -- usado para converter
+   *  de volta ao formato que o ERP espera (quantidade em peso real, preco
+   *  por kg), diferente de unitPrice que aqui e o preco por step. */
+  listUnitPrice?: number
 }
 
 export interface InternalOrderContract {

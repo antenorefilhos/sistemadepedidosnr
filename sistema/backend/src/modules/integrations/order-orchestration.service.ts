@@ -416,10 +416,19 @@ export class OrderOrchestrationService {
         const scaleData = this.parseScaleBarcode(item.scannedCode)
         const hasScaleLabel = Boolean(scaleData)
         const cdProduto = hasScaleLabel ? scaleData!.productCode : this.parseInteger(item.productId)
+
+        // Produtos pesaveis: nosso OrderItem.quantity guarda o numero de
+        // "steps" que o cliente escolheu (ex: 3 steps de 0.4kg), nao o peso
+        // real. O ERP espera quantidade em peso real e valorUnitario por kg
+        // -- sem essa conversao o Solidcom recebe "3" em vez de "1.2" (kg).
+        const isWeighed = !hasScaleLabel && Boolean(item.isFractional) && Boolean(item.fractionStep)
         const quantityRaw = hasScaleLabel
           ? scaleData!.totalValue / Math.max(item.unitPrice, 0.0001)
+          : isWeighed
+          ? item.quantity * (item.fractionStep as number)
           : item.quantity
         const quantity = Number(quantityRaw.toFixed(3))
+        const valorUnitario = isWeighed ? (item.listUnitPrice ?? item.unitPrice) : item.unitPrice
 
         return {
           numero: index + 1,
@@ -429,7 +438,7 @@ export class OrderOrchestrationService {
           nmProduto: item.productName || `Produto ${index + 1}`,
           quantidade: quantity,
           quantidadeAtendida: quantity,
-          valorUnitario: this.round2(item.unitPrice),
+          valorUnitario: this.round2(valorUnitario),
           valorDesconto: 0,
         }
       }),
