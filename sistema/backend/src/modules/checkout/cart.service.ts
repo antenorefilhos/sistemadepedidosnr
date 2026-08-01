@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext } from '../../common/tenant/tenant-context'
 import { CreateCartDto, UpdateCartItemDto, UpsertCartItemDto } from './dto/cart.dto'
+import { resolveEffectiveFractional } from '../../common/fractional.util'
 
 type CheckoutContext = Partial<Pick<TenantContext, 'tenantId' | 'storeId'>>
 
@@ -222,6 +223,8 @@ export class CartService {
         syncOption: true,
         isFractional: true,
         fractionStep: true,
+        manualIsFractional: true,
+        manualFractionStep: true,
       },
     })
     if (!product) throw new BadRequestException(`Produto nao encontrado: ${id}`)
@@ -229,23 +232,25 @@ export class CartService {
       throw new BadRequestException(`Produto indisponivel para venda: ${product.name}`)
     }
 
-    if (!product.isFractional && !Number.isInteger(normalizedQuantity)) {
+    const effective = resolveEffectiveFractional(product)
+
+    if (!effective.isFractional && !Number.isInteger(normalizedQuantity)) {
       throw new BadRequestException(`Produto ${product.name} nao aceita quantidade fracionada.`)
     }
 
-    const step = Number(product.fractionStep || 0)
-    if (product.isFractional && step <= 0) {
+    const step = Number(effective.fractionStep || 0)
+    if (effective.isFractional && step <= 0) {
       throw new BadRequestException(`Produto ${product.name} esta sem fracionamento configurado.`)
     }
 
-    if (product.isFractional) {
+    if (effective.isFractional) {
       const ratio = normalizedQuantity / step
       if (Math.abs(ratio - Math.round(ratio)) > 0.000001) {
         throw new BadRequestException(`Quantidade do produto ${product.name} deve respeitar o passo ${step}.`)
       }
     }
 
-    return product
+    return { ...product, isFractional: effective.isFractional, fractionStep: effective.fractionStep }
   }
 
   private async recordCheckoutEvent(data: {

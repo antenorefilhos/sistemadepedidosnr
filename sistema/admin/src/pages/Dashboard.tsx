@@ -61,6 +61,8 @@ type ProductFormState = {
   badges: string
   origin: string
   videoUrl: string
+  manualIsFractional: boolean
+  manualFractionStep: string
 }
 
 type ProductFormErrors = Partial<Record<keyof ProductFormState, string>>
@@ -91,6 +93,8 @@ const EMPTY_PRODUCT_FORM: ProductFormState = {
   badges: '',
   origin: '',
   videoUrl: '',
+  manualIsFractional: false,
+  manualFractionStep: '',
 }
 
 const ORDER_STATUS_OPTIONS = [
@@ -793,6 +797,8 @@ export default function AdminDashboard() {
       badges: product.badges || '',
       origin: product.origin || '',
       videoUrl: product.videoUrl || '',
+      manualIsFractional: Boolean(product.manualIsFractional),
+      manualFractionStep: product.manualFractionStep != null ? String(product.manualFractionStep) : '',
     })
     setIsProductFormOpen(true)
   }
@@ -805,6 +811,10 @@ export default function AdminDashboard() {
       payload.videoUrl = productForm.videoUrl.trim() || null
       payload.badges = productForm.badges.trim() || null
       payload.promotionalPrice = productForm.promotionalPrice.trim() ? Number(productForm.promotionalPrice) : null
+      payload.manualIsFractional = productForm.manualIsFractional
+      payload.manualFractionStep = productForm.manualIsFractional && productForm.manualFractionStep.trim()
+        ? Number(productForm.manualFractionStep)
+        : null
       return payload as ProductPayload
     }
 

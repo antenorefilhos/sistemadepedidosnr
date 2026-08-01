@@ -46,6 +46,14 @@ export class CreateProductDto {
   fractionStep?: number
 
   @IsOptional()
+  @IsBoolean()
+  manualIsFractional?: boolean | null
+
+  @IsOptional()
+  @IsNumber()
+  manualFractionStep?: number | null
+
+  @IsOptional()
   @IsString()
   unit?: string
 

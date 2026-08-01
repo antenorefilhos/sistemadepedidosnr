@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { MeiliSearch } from 'meilisearch'
 import { PrismaService } from '../../common/prisma.service'
+import { resolveEffectiveFractional } from '../../common/fractional.util'
 
 type SearchFilters = {
   tenantId?: string
@@ -345,6 +346,8 @@ export class ProductSearchService implements OnModuleInit {
     alternativeDescription: string | null
     isFractional: boolean
     fractionStep: number | null
+    manualIsFractional?: boolean | null
+    manualFractionStep?: number | null
     price: number
     promotionalPrice: number | null
     stock: number | null
@@ -369,8 +372,7 @@ export class ProductSearchService implements OnModuleInit {
       name: product.name,
       normalizedName: this.normalizeCatalogName(product.name),
       alternativeDescription: product.alternativeDescription,
-      isFractional: product.isFractional,
-      fractionStep: product.fractionStep,
+      ...resolveEffectiveFractional(product),
       price: product.price,
       promotionalPrice: product.promotionalPrice,
       stock: product.stock,

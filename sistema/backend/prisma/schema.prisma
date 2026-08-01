@@ -437,6 +437,12 @@ model Product {
   stock     Int?
   isFractional Boolean @default(false)
   fractionStep  Float?
+  // Override manual: usado somente quando o ERP nao informa fracionamento
+  // (isFractional=false/fractionStep=null vindos da Solidcom). Nunca sobrescreve
+  // dado do ERP -- e so um preenchimento de lacuna, mantido para dar controle ao
+  // lojista e servir de base caso o ERP mude no futuro.
+  manualIsFractional Boolean?
+  manualFractionStep Float?
   unit      String   @default("un")
   category  String   @default("GERAL")
   origin    String?

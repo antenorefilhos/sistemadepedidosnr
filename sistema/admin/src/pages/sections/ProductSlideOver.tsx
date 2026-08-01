@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { X, Package, Tag, BarChart2, Save, Camera, UploadCloud, Loader2, Store, CheckCircle2, AlertCircle } from 'lucide-react'
+import { X, Package, Tag, BarChart2, Save, Camera, UploadCloud, Loader2, Store, CheckCircle2, AlertCircle, Scale } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +23,8 @@ type ProductFormState = {
   badges: string
   origin: string
   videoUrl: string
+  manualIsFractional: boolean
+  manualFractionStep: string
 }
 
 type ProductFormErrors = Partial<Record<keyof ProductFormState, string>>
@@ -479,6 +481,47 @@ export default function ProductSlideOver({
                 <FloatingInput label="Unidade" value={productForm.unit} onChange={(v) => onProductFormChange({ unit: v })} disabled={isEditing} className="col-span-1" />
                 
                 <FloatingInput label="Descrição Alternativa" value={productForm.alternativeDescription} onChange={(v) => onProductFormChange({ alternativeDescription: v })} disabled={isEditing} className="col-span-2" />
+              </div>
+
+              {/* Vendido por peso — override manual (fallback quando o ERP nao informa) */}
+              <div className="pt-4 border-t border-dashed border-[#f1dbe3]/60 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                    <Scale size={12} />
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-650">Vendido por peso</span>
+                </div>
+
+                {editingProduct?.isFractional ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
+                    Fracionamento vem do ERP: passo mínimo de {editingProduct.fractionStep} {editingProduct.unit || 'un'}. Não é possível sobrepor um valor manual enquanto o ERP informar este dado.
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-[#ead7df] bg-white p-3 space-y-3">
+                    <p className="text-[11px] text-gray-500">
+                      O ERP não está enviando fracionamento para este produto. Defina manualmente para liberar a compra por peso no storefront — isso não altera nem envia nada de volta para o ERP.
+                    </p>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-[#2e2226]">
+                      <input
+                        type="checkbox"
+                        checked={productForm.manualIsFractional}
+                        onChange={(e) => onProductFormChange({ manualIsFractional: e.target.checked, ...(e.target.checked ? {} : { manualFractionStep: '' }) })}
+                        className="h-4 w-4 rounded border-[#e6d5de] text-[#5d082a] focus:ring-[#5d082a]/30"
+                      />
+                      Vendido por peso (manual)
+                    </label>
+                    {productForm.manualIsFractional && (
+                      <FloatingInput
+                        label={`Fracionamento mínimo (${productForm.unit || 'kg'}) *`}
+                        value={productForm.manualFractionStep}
+                        onChange={(v) => onProductFormChange({ manualFractionStep: v })}
+                        type="number"
+                        step="0.001"
+                        className="col-span-1"
+                      />
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Classificação Mercadológica sub-section */}

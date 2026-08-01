@@ -29,6 +29,10 @@ export interface AdminProduct {
   syncOption?: 'ESTOQUE' | 'SEMPRE' | 'NUNCA' | null
   origin?: string | null
   active: boolean
+  isFractional?: boolean | null
+  fractionStep?: number | null
+  manualIsFractional?: boolean | null
+  manualFractionStep?: number | null
 }
 
 export interface AdminProductsResponse {
@@ -89,6 +93,8 @@ export interface ProductPayload {
   videoUrl?: string | null
   syncOption?: 'ESTOQUE' | 'SEMPRE' | 'NUNCA' | null
   origin?: string | null
+  manualIsFractional?: boolean | null
+  manualFractionStep?: number | null
 }
 
 export interface MercadologicalTreeLeaf {

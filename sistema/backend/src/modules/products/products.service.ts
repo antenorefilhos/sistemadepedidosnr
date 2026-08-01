@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client'
 import { IntegrationModulesService } from '../../modules/integrations/integration-modules.service'
 import { CategoryHierarchyService } from '../categories/category-hierarchy.service'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
+import { resolveEffectiveFractional, type FractionalSource } from '../../common/fractional.util'
 
 type ParsedSearch = {
   text: string
@@ -213,6 +214,8 @@ export class ProductsService {
         stock: true,
         isFractional: true,
         fractionStep: true,
+        manualIsFractional: true,
+        manualFractionStep: true,
       },
     }).then((items) => items.map((item) => this.toCustomerFacingProduct(item)))
   }
@@ -253,6 +256,8 @@ export class ProductsService {
         stock: true,
         isFractional: true,
         fractionStep: true,
+        manualIsFractional: true,
+        manualFractionStep: true,
       },
     }).then((items) => items.map((item) => this.toCustomerFacingProduct(item)))
   }
@@ -974,7 +979,14 @@ export class ProductsService {
     return this.toCustomerFacingProduct(product)
   }
 
+  private assertValidManualFraction(dto: { manualIsFractional?: boolean | null; manualFractionStep?: number | null }) {
+    if (dto.manualIsFractional && (!dto.manualFractionStep || dto.manualFractionStep <= 0)) {
+      throw new BadRequestException('Informe o fracionamento minimo (kg) para marcar o produto como vendido por peso.')
+    }
+  }
+
   async create(createProductDto: CreateProductDto, context?: Partial<ProductTenantContext>) {
+    this.assertValidManualFraction(createProductDto)
     const product = await this.prisma.product.create({
       data: {
         ...createProductDto,
@@ -998,6 +1010,8 @@ export class ProductsService {
       ...updateProductDto,
       ...(normalizedCategory !== undefined ? { category: normalizedCategory } : {}),
     }
+
+    this.assertValidManualFraction(updateData)
 
     const scopedWhere = tenantStoreWhere(context)
     if (Object.keys(scopedWhere).length > 0) {
@@ -1786,13 +1800,17 @@ export class ProductsService {
     return code === 'GERAL' || code === 'NAO_CLASSIFICADO'
   }
 
-  private toCustomerFacingProduct<T extends { name?: string | null; titleMask?: string | null; titleMaskShort?: string | null }>(product: T) {
+  private toCustomerFacingProduct<T extends { name?: string | null; titleMask?: string | null; titleMaskShort?: string | null } & FractionalSource>(product: T) {
     const mask = String(product.titleMask || '').trim() || String(product.titleMaskShort || '').trim()
-    if (!mask) return product
+    const effective = resolveEffectiveFractional(product)
+
+    if (!mask && effective.fractionalSource !== 'manual') return product
 
     return {
       ...product,
-      name: mask,
+      ...(mask ? { name: mask } : {}),
+      isFractional: effective.isFractional,
+      fractionStep: effective.fractionStep,
     }
   }
 

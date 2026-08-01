@@ -31,6 +31,11 @@ export class AuthService {
     const tenantId = admin.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
     const role = admin.role || 'admin'
+
+    if (role === 'admin') {
+      await this.grantDefaultAdminAccess(admin.id, tenantId, storeId)
+    }
+
     const access_token = this.jwtService.sign({
       id: admin.id,
       email: admin.email,
@@ -72,6 +77,29 @@ export class AuthService {
     return { access_token, user: { id: customer.id, email: customer.email, name: customer.name, cpf: customer.cpf, whatsapp: customer.whatsapp, role: 'customer', tenantId, storeId } }
   }
 
+  /**
+   * Garante que todo admin tenha acesso RBAC granular (catalog.write,
+   * pricing.write etc) via a role "Administrador" do tenant. Sem isso o
+   * PermissionGuard bloqueia edicoes mesmo para quem tem role='admin' --
+   * o token JWT nao carrega permissions e user_store_access fica vazio
+   * se ninguem popular manualmente. Idempotente: nao faz nada se ja existe.
+   */
+  private async grantDefaultAdminAccess(userId: string, tenantId: string, storeId: string) {
+    const existing = await this.prisma.userStoreAccess.findFirst({
+      where: { userId, storeId },
+    })
+    if (existing) return
+
+    const adminRole = await this.prisma.role.findFirst({
+      where: { tenantId, name: 'Administrador' },
+    })
+    if (!adminRole) return
+
+    await this.prisma.userStoreAccess.create({
+      data: { userId, storeId, roleId: adminRole.id },
+    })
+  }
+
   async register(createAdminDto: CreateAdminDto) {
     const existingAdmin = await this.prisma.admin.findUnique({
       where: { email: createAdminDto.email },
@@ -102,6 +130,10 @@ export class AuthService {
     const tenantId = admin.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
     const adminRole = admin.role || role
+
+    if (adminRole === 'admin') {
+      await this.grantDefaultAdminAccess(admin.id, tenantId, storeId)
+    }
     const access_token = this.jwtService.sign({
       id: admin.id,
       email: admin.email,

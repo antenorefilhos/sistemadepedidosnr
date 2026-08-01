@@ -48,6 +48,8 @@ type ProductFormState = {
   badges: string
   origin: string
   videoUrl: string
+  manualIsFractional: boolean
+  manualFractionStep: string
 }
 
 type ProductFormErrors = Partial<Record<keyof ProductFormState, string>>
