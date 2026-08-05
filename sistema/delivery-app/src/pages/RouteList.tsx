@@ -34,8 +34,8 @@ export default function RouteList({
     try {
       const { data } = await driverApi.listRoutes()
       setRoutes(data)
-    } catch {
-      toast.error('Erro ao carregar rotas')
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao carregar rotas')
     } finally {
       setLoading(false)
     }

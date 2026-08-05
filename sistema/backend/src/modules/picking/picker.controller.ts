@@ -170,20 +170,51 @@ export class PickerController {
     @Req() req: TenantContextRequest,
   ) {
     const ctx = getTenantContext(req)
-    if (!q || q.trim().length < 2) return []
-    return this.pickingService['prisma'].product.findMany({
+    const term = (q || '').trim()
+    if (term.length < 2) return []
+
+    const prisma = this.pickingService['prisma']
+    const select = { id: true, name: true, ean: true, price: true, promotionalPrice: true, unit: true }
+    const LIMIT = 15
+
+    // Prioriza correspondencias no inicio do nome ou EAN exato, depois preenche com "contem"
+    // — sem isso, produtos com o termo no meio do nome (ex: "Bolo de Cenoura") dominavam os
+    // 10 primeiros resultados e escondiam o produto mais obvio (ex: "Cenoura kg").
+    const startsWith = await prisma.product.findMany({
       where: {
         tenantId: ctx.tenantId,
         storeId: ctx.storeId,
         active: true,
         OR: [
-          { name: { contains: q, mode: 'insensitive' } },
-          { ean: { contains: q } },
+          { name: { startsWith: term, mode: 'insensitive' } },
+          { ean: term },
         ],
       },
-      select: { id: true, name: true, ean: true, price: true, promotionalPrice: true, unit: true },
-      take: 10,
+      select,
+      orderBy: { name: 'asc' },
+      take: LIMIT,
     })
+
+    if (startsWith.length >= LIMIT) return startsWith
+
+    const excludeIds = startsWith.map((p) => p.id)
+    const contains = await prisma.product.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        storeId: ctx.storeId,
+        active: true,
+        id: { notIn: excludeIds },
+        OR: [
+          { name: { contains: term, mode: 'insensitive' } },
+          { ean: { contains: term } },
+        ],
+      },
+      select,
+      orderBy: { name: 'asc' },
+      take: LIMIT - startsWith.length,
+    })
+
+    return [...startsWith, ...contains]
   }
 
   @Post('tasks/:id/finish')

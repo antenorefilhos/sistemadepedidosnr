@@ -43,6 +43,8 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const [deliveryInstructions, setDeliveryInstructions] = useState('')
   const [sendConfirm, setSendConfirm] = useState(false)
   const eanInputRef = useRef<HTMLInputElement>(null)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchRequestSeq = useRef(0)
 
   const fetchData = useCallback(async () => {
     try {
@@ -98,6 +100,10 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     return order?.items?.find(i => i.id === taskItem.orderItemId)
   }
 
+  const isWeightedProduct = (product?: { unit?: string | null; isFractional?: boolean | null } | null) => {
+    return Boolean(product?.isFractional) || ['kg', 'quilo', 'g'].includes(String(product?.unit || '').toLowerCase())
+  }
+
   const handleScan = (taskItem: PickingTaskItem) => {
     setConfirm({ mode: 'scan', itemId: null, taskItemId: taskItem.id, ean: '' })
   }
@@ -131,6 +137,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       const { data } = await pickerApi.pickItem(task.id, taskItem.id, {
         quantity: qty,
         barcode,
+        ...(isWeightedProduct(product) ? { finalWeight: qty } : {}),
       })
       setTask(data)
       setOrder(data.order || null)
@@ -151,6 +158,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     if (!task || !confirm.taskItemId) return
     const taskItem = task.items.find(i => i.id === confirm.taskItemId)
     if (!taskItem) return
+    const product = getProductForTaskItem(taskItem)
     const orderItem = getOrderItemForTaskItem(taskItem)
     const requested = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1)
 
@@ -160,6 +168,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       const { data } = await pickerApi.pickItem(task.id, taskItem.id, {
         quantity: adjustQty,
         notes: isAdjusted ? `Quantidade corrigida: ${adjustQty}/${requested}` : 'Marcacao manual',
+        ...(isWeightedProduct(product) ? { finalWeight: adjustQty } : {}),
       })
       setTask(data)
       setOrder(data.order || null)
@@ -219,15 +228,31 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     }
   }
 
-  const handleSearchProducts = async (q: string) => {
+  const handleSearchProducts = (q: string) => {
     setProductSearch(q)
-    if (q.trim().length < 2) { setProductResults([]); return }
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+
+    if (q.trim().length < 2) {
+      setProductResults([])
+      setSearchLoading(false)
+      return
+    }
+
     setSearchLoading(true)
-    try {
-      const { data } = await pickerApi.searchProducts(q)
-      setProductResults(data)
-    } catch { setProductResults([]) }
-    finally { setSearchLoading(false) }
+    searchDebounceRef.current = setTimeout(async () => {
+      const seq = ++searchRequestSeq.current
+      try {
+        const { data } = await pickerApi.searchProducts(q)
+        if (seq !== searchRequestSeq.current) return // resposta antiga, ignorar
+        setProductResults(data)
+      } catch (err: any) {
+        if (seq !== searchRequestSeq.current) return
+        setProductResults([])
+        toast.error(err.response?.data?.message || 'Erro ao buscar produtos')
+      } finally {
+        if (seq === searchRequestSeq.current) setSearchLoading(false)
+      }
+    }, 300)
   }
 
   const handleAddItem = async (productId: string) => {
@@ -481,6 +506,9 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
         const orderItem = taskItem ? getOrderItemForTaskItem(taskItem) : null
         const requested = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)
         const isAdjusted = adjustQty !== requested
+        const weighted = isWeightedProduct(product)
+        const step = weighted ? 0.01 : 1
+        const minValue = weighted ? 0.01 : 1
         return (
           <Modal onClose={() => setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })}>
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
@@ -489,7 +517,9 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 <div>
                   <p className="text-sm font-semibold text-amber-800">Confirmacao Manual</p>
                   <p className="text-xs text-amber-700 mt-0.5">
-                    Confirme que separou este item. Ajuste a quantidade se necessario.
+                    {weighted
+                      ? 'Confirme que separou este item. Informe o peso real pesado na balanca.'
+                      : 'Confirme que separou este item. Ajuste a quantidade se necessario.'}
                   </p>
                 </div>
               </div>
@@ -498,24 +528,28 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
               <p className="font-semibold text-gray-900">{product?.name || 'Produto'}</p>
               {product?.ean && <p className="text-xs text-gray-500 mt-1">EAN: {product.ean}</p>}
               <div className="mt-3">
-                <label className="text-xs text-gray-500 block mb-1">Quantidade separada (pedido: {requested} {product?.unit || 'un'})</label>
+                <label className="text-xs text-gray-500 block mb-1">
+                  {weighted
+                    ? `Peso separado em ${product?.unit || 'kg'} (pedido: ${requested} ${product?.unit || 'kg'})`
+                    : `Quantidade separada (pedido: ${requested} ${product?.unit || 'un'})`}
+                </label>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setAdjustQty(q => Math.max(1, q - 1))}
+                    onClick={() => setAdjustQty(q => Math.max(minValue, Number((q - step).toFixed(2))))}
                     className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
                   >
                     −
                   </button>
                   <input
                     type="number"
-                    min={1}
-                    step={1}
+                    min={minValue}
+                    step={step}
                     value={adjustQty}
-                    onChange={(e) => setAdjustQty(Math.max(1, Number(e.target.value) || 1))}
+                    onChange={(e) => setAdjustQty(Math.max(minValue, Number(e.target.value) || minValue))}
                     className="flex-1 h-10 rounded-lg border border-gray-200 text-center text-lg font-semibold focus:outline-none focus:border-brand-500"
                   />
                   <button
-                    onClick={() => setAdjustQty(q => q + 1)}
+                    onClick={() => setAdjustQty(q => Number((q + step).toFixed(2)))}
                     className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
                   >
                     +
@@ -540,7 +574,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
               </button>
               <button
                 onClick={handleManualConfirm}
-                disabled={actionLoading || adjustQty < 1}
+                disabled={actionLoading || adjustQty < minValue}
                 className={`flex-1 h-12 rounded-xl text-white font-semibold disabled:opacity-40 ${isAdjusted ? 'bg-orange-600' : 'bg-amber-600'}`}
               >
                 {actionLoading ? <Loader2 size={18} className="animate-spin mx-auto" /> : isAdjusted ? `Enviar ${adjustQty}` : 'Sim, Separei'}

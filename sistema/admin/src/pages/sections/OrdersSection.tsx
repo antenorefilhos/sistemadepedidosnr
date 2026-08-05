@@ -47,20 +47,53 @@ const STATUS_TIMELINE_LABEL: Record<string, string> = {
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   'order.created': 'Pedido criado',
+  'order.updated': 'Pedido atualizado',
   'order.confirmed': 'Pedido confirmado',
   'order.cancelled': 'Pedido cancelado',
+  'order.completed': 'Pedido concluído',
+  'order.partially_cancelled': 'Pedido parcialmente cancelado',
+  'order.refunded': 'Pedido estornado',
   'order.status_changed': 'Status atualizado',
+  'order.status_updated': 'Status atualizado',
+  'order.recalculated': 'Pedido recalculado',
+  'order.payment_pending': 'Pagamento pendente',
+  'order.payment_updated': 'Pagamento atualizado',
+  'order.sent_to_cashier': 'Enviado ao caixa',
+  'order.picking_task_created': 'Tarefa de separação criada',
   'order.picking_assigned': 'Separador atribuído',
   'order.picking_started': 'Separação iniciada',
+  'order.picking_pending': 'Separação pendente',
+  'order.picking_completed': 'Separação concluída',
   'order.picking_finished': 'Separação concluída',
+  'order.conference_pending': 'Aguardando conferência',
+  'order.conference_completed': 'Conferência concluída',
   'order.picking_conferenced': 'Conferência registrada',
+  'order.packed': 'Pedido embalado',
   'order.packing_completed': 'Embalagem concluída',
-  'order.payment_updated': 'Pagamento atualizado',
+  'order.item_picked': 'Item separado',
   'order.item_cancelled': 'Item cancelado',
-  'order.item_substituted': 'Item substituído',
   'order.item_missing': 'Item faltante',
-  'order.recalculated': 'Pedido recalculado',
+  'order.item_substituted': 'Item substituído',
+  'order.item_added_by_picker': 'Item incluído pelo separador',
+  'order.item_reset_by_picker': 'Item reaberto pelo separador',
+  'order.added_item_removed': 'Item incluído removido',
+  'order.substitution_accepted': 'Substituição aceita pelo cliente',
+  'order.waiting_customer_substitution': 'Aguardando cliente aprovar substituição',
+  'order.ready_for_pickup': 'Pronto para retirada',
+  'order.ready_for_delivery': 'Pronto para entrega',
+  'order.out_for_delivery': 'Saiu para entrega',
+  'order.delivered': 'Entregue',
+  'order.delivery_failed': 'Falha na entrega',
+  'order.failed_sync': 'Falha ao sincronizar com o ERP',
   'order.business_approved': 'Aprovado conta PJ',
+}
+
+const ACTOR_TYPE_LABELS: Record<string, string> = {
+  SYSTEM: 'Sistema',
+  ADMIN: 'Administrador',
+  PICKER: 'Separador',
+  DRIVER: 'Motorista',
+  CUSTOMER: 'Cliente',
 }
 
 function OrderStatusTimeline({ currentStatus, fulfillmentType }: { currentStatus: string; fulfillmentType?: string }) {
@@ -180,14 +213,27 @@ function getPaymentMethodLabel(method?: string | null) {
   const key = String(method || '').toUpperCase()
   if (key === 'PIX') return 'PIX'
   if (['CARD', 'CARD_ON_DELIVERY', 'CARTAO', 'CARTAO_ENTREGA'].includes(key)) return 'Cartão (na entrega)'
+  if (['CREDIT_CARD', 'CARTAO_CREDITO'].includes(key)) return 'Cartão de crédito'
+  if (['DEBIT_CARD', 'CARTAO_DEBITO'].includes(key)) return 'Cartão de débito'
   if (['CASH', 'DINHEIRO', 'MONEY'].includes(key)) return 'Dinheiro'
-  return method || '—'
+  if (['BOLETO'].includes(key)) return 'Boleto'
+  if (['IFOOD'].includes(key)) return 'iFood'
+  if (['INVOICE', 'FATURADO', 'B2B_INVOICE'].includes(key)) return 'Faturado (conta PJ)'
+  if (!method) return '—'
+  // Fallback amigavel: PAYMENT_METHOD_X -> "Payment Method X"
+  return method
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 function getPaymentMethodIcon(method?: string | null) {
   const key = String(method || '').toUpperCase()
   if (key === 'PIX') return <QrCode size={13} className="text-[#5D082A] shrink-0" />
-  if (['CARD', 'CARD_ON_DELIVERY', 'CARTAO', 'CARTAO_ENTREGA'].includes(key)) return <CreditCard size={13} className="text-[#5D082A] shrink-0" />
+  if (['CARD', 'CARD_ON_DELIVERY', 'CARTAO', 'CARTAO_ENTREGA', 'CREDIT_CARD', 'CARTAO_CREDITO', 'DEBIT_CARD', 'CARTAO_DEBITO'].includes(key)) {
+    return <CreditCard size={13} className="text-[#5D082A] shrink-0" />
+  }
   return <Banknote size={13} className="text-[#5D082A] shrink-0" />
 }
 
@@ -956,7 +1002,7 @@ export default function OrdersSection({
                             <span className="font-bold text-gray-800">{EVENT_TYPE_LABELS[event.type] ?? event.type}</span>
                             <span className="text-gray-500">{new Date(event.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
                           </div>
-                          <div className="mt-1 text-gray-500">{event.actorType === 'SYSTEM' ? 'Sistema' : event.actorType}{event.actorId ? ` — ${event.actorId}` : ''}</div>
+                          <div className="mt-1 text-gray-500">{ACTOR_TYPE_LABELS[event.actorType] ?? event.actorType}</div>
                         </div>
                       ))}
                       {(!selectedOrder.events || selectedOrder.events.length === 0) && (
