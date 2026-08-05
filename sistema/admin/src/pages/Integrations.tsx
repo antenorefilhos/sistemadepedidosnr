@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   integrationsAPI,
+  productsAPI,
   getApiErrorMessage,
   type IntegrationModuleDescriptor,
   type SolidcomStatusResponse,
@@ -80,6 +81,8 @@ export default function Integrations() {
   const [togglingKey, setTogglingKey] = useState<IntegrationKey | null>(null)
   const [modules, setModules] = useState<IntegrationModuleDescriptor[]>([])
   const [status, setStatus] = useState<SolidcomStatusResponse | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
   const loadModules = useCallback(async () => {
     try {
@@ -116,6 +119,25 @@ export default function Integrations() {
       setTogglingKey(null)
     }
   }, [loadModules, loadSolidcomStatus])
+
+  const runSyncNow = useCallback(async () => {
+    try {
+      setSyncing(true)
+      setSyncMessage(null)
+      const response = await productsAPI.sync()
+      const data = response.data as { synced?: number; errors?: number; skipped?: boolean; reason?: string }
+      setSyncMessage(
+        data.skipped
+          ? `Sync pulado: ${data.reason || 'módulo desativado'}.`
+          : `Sincronizado: ${data.synced ?? 0} produtos, ${data.errors ?? 0} erros.`,
+      )
+      await loadSolidcomStatus()
+    } catch (err) {
+      setSyncMessage(`Falha ao sincronizar: ${getApiErrorMessage(err)}`)
+    } finally {
+      setSyncing(false)
+    }
+  }, [loadSolidcomStatus])
 
   useEffect(() => {
     loadModules()
@@ -273,19 +295,37 @@ export default function Integrations() {
 
       {selectedModule?.key === 'solidcom' && status && (
         <section className="bg-white border border-gray-100 rounded-lg shadow-sm p-6 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h3 className="text-lg font-bold text-gray-800">Status Solidcom</h3>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={loadSolidcomStatus}
-              className="text-gray-600 hover:bg-gray-100"
-              aria-label="Atualizar"
-            >
-              <RefreshCcw size={16} />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={runSyncNow}
+                disabled={syncing}
+                className="bg-[#5D082A] text-white hover:bg-[#4a0622] disabled:opacity-60"
+              >
+                {syncing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCcw size={16} />}
+                {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={loadSolidcomStatus}
+                className="text-gray-600 hover:bg-gray-100"
+                aria-label="Atualizar status"
+              >
+                <RefreshCcw size={16} />
+              </Button>
+            </div>
           </div>
+
+          {syncMessage && (
+            <div className="rounded-lg border border-[#5D082A]/20 bg-[#fff5f8] p-3 text-xs text-[#6d123a] font-medium">
+              {syncMessage}
+            </div>
+          )}
 
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
             <p className="text-gray-500 text-xs mb-1">Estado da extensão</p>
