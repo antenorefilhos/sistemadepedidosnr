@@ -222,34 +222,70 @@ const ITEM_STATUS_DESCRIPTIONS: Record<string, string> = {
 /** Botao "i" clicavel que exibe uma explicacao curta em um popover. Fecha ao clicar fora. */
 function InfoHint({ text }: { text: string }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLSpanElement>(null)
+  const [coords, setCoords] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (btnRef.current?.contains(target)) return
+      if (popRef.current && !popRef.current.contains(target)) setOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('scroll', () => setOpen(false), { capture: true, once: true })
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
+  const POPOVER_WIDTH = 224 // w-56
+  const POPOVER_HEIGHT_EST = 90
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (open) { setOpen(false); return }
+    const rect = btnRef.current?.getBoundingClientRect()
+    if (rect) {
+      const placeAbove = rect.bottom + POPOVER_HEIGHT_EST + 8 > window.innerHeight
+      let left = rect.left + rect.width / 2 - POPOVER_WIDTH / 2
+      left = Math.max(8, Math.min(left, window.innerWidth - POPOVER_WIDTH - 8))
+      setCoords({
+        top: placeAbove ? rect.top - 8 : rect.bottom + 8,
+        left,
+        placeAbove,
+      })
+    }
+    setOpen(true)
+  }
+
   return (
-    <span ref={ref} className="relative inline-flex">
+    <>
       <button
+        ref={btnRef}
         type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
+        onClick={handleToggle}
         aria-label="Explicação"
         aria-expanded={open}
         className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-gray-400 hover:text-[#5D082A] hover:bg-[#f1dbe3] transition-colors"
       >
         <Info size={12} strokeWidth={2.5} />
       </button>
-      {open && (
-        <div className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-1.5 w-56 rounded-lg border border-gray-200 bg-white p-2.5 text-xs leading-relaxed text-gray-600 shadow-lg">
+      {open && coords && (
+        <div
+          ref={popRef}
+          style={{
+            position: 'fixed',
+            top: coords.top,
+            left: coords.left,
+            width: POPOVER_WIDTH,
+            transform: coords.placeAbove ? 'translateY(-100%)' : undefined,
+          }}
+          className="z-[9999] rounded-lg border border-gray-200 bg-white p-2.5 text-xs leading-relaxed text-gray-600 shadow-lg"
+        >
           {text}
         </div>
       )}
-    </span>
+    </>
   )
 }
 
