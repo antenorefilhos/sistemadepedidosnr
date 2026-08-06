@@ -1187,7 +1187,7 @@ export default function OrdersSection({
                             value={selectedOrder.paymentMethod || 'CASH'}
                             onChange={(e) => onUpdateOrder(selectedOrder.id, { paymentMethod: e.target.value })}
                             disabled={updatingOrderStatus}
-                            className="h-11 rounded-xl border-[#ead7df] bg-white pl-3 pr-8 text-sm font-semibold text-gray-800 shadow-none focus-visible:ring-[#5d082a]/20"
+                            className="h-11 appearance-none rounded-xl border-[#ead7df] bg-white pl-3 pr-8 text-sm font-semibold text-gray-800 shadow-none focus-visible:ring-[#5d082a]/20"
                           >
                             <option value="CASH">Dinheiro</option>
                             <option value="PIX">PIX</option>
@@ -1205,7 +1205,7 @@ export default function OrdersSection({
                             value={selectedOrder.paymentStatus || 'UNPAID'}
                             onChange={(e) => onUpdateOrder(selectedOrder.id, { paymentStatus: e.target.value })}
                             disabled={updatingOrderStatus}
-                            className="h-11 rounded-xl border-[#ead7df] bg-white pl-3 pr-8 text-sm font-semibold text-gray-800 shadow-none focus-visible:ring-[#5d082a]/20"
+                            className="h-11 appearance-none rounded-xl border-[#ead7df] bg-white pl-3 pr-8 text-sm font-semibold text-gray-800 shadow-none focus-visible:ring-[#5d082a]/20"
                           >
                             <option value="UNPAID">Não pago</option>
                             <option value="PENDING">Pendente</option>
