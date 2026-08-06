@@ -1,5 +1,5 @@
-import { Columns, Download, Eye, LayoutList, RefreshCw, Search, X, Filter, Banknote, QrCode, CreditCard, ChevronDown, AlertTriangle, Printer, ChevronLeft, ChevronRight, MapPin } from 'lucide-react'
-import { useState, useEffect, type ReactNode } from 'react'
+import { Columns, Download, Eye, LayoutList, RefreshCw, Search, X, Filter, Banknote, QrCode, CreditCard, ChevronDown, AlertTriangle, Printer, ChevronLeft, ChevronRight, MapPin, Info } from 'lucide-react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -208,6 +208,49 @@ function getItemStatusLabel(status?: string) {
     CANCELLED: 'Cancelado',
   }
   return labels[status || ''] || status || 'Pendente'
+}
+
+const ITEM_STATUS_DESCRIPTIONS: Record<string, string> = {
+  PENDING: 'O item ainda não foi separado. É o estado inicial de todo item do pedido.',
+  PICKED: 'O separador já pegou este item e confirmou a quantidade/peso na tela de separação.',
+  MISSING: 'O separador marcou este item como indisponível no estoque no momento da separação.',
+  SUBSTITUTED: 'O item original foi trocado por outro produto (com aprovação do cliente ou da loja).',
+  CANCELLED: 'Este item foi removido do pedido e não entra mais no total.',
+  ACTIVE: 'O separador desfez uma separação já feita (para corrigir um erro) e o item voltou para a fila, aguardando ser separado de novo.',
+}
+
+/** Botao "i" clicavel que exibe uma explicacao curta em um popover. Fecha ao clicar fora. */
+function InfoHint({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
+  return (
+    <span ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
+        aria-label="Explicação"
+        aria-expanded={open}
+        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-gray-400 hover:text-[#5D082A] hover:bg-[#f1dbe3] transition-colors"
+      >
+        <Info size={12} strokeWidth={2.5} />
+      </button>
+      {open && (
+        <div className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-1.5 w-56 rounded-lg border border-gray-200 bg-white p-2.5 text-xs leading-relaxed text-gray-600 shadow-lg">
+          {text}
+        </div>
+      )}
+    </span>
+  )
 }
 
 function getPaymentMethodLabel(method?: string | null) {
@@ -980,7 +1023,12 @@ export default function OrdersSection({
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                               <span className="font-mono">Pedida: {formatQuantity(item.requestedQuantity ?? item.quantity)}</span>
                               <span className="font-mono">Final: {formatQuantity(item.fulfilledQuantity ?? item.quantity)}</span>
-                              <Badge variant="secondary" className="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700">{getItemStatusLabel(item.status)}</Badge>
+                              <span className="inline-flex items-center gap-1">
+                                <Badge variant="secondary" className="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700">{getItemStatusLabel(item.status)}</Badge>
+                                {ITEM_STATUS_DESCRIPTIONS[item.status || 'PENDING'] && (
+                                  <InfoHint text={ITEM_STATUS_DESCRIPTIONS[item.status || 'PENDING']} />
+                                )}
+                              </span>
                             </div>
                             {item.cutReason && <p className="mt-1 text-xs text-red-700">{item.cutReason}</p>}
                           </div>
