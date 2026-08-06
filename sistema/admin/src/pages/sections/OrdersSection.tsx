@@ -200,6 +200,7 @@ function formatQuantity(value?: number | string | null) {
 
 function getItemStatusLabel(status?: string) {
   const labels: Record<string, string> = {
+    ACTIVE: 'Ativo',
     PENDING: 'Pendente',
     PICKED: 'Separado',
     MISSING: 'Faltante',
