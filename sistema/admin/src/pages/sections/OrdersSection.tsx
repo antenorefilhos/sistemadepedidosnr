@@ -1,5 +1,6 @@
 import { Columns, Download, Eye, LayoutList, RefreshCw, Search, X, Filter, Banknote, QrCode, CreditCard, ChevronDown, AlertTriangle, Printer, ChevronLeft, ChevronRight, MapPin, Info } from 'lucide-react'
 import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -270,7 +271,7 @@ function InfoHint({ text }: { text: string }) {
       >
         <Info size={12} strokeWidth={2.5} />
       </button>
-      {open && coords && (
+      {open && coords && createPortal(
         <div
           ref={popRef}
           style={{
@@ -283,7 +284,8 @@ function InfoHint({ text }: { text: string }) {
           className="z-[9999] rounded-lg border border-gray-200 bg-white p-2.5 text-xs leading-relaxed text-gray-600 shadow-lg"
         >
           {text}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
