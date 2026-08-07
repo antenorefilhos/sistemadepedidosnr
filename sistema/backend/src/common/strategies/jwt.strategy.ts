@@ -11,6 +11,7 @@ type JwtPayload = {
   tenantId?: string
   storeId?: string
   permissions?: string[]
+  moduleAccess?: string[]
 }
 
 @Injectable()
@@ -36,6 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       tenantId: payload.tenantId,
       storeId: payload.storeId,
       permissions: payload.permissions || [],
+      moduleAccess: payload.moduleAccess || [],
     }
   }
 }

@@ -109,6 +109,10 @@ model Admin {
   password  String
   name      String
   role      String   @default("admin")
+  // Apps que essa conta pode acessar (subset de 'admin' | 'picking' | 'delivery').
+  // role='admin' (master) sempre tem acesso total independente deste campo --
+  // ele so importa para contas de equipe criadas via Equipe.
+  moduleAccess String[] @default([])
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

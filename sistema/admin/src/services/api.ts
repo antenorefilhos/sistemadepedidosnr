@@ -1609,15 +1609,23 @@ export interface StaffMember {
   email: string
   name: string
   role: string
+  moduleAccess: string[]
+  permissions: string[]
   active: boolean
   createdAt: string
 }
 
+export interface PermissionCatalogItem {
+  key: string
+  description: string | null
+}
+
 export const staffAPI = {
   list: () => api.get<StaffMember[]>('/auth/staff'),
-  create: (data: { email: string; name: string; password: string; role: string }) =>
+  listPermissions: () => api.get<PermissionCatalogItem[]>('/auth/permissions'),
+  create: (data: { email: string; name: string; password: string; role: string; moduleAccess?: string[]; permissions?: string[] }) =>
     api.post('/auth/register', data),
-  update: (id: string, data: { name?: string; email?: string; role?: string; password?: string }) =>
+  update: (id: string, data: { name?: string; email?: string; role?: string; password?: string; moduleAccess?: string[]; permissions?: string[] }) =>
     api.patch<StaffMember>(`/auth/staff/${id}`, data),
   toggleActive: (id: string) =>
     api.post<StaffMember>(`/auth/staff/${id}/toggle-active`),

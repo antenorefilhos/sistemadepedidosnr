@@ -9,11 +9,15 @@ import { LoginDto } from './dto/login.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
+import { PrismaService } from '../../common/prisma.service'
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -144,6 +148,18 @@ export class AuthController {
   })
   register(@Body() createAdminDto: CreateAdminDto) {
     return this.authService.register(createAdminDto)
+  }
+
+  @Get('permissions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Catalogo de permissoes granulares disponiveis' })
+  listPermissions() {
+    return this.prisma.permission.findMany({
+      select: { key: true, description: true },
+      orderBy: { key: 'asc' },
+    })
   }
 
   @Get('staff')

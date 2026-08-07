@@ -1,8 +1,8 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
-import { Roles } from '../../common/decorators/roles.decorator'
+import { RequireModule } from '../../common/decorators/require-module.decorator'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
-import { RolesGuard } from '../../common/guards/roles.guard'
+import { ModuleAccessGuard } from '../../common/guards/module-access.guard'
 import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { PrismaService } from '../../common/prisma.service'
@@ -11,8 +11,8 @@ import { DeliveryService } from './delivery.service'
 
 @ApiTags('Driver')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
-@Roles('driver', 'admin')
+@UseGuards(JwtAuthGuard, TenantAccessGuard, ModuleAccessGuard)
+@RequireModule('delivery')
 @Controller('driver')
 export class DriverController {
   constructor(

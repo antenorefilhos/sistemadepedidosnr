@@ -15,7 +15,8 @@ export default function Login({ onLogin }: { onLogin: (name: string) => void }) 
     try {
       const { data } = await driverApi.login(email.trim(), password)
       const user = data.admin
-      if (!['driver', 'admin'].includes(user.role)) {
+      const hasDeliveryAccess = user.role === 'admin' || (user.moduleAccess || []).includes('delivery')
+      if (!hasDeliveryAccess) {
         toast.error('Acesso restrito a motoristas')
         setLoading(false)
         return

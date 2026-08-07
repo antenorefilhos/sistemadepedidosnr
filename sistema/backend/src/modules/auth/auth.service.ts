@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { PrismaService } from '../../common/prisma.service'
-import { CreateAdminDto, UpdateStaffDto } from './dto/create-admin.dto'
+import { CreateAdminDto, STAFF_MODULES, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
 import { LoginDto } from './dto/login.dto'
@@ -31,6 +31,7 @@ export class AuthService {
     const tenantId = admin.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
     const role = admin.role || 'admin'
+    const moduleAccess = role === 'admin' ? [...STAFF_MODULES] : admin.moduleAccess || []
 
     if (role === 'admin') {
       await this.grantDefaultAdminAccess(admin.id, tenantId, storeId)
@@ -41,11 +42,12 @@ export class AuthService {
       email: admin.email,
       name: admin.name,
       role,
+      moduleAccess,
       tenantId,
       storeId,
     })
 
-    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role, tenantId, storeId } }
+    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role, moduleAccess, tenantId, storeId } }
   }
 
   async customerLogin(loginDto: LoginDto) {
@@ -115,8 +117,14 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(createAdminDto.password, 10)
 
-    const validRoles = ['admin', 'picker', 'driver']
-    const role = validRoles.includes(createAdminDto.role || '') ? createAdminDto.role! : 'admin'
+    // 'role' fica reservado para o marcador legado (admin = master/superuser, com bypass
+    // total). Contas de equipe criadas com moduleAccess/permissions usam role='staff' --
+    // assim elas nunca herdam checagens `@Roles('admin')` as quais nao deveriam ter acesso
+    // so por terem o modulo Admin liberado; o que elas podem fazer dentro do Admin e
+    // decidido pelas permissoes granulares (RequirePermission), nao pelo role.
+    const isMaster = createAdminDto.role === 'admin'
+    const role = isMaster ? 'admin' : 'staff'
+    const moduleAccess = isMaster ? [] : (createAdminDto.moduleAccess || [])
 
     const admin = await this.prisma.admin.create({
       data: {
@@ -124,26 +132,83 @@ export class AuthService {
         name: createAdminDto.name,
         password: hashedPassword,
         role,
+        moduleAccess,
       },
     })
 
     const tenantId = admin.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
-    const adminRole = admin.role || role
 
-    if (adminRole === 'admin') {
+    if (isMaster) {
       await this.grantDefaultAdminAccess(admin.id, tenantId, storeId)
+    } else {
+      await this.syncStaffPermissions(admin.id, tenantId, storeId, createAdminDto.permissions || [])
+      if (moduleAccess.includes('delivery')) {
+        await this.ensureDriverProfile(admin.id, tenantId, storeId, admin.name)
+      }
     }
+
+    const effectiveModuleAccess = isMaster ? [...STAFF_MODULES] : moduleAccess
     const access_token = this.jwtService.sign({
       id: admin.id,
       email: admin.email,
       name: admin.name,
-      role: adminRole,
+      role,
+      moduleAccess: effectiveModuleAccess,
       tenantId,
       storeId,
     })
 
-    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role: adminRole, tenantId, storeId } }
+    return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role, moduleAccess: effectiveModuleAccess, tenantId, storeId } }
+  }
+
+  /**
+   * Sincroniza as permissoes granulares de uma conta de equipe (nao-master) usando o
+   * pipeline RBAC ja existente (Role -> RolePermission -> UserStoreAccess), o mesmo lido
+   * pelo PermissionGuard. Cada conta de equipe tem uma Role privada 1:1 ("Permissoes de
+   * <nome>"), recriada a cada chamada -- assim a UI so precisa mandar a lista final de
+   * permission keys marcadas, sem se preocupar em criar/gerenciar roles.
+   */
+  private async syncStaffPermissions(adminId: string, tenantId: string, storeId: string, permissionKeys: string[]) {
+    const roleKey = `staff_${adminId}`
+    const role = await this.prisma.role.upsert({
+      where: { tenantId_key: { tenantId, key: roleKey } },
+      create: { tenantId, key: roleKey, name: `Permissoes de ${adminId}`, isSystem: false },
+      update: {},
+    })
+
+    const validPermissions = permissionKeys.length
+      ? await this.prisma.permission.findMany({ where: { key: { in: permissionKeys } }, select: { id: true } })
+      : []
+
+    await this.prisma.rolePermission.deleteMany({ where: { roleId: role.id } })
+    if (validPermissions.length) {
+      await this.prisma.rolePermission.createMany({
+        data: validPermissions.map((p) => ({ roleId: role.id, permissionId: p.id })),
+        skipDuplicates: true,
+      })
+    }
+
+    await this.prisma.userStoreAccess.upsert({
+      where: { userId_storeId_roleId: { userId: adminId, storeId, roleId: role.id } },
+      create: { userId: adminId, storeId, roleId: role.id },
+      update: {},
+    })
+
+    // Remove vinculos a outras roles de equipe antigas (ex: role foi recriada com outro id
+    // em algum cenario de migracao) para nao deixar permissao "fantasma" sobrando.
+    await this.prisma.userStoreAccess.deleteMany({
+      where: { userId: adminId, storeId, roleId: { not: role.id }, role: { key: { startsWith: 'staff_' } } },
+    })
+  }
+
+  /** Cria o perfil de motorista (tabela Driver) para quem ganhou acesso ao modulo delivery. Idempotente. */
+  private async ensureDriverProfile(adminId: string, tenantId: string, storeId: string, name: string) {
+    await this.prisma.driver.upsert({
+      where: { adminId },
+      create: { adminId, tenantId, storeId, name },
+      update: {},
+    })
   }
 
   async customerRegister(dto: CreateCustomerRegisterDto) {
@@ -236,11 +301,22 @@ export class AuthService {
   }
 
   async listStaff(tenantId: string) {
-    return this.prisma.admin.findMany({
+    const staff = await this.prisma.admin.findMany({
       where: { tenantId },
-      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, moduleAccess: true, active: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     })
+
+    const accessRows = await this.prisma.userStoreAccess.findMany({
+      where: { userId: { in: staff.map((s) => s.id) }, role: { key: { startsWith: 'staff_' } } },
+      select: { userId: true, role: { select: { permissions: { select: { permission: { select: { key: true } } } } } } },
+    })
+    const permissionsByUserId = new Map<string, string[]>()
+    for (const row of accessRows) {
+      permissionsByUserId.set(row.userId, row.role.permissions.map((p) => p.permission.key))
+    }
+
+    return staff.map((s) => ({ ...s, permissions: permissionsByUserId.get(s.id) || [] }))
   }
 
   async updateStaff(id: string, dto: UpdateStaffDto) {
@@ -250,18 +326,26 @@ export class AuthService {
     const data: Record<string, unknown> = {}
     if (dto.name) data.name = dto.name
     if (dto.email) data.email = dto.email
-    if (dto.role) {
-      const validRoles = ['admin', 'picker', 'driver']
-      if (!validRoles.includes(dto.role)) throw new BadRequestException('Role invalida')
-      data.role = dto.role
-    }
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10)
 
-    return this.prisma.admin.update({
+    const isMaster = staff.role === 'admin'
+    if (!isMaster && dto.moduleAccess) data.moduleAccess = dto.moduleAccess
+
+    const updated = await this.prisma.admin.update({
       where: { id },
       data,
-      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, moduleAccess: true, active: true, createdAt: true },
     })
+
+    const tenantId = staff.tenantId || DEFAULT_TENANT_ID
+    if (!isMaster && dto.permissions) {
+      await this.syncStaffPermissions(id, tenantId, DEFAULT_STORE_ID, dto.permissions)
+    }
+    if (!isMaster && dto.moduleAccess?.includes('delivery')) {
+      await this.ensureDriverProfile(id, tenantId, DEFAULT_STORE_ID, updated.name)
+    }
+
+    return updated
   }
 
   async toggleStaffActive(id: string) {

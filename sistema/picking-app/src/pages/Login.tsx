@@ -15,7 +15,8 @@ export default function Login({ onLogin }: { onLogin: (name: string) => void }) 
     try {
       const { data } = await pickerApi.login(email.trim(), password)
       const user = data.admin
-      if (!['picker', 'admin'].includes(user.role)) {
+      const hasPickingAccess = user.role === 'admin' || (user.moduleAccess || []).includes('picking')
+      if (!hasPickingAccess) {
         toast.error('Acesso restrito a separadores')
         setLoading(false)
         return

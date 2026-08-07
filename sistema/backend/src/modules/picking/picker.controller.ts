@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
-import { Roles } from '../../common/decorators/roles.decorator'
+import { RequireModule } from '../../common/decorators/require-module.decorator'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
-import { RolesGuard } from '../../common/guards/roles.guard'
+import { ModuleAccessGuard } from '../../common/guards/module-access.guard'
 import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import {
@@ -17,8 +17,8 @@ import { PickingService } from './picking.service'
 
 @ApiTags('Picker')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
-@Roles('picker', 'admin')
+@UseGuards(JwtAuthGuard, TenantAccessGuard, ModuleAccessGuard)
+@RequireModule('picking')
 @Controller('picker')
 export class PickerController {
   constructor(private readonly pickingService: PickingService) {}
