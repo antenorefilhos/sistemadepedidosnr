@@ -32,7 +32,7 @@ export class PushNotificationService {
   private readonly logger = new Logger(PushNotificationService.name)
   private readonly vapidPublicKey = String(process.env.VAPID_PUBLIC_KEY || '').trim()
   private readonly vapidPrivateKey = String(process.env.VAPID_PRIVATE_KEY || '').trim()
-  private readonly vapidSubject = String(process.env.VAPID_SUBJECT || 'mailto:admin@antenor.com.br').trim()
+  private readonly vapidSubject = String(process.env.VAPID_SUBJECT || 'mailto:admin@antenorefilhos.com.br').trim()
   private readonly enabled = Boolean(this.vapidPublicKey && this.vapidPrivateKey)
 
   constructor(private prisma: PrismaService) {

@@ -8,7 +8,7 @@
 INSERT INTO admins (id, email, password, name, active, "createdAt", "updatedAt")
 VALUES (
   gen_random_uuid()::text,
-  'admin@antenor.com.br',
+  'admin@antenorefilhos.com.br',
   '<BCRYPT_HASH_AQUI>',
   'Administrador',
   true,

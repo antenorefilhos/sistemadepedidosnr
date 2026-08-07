@@ -86,7 +86,7 @@ async function main() {
   const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10)
   await prisma.admin.create({
     data: {
-      email: 'admin@antenor.com.br',
+      email: 'admin@antenorefilhos.com.br',
       password: adminPassword,
       name: 'Administrador Antenor',
     },

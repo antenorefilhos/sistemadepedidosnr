@@ -34,7 +34,7 @@ export class AuthController {
         access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
         user: {
           id: 1,
-          email: 'admin@antenor.com.br',
+          email: 'admin@antenorefilhos.com.br',
           role: 'admin',
         },
       },
