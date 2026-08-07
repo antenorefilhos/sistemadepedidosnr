@@ -97,13 +97,13 @@ async function main() {
   if (pickerPw) {
     await prisma.admin.create({
       data: {
-        email: 'separador@antenor.com.br',
+        email: 'separador@antenorefilhos.com.br',
         password: await bcrypt.hash(pickerPw, 10),
         name: 'Separador Antenor',
         role: 'picker',
       },
     })
-    console.log('✅ Usuário picker criado: separador@antenor.com.br')
+    console.log('✅ Usuário picker criado: separador@antenorefilhos.com.br')
   }
 
   // Driver (motorista)
@@ -111,7 +111,7 @@ async function main() {
   if (driverPw) {
     const driverAdmin = await prisma.admin.create({
       data: {
-        email: 'motorista@antenor.com.br',
+        email: 'motorista@antenorefilhos.com.br',
         password: await bcrypt.hash(driverPw, 10),
         name: 'Motorista Antenor',
         role: 'driver',
@@ -127,7 +127,7 @@ async function main() {
         },
       })
     } catch {}
-    console.log('✅ Usuário driver criado: motorista@antenor.com.br')
+    console.log('✅ Usuário driver criado: motorista@antenorefilhos.com.br')
   }
 
   // Criar clientes
