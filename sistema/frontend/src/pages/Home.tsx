@@ -24,7 +24,7 @@ import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock, Home as HomeIcon,
-  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle
+  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
@@ -48,6 +48,12 @@ type PromoBannerView = {
 export default function Home() {
   const navigate = useNavigate()
   const touchStartX = useRef(0)
+  const categoryScrollRef = useRef<HTMLDivElement>(null)
+  const scrollCategories = useCallback((direction: 'left' | 'right') => {
+    const el = categoryScrollRef.current
+    if (!el) return
+    el.scrollBy({ left: direction === 'left' ? -240 : 240, behavior: 'smooth' })
+  }, [])
   const prefersReducedMotion = usePrefersReducedMotion()
   // Monta apenas a arvore do viewport atual (mobile OU desktop) em vez de
   // renderizar as duas e esconder uma com CSS — evita ~2x cards no DOM.
@@ -548,8 +554,16 @@ export default function Home() {
       {/* Categorias abaixo do banner — apenas desktop */}
       {isDesktop && homeCategories.length > 0 && (
         <div className="hidden md:block border-b border-gray-100 bg-white">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex overflow-x-auto no-scrollbar py-3 gap-3 snap-x">
+          <div className="max-w-7xl mx-auto px-4 relative group/cats">
+            <button
+              type="button"
+              onClick={() => scrollCategories('left')}
+              aria-label="Categorias anteriores"
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-[#5D082A] opacity-0 group-hover/cats:opacity-100 transition-opacity hover:bg-[#FBF7F0] disabled:opacity-0"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div ref={categoryScrollRef} className="flex overflow-x-auto no-scrollbar py-3 gap-3 snap-x scroll-smooth">
               {homeCategories.map((category) => {
                 const IconComponent = CATEGORY_ICONS[category.id] || CATEGORY_ICONS.default
                 const name = category.label.replace(/^\S+\s*/, '')
@@ -567,6 +581,14 @@ export default function Home() {
                 )
               })}
             </div>
+            <button
+              type="button"
+              onClick={() => scrollCategories('right')}
+              aria-label="Próximas categorias"
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-[#5D082A] opacity-0 group-hover/cats:opacity-100 transition-opacity hover:bg-[#FBF7F0]"
+            >
+              <ChevronRight size={18} />
+            </button>
           </div>
         </div>
       )}
