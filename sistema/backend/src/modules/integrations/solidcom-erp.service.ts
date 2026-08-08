@@ -29,6 +29,9 @@ export class SolidcomERPService {
   private readonly logger = new Logger(SolidcomERPService.name)
   private readonly SOLIDCOM_API_URL =
     process.env.SOLIDCOM_API_URL || process.env.ERP_API_URL || 'http://45.239.193.56:5000'
+
+  /** Janela de GetProdutosAlterados. Cobre folgado o intervalo entre syncs. */
+  private readonly CHANGE_WINDOW_DAYS = Number(process.env.SOLIDCOM_CHANGE_WINDOW_DAYS || 30)
   private readonly SOLIDCOM_API_KEY =
     process.env.SOLIDCOM_API_KEY || process.env.ERP_API_KEY || ''
   private readonly defaultCnpj = Number(process.env.SOLIDCOM_CNPJ || '5147995000131')
@@ -69,7 +72,8 @@ export class SolidcomERPService {
         { maxAttempts: 3, baseDelayMs: 1000, maxDelayMs: 8000 },
       )
 
-      return this.extractProducts(response.data)
+      const base = this.extractProducts(response.data)
+      return this.overlayRecentChanges(base)
     } catch (error) {
       if (axios.isAxiosError(error)) {
         this.logger.warn(`Falha ao buscar produtos da Dorsal (${error.code || 'erro_http'}): ${error.message}`)
@@ -78,6 +82,45 @@ export class SolidcomERPService {
       }
       return []
     }
+  }
+
+  /**
+   * GetProdutos (bulk) serve precos desatualizados: promocoes cadastradas no PDV
+   * nao aparecem la. GetProdutosAlterados serve os precos corretos, mas NAO e
+   * cumulativo — `data=X` devolve um conjunto proprio, e uma janela mais larga
+   * nao contem as janelas menores. Por isso varremos dia a dia e sobrepomos do
+   * mais antigo para o mais novo, deixando a leitura mais recente vencer.
+   */
+  private async overlayRecentChanges(base: ERPProduct[]): Promise<ERPProduct[]> {
+    const byEan = new Map(base.map((p) => [p.ean, p]))
+    let applied = 0
+    let failedDays = 0
+
+    // Do mais antigo para hoje: a ultima escrita por EAN vence.
+    for (let offset = this.CHANGE_WINDOW_DAYS; offset >= 0; offset--) {
+      const day = new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10)
+
+      try {
+        const response = await axios.get(
+          `${this.SOLIDCOM_API_URL}/api/Produto/GetProdutosAlterados`,
+          { params: { data: day }, timeout: 30000 },
+        )
+
+        for (const product of this.extractProducts(response.data)) {
+          byEan.set(product.ean, product)
+          applied++
+        }
+      } catch {
+        failedDays++
+      }
+    }
+
+    if (failedDays) {
+      this.logger.warn(`Dorsal: ${failedDays} dia(s) da janela de alteracoes falharam; precos podem estar defasados`)
+    }
+    this.logger.log(`Dorsal: ${applied} alteracoes sobrepostas ao catalogo (janela de ${this.CHANGE_WINDOW_DAYS} dias)`)
+
+    return [...byEan.values()]
   }
 
   private extractProducts(rawData: unknown): ERPProduct[] {
