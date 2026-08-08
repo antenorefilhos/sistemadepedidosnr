@@ -210,6 +210,16 @@ export class ProductsController {
     return this.productsService.getMercadologicalTree()
   }
 
+  @Get('promotions')
+  @ApiOperation({
+    summary: 'Produtos em promocao ativa (Publico)',
+    description: 'Retorna todos os produtos com preco promocional ativo, sem paginacao.',
+  })
+  @ApiResponse({ status: 200, description: 'Lista de produtos em promocao' })
+  async findPromotions(@Req() req?: TenantContextRequest) {
+    return this.productsService.findPromotions(req ? getTenantContext(req) : undefined)
+  }
+
   @Get('suggest')
   @ApiOperation({
     summary: 'Sugestões de busca',

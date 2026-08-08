@@ -736,6 +736,33 @@ export class ProductsService {
     }
   }
 
+  /**
+   * Lista produtos em promocao ativa (promotionalPrice < price) para a pagina
+   * /promocoes do storefront. Endpoint dedicado em vez de reaproveitar findAll:
+   * findAll pagina por padrao (80 itens) e o filtro era aplicado no cliente
+   * sobre essa pagina -- com o catalogo tendo milhares de produtos, as poucas
+   * promocoes ativas quase nunca caiam nos primeiros 80 resultados e a pagina
+   * aparecia "sem promocoes" mesmo havendo ofertas reais no catalogo.
+   */
+  async findPromotions(context?: Partial<ProductTenantContext>) {
+    const storefrontVisibilityFilter = await this.buildStorefrontVisibilityFilterByMappings()
+    if (!storefrontVisibilityFilter) return []
+
+    const candidates = await this.prisma.product.findMany({
+      where: {
+        ...tenantStoreWhere(context),
+        active: true,
+        promotionalPrice: { not: null, gt: 0 },
+        AND: [storefrontVisibilityFilter],
+      },
+      orderBy: { name: 'asc' },
+    })
+
+    return candidates
+      .filter((p) => Number(p.promotionalPrice) > 0 && Number(p.promotionalPrice) < Number(p.price))
+      .map((item) => this.toCustomerFacingProduct(item))
+  }
+
   private toAccentInsensitiveRegex(term: string) {
     const escaped = term
       .trim()

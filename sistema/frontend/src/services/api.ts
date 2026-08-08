@@ -283,6 +283,7 @@ export const productsAPI = {
       },
     }),
   suggest: (q: string, limit = 6) => api.get('/products/suggest', { params: { q, limit } }),
+  getPromotions: () => api.get('/products/promotions'),
   getMercadologicalTree: () => api.get('/products/mercadological-tree'),
   getOne: (id: string) => api.get(`/products/${id}`),
   getRecommendations: (id: string, limit = 6) => api.get(`/products/${id}/recommendations`, { params: { limit } }),

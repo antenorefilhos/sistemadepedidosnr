@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Tag, Flame } from 'lucide-react'
-import { useProducts } from '../hooks/useCart'
+import { productsAPI } from '../services/api'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { SkeletonCard } from '../components/Skeleton'
 import { SEO } from '../components/SEO'
@@ -9,17 +9,14 @@ import type { Product } from '../types'
 import { buttonVariants } from '../components/ui/button'
 
 export default function Promocoes() {
-  const { data: products, isLoading } = useProducts()
-
-  const promos = useMemo(() => {
-    const list = (products || []) as Product[]
-    return list.filter(
-      (p) =>
-        p.promotionalPrice != null &&
-        Number(p.promotionalPrice) > 0 &&
-        Number(p.promotionalPrice) < Number(p.price),
-    )
-  }, [products])
+  const { data: promos = [], isLoading } = useQuery({
+    queryKey: ['products-promotions'],
+    queryFn: async () => {
+      const res = await productsAPI.getPromotions()
+      return res.data as Product[]
+    },
+    staleTime: 1000 * 60 * 5,
+  })
 
   return (
     <div className="min-h-screen bg-white pb-24">
