@@ -33,6 +33,36 @@ Sem autenticação. Só a porta 5000 é exposta; o banco não é acessível pela
 Duas leituras do bulk com 1 dia de intervalo deram md5 idêntico — o dado dele é estático/cacheado
 do lado da Dorsal. Por isso `solidcom-erp.service.ts` sobrepõe o bulk com a janela de alterações.
 
+## A instalação está atrás da documentação
+
+Doc oficial: <https://crm.solidcon.com.br/docs/conexaodorsal> (sempre atualizada pelo fornecedor).
+Ela descreve a **v1.0.71.0**; a instalação em `45.239.193.56:5000` é anterior. Divergências medidas:
+
+| | Doc (1.0.71.0) | Nosso servidor |
+|---|---|---|
+| `GetProdutosAlterados` | `/{data}` como **path param** | `?data=` como **query param** |
+| `ApenasAlterados` | existe (default `false`) | não existe — passar é ignorado |
+| `GetProdutosEAN` | não documentado | **existe** |
+| `GetProdutosCadastro` | não documentado | **existe** |
+| `GetProdutos` | params `ativo` e `estoque` | idem |
+
+Chamar a forma documentada (`/api/Produto/GetProdutosAlterados/2026-07-09`) devolve **404** aqui.
+A forma com query string é a correta para esta instalação — não "conserte" isso sem antes
+confirmar que o fornecedor atualizou o servidor.
+
+Vale pedir a atualização: `ApenasAlterados=true` faz a consulta filtrar só pela data de
+alteração do produto, que é exatamente o que precisamos.
+
+## Armadilha: dtalteracao não é o campo do filtro
+
+`GetProdutosAlterados?data=X` **não** filtra por `dtalteracao`. Medido em 09/08/2026:
+
+- janela "desde 09/07" → itens com `dtalteracao` de **março a agosto**
+- janela "desde 08/08" → itens com `dtalteracao` de **fevereiro a julho**, nenhum de agosto
+
+O filtro usa um log interno de alterações do ERP, não o campo que vem no produto. Por isso
+`dtalteracao` não serve para decidir se um dado está fresco.
+
 ## Armadilha: GetProdutosAlterados NÃO é cumulativo
 
 `data=X` **não** significa "alterados desde X". Uma janela larga não contém as janelas menores.
@@ -61,9 +91,22 @@ Janela em `SOLIDCOM_CHANGE_WINDOW_DAYS` (padrão 30). Sync completo leva ~3 min.
 - `qtd_produto` — estoque. `fracionado` / `fracionamento` — pesável e passo.
 - `dtalteracao` — **não confiável** como sinal de frescor no bulk.
 
+## Janela curta é barata — use para detecção rápida
+
+Medido em 09/08/2026:
+
+| janela | resposta | tempo | produtos | promoções |
+|---|---|---|---|---|
+| 1 hora | 61 KB | 2,0 s | 97 | 18 |
+| 6 horas | 74 KB | 2,0 s | 117 | 18 |
+| 24 horas | 74 KB | 2,0 s | 117 | 18 |
+| catálogo completo | 10,5 MB | ~190 s | 15.798 | — |
+
+Uma consulta de 1 hora já traz **todas** as promoções ativas. É o caminho para detectar
+produto novo e promoção nova rápido, sem pagar o sync completo.
+
 ## Em aberto
 
-- Semântica real do `data=` (aguardando documentação oficial).
-- Existe webhook/push? Eliminaria o polling.
-- Existe rate limit? Hoje são ~31 chamadas por sync.
-- `GetProdutosCadastro` ainda não integrado — é o caminho para detectar produto novo.
+- Não há webhook nem push na doc — só polling.
+- Rate limit não documentado; nenhum 429 observado até agora.
+- `GetProdutosCadastro` existe no servidor mas não está na doc nem integrado ao sync.
