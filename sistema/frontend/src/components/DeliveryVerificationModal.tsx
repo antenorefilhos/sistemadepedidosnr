@@ -17,7 +17,7 @@ import {
   verifyDeliveryForAddress,
   type DeliveryCalcSnapshot,
 } from '../services/deliveryVerification'
-import type { DeliveryAddressSnapshot } from '../utils/deliveryAddress'
+import { dropStaleCoords, type DeliveryAddressSnapshot } from '../utils/deliveryAddress'
 
 const EMPTY_ADDRESS: DeliveryAddressSnapshot = {
   street: '',
@@ -41,6 +41,18 @@ export function DeliveryVerificationModal() {
   const [showCepFallback, setShowCepFallback] = useState(false)
   const [gpsDetected, setGpsDetected] = useState<DeliveryAddressSnapshot | null>(null)
   const [address, setAddress] = useState<DeliveryAddressSnapshot>(cached?.address || EMPTY_ADDRESS)
+
+  /**
+   * Edicao manual do endereco. Se o cliente mexer em rua, numero, bairro ou CEP
+   * depois de detectar o GPS, a posicao antiga deixa de valer — manter cobraria
+   * o frete do lugar errado, calado. `setAddress` direto so e usado ao aceitar
+   * o endereco do GPS, onde as coordenadas devem ser preservadas.
+   */
+  const updateAddress = useCallback(
+    (patch: (prev: DeliveryAddressSnapshot) => DeliveryAddressSnapshot) =>
+      setAddress((prev) => dropStaleCoords(patch(prev), prev)),
+    [],
+  )
   const [calc, setCalc] = useState<DeliveryCalcSnapshot | null>(cached?.calc || null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -67,7 +79,9 @@ export function DeliveryVerificationModal() {
     try {
       const coords = await requestCurrentPosition()
       const detected = await reverseGeocodeByMapbox(coords.lat, coords.lng)
-      setGpsDetected(detected)
+      // Guarda a posicao real junto do endereco: o Mapbox serve para preencher
+      // rua e bairro na tela, mas quem decide a zona de entrega e o GPS.
+      setGpsDetected({ ...detected, lat: coords.lat, lng: coords.lng })
       setShowCepFallback(false)
     } catch (err: any) {
       setGpsDetected(null)
@@ -89,7 +103,7 @@ export function DeliveryVerificationModal() {
     setErrorMessage(null)
     try {
       const resolved = await fetchAddressByCep(address.zipCode, address)
-      setAddress((prev) => ({
+      updateAddress((prev) => ({
         ...prev,
         zipCode: resolved.zipCode,
         street: resolved.street || prev.street,
@@ -219,7 +233,7 @@ export function DeliveryVerificationModal() {
                     <Input
                       type="text"
                       value={address.zipCode}
-                      onChange={(e) => setAddress((prev) => ({ ...prev, zipCode: formatZipCode(e.target.value) }))}
+                      onChange={(e) => updateAddress((prev) => ({ ...prev, zipCode: formatZipCode(e.target.value) }))}
                       onBlur={handleCepBlur}
                       placeholder="00000-000"
                       maxLength={9}
@@ -234,7 +248,7 @@ export function DeliveryVerificationModal() {
                   <Input
                     type="text"
                     value={address.street}
-                    onChange={(e) => setAddress((prev) => ({ ...prev, street: e.target.value }))}
+                    onChange={(e) => updateAddress((prev) => ({ ...prev, street: e.target.value }))}
                   />
                 </div>
 
@@ -244,7 +258,7 @@ export function DeliveryVerificationModal() {
                     <Input
                       type="text"
                       value={address.number}
-                      onChange={(e) => setAddress((prev) => ({ ...prev, number: e.target.value }))}
+                      onChange={(e) => updateAddress((prev) => ({ ...prev, number: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -252,7 +266,7 @@ export function DeliveryVerificationModal() {
                     <Input
                       type="text"
                       value={address.neighborhood}
-                      onChange={(e) => setAddress((prev) => ({ ...prev, neighborhood: e.target.value }))}
+                      onChange={(e) => updateAddress((prev) => ({ ...prev, neighborhood: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -263,7 +277,7 @@ export function DeliveryVerificationModal() {
                     <Input
                       type="text"
                       value={address.city}
-                      onChange={(e) => setAddress((prev) => ({ ...prev, city: e.target.value }))}
+                      onChange={(e) => updateAddress((prev) => ({ ...prev, city: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -271,7 +285,7 @@ export function DeliveryVerificationModal() {
                     <Input
                       type="text"
                       value={address.state}
-                      onChange={(e) => setAddress((prev) => ({ ...prev, state: e.target.value.slice(0, 2).toUpperCase() }))}
+                      onChange={(e) => updateAddress((prev) => ({ ...prev, state: e.target.value.slice(0, 2).toUpperCase() }))}
                     />
                   </div>
                 </div>

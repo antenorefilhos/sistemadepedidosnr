@@ -128,17 +128,36 @@ export async function forwardGeocodeAddressByMapbox(address: DeliveryAddressSnap
 export async function verifyDeliveryForAddress(address: DeliveryAddressSnapshot): Promise<DeliveryCalcSnapshot> {
   const zipCode = address.zipCode?.trim() || undefined
 
-  if (!MAPBOX_TOKEN) {
-    const res = await deliveryAPI.calculate(zipCode)
-    const { fee, freeAbove, zoneName, zoneId, isFree, outOfArea } = res.data
+  // A API pode omitir outOfArea; normalizamos aqui num unico ponto.
+  const toSnapshot = (data: Omit<DeliveryCalcSnapshot, 'outOfArea'> & { outOfArea?: boolean }) => {
+    const { fee, freeAbove, zoneName, zoneId, isFree, outOfArea } = data
     return { fee, freeAbove, zoneName, zoneId, isFree, outOfArea: Boolean(outOfArea || fee == null || fee === -1) }
   }
 
-  const coords = await forwardGeocodeAddressByMapbox(address)
-  const res = await deliveryAPI.calculate(zipCode, coords.lat, coords.lng)
-  const { fee, freeAbove, zoneName, zoneId, isFree, outOfArea } = res.data
+  // Posicao do proprio aparelho vence: e a unica exata. Geocodificar o endereco
+  // devolveria o centroide da via, que numa rua de divisa cai do lado errado da
+  // zona. Coordenada so chega aqui vinda do GPS, e `dropStaleCoords` a descarta
+  // se o cliente editar o endereco depois.
+  if (address.lat != null && address.lng != null) {
+    const res = await deliveryAPI.calculate(zipCode, address.lat, address.lng)
+    return toSnapshot(res.data)
+  }
 
-  return { fee, freeAbove, zoneName, zoneId, isFree, outOfArea: Boolean(outOfArea || fee == null || fee === -1) }
+  if (!MAPBOX_TOKEN) {
+    const res = await deliveryAPI.calculate(zipCode)
+    return toSnapshot(res.data)
+  }
+
+  try {
+    const coords = await forwardGeocodeAddressByMapbox(address)
+    const res = await deliveryAPI.calculate(zipCode, coords.lat, coords.lng)
+    return toSnapshot(res.data)
+  } catch {
+    // Mapbox fora do ar nao pode impedir a compra: sem coordenada o backend
+    // ainda resolve por faixa de CEP.
+    const res = await deliveryAPI.calculate(zipCode)
+    return toSnapshot(res.data)
+  }
 }
 
 export function saveDeliveryVerification(snapshot: DeliveryVerificationSnapshot) {

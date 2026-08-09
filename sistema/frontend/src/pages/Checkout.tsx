@@ -124,6 +124,9 @@ export default function Checkout() {
       city: saved?.city || '',
       state: saved?.state || '',
       zipCode: saved?.zipCode || '',
+      // Posicao do aparelho, quando houve GPS. Decide a zona por poligono.
+      lat: (saved?.lat ?? null) as number | null,
+      lng: (saved?.lng ?? null) as number | null,
       paymentMethod: 'CASH',
       needsChange: 'NO',
       changeFor: '',
@@ -152,16 +155,25 @@ export default function Checkout() {
     outOfArea: boolean
   } | null>(() => readDeliveryVerification()?.calc ?? null)
 
+  /**
+   * Campos que descrevem ONDE o cliente esta. Editar qualquer um invalida a
+   * posicao vinda do GPS: manter as coordenadas antigas faria o calculo de zona
+   * apontar para o lugar de antes e cobrar o frete errado, sem aviso.
+   * `complement` fica de fora — nao muda a localizacao.
+   */
+  const LOCATION_FIELDS = ['zipCode', 'street', 'number', 'neighborhood', 'city', 'state']
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    
+    const clearCoords = LOCATION_FIELDS.includes(name) ? { lat: null, lng: null } : {}
+
     // Máscara automática de CEP
     if (name === 'zipCode') {
-      setFormData((prev) => ({ ...prev, [name]: formatZipCode(value) }))
+      setFormData((prev) => ({ ...prev, [name]: formatZipCode(value), ...clearCoords }))
       return
     }
-    
-    setFormData((prev) => ({ ...prev, [name]: value }))
+
+    setFormData((prev) => ({ ...prev, [name]: value, ...clearCoords }))
   }
 
   useEffect(() => {
@@ -178,6 +190,10 @@ export default function Checkout() {
         neighborhood: snapshot.address.neighborhood || prev.neighborhood,
         city: snapshot.address.city || prev.city,
         state: snapshot.address.state || prev.state,
+        // Reaproveita a posicao do GPS validada no modal de entrega, para o
+        // checkout nao recair no centroide do endereco.
+        lat: snapshot.address.lat ?? prev.lat ?? null,
+        lng: snapshot.address.lng ?? prev.lng ?? null,
       }))
 
       if (snapshot.calc) {
@@ -337,6 +353,10 @@ export default function Checkout() {
           city: addressToValidate.city,
           state: addressToValidate.state,
           zipCode: addressToValidate.zipCode,
+          // Sem repassar isto, o calculo cairia no centroide do endereco e a
+          // zona por poligono erraria quem mora perto da divisa.
+          lat: formData.lat,
+          lng: formData.lng,
         })
         setDeliveryCalc(calc)
 

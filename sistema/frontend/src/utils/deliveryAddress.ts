@@ -9,6 +9,39 @@ export interface DeliveryAddressSnapshot {
   city: string
   state: string
   zipCode: string
+  /**
+   * Posicao exata do aparelho, quando o cliente usou a localizacao automatica.
+   *
+   * Existe para o teste de zona por poligono: sem ela o calculo do frete usa o
+   * centroide do endereco geocodificado, o que em rua de divisa joga o cliente
+   * para o lado errado da zona. So e preenchida pelo GPS — endereco digitado
+   * nao tem posicao confiavel.
+   */
+  lat?: number | null
+  lng?: number | null
+}
+
+/**
+ * Campos que, se o cliente editar, invalidam a posicao do GPS.
+ *
+ * Detectar a localizacao e depois corrigir a rua na mao e comum; manter as
+ * coordenadas antigas cobraria o frete do lugar errado, calado.
+ */
+const ADDRESS_IDENTITY_FIELDS = ['street', 'number', 'neighborhood', 'city', 'state', 'zipCode'] as const
+
+/** Descarta lat/lng quando qualquer campo de identidade do endereco mudou. */
+export const dropStaleCoords = (
+  next: DeliveryAddressSnapshot,
+  previous?: DeliveryAddressSnapshot | null,
+): DeliveryAddressSnapshot => {
+  if (next.lat == null || next.lng == null) return next
+  if (!previous) return next
+
+  const changed = ADDRESS_IDENTITY_FIELDS.some(
+    (field) => String(next[field] ?? '').trim() !== String(previous[field] ?? '').trim(),
+  )
+
+  return changed ? { ...next, lat: null, lng: null } : next
 }
 
 const isNonEmptyString = (value: unknown): value is string =>

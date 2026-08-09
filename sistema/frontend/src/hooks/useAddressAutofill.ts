@@ -13,6 +13,13 @@ export type AddressFields = {
   neighborhood: string
   city: string
   state: string
+  /**
+   * Posicao do aparelho, preenchida so pelo GPS. E o que permite a zona por
+   * poligono acertar quem mora em rua de divisa. Qualquer alteracao posterior
+   * do endereco a invalida.
+   */
+  lat?: number | null
+  lng?: number | null
 }
 
 export type LocationStatus = 'idle' | 'gps-success' | 'gps-fallback'
@@ -72,6 +79,10 @@ export function useAddressAutofill<T extends AddressFields>({
           neighborhood: found.neighborhood || prev.neighborhood,
           city: found.city || prev.city,
           state: found.state || prev.state,
+          // Endereco veio do CEP, nao do aparelho: qualquer posicao anterior
+          // deixa de corresponder e nao pode decidir a zona.
+          lat: null,
+          lng: null,
         }))
       } catch {
         // CEP invalido ou servico fora do ar: mantem o que o cliente digitou.
@@ -105,6 +116,11 @@ export function useAddressAutofill<T extends AddressFields>({
         neighborhood: normalized.neighborhood || prev.neighborhood,
         city: normalized.city || prev.city,
         state: normalized.state || prev.state,
+        // Posicao exata do aparelho: e ela que decide a zona por poligono.
+        // Geocodificar o endereco de volta daria o centroide da via, que numa
+        // rua de divisa cai do lado errado. Ver deliveryVerification.
+        lat: position.lat,
+        lng: position.lng,
       }))
       setLocationStatus('gps-success')
     } catch {
