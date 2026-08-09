@@ -1,0 +1,15 @@
+# Fotos de produto: milhares de imagens de catalogo, sem valor semantico para o
+# grafo e caras de extrair (cada imagem vira um subagente de visao).
+backend/uploads/
+backend/uploads_staging/
+
+# Ativos de marca estaticos: logo, icone de PWA, placeholder. Nao carregam
+# informacao sobre o sistema e cada imagem custa um subagente de visao.
+**/public/branding/
+backend/uploads/branding/
+**/placeholder-product*.svg
+
+# Logs de build — ruido transitorio.
+build_err.txt
+build_out.txt
+build_output.txt

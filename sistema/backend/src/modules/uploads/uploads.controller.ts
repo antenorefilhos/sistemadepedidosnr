@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import sharp from 'sharp';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -21,6 +22,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
+// Rotas de upload sao admin-only e podem ser chamadas em lote (import de fotos,
+// edicao em massa de catalogo). Sem isso, o guard global aplica TODOS os buckets
+// nomeados de throttle (inclusive 'auth': 20 req/min), nao so o 'default' -- o que
+// bloqueava qualquer upload em lote apos ~20 arquivos mesmo estando bem abaixo do
+// limite geral de 600/min.
+@SkipThrottle({ auth: true, checkout: true, webhook: true })
 @Controller('uploads')
 export class UploadsController {
   @Post()

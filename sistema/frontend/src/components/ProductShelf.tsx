@@ -72,7 +72,7 @@ export function ProductShelf({
         </div>
         <Link
           to={to}
-          className="-my-3.5 flex shrink-0 items-center gap-0.5 py-3.5 text-xs font-semibold text-[#5D082A] hover:underline"
+          className="relative z-10 -my-3.5 flex shrink-0 items-center gap-0.5 py-3.5 text-xs font-semibold text-[#5D082A] hover:underline"
         >
           {linkLabel}
           {isCarousel && <ArrowRight size={13} />}

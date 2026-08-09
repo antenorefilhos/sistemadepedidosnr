@@ -47,6 +47,25 @@ herda TODOS eles — ou seja, fica limitada ao mais apertado (20 req/min do buck
 `auth`), silenciosamente. Foi o que quebrou o upload em massa de fotos.
 Rotas de carga precisam de `@SkipThrottle({ auth: true, checkout: true, webhook: true })`.
 
+## Checkout: o preco e recalculado, nunca carregado
+
+`PricingService.quote()` roda **tres vezes** num unico checkout:
+
+1. `CheckoutService.buildQuote()` — o total que o cliente ve na tela
+2. `CheckoutService.confirmSession()` — de novo, ao confirmar
+3. `OrdersService.create()` — de novo, ao gravar o pedido
+
+O total exibido **nunca e passado adiante**; o pedido usa o valor recalculado no
+passo 3. Se o preco mudar entre a tela e a confirmacao — promocao expirando, ou um
+sync do ERP sobrescrevendo `promotionalPrice` no meio do checkout — o cliente e
+cobrado diferente do que viu, sem aviso.
+
+Nao e bug comprovado, e uma janela de risco. `priceSnapshot()` ja guarda o que
+seria preciso para comparar e bloquear a confirmacao em vez de cobrar calado.
+
+`buildQuote` tambem chama o pricing duas vezes de proposito quando o frete gratis
+muda a taxa: o subtotal define o frete e o frete entra no total.
+
 ## Realidade do estoque
 
 ~82% do catálogo Solidcom tem estoque zero. Vitrine vazia geralmente é dado real,
