@@ -37,9 +37,48 @@ const EMPTY_SLOT_FORM = {
 }
 
 const DEFAULT_CENTER: [number, number] = [-22.313628, -43.130604]
-const TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
-const TILE_ATTRIBUTION =
+const ESRI_ATTRIBUTION =
   'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, FAO, USGS, OpenStreetMap contributors'
+const CARTO_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+
+/**
+ * Mapas base disponiveis no seletor. Todos gratuitos e sem chave de API.
+ *
+ * "Satelite" e o mais util para desenhar zona de entrega: da para ver quarteirao,
+ * condominio e barreira fisica (rio, morro) que o mapa de ruas nao mostra. Como
+ * imagem de satelite nao tem nome de rua, ele vem com uma camada de rotulos por
+ * cima. "Claro" deixa o poligono colorido saltar, bom para conferir cobertura.
+ */
+const BASEMAPS: Record<string, { label: string; url: string; attribution: string; labelsOverlay?: string }> = {
+  ruas: {
+    label: 'Ruas',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: ESRI_ATTRIBUTION,
+  },
+  satelite: {
+    label: 'Satelite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: ESRI_ATTRIBUTION,
+    labelsOverlay:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+  },
+  claro: {
+    label: 'Claro',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: CARTO_ATTRIBUTION,
+  },
+  escuro: {
+    label: 'Escuro',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: CARTO_ATTRIBUTION,
+  },
+}
+
+const BASEMAP_STORAGE_KEY = 'antenor.deliveryZones.basemap'
+
+/** Cores das zonas ja cadastradas exibidas como referencia (nao editaveis). */
+const REFERENCE_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2']
 
 const SLOTS_PER_PAGE = 10
 
@@ -143,6 +182,8 @@ export default function DeliveryZones() {
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<L.Map | null>(null)
+  /** Zonas ja cadastradas desenhadas como referencia (nao editaveis). */
+  const referenceGroupRef = useRef<L.FeatureGroup | null>(null)
   const drawnItemsRef = useRef<L.FeatureGroup | null>(null)
 
   const { data: zones = [], isLoading } = useQuery({
@@ -538,9 +579,43 @@ export default function DeliveryZones() {
     const map = L.map(mapContainerRef.current).setView(DEFAULT_CENTER, 12)
     mapRef.current = map
 
-    L.tileLayer(TILE_URL, {
-      attribution: TILE_ATTRIBUTION,
-    }).addTo(map)
+    // Rotulos do satelite entram como camada propria: imagem de satelite sozinha
+    // nao tem nome de rua, e desenhar zona sem referencia de rua e inviavel.
+    const labelsLayer = L.tileLayer(BASEMAPS.satelite.labelsOverlay as string, {
+      attribution: ESRI_ATTRIBUTION,
+      pane: 'shadowPane',
+    })
+
+    const baseLayers: Record<string, L.TileLayer> = {}
+    for (const [key, config] of Object.entries(BASEMAPS)) {
+      baseLayers[config.label] = L.tileLayer(config.url, { attribution: config.attribution })
+      baseLayers[config.label].on('add', () => {
+        try {
+          window.localStorage.setItem(BASEMAP_STORAGE_KEY, key)
+        } catch {
+          /* modo privado bloqueia storage; a escolha so nao persiste */
+        }
+        if (BASEMAPS[key].labelsOverlay) labelsLayer.addTo(map)
+        else map.removeLayer(labelsLayer)
+      })
+    }
+
+    let saved: string | null = null
+    try {
+      saved = window.localStorage.getItem(BASEMAP_STORAGE_KEY)
+    } catch {
+      /* idem */
+    }
+    const initial = saved && BASEMAPS[saved] ? saved : 'ruas'
+    baseLayers[BASEMAPS[initial].label].addTo(map)
+
+    const referenceGroup = new L.FeatureGroup()
+    referenceGroupRef.current = referenceGroup
+    map.addLayer(referenceGroup)
+
+    L.control
+      .layers(baseLayers, { 'Zonas ja cadastradas': referenceGroup }, { position: 'topright', collapsed: false })
+      .addTo(map)
 
     const drawnItems = new L.FeatureGroup()
     drawnItemsRef.current = drawnItems
@@ -600,8 +675,57 @@ export default function DeliveryZones() {
       map.remove()
       mapRef.current = null
       drawnItemsRef.current = null
+      referenceGroupRef.current = null
     }
   }, [editing, form.type])
+
+  /**
+   * Desenha as OUTRAS zonas poligonais como referencia — o pedido central: sem
+   * ver o que ja esta coberto, nao da para saber onde falta nem evitar
+   * sobreposicao. Nao entram no grupo editavel do leaflet-draw, entao nao ha
+   * risco de arrastar a zona errada sem perceber.
+   */
+  useEffect(() => {
+    const group = referenceGroupRef.current
+    if (!group) return
+
+    group.clearLayers()
+
+    const others = zones.filter(
+      (zone) => zone.id !== editing && zone.type === 'GEO_POLYGON' && zone.polygonGeoJSON,
+    )
+
+    others.forEach((zone, index) => {
+      const points = parsePolygonGeoJSON(zone.polygonGeoJSON)
+      if (points.length < 3) return
+
+      const color = REFERENCE_COLORS[index % REFERENCE_COLORS.length]
+      L.polygon(points, {
+        color,
+        weight: 2,
+        opacity: zone.active ? 0.9 : 0.4,
+        fillColor: color,
+        fillOpacity: zone.active ? 0.12 : 0.05,
+        dashArray: zone.active ? undefined : '5,5',
+        interactive: false,
+      })
+        .bindTooltip(`${zone.name} — ${formatFee(zone.fee)}${zone.active ? '' : ' (inativa)'}`, {
+          sticky: true,
+          direction: 'center',
+          className: 'font-medium',
+        })
+        .addTo(group)
+    })
+
+    // Zona nova ainda sem desenho: enquadra no que ja existe, senao o mapa abre
+    // numa area vazia e o operador perde tempo se localizando.
+    const map = mapRef.current
+    const hasOwnPolygon = parsePolygonGeoJSON(form.polygonGeoJSON).length > 2
+    if (map && !hasOwnPolygon && others.length) {
+      const bounds = group.getBounds()
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] })
+    }
+  }, [zones, editing, form.type, form.polygonGeoJSON])
 
   const polygonPreview = useMemo(() => parsePolygonGeoJSON(form.polygonGeoJSON), [form.polygonGeoJSON])
 
@@ -620,8 +744,12 @@ export default function DeliveryZones() {
 
   const thresholdDirty = freeShippingThreshold !== originalThreshold
 
+  const drawingPolygon = editing !== null && form.type === 'GEO_POLYGON'
+
   return (
-    <div className="p-6 max-w-5xl">
+    // Desenhando poligono a tela usa toda a largura: mapa estreito obriga a
+    // arrastar o tempo todo e atrapalha o tracado.
+    <div className={`p-4 sm:p-6 ${drawingPolygon ? 'max-w-none' : 'max-w-5xl'}`}>
       {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
 
       <div className="flex items-center gap-3 mb-4">
@@ -903,8 +1031,19 @@ export default function DeliveryZones() {
                 {form.type === 'GEO_POLYGON' && (
                   <div className="sm:col-span-2">
                     <Label className="mb-1 block text-xs text-gray-600">Poligono no mapa</Label>
-                    <div ref={mapContainerRef} className="h-72 rounded-lg overflow-hidden border border-gray-300" />
-                    <p className="text-xs text-gray-400 mt-1">Desenhe um poligono cobrindo a area de entrega.</p>
+                    {/* Desenhar zona exige ver quarteirao: 288px nao davam. Usa a
+                        altura da janela, com piso para telas baixas. */}
+                    {/* No celular o mapa sangra ate a borda do card: tres niveis de
+                        padding empilhados deixavam so ~247px de largura util. */}
+                    <div
+                      ref={mapContainerRef}
+                      className="h-[clamp(420px,68vh,760px)] -mx-5 sm:mx-0 overflow-hidden border-y sm:border sm:rounded-lg border-gray-300"
+                    />
+                    <p className="text-xs text-gray-500 mt-1.5">
+                      Desenhe um poligono cobrindo a area de entrega. As zonas ja cadastradas aparecem
+                      em cores mais claras — passe o mouse para ver nome e taxa. Troque o mapa base no
+                      canto superior direito (o satelite ajuda a enxergar quarteirao e barreira fisica).
+                    </p>
                   </div>
                 )}
 
