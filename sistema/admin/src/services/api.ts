@@ -1442,8 +1442,10 @@ export interface DeliveryZone {
   cepStart: string | null
   cepEnd: string | null
   polygonGeoJSON: string | null
-  fee: number
-  freeAbove: number | null
+  // Decimal do Prisma chega como string no JSON; declarar `number` fazia o
+  // toLocaleString silenciosamente ignorar a formatacao de moeda.
+  fee: number | string
+  freeAbove: number | string | null
   active: boolean
   priority: number
   createdAt: string

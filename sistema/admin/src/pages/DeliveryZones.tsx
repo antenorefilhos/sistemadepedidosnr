@@ -48,10 +48,18 @@ function maskCep(value: string) {
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d
 }
 
-function formatFee(value: number) {
-  return value === 0
+/**
+ * A API devolve valores monetarios como string (Decimal do Prisma), mas o tipo
+ * declarava `number` — e `String.prototype.toLocaleString` ignora as opcoes de
+ * moeda em silencio, entao a taxa aparecia como "150" e "8.9" em vez de
+ * "R$ 150,00" e "R$ 8,90". Coagimos aqui para nao depender da anotacao.
+ */
+function formatFee(value: number | string | null | undefined) {
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return '—'
+  return amount === 0
     ? 'Gratis'
-    : value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    : amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function formatWindow(value: string) {
@@ -158,6 +166,49 @@ export default function DeliveryZones() {
     },
   })
 
+  /**
+   * Areas de fulfillment sao um segundo sistema de cobertura que roda ANTES das
+   * zonas em `DeliveryService.calculate()`: se uma area casar com o endereco, ela
+   * vence e as zonas desta tela nem sao consultadas. Enquanto nao houver area
+   * cadastrada nada muda — mas a sobreposicao precisa ser visivel, senao a taxa
+   * cobrada deixa de ser a que esta aqui e ninguem entende por que.
+   */
+  const { data: areas = [] } = useQuery({
+    queryKey: ['fulfillment-areas-overlap'],
+    queryFn: async () => (await fulfillmentAPI.listAreas()).data,
+  })
+
+  /**
+   * A loja so consegue fechar pedido com DUAS coisas ao mesmo tempo: uma zona
+   * ativa que cubra o endereco e uma janela de entrega futura com vaga. Faltando
+   * qualquer uma, o checkout trava — e antes disso a tela nao dava nenhum sinal.
+   */
+  const readiness = useMemo(() => {
+    const activeZones = zones.filter((zone) => zone.active)
+    const now = Date.now()
+    const upcomingSlots = slots.filter((slot) => {
+      const starts = new Date(slot.startsAt).getTime()
+      const available = slot.availableOrders ?? null
+      return starts > now && (available === null || available > 0)
+    })
+
+    const blockers: string[] = []
+    if (!activeZones.length) blockers.push('Nenhuma zona ativa: nenhum endereco sera aceito no checkout.')
+    if (!upcomingSlots.length) blockers.push('Nenhuma janela de entrega futura com vaga: o cliente nao consegue concluir o pedido.')
+
+    const warnings: string[] = []
+    const incomplete = activeZones.filter((zone) =>
+      zone.type === 'CEP_RANGE' ? !(zone.cepStart && zone.cepEnd) : !zone.polygonGeoJSON,
+    )
+    if (incomplete.length) {
+      warnings.push(
+        `${incomplete.length} zona(s) ativa(s) sem area definida (${incomplete.map((z) => z.name).join(', ')}) — nunca vao casar com nenhum endereco.`,
+      )
+    }
+
+    return { blockers, warnings, activeZones: activeZones.length, upcomingSlots: upcomingSlots.length }
+  }, [zones, slots])
+
   const createMut = useMutation({
     mutationFn: (data: DeliveryZonePayload) => deliveryAPI.createZone(data),
     onSuccess: () => {
@@ -260,8 +311,10 @@ export default function DeliveryZones() {
       cepStart: zone.cepStart ?? '',
       cepEnd: zone.cepEnd ?? '',
       polygonGeoJSON: zone.polygonGeoJSON ?? null,
-      fee: zone.fee,
-      freeAbove: zone.freeAbove,
+      // A API devolve Decimal como string; sem coagir, o campo de taxa recebia
+      // "150.00" e o formulario passava a operar com texto.
+      fee: Number(zone.fee),
+      freeAbove: zone.freeAbove == null ? null : Number(zone.freeAbove),
       active: zone.active,
       priority: zone.priority,
     })
@@ -308,8 +361,18 @@ export default function DeliveryZones() {
         : Number(rawFreeAbove)
     const priorityValue = Number(form.priority ?? 0)
 
-    if (!form.name?.trim()) {
+    const name = form.name?.trim() || ''
+    if (!name) {
       setError('Nome obrigatorio')
+      return
+    }
+    // Nomes como "Pe" ou "110" nao dizem nada na hora de auditar um frete cobrado.
+    if (name.length < 3) {
+      setError('Use um nome que identifique a regiao (ex.: "Centro", "Pedro do Rio")')
+      return
+    }
+    if (/^\d+$/.test(name)) {
+      setError('O nome nao pode ser so numeros — use o nome da regiao atendida')
       return
     }
     if (!Number.isFinite(feeValue) || feeValue < 0) {
@@ -337,11 +400,19 @@ export default function DeliveryZones() {
       return
     }
 
+    // Grava sempre no mesmo formato. A base tinha "25750-222" e "20000000"
+    // convivendo; o backend compara por numero, mas a lista fica ilegivel e
+    // qualquer busca textual falha.
+    const normalizeCep = (value: string | null | undefined) => {
+      const digits = (value || '').replace(/\D/g, '')
+      return digits.length === 8 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : undefined
+    }
+
     const payload: DeliveryZonePayload = {
-      name: form.name.trim(),
+      name,
       type: form.type,
-      cepStart: form.type === 'CEP_RANGE' ? (form.cepStart || undefined) : undefined,
-      cepEnd: form.type === 'CEP_RANGE' ? (form.cepEnd || undefined) : undefined,
+      cepStart: form.type === 'CEP_RANGE' ? normalizeCep(form.cepStart) : undefined,
+      cepEnd: form.type === 'CEP_RANGE' ? normalizeCep(form.cepEnd) : undefined,
       polygonGeoJSON: form.type === 'GEO_POLYGON' ? (form.polygonGeoJSON || null) : null,
       fee: feeValue,
       freeAbove: freeAboveValue,
@@ -557,6 +628,87 @@ export default function DeliveryZones() {
         <Truck className="text-[#5D082A]" size={24} />
         <h1 className="text-2xl font-bold text-gray-800">Taxas de Entrega</h1>
       </div>
+
+      {/* Prontidao: a tela nao pode parecer saudavel com a loja incapaz de vender. */}
+      {!isLoading && !slotsLoading && (
+        <div
+          className={`mb-6 rounded-lg border px-5 py-4 ${
+            readiness.blockers.length
+              ? 'border-red-300 bg-red-50'
+              : readiness.warnings.length
+              ? 'border-amber-300 bg-amber-50'
+              : 'border-emerald-300 bg-emerald-50'
+          }`}
+          role={readiness.blockers.length ? 'alert' : undefined}
+        >
+          <div className="flex items-start gap-3">
+            {readiness.blockers.length ? (
+              <AlertTriangle size={20} className="text-red-700 shrink-0 mt-0.5" />
+            ) : (
+              <CheckCircle2
+                size={20}
+                className={`shrink-0 mt-0.5 ${readiness.warnings.length ? 'text-amber-700' : 'text-emerald-700'}`}
+              />
+            )}
+            <div className="min-w-0">
+              <p
+                className={`font-semibold ${
+                  readiness.blockers.length
+                    ? 'text-red-800'
+                    : readiness.warnings.length
+                    ? 'text-amber-800'
+                    : 'text-emerald-800'
+                }`}
+              >
+                {readiness.blockers.length
+                  ? 'A loja nao consegue receber pedidos agora'
+                  : readiness.warnings.length
+                  ? 'A loja esta recebendo pedidos, com ressalvas'
+                  : 'A loja esta pronta para receber pedidos'}
+              </p>
+
+              {readiness.blockers.map((item) => (
+                <p key={item} className="text-sm text-red-700 mt-1">
+                  {item}
+                </p>
+              ))}
+              {readiness.warnings.map((item) => (
+                <p key={item} className="text-sm text-amber-700 mt-1">
+                  {item}
+                </p>
+              ))}
+
+              <p className="text-xs text-gray-600 mt-2">
+                {readiness.activeZones} zona(s) ativa(s) · {readiness.upcomingSlots} janela(s) futura(s) com vaga
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Areas de fulfillment tem precedencia sobre estas zonas — precisa ser explicito. */}
+      {areas.filter((area) => area.status === 'ACTIVE').length > 0 && (
+        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={20} className="text-amber-700 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="font-semibold text-amber-800">
+                {areas.filter((area) => area.status === 'ACTIVE').length} area(s) de fulfillment tem prioridade sobre estas zonas
+              </p>
+              <p className="text-sm text-amber-700 mt-1">
+                O calculo do frete consulta as areas primeiro. Onde uma area cobrir o endereco do cliente,
+                a taxa cobrada sera a dela — nao a configurada aqui.
+              </p>
+              <p className="text-xs text-amber-700 mt-2">
+                {areas
+                  .filter((area) => area.status === 'ACTIVE')
+                  .map((area) => `${area.name} (${formatFee(area.fee)})`)
+                  .join(' · ')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6">
@@ -838,7 +990,9 @@ export default function DeliveryZones() {
                         : 'Poligono nao definido'}
                       {' · '}
                       <span className="font-semibold text-[#5D082A]">{formatFee(zone.fee)}</span>
-                      {zone.freeAbove != null && <span className="text-gray-400 ml-1">(gratis acima de {Number(zone.freeAbove).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</span>}
+                      {zone.freeAbove != null && (
+                        <span className="text-gray-500">{' · gratis acima de '}{formatFee(zone.freeAbove)}</span>
+                      )}
                     </p>
                   </div>
 
