@@ -14,6 +14,58 @@ import 'leaflet-draw/dist/leaflet.draw.css'
 import 'leaflet-draw'
 import './delivery-zones-map.css'
 
+const AREA_PRECISION: Record<string, number> = { km: 2, ha: 2, m: 0, mi: 2, ac: 2, yd: 0, ft: 0, nm: 2 }
+
+/**
+ * Corrige um bug do leaflet-draw 1.0.4 (versao fixada aqui).
+ *
+ * `L.GeometryUtil.readableArea` faz `type = typeof isMetric` sem declarar
+ * `type`. Em script solto isso criaria uma global silenciosa; modulo ES roda
+ * sempre em strict mode e lanca `ReferenceError: type is not defined`, matando
+ * o handler de desenho no primeiro mousemove. Na pratica o retangulo congelava
+ * num ponto, e so dava para ajustar entrando em "Editar area" e separando os
+ * vertices empilhados um a um.
+ *
+ * Atingia so o retangulo: e o unico com `showArea: true` por padrao — o
+ * poligono vem `false` e o circulo usa `readableDistance`. Passar
+ * `showArea: false` mascararia este caso e deixaria a funcao quebrada para
+ * qualquer outro caminho, entao a correcao vai na origem.
+ *
+ * Precisa ser chamada de dentro de codigo que executa (o efeito do mapa): como
+ * bloco solto no topo do modulo, o bundler descarta por parecer sem efeito.
+ */
+function fixLeafletDrawReadableArea() {
+  const geometryUtil = (L as any).GeometryUtil
+  if (!geometryUtil?.readableArea || geometryUtil.__readableAreaFixed) return
+
+  geometryUtil.readableArea = function (
+    area: number,
+    isMetric: boolean | string | string[],
+    precision?: Record<string, number>,
+  ) {
+    const digits = { ...AREA_PRECISION, ...(precision || {}) }
+    const format = (value: number, casas: number) => geometryUtil.formattedNumber(value, casas)
+
+    if (isMetric) {
+      let units = ['ha', 'm']
+      const type = typeof isMetric
+      if (type === 'string') units = [isMetric as string]
+      else if (type !== 'boolean') units = isMetric as string[]
+
+      if (area >= 1000000 && units.indexOf('km') !== -1) return `${format(area * 0.000001, digits.km)} km²`
+      if (area >= 10000 && units.indexOf('ha') !== -1) return `${format(area * 0.0001, digits.ha)} ha`
+      return `${format(area, digits.m)} m²`
+    }
+
+    const squareYards = area / 0.836127
+    if (squareYards >= 3097600) return `${format(squareYards / 3097600, digits.mi)} mi²`
+    if (squareYards >= 4840) return `${format(squareYards / 4840, digits.ac)} acres`
+    return `${format(squareYards, digits.yd)} yd²`
+  }
+
+  geometryUtil.__readableAreaFixed = true
+}
+
 type Tab = 'zones' | 'slots' | 'rules'
 
 const EMPTY_FORM: DeliveryZonePayload = {
@@ -677,6 +729,8 @@ export default function DeliveryZones() {
       EDITED: DrawEvent.EDITED,
       DELETED: DrawEvent.DELETED,
     }
+
+    fixLeafletDrawReadableArea()
 
     // leaflet-draw so fala ingles por padrao; quem usa isso e a operacao da loja.
     const drawLocal = (L as any).drawLocal
