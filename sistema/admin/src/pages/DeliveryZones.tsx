@@ -12,6 +12,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
 import 'leaflet-draw'
+import './delivery-zones-map.css'
 
 type Tab = 'zones' | 'slots' | 'rules'
 
@@ -79,6 +80,45 @@ const BASEMAP_STORAGE_KEY = 'antenor.deliveryZones.basemap'
 
 /** Cores das zonas ja cadastradas exibidas como referencia (nao editaveis). */
 const REFERENCE_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2']
+
+const EARTH_RADIUS_M = 6378137
+
+/**
+ * O rotulo da zona vai para dentro de um L.divIcon, que recebe HTML cru. O nome
+ * e digitado pelo operador, entao precisa ser escapado — senao vira XSS
+ * armazenado no admin.
+ */
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * Converte um circulo desenhado no mapa em poligono.
+ *
+ * O backend so entende GeoJSON `Polygon` (ver `parsePolygonFeature` no
+ * DeliveryService). O `toGeoJSON()` de um L.Circle devolve um `Point` com a
+ * propriedade `radius` — que seria aceito no cadastro e depois NUNCA casaria com
+ * endereco nenhum, sem erro visivel. Por isso o raio vira poligono aqui, no
+ * momento do desenho: o que trafega e persiste e sempre um poligono comum.
+ */
+function circleToPolygonLatLngs(center: L.LatLng, radiusMeters: number, segments = 64): Array<[number, number]> {
+  const latRad = (center.lat * Math.PI) / 180
+  const dLat = ((radiusMeters / EARTH_RADIUS_M) * 180) / Math.PI
+  const dLng = ((radiusMeters / (EARTH_RADIUS_M * Math.cos(latRad))) * 180) / Math.PI
+
+  const points: Array<[number, number]> = []
+  for (let i = 0; i < segments; i++) {
+    const theta = (i / segments) * 2 * Math.PI
+    points.push([center.lat + dLat * Math.sin(theta), center.lng + dLng * Math.cos(theta)])
+  }
+  points.push(points[0]) // anel fechado, exigido pelo GeoJSON
+  return points
+}
 
 const SLOTS_PER_PAGE = 10
 
@@ -184,6 +224,10 @@ export default function DeliveryZones() {
   const mapRef = useRef<L.Map | null>(null)
   /** Zonas ja cadastradas desenhadas como referencia (nao editaveis). */
   const referenceGroupRef = useRef<L.FeatureGroup | null>(null)
+  const [addressQuery, setAddressQuery] = useState('')
+  const [addressResults, setAddressResults] = useState<Array<{ label: string; lat: number; lon: number }>>([])
+  const [addressSearching, setAddressSearching] = useState(false)
+  const [addressError, setAddressError] = useState<string | null>(null)
   const drawnItemsRef = useRef<L.FeatureGroup | null>(null)
 
   const { data: zones = [], isLoading } = useQuery({
@@ -634,12 +678,55 @@ export default function DeliveryZones() {
       DELETED: DrawEvent.DELETED,
     }
 
+    // leaflet-draw so fala ingles por padrao; quem usa isso e a operacao da loja.
+    const drawLocal = (L as any).drawLocal
+    if (drawLocal) {
+      drawLocal.draw.toolbar.actions = { title: 'Cancelar desenho', text: 'Cancelar' }
+      drawLocal.draw.toolbar.finish = { title: 'Concluir desenho', text: 'Concluir' }
+      drawLocal.draw.toolbar.undo = { title: 'Apagar ultimo ponto', text: 'Apagar ultimo ponto' }
+      drawLocal.draw.toolbar.buttons = {
+        polygon: 'Desenhar area livre',
+        rectangle: 'Desenhar area retangular',
+        circle: 'Desenhar raio a partir de um ponto',
+      }
+      drawLocal.draw.handlers.polygon = {
+        tooltip: {
+          start: 'Clique para comecar a area.',
+          cont: 'Clique para continuar a area.',
+          end: 'Clique no primeiro ponto para fechar.',
+        },
+      }
+      drawLocal.draw.handlers.rectangle = { tooltip: { start: 'Arraste para desenhar o retangulo.' } }
+      drawLocal.draw.handlers.circle = {
+        tooltip: { start: 'Clique no centro e arraste para definir o raio.' },
+        radius: 'Raio',
+      }
+      drawLocal.draw.handlers.simpleshape = { tooltip: { end: 'Solte o mouse para concluir.' } }
+      drawLocal.edit.toolbar.actions = {
+        save: { title: 'Salvar alteracoes', text: 'Salvar' },
+        cancel: { title: 'Descartar alteracoes', text: 'Cancelar' },
+        clearAll: { title: 'Limpar tudo', text: 'Limpar tudo' },
+      }
+      drawLocal.edit.toolbar.buttons = {
+        edit: 'Editar area',
+        editDisabled: 'Nenhuma area para editar',
+        remove: 'Apagar area',
+        removeDisabled: 'Nenhuma area para apagar',
+      }
+      drawLocal.edit.handlers.edit = {
+        tooltip: { text: 'Arraste os pontos para ajustar a area.', subtext: 'Cancelar desfaz as alteracoes.' },
+      }
+      drawLocal.edit.handlers.remove = { tooltip: { text: 'Clique na area para apaga-la.' } }
+    }
+
     const drawControl = new DrawControl({
       draw: {
         polygon: true,
+        // Raio a partir da loja: cobertura inicial sai muito mais rapido que
+        // tracar poligono a mao. Vira poligono no onCreated (ver abaixo).
+        circle: { metric: true, showRadius: true },
+        rectangle: true,
         polyline: false,
-        rectangle: false,
-        circle: false,
         circlemarker: false,
         marker: false,
       },
@@ -652,8 +739,16 @@ export default function DeliveryZones() {
 
     const onCreated = (e: any) => {
       drawnItems.clearLayers()
-      drawnItems.addLayer(e.layer)
-      setForm((p) => ({ ...p, polygonGeoJSON: JSON.stringify(e.layer.toGeoJSON()) }))
+
+      // Circulo e retangulo viram poligono antes de qualquer coisa: e o unico
+      // formato que o backend sabe casar com um endereco.
+      const layer =
+        e.layer instanceof L.Circle
+          ? L.polygon(circleToPolygonLatLngs(e.layer.getLatLng(), e.layer.getRadius()))
+          : e.layer
+
+      drawnItems.addLayer(layer)
+      setForm((p) => ({ ...p, polygonGeoJSON: JSON.stringify(layer.toGeoJSON()) }))
     }
     const onEdited = (e: any) => {
       let edited: any = null
@@ -709,12 +804,20 @@ export default function DeliveryZones() {
         dashArray: zone.active ? undefined : '5,5',
         interactive: false,
       })
-        .bindTooltip(`${zone.name} — ${formatFee(zone.fee)}${zone.active ? '' : ' (inativa)'}`, {
-          sticky: true,
-          direction: 'center',
-          className: 'font-medium',
-        })
         .addTo(group)
+
+      // Rotulo fixo no centro: no hover so da para ler uma zona por vez, e a
+      // pergunta ("o que ja esta coberto e por quanto?") precisa ser respondida
+      // de relance, com o mapa inteiro a vista.
+      L.marker(L.polygon(points).getBounds().getCenter(), {
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: 'zone-label',
+          html: `<span style="border-color:${color};color:${color}">${escapeHtml(zone.name)}<b>${formatFee(zone.fee)}</b>${zone.active ? '' : '<i>inativa</i>'}</span>`,
+          iconSize: [0, 0],
+        }),
+      }).addTo(group)
     })
 
     // Zona nova ainda sem desenho: enquadra no que ja existe, senao o mapa abre
@@ -743,6 +846,47 @@ export default function DeliveryZones() {
   }, [polygonPreview])
 
   const thresholdDirty = freeShippingThreshold !== originalThreshold
+
+  /**
+   * Busca de endereco para levar o mapa ate a regiao, via Nominatim (OSM).
+   *
+   * Gratuito e sem chave, mas a politica de uso proibe autocomplete a cada tecla
+   * — por isso a busca so dispara no submit. Nao guarda nem envia dado de
+   * cliente: e so o texto que o operador digitou para navegar o mapa.
+   */
+  const searchAddress = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const query = addressQuery.trim()
+    if (query.length < 3) return
+
+    setAddressSearching(true)
+    setAddressError(null)
+    try {
+      const params = new URLSearchParams({
+        format: 'json',
+        q: query,
+        limit: '5',
+        countrycodes: 'br',
+        'accept-language': 'pt-BR',
+      })
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`)
+      if (!response.ok) throw new Error(String(response.status))
+
+      const found = (await response.json()) as Array<{ display_name: string; lat: string; lon: string }>
+      setAddressResults(found.map((item) => ({ label: item.display_name, lat: Number(item.lat), lon: Number(item.lon) })))
+      if (!found.length) setAddressError('Nenhum endereco encontrado.')
+    } catch {
+      setAddressError('Nao foi possivel buscar agora. Verifique a conexao e tente de novo.')
+      setAddressResults([])
+    } finally {
+      setAddressSearching(false)
+    }
+  }
+
+  const goToAddress = (lat: number, lon: number) => {
+    mapRef.current?.setView([lat, lon], 16)
+    setAddressResults([])
+  }
 
   const drawingPolygon = editing !== null && form.type === 'GEO_POLYGON'
 
@@ -1033,6 +1177,40 @@ export default function DeliveryZones() {
                     <Label className="mb-1 block text-xs text-gray-600">Poligono no mapa</Label>
                     {/* Desenhar zona exige ver quarteirao: 288px nao davam. Usa a
                         altura da janela, com piso para telas baixas. */}
+                    {/* Levar o mapa ate o bairro digitando, em vez de arrastar. */}
+                    <div className="mb-2">
+                      <form onSubmit={searchAddress} className="flex gap-2">
+                        <Input
+                          value={addressQuery}
+                          onChange={(e) => setAddressQuery(e.target.value)}
+                          placeholder="Ir para endereco, bairro ou cidade"
+                          aria-label="Buscar endereco no mapa"
+                        />
+                        <Button type="submit" variant="outline" disabled={addressSearching || addressQuery.trim().length < 3}>
+                          <Search size={16} />
+                          {addressSearching ? 'Buscando...' : 'Ir'}
+                        </Button>
+                      </form>
+
+                      {addressError && <p className="text-xs text-red-600 mt-1">{addressError}</p>}
+
+                      {addressResults.length > 0 && (
+                        <ul className="mt-1 border border-gray-200 rounded-lg divide-y divide-gray-100 overflow-hidden">
+                          {addressResults.map((item) => (
+                            <li key={`${item.lat},${item.lon}`}>
+                              <button
+                                type="button"
+                                onClick={() => goToAddress(item.lat, item.lon)}
+                                className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                {item.label}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
                     {/* No celular o mapa sangra ate a borda do card: tres niveis de
                         padding empilhados deixavam so ~247px de largura util. */}
                     <div
@@ -1040,9 +1218,10 @@ export default function DeliveryZones() {
                       className="h-[clamp(420px,68vh,760px)] -mx-5 sm:mx-0 overflow-hidden border-y sm:border sm:rounded-lg border-gray-300"
                     />
                     <p className="text-xs text-gray-500 mt-1.5">
-                      Desenhe um poligono cobrindo a area de entrega. As zonas ja cadastradas aparecem
-                      em cores mais claras — passe o mouse para ver nome e taxa. Troque o mapa base no
-                      canto superior direito (o satelite ajuda a enxergar quarteirao e barreira fisica).
+                      Desenhe a area de entrega com o poligono, o retangulo ou o circulo (raio a partir
+                      de um ponto — o mais rapido para comecar). Qualquer um deles e gravado como
+                      poligono. As zonas ja cadastradas aparecem com nome e taxa. Troque o mapa base no
+                      canto superior direito: o satelite ajuda a enxergar quarteirao e barreira fisica.
                     </p>
                   </div>
                 )}

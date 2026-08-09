@@ -1,0 +1,43 @@
+/*
+ * Rotulo fixo das zonas ja cadastradas no mapa de entrega.
+ *
+ * O marcador usa iconSize [0,0] para nao deslocar o ancoramento, entao a
+ * centralizacao e feita aqui pelo translate. `pointer-events: none` garante que
+ * o rotulo nunca roube o clique do editor de poligono.
+ */
+.zone-label {
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+.zone-label > span {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  white-space: nowrap;
+
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.3rem;
+  border: 1px solid;
+  background: rgba(255, 255, 255, 0.92);
+
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.3;
+  /* Legivel sobre satelite, que e escuro e ruidoso. */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.zone-label > span > b {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.zone-label > span > i {
+  font-style: normal;
+  font-weight: 500;
+  color: #6b7280;
+}
