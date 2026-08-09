@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { PrismaService } from '../../common/prisma.service'
 import { CreateProductDto } from './dto/create-product.dto'
 import { UpdateProductDto } from './dto/update-product.dto'
-import { SolidcomERPService } from '../../modules/integrations/solidcom-erp.service'
+import { SolidcomERPService, type ERPProduct } from '../../modules/integrations/solidcom-erp.service'
 import { AuditLogService } from '../audit-log/audit-log.service'
 import { ProductSearchService } from './product-search.service'
 import { Prisma } from '@prisma/client'
@@ -134,6 +135,7 @@ const CLASSIFICATION_ROOT_FALLBACKS: Array<{ pattern: string; category: string }
 
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name)
   private readonly useLegacyClassificationMappings = process.env.ENABLE_LEGACY_CLASSIFICATION_MAPPINGS === 'true'
 
   constructor(
@@ -1204,7 +1206,50 @@ export class ProductsService {
     }
 
     const syncResult = await this.solidcomERPService.syncProducts()
-    const incomingEans = syncResult.data
+    const { synced, errors, indexedIds } = await this.applyErpProducts(syncResult.data)
+
+    // O catalogo em massa nao carrega promocao; sem esta passada, promocao que
+    // saiu do ar no PDV ficaria eterna na vitrine.
+    const promotions = await this.reconcilePromotions()
+
+    const taxonomy = await this.syncTaxonomyFromProducts()
+
+    const result = {
+      success: true,
+      products: syncResult.data.length,
+      synced,
+      errors,
+      taxonomy,
+      promotions,
+      data: syncResult.data.slice(0, 20),
+    }
+
+    await this.auditLogService.log({
+      action: 'SYNC_PRODUCTS',
+      entity: 'INTEGRATION_SOLIDCOM',
+      entityId: 'products',
+      changes: {
+        products: result.products,
+        synced: result.synced,
+        errors: result.errors,
+        at: new Date().toISOString(),
+      },
+    })
+
+    await this.productSearchService.indexProductsByIds(indexedIds)
+
+    return result
+  }
+
+  /**
+   * Grava no catalogo uma lista de produtos vinda do ERP.
+   *
+   * Compartilhado pelo sync completo (`syncFromERP`) e pelo incremental
+   * (`syncRecentFromERP`) — os dois aplicam exatamente as mesmas regras de
+   * categoria, upsert e indexacao; so muda de onde a lista veio.
+   */
+  private async applyErpProducts(items: ERPProduct[], options: { clearMissingPromotion?: boolean } = {}) {
+    const incomingEans = items
       .map((item) => String(item.ean || '').trim())
       .filter((ean) => Boolean(ean))
 
@@ -1229,7 +1274,7 @@ export class ProductsService {
     const indexedIds: string[] = []
     const unmappedSyncedEans = new Set<string>()
 
-    for (const item of syncResult.data) {
+    for (const item of items) {
       try {
         const ean = String(item.ean || '').trim()
         const mapped = mappingByEan.get(ean)
@@ -1237,6 +1282,15 @@ export class ProductsService {
           ? this.normalizeCategory(mapped.category.name)
           : undefined
         const categoryCode = mappedCategoryCode || 'NAO_CLASSIFICADO'
+
+        // Sem promocao o ERP omite o campo, e `undefined` faz o Prisma IGNORAR a
+        // coluna no update — ou seja, promocao gravada nunca saia sozinha e ficava
+        // eterna na vitrine. So limpamos a partir de uma fonte confiavel para
+        // promocao (a janela recente); o GetProdutos em massa serve preco velho e
+        // apagaria promocao boa. Ver docs/solidcom-api.md.
+        const promotionalPrice = options.clearMissingPromotion
+          ? (item.promotionalPrice ?? null)
+          : item.promotionalPrice
 
         const product = await this.prisma.product.upsert({
           where: { ean },
@@ -1249,7 +1303,7 @@ export class ProductsService {
             classification03: item.classification03,
             classification04: item.classification04,
             price: item.price,
-            promotionalPrice: item.promotionalPrice,
+            promotionalPrice,
             stock: item.stock,
             isFractional: item.isFractional || false,
             fractionStep: item.fractionStep ?? null,
@@ -1268,7 +1322,7 @@ export class ProductsService {
             classification03: item.classification03,
             classification04: item.classification04,
             price: item.price,
-            promotionalPrice: item.promotionalPrice,
+            promotionalPrice,
             stock: item.stock,
             isFractional: item.isFractional || false,
             fractionStep: item.fractionStep ?? null,
@@ -1299,32 +1353,180 @@ export class ProductsService {
       await this.generatePendingSuggestionsForSyncedUnmappedEans(Array.from(unmappedSyncedEans))
     }
 
-    const taxonomy = await this.syncTaxonomyFromProducts()
+    return { synced, errors, indexedIds }
+  }
 
-    const result = {
-      success: true,
-      products: syncResult.data.length,
-      synced,
-      errors,
-      taxonomy,
-      data: syncResult.data.slice(0, 20),
+  /**
+   * Confere no ERP, produto a produto, cada promocao que temos no ar.
+   *
+   * O `GetProdutos` em massa serve preco desatualizado e nunca desliga promocao;
+   * `GetProdutosEAN` bate com o PDV. Como so consultamos os que ja estao marcados
+   * como promocao (dezenas, nao 15 mil), o custo e baixo e o ganho e direto:
+   * promocao que saiu do ar no PDV para de aparecer para o cliente.
+   */
+  async reconcilePromotions() {
+    const flagged = await this.prisma.product.findMany({
+      where: {
+        active: true,
+        promotionalPrice: { not: null, gt: 0 },
+      },
+      select: { id: true, ean: true, price: true, promotionalPrice: true },
+    })
+
+    let confirmed = 0
+    let cleared = 0
+    let unreachable = 0
+    const clearedItems: Array<{ ean: string; promotionalPrice: number }> = []
+
+    for (const product of flagged) {
+      const fresh = await this.solidcomERPService.fetchByEan(product.ean)
+      if (!fresh) {
+        unreachable += 1
+        continue
+      }
+
+      if (fresh.promotionalPrice != null && fresh.promotionalPrice > 0) {
+        confirmed += 1
+        continue
+      }
+
+      await this.prisma.product.update({
+        where: { id: product.id },
+        data: { promotionalPrice: null },
+      })
+      clearedItems.push({ ean: product.ean, promotionalPrice: Number(product.promotionalPrice) })
+      cleared += 1
     }
 
-    await this.auditLogService.log({
-      action: 'SYNC_PRODUCTS',
-      entity: 'INTEGRATION_SOLIDCOM',
-      entityId: 'products',
-      changes: {
-        products: result.products,
-        synced: result.synced,
-        errors: result.errors,
-        at: new Date().toISOString(),
-      },
+    if (clearedItems.length) {
+      await this.prisma.priceAuditLog.createMany({
+        data: clearedItems.map((item) => ({
+          tenantId: DEFAULT_TENANT_ID,
+          productId: flagged.find((p) => p.ean === item.ean)?.id ?? null,
+          action: 'PROMOTION_ENDED',
+          oldValue: { promotionalPrice: item.promotionalPrice },
+          newValue: { promotionalPrice: null },
+          createdBy: 'erp-reconcile',
+        })),
+      })
+      await this.productSearchService.indexProductsByIds(
+        flagged.filter((p) => clearedItems.some((c) => c.ean === p.ean)).map((p) => p.id),
+      )
+    }
+
+    this.logger.log(
+      `Reconciliacao de promocoes: ${confirmed} confirmadas, ${cleared} encerradas, ${unreachable} sem resposta do ERP`,
+    )
+
+    return { checked: flagged.length, confirmed, cleared, unreachable, clearedItems }
+  }
+
+  /**
+   * Sync incremental: aplica so o que o ERP alterou nas ultimas `hours` horas.
+   *
+   * Barato o bastante para rodar de hora em hora (~2s, ~60 KB) contra os ~190s
+   * e 10,5 MB do sync completo. E o caminho para produto novo e promocao nova
+   * chegarem rapido na vitrine.
+   *
+   * Registra cada mudanca de preco, promocao ou entrada de produto novo em
+   * `PriceAuditLog`, para dar rastro do que o ERP mexeu e quando.
+   */
+  async syncRecentFromERP(hours = 2) {
+    if (!(await this.integrationModules.isEnabled('solidcom'))) {
+      return { success: true, skipped: true, reason: 'Modulo Solidcom desativado', changed: 0 }
+    }
+
+    const items = await this.solidcomERPService.fetchRecentChanges(hours)
+    if (!items.length) {
+      return { success: true, window: `${hours}h`, received: 0, changed: 0, changes: [] }
+    }
+
+    const eans = items.map((item) => String(item.ean || '').trim()).filter(Boolean)
+    const before = await this.prisma.product.findMany({
+      where: { ean: { in: eans } },
+      select: { id: true, ean: true, price: true, promotionalPrice: true, stock: true },
     })
+    const beforeByEan = new Map(before.map((p) => [p.ean, p]))
+
+    // clearMissingPromotion: a janela recente e confiavel para estado de promocao
+    // (bate com o GetProdutosEAN), entao ela pode encerrar promocao que saiu do ar.
+    const { synced, errors, indexedIds } = await this.applyErpProducts(items, {
+      clearMissingPromotion: true,
+    })
+
+    // Diff so do que interessa comercialmente: preco, promocao e produto novo.
+    // Estoque muda o tempo todo e polui o log.
+    const num = (value: unknown) => (value == null ? null : Number(value))
+    const changes: Array<{
+      ean: string
+      kind: 'NEW_PRODUCT' | 'PRICE_CHANGED' | 'PROMOTION_STARTED' | 'PROMOTION_ENDED' | 'PROMOTION_CHANGED'
+      old: { price: number | null; promotionalPrice: number | null } | null
+      new: { price: number | null; promotionalPrice: number | null }
+    }> = []
+
+    for (const item of items) {
+      const ean = String(item.ean || '').trim()
+      if (!ean) continue
+
+      const prev = beforeByEan.get(ean)
+      const next = { price: num(item.price), promotionalPrice: num(item.promotionalPrice) }
+
+      if (!prev) {
+        changes.push({ ean, kind: 'NEW_PRODUCT', old: null, new: next })
+        continue
+      }
+
+      const old = { price: num(prev.price), promotionalPrice: num(prev.promotionalPrice) }
+      const hadPromo = old.promotionalPrice != null && old.promotionalPrice > 0
+      const hasPromo = next.promotionalPrice != null && next.promotionalPrice > 0
+
+      if (!hadPromo && hasPromo) changes.push({ ean, kind: 'PROMOTION_STARTED', old, new: next })
+      else if (hadPromo && !hasPromo) changes.push({ ean, kind: 'PROMOTION_ENDED', old, new: next })
+      else if (hadPromo && hasPromo && old.promotionalPrice !== next.promotionalPrice)
+        changes.push({ ean, kind: 'PROMOTION_CHANGED', old, new: next })
+      else if (old.price !== next.price) changes.push({ ean, kind: 'PRICE_CHANGED', old, new: next })
+    }
+
+    if (changes.length) {
+      const idByEan = new Map(
+        (
+          await this.prisma.product.findMany({
+            where: { ean: { in: changes.map((c) => c.ean) } },
+            select: { id: true, ean: true },
+          })
+        ).map((p) => [p.ean, p.id]),
+      )
+
+      await this.prisma.priceAuditLog.createMany({
+        data: changes.map((change) => ({
+          tenantId: DEFAULT_TENANT_ID,
+          productId: idByEan.get(change.ean) ?? null,
+          action: change.kind,
+          oldValue: change.old ?? undefined,
+          newValue: change.new,
+          createdBy: 'erp-sync',
+        })),
+      })
+
+      this.logger.log(
+        `Sync incremental (${hours}h): ${changes.length} mudancas comerciais — ` +
+          `${changes.filter((c) => c.kind === 'NEW_PRODUCT').length} novos, ` +
+          `${changes.filter((c) => c.kind.startsWith('PROMOTION')).length} de promocao, ` +
+          `${changes.filter((c) => c.kind === 'PRICE_CHANGED').length} de preco`,
+      )
+    }
 
     await this.productSearchService.indexProductsByIds(indexedIds)
 
-    return result
+    return {
+      success: true,
+      window: `${hours}h`,
+      received: items.length,
+      synced,
+      errors,
+      changed: changes.length,
+      changes: changes.slice(0, 50),
+    }
   }
 
   private async ensureProductMasterFromLegacyProduct(product: {

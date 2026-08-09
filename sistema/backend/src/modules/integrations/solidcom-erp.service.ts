@@ -29,9 +29,6 @@ export class SolidcomERPService {
   private readonly logger = new Logger(SolidcomERPService.name)
   private readonly SOLIDCOM_API_URL =
     process.env.SOLIDCOM_API_URL || process.env.ERP_API_URL || 'http://45.239.193.56:5000'
-
-  /** Janela de GetProdutosAlterados. Cobre folgado o intervalo entre syncs. */
-  private readonly CHANGE_WINDOW_DAYS = Number(process.env.SOLIDCOM_CHANGE_WINDOW_DAYS || 30)
   private readonly SOLIDCOM_API_KEY =
     process.env.SOLIDCOM_API_KEY || process.env.ERP_API_KEY || ''
   private readonly defaultCnpj = Number(process.env.SOLIDCOM_CNPJ || '5147995000131')
@@ -72,8 +69,7 @@ export class SolidcomERPService {
         { maxAttempts: 3, baseDelayMs: 1000, maxDelayMs: 8000 },
       )
 
-      const base = this.extractProducts(response.data)
-      return this.overlayRecentChanges(base)
+      return this.extractProducts(response.data)
     } catch (error) {
       if (axios.isAxiosError(error)) {
         this.logger.warn(`Falha ao buscar produtos da Dorsal (${error.code || 'erro_http'}): ${error.message}`)
@@ -85,42 +81,48 @@ export class SolidcomERPService {
   }
 
   /**
-   * GetProdutos (bulk) serve precos desatualizados: promocoes cadastradas no PDV
-   * nao aparecem la. GetProdutosAlterados serve os precos corretos, mas NAO e
-   * cumulativo — `data=X` devolve um conjunto proprio, e uma janela mais larga
-   * nao contem as janelas menores. Por isso varremos dia a dia e sobrepomos do
-   * mais antigo para o mais novo, deixando a leitura mais recente vencer.
+   * Busca so o que mudou nas ultimas `hours` horas.
+   *
+   * Muito mais barato que o catalogo completo: a janela de 1 hora custa ~2s e
+   * ~60 KB (contra ~190s e 10,5 MB do GetProdutos), e ja devolve todas as
+   * promocoes ativas. E o caminho para detectar produto novo e promocao nova
+   * sem pagar o sync inteiro. Ver docs/solidcom-api.md.
    */
-  private async overlayRecentChanges(base: ERPProduct[]): Promise<ERPProduct[]> {
-    const byEan = new Map(base.map((p) => [p.ean, p]))
-    let applied = 0
-    let failedDays = 0
+  async fetchRecentChanges(hours: number): Promise<ERPProduct[]> {
+    const since = new Date(Date.now() - hours * 3600000).toISOString().slice(0, 19)
 
-    // Do mais antigo para hoje: a ultima escrita por EAN vence.
-    for (let offset = this.CHANGE_WINDOW_DAYS; offset >= 0; offset--) {
-      const day = new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10)
+    try {
+      const response = await axios.get(
+        `${this.SOLIDCOM_API_URL}/api/Produto/GetProdutosAlterados`,
+        { params: { data: since }, timeout: 30000 },
+      )
 
-      try {
-        const response = await axios.get(
-          `${this.SOLIDCOM_API_URL}/api/Produto/GetProdutosAlterados`,
-          { params: { data: day }, timeout: 30000 },
-        )
-
-        for (const product of this.extractProducts(response.data)) {
-          byEan.set(product.ean, product)
-          applied++
-        }
-      } catch {
-        failedDays++
-      }
+      const products = this.extractProducts(response.data)
+      this.logger.log(`Dorsal: ${products.length} produtos alterados nas ultimas ${hours}h`)
+      return products
+    } catch (error) {
+      const reason = axios.isAxiosError(error) ? error.message : 'erro desconhecido'
+      this.logger.warn(`Falha ao buscar alteracoes recentes da Dorsal (${reason})`)
+      return []
     }
+  }
 
-    if (failedDays) {
-      this.logger.warn(`Dorsal: ${failedDays} dia(s) da janela de alteracoes falharam; precos podem estar defasados`)
+  /**
+   * Consulta um produto especifico. E a fonte mais confiavel de preco e promocao:
+   * o GetProdutos em massa serve dado velho, esta aqui bate com a realidade do PDV.
+   * Caro para o catalogo inteiro (1 chamada por EAN), bom para reconciliar poucos.
+   */
+  async fetchByEan(ean: string): Promise<ERPProduct | null> {
+    try {
+      const response = await axios.get(`${this.SOLIDCOM_API_URL}/api/Produto/GetProdutosEAN`, {
+        params: { EAN: ean },
+        timeout: 15000,
+      })
+      const [product] = this.extractProducts(response.data)
+      return product ?? null
+    } catch {
+      return null
     }
-    this.logger.log(`Dorsal: ${applied} alteracoes sobrepostas ao catalogo (janela de ${this.CHANGE_WINDOW_DAYS} dias)`)
-
-    return [...byEan.values()]
   }
 
   private extractProducts(rawData: unknown): ERPProduct[] {

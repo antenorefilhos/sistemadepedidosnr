@@ -437,4 +437,38 @@ export class ProductsController {
   async syncERP() {
     return this.productsService.syncFromERP()
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('sync/incremental')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Sincronizar so as alteracoes recentes do ERP',
+    description:
+      'Aplica apenas o que o Solidcom alterou na janela recente (~2s, contra ~190s do sync completo) ' +
+      'e devolve as mudancas comerciais detectadas: produto novo, preco alterado, promocao criada/alterada/encerrada.',
+  })
+  @ApiQuery({ name: 'hours', required: false, description: 'Tamanho da janela em horas (default 2)' })
+  @ApiResponse({ status: 200, description: 'Alteracoes aplicadas' })
+  @ApiResponse({ status: 401, description: 'Não autenticado' })
+  async syncERPIncremental(@Query('hours') hours?: string) {
+    const parsed = Number(hours)
+    const window = Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 720) : 2
+    return this.productsService.syncRecentFromERP(window)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('sync/promotions')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Reconciliar promocoes contra o ERP',
+    description:
+      'Confere no Solidcom, produto a produto, cada promocao que esta no ar e encerra as que nao existem mais no PDV.',
+  })
+  @ApiResponse({ status: 200, description: 'Promocoes reconciliadas' })
+  @ApiResponse({ status: 401, description: 'Não autenticado' })
+  async reconcilePromotions() {
+    return this.productsService.reconcilePromotions()
+  }
 }
