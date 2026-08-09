@@ -91,6 +91,54 @@ Janela em `SOLIDCOM_CHANGE_WINDOW_DAYS` (padrão 30). Sync completo leva ~3 min.
 - `qtd_produto` — estoque. `fracionado` / `fracionamento` — pesável e passo.
 - `dtalteracao` — **não confiável** como sinal de frescor no bulk.
 
+## Armadilha: promoção nunca era removida
+
+Quando não há promoção, o ERP **omite** o campo — e `undefined` faz o **Prisma ignorar a
+coluna no update**. Promoção gravada uma vez ficava eterna na vitrine.
+
+Estrago medido em 09/08/2026: **13 das 31 promoções no ar eram fantasmas** — o PDV já não
+tinha aquelas ofertas. Quase todas de itens pesáveis e de produção própria.
+
+```ts
+promotionalPrice: item.promotionalPrice          // ERRADO: undefined = coluna ignorada
+promotionalPrice: item.promotionalPrice ?? null  // CERTO, mas só de fonte confiável
+```
+
+O `?? null` **só** vale a partir da janela recente ou do `GetProdutosEAN`. Aplicado ao
+catálogo em massa, apagaria promoção boa — ele serve preço velho.
+
+## Ordem de confiança para promoção
+
+1. `GetProdutosEAN?EAN=` — bate com o PDV, é a verdade
+2. `GetProdutosAlterados?data=` (janela curta) — confiável e barato
+3. `GetProdutos?ativo=true` — **nunca** para promoção; serve catálogo, nome e estoque
+
+## Como o sync funciona
+
+```
+de hora em hora  →  syncRecentFromERP(2h)   ~3s     janela recente, confiável
+                       └─ encerra promoção que saiu do ar
+                       └─ grava PriceAuditLog (produto novo / preço / promoção)
+
+04:00 diário     →  syncFromERP()           ~190s   catálogo completo
+                       └─ NÃO mexe em promoção
+                       └─ reconcilePromotions() confere 1 a 1 via GetProdutosEAN
+```
+
+| variável | default | o que faz |
+|---|---|---|
+| `ERP_SYNC_CRON_ENABLED` | `false` | liga os dois crons |
+| `ERP_SYNC_INCREMENTAL_CRON` | `0 * * * *` | de hora em hora |
+| `ERP_SYNC_INCREMENTAL_HOURS` | `2` | janela (folga proposital sobre 1h) |
+| `ERP_SYNC_CRON` | `0 4 * * *` | catálogo completo |
+
+Endpoints manuais (admin): `POST /products/sync/incremental?hours=2`,
+`POST /products/sync/promotions`, `POST /products/sync`.
+
+O que mudou fica em `price_audit_logs` — ações `NEW_PRODUCT`, `PRICE_CHANGED`,
+`PROMOTION_STARTED`, `PROMOTION_CHANGED`, `PROMOTION_ENDED`, com `createdBy`
+distinguindo `erp-sync` de `erp-reconcile`.
+
 ## Janela curta é barata — use para detecção rápida
 
 Medido em 09/08/2026:
