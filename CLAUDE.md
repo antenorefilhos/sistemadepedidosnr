@@ -26,6 +26,10 @@ Toda alteração de código exige rebuild: `docker compose up -d --build <servi�
 - Migrations do Prisma: escreva o SQL à mão e rode `prisma migrate deploy`.
   `migrate dev` é interativo e trava neste ambiente.
 
+## Roadmap
+
+Plano de lançamento e pendências em [docs/roadmap.md](docs/roadmap.md).
+
 ## Integração Solidcom (ERP)
 
 Ver [docs/solidcom-api.md](docs/solidcom-api.md) — tem duas armadilhas sérias
