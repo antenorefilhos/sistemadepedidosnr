@@ -2,8 +2,10 @@ import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common'
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { RecommendationsService } from './recommendations.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Recommendations')
+@RelaxedThrottle()
 @Controller('recommendations')
 export class RecommendationsController {
   constructor(private readonly recommendations: RecommendationsService) {}

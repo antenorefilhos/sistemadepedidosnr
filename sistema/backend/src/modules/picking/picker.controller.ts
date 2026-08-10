@@ -14,11 +14,13 @@ import {
   SubstitutePickingItemDto,
 } from './dto/picking.dto'
 import { PickingService } from './picking.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Picker')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, TenantAccessGuard, ModuleAccessGuard)
 @RequireModule('picking')
+@RelaxedThrottle()
 @Controller('picker')
 export class PickerController {
   constructor(private readonly pickingService: PickingService) {}

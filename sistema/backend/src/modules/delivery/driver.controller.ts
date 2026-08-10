@@ -8,11 +8,13 @@ import { getTenantContext, TenantContextRequest } from '../../common/tenant/tena
 import { PrismaService } from '../../common/prisma.service'
 import { UpdateDeliveryStopStatusDto } from './dto/fulfillment.dto'
 import { DeliveryService } from './delivery.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Driver')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, TenantAccessGuard, ModuleAccessGuard)
 @RequireModule('delivery')
+@RelaxedThrottle()
 @Controller('driver')
 export class DriverController {
   constructor(

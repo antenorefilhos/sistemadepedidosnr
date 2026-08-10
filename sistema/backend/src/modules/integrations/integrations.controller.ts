@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
-import { Throttle } from '@nestjs/throttler'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -13,6 +13,11 @@ import { CreatePaymentTransactionDto, CreateRefundDto, ReconcilePaymentsDto, Reg
 import { CreateIntegrationConnectorDto, EnqueueOutboxEventDto, RunOutboxWorkerDto } from './dto/integration-outbox.dto'
 
 @ApiTags('Integrations')
+// So skip auth/checkout: o webhook de pagamentos (abaixo) usa
+// @Throttle({webhook}) de proposito -- deixamos o bucket 'webhook' (120/min,
+// o mais generoso dos tres) ativo pra classe toda em vez de isolar so aquela
+// rota; nao ha risco real em deixa-lo tambem cobrindo o resto da classe.
+@SkipThrottle({ auth: true, checkout: true })
 @Controller('integrations')
 export class IntegrationsController {
   constructor(

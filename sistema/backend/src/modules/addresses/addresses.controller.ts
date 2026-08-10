@@ -5,8 +5,10 @@ import { CreateAddressPayload } from './addresses.service'
 import { ViaCEPService } from '../../common/services/via-cep.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { assertCustomerOwnership } from '../../common/security/customer-ownership'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Addresses')
+@RelaxedThrottle()
 @Controller('addresses')
 export class AddressesController {
   constructor(

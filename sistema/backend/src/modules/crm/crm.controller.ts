@@ -5,10 +5,12 @@ import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { CrmService } from './crm.service'
 import { CreateCampaignDto, CreateShoppingListDto, LoyaltyMutationDto, RefreshSegmentsDto, ReorderFromOrderDto, UpsertCustomerConsentDto, UpsertCustomerProfileDto } from './dto/crm.dto'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('CRM')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
+@RelaxedThrottle()
 @Controller('crm')
 export class CrmController {
   constructor(private readonly crm: CrmService) {}

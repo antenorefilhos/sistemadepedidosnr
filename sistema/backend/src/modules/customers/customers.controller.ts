@@ -5,12 +5,14 @@ import { CreateCustomerDto } from './dto/create-customer.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 type UpdateCustomerDto = Partial<CreateCustomerDto>
 
 @ApiTags('Customers')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
+@RelaxedThrottle()
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}

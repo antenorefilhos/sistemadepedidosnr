@@ -10,8 +10,10 @@ import { PermissionGuard } from '../../common/guards/permission.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { RequirePermission } from '../../common/decorators/require-permission.decorator'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Products')
+@RelaxedThrottle()
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}

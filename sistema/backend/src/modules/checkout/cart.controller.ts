@@ -2,7 +2,9 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { CartService } from './cart.service'
 import { CreateCartDto, UpdateCartItemDto, UpsertCartItemDto } from './dto/cart.dto'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
+@RelaxedThrottle()
 @Controller('cart')
 export class CartController {
   constructor(private readonly cartService: CartService) {}

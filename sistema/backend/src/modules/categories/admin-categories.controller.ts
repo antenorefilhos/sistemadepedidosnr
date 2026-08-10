@@ -1,7 +1,9 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from '@nestjs/common'
 import { CategoryHierarchyService } from './category-hierarchy.service'
 import { AuthGuard } from '@nestjs/passport'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
+@RelaxedThrottle()
 @Controller('api/admin/categories')
 @UseGuards(AuthGuard('jwt'))
 export class AdminCategoriesController {

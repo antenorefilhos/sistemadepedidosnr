@@ -4,6 +4,7 @@ import { promises as fs } from 'fs'
 import net from 'net'
 import { join } from 'path'
 import { PrismaService } from '../../common/prisma.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 interface ServiceStatus {
   status: 'ok' | 'degraded' | 'down'
@@ -26,6 +27,7 @@ interface HealthReport {
   }
 }
 
+@RelaxedThrottle()
 @Controller('health/detail')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}

@@ -5,11 +5,13 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { DataPrivacyService } from './data-privacy.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Data Privacy')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
+@RelaxedThrottle()
 @Controller('data-privacy')
 export class DataPrivacyController {
   constructor(private readonly dataPrivacy: DataPrivacyService) {}

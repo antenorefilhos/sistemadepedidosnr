@@ -7,8 +7,10 @@ import { ExecutiveReportService } from './executive-report.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Analytics')
+@RelaxedThrottle()
 @Controller('analytics')
 export class AnalyticsController {
   constructor(

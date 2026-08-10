@@ -20,6 +20,7 @@ import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 import {
   AddDeliveryStopDto,
   CreateDeliveryAreaDto,
@@ -32,6 +33,7 @@ import {
 } from './dto/fulfillment.dto'
 
 @ApiTags('delivery')
+@RelaxedThrottle()
 @Controller('delivery')
 export class DeliveryController {
   constructor(private readonly deliveryService: DeliveryService) {}
@@ -129,6 +131,7 @@ export class DeliveryController {
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')
+@RelaxedThrottle()
 @Controller('admin/fulfillment')
 export class AdminFulfillmentController {
   constructor(private readonly deliveryService: DeliveryService) {}

@@ -7,7 +7,9 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import { Roles } from '../../common/decorators/roles.decorator'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { PricingService } from './pricing.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
+@RelaxedThrottle()
 @Controller('pricing')
 export class PricingController {
   constructor(private readonly pricingService: PricingService) {}
@@ -29,6 +31,7 @@ export class PricingController {
   }
 }
 
+@RelaxedThrottle()
 @Controller('admin/price-lists')
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')
@@ -57,6 +60,7 @@ export class AdminPriceListsController {
   }
 }
 
+@RelaxedThrottle()
 @Controller('admin/promotions')
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')

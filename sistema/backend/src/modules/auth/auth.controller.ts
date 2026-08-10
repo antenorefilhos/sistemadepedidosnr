@@ -10,6 +10,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { PrismaService } from '../../common/prisma.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -127,6 +128,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
@@ -151,6 +153,7 @@ export class AuthController {
   }
 
   @Get('permissions')
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
@@ -163,6 +166,7 @@ export class AuthController {
   }
 
   @Get('staff')
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
@@ -173,6 +177,7 @@ export class AuthController {
   }
 
   @Patch('staff/:id')
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
@@ -182,6 +187,7 @@ export class AuthController {
   }
 
   @Post('staff/:id/toggle-active')
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()

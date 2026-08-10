@@ -4,8 +4,10 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { ObservabilityService } from './observability.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Observability')
+@RelaxedThrottle()
 @Controller('observability')
 export class ObservabilityController {
   constructor(private readonly observabilityService: ObservabilityService) {}

@@ -7,7 +7,9 @@ import { Roles } from '../../common/decorators/roles.decorator'
 import { RequirePermission } from '../../common/decorators/require-permission.decorator'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { InventoryService } from './inventory.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
+@RelaxedThrottle()
 @Controller('availability')
 export class AvailabilityController {
   constructor(private readonly inventoryService: InventoryService) {}
@@ -29,6 +31,7 @@ export class AvailabilityController {
   }
 }
 
+@RelaxedThrottle()
 @Controller('stock/reservations')
 export class StockReservationsController {
   constructor(private readonly inventoryService: InventoryService) {}
@@ -54,6 +57,7 @@ export class StockReservationsController {
   }
 }
 
+@RelaxedThrottle()
 @Controller('admin/stock')
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')

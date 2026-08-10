@@ -5,8 +5,10 @@ import { NotificationService } from './notification.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Notifications')
+@RelaxedThrottle()
 @Controller('notifications')
 export class NotificationsController {
   constructor(

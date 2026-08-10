@@ -7,8 +7,10 @@ import { PublicApiKeyGuard } from '../../common/guards/public-api-key.guard'
 import { RequireApiScope } from '../../common/decorators/require-api-scope.decorator'
 import { PublicApiService } from './public-api.service'
 import { CreateApiClientDto, CreateWebhookEndpointDto, EmitWebhookEventDto, RunWebhookDeliveriesDto } from './dto/public-api.dto'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Public API v1')
+@RelaxedThrottle()
 @Controller('v1')
 @UseGuards(PublicApiKeyGuard)
 @ApiHeader({ name: 'x-api-key', required: true, description: 'API key no formato clientId.secret' })
@@ -50,6 +52,7 @@ export class PublicApiV1Controller {
 }
 
 @ApiTags('Public API Portal')
+@RelaxedThrottle()
 @Controller('integrations/public-api')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')

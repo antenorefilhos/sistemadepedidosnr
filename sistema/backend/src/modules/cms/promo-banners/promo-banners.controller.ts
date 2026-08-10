@@ -3,7 +3,9 @@ import { PromoBannersService } from './promo-banners.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
+import { RelaxedThrottle } from '../../../common/decorators/relaxed-throttle.decorator'
 
+@RelaxedThrottle()
 @Controller('cms/promo-banners')
 export class PromoBannersController {
   constructor(private readonly promoBannersService: PromoBannersService) {}

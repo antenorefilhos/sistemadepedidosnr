@@ -5,7 +5,9 @@ import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { BusinessService } from './business.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
+@RelaxedThrottle()
 @Controller('business')
 export class BusinessController {
   constructor(private readonly businessService: BusinessService) {}
@@ -16,6 +18,7 @@ export class BusinessController {
   }
 }
 
+@RelaxedThrottle()
 @Controller('admin/business-accounts')
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')

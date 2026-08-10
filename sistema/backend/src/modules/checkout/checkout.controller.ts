@@ -1,5 +1,6 @@
 import { Body, Controller, Param, Post, Req, UseGuards } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -43,6 +44,7 @@ export class CheckoutSessionsController {
 }
 
 @Controller('admin/checkout')
+@RelaxedThrottle()
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')
 export class AdminCheckoutController {

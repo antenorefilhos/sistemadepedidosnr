@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, Query, UseGuards, Req, ForbiddenException } from '@nestjs/common'
-import { Throttle } from '@nestjs/throttler'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger'
 import { OrdersService } from './orders.service'
 import { CreateOrderResult } from './orders.service'
@@ -14,6 +15,11 @@ import { assertCustomerOwnership, isAdminUser } from '../../common/security/cust
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 
 @ApiTags('Orders')
+// So skip auth/webhook: a criacao de pedido (abaixo) usa @Throttle({checkout})
+// de proposito, e class-level skip vence sobre o override de rota (o guard
+// checa skip ANTES de ler o limite customizado) -- se skipasse "checkout"
+// aqui, aquele @Throttle deixaria de fazer efeito em silencio.
+@SkipThrottle({ auth: true, webhook: true })
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
@@ -332,6 +338,7 @@ export class OrdersController {
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')
+@RelaxedThrottle()
 @Controller('admin/orders')
 export class AdminOrdersController {
   constructor(private readonly ordersService: OrdersService) {}

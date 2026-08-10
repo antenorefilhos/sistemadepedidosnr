@@ -1,6 +1,8 @@
 import { Controller, Get, Param, Query } from '@nestjs/common'
 import { CategoryHierarchyService } from './category-hierarchy.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
+@RelaxedThrottle()
 @Controller('api/categories')
 export class CategoriesController {
   constructor(private readonly categoryHierarchy: CategoryHierarchyService) {}

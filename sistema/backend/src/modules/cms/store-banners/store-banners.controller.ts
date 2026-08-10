@@ -3,7 +3,9 @@ import { StoreBannersService, StoreBannerPayload } from './store-banners.service
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
+import { RelaxedThrottle } from '../../../common/decorators/relaxed-throttle.decorator'
 
+@RelaxedThrottle()
 @Controller('cms/store-banners')
 export class StoreBannersController {
   constructor(private readonly storeBannersService: StoreBannersService) {}

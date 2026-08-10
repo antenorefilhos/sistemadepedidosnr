@@ -7,7 +7,9 @@ import { Roles } from '../../common/decorators/roles.decorator'
 import { RequirePermission } from '../../common/decorators/require-permission.decorator'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { CatalogService } from './catalog.service'
+import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
+@RelaxedThrottle()
 @Controller('admin/catalog')
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')
@@ -49,6 +51,7 @@ export class CatalogController {
   }
 }
 
+@RelaxedThrottle()
 @Controller('admin/categories')
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')
@@ -63,6 +66,7 @@ export class CatalogCategoriesController {
   }
 }
 
+@RelaxedThrottle()
 @Controller('admin/search')
 @UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')
