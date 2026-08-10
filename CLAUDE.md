@@ -48,8 +48,18 @@ Equipe do admin. Ver `ModuleAccessGuard` e `syncStaffPermissions()`.
 
 `ThrottlerModule` tem múltiplos buckets nomeados. Rota **sem** decorator explícito
 herda TODOS eles — ou seja, fica limitada ao mais apertado (20 req/min do bucket
-`auth`), silenciosamente. Foi o que quebrou o upload em massa de fotos.
-Rotas de carga precisam de `@SkipThrottle({ auth: true, checkout: true, webhook: true })`.
+`auth`), silenciosamente. Foi o que quebrou o upload em massa de fotos, e depois
+se confirmou em 31 dos 36 controllers do backend (dashboard, equipe, picking,
+delivery, a integração com o ERP inteira).
+
+Corrigido para todos os controllers existentes: use
+`@RelaxedThrottle()` (`common/decorators/relaxed-throttle.decorator.ts`) em
+**todo controller novo** que não seja de auth/checkout/webhook — cai no bucket
+`default` (600/min). Se uma rota específica precisa ficar sob `auth`,
+`checkout` ou `webhook` de propósito, use `@Throttle({ nome: {...} })` nela
+(não junto com `@RelaxedThrottle()` na mesma classe sem checar: skip de
+classe vence sobre override de rota — ver `orders.controller.ts` para o
+padrão de classe mista).
 
 ## Checkout: o preco e recalculado, nunca carregado
 

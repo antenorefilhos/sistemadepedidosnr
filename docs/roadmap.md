@@ -67,10 +67,11 @@ Sem isto no ar, todo cliente cai no CEP.
 
 ## Fila (não bloqueiam o lançamento)
 
-- [ ] **Auditar rotas do admin sem `@Throttle` explícito.** O bug de rate limit
-      documentado no [CLAUDE.md](../CLAUDE.md) foi corrigido só em `/uploads`. Toda
-      rota sem decorator herda o bucket mais apertado (20 req/min) silenciosamente —
-      provavelmente há outras afetadas.
+- [x] **Auditar rotas do admin sem `@Throttle` explícito.** Era pior do que a
+      suspeita original: 31 dos 36 controllers tinham zero decorator, incluindo
+      a integração com o ERP inteira (50 rotas). `RelaxedThrottle()` corrige
+      todos; auditoria automatizada (reproduz a lógica real do guard) confirma
+      zero rota esquecida sob o bucket de 20/min. Ver [CLAUDE.md](../CLAUDE.md).
 - [ ] **Trava de divergência de preço no checkout.** O preço é recalculado três
       vezes e o total exibido nunca é carregado adiante (ver CLAUDE.md). Comparar
       contra o `priceSnapshot()` e bloquear a confirmação em vez de cobrar calado.
