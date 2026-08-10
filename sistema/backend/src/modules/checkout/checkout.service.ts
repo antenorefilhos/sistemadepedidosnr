@@ -131,9 +131,34 @@ export class CheckoutService {
       if (order) return { session: this.toSessionPayload(session), order, reused: true }
     }
 
+    // O preco mostrado ao cliente (ultima chamada a quoteSession) precisa ser
+    // lido ANTES do buildQuote abaixo -- ele recalcula e sobrescreve
+    // session.priceSnapshot com o novo valor, entao depois disso nao sobra
+    // nada pra comparar. Sem essa leitura previa, o total exibido na tela
+    // nunca era comparado com o cobrado: promocao expirando ou sync do ERP
+    // no meio do checkout cobrava o cliente calado (ver CLAUDE.md).
+    const shownTotal = this.numericTotal(session.priceSnapshot)
+
     const quote = await this.buildQuote({ tenantId, storeId }, id, dto, { persist: true })
     if (!quote.canConfirm) {
       throw new BadRequestException(`Checkout bloqueado: ${quote.blockers.join('; ')}`)
+    }
+
+    const confirmedTotal = this.numericTotal(quote.price)
+    if (shownTotal != null && confirmedTotal != null && Math.abs(confirmedTotal - shownTotal) > 0.01) {
+      await this.recordEvent({
+        tenantId,
+        storeId,
+        cartId: quote.cart.id,
+        checkoutSessionId: id,
+        type: 'PRICE_DIVERGED',
+        customerId: quote.session.customerId,
+        deviceId: dto.deviceId || quote.cart.deviceId,
+        metadata: { shownTotal, confirmedTotal, diff: this.roundMoney(confirmedTotal - shownTotal) },
+      })
+      throw new BadRequestException(
+        'O preco do pedido mudou desde a ultima vez que voce viu esta tela (promocao ou produto pode ter sido atualizado). Revise o pedido antes de confirmar.',
+      )
     }
 
     const customerId = this.optionalString(dto.customerId) || quote.session.customerId || quote.cart.customerId
@@ -602,6 +627,19 @@ export class CheckoutService {
       throw new BadRequestException('Sessao de checkout expirada.')
     }
     return session
+  }
+
+  /** Le o total de um snapshot de preco (session.priceSnapshot ou quote.price), tolerante a formato. */
+  private numericTotal(snapshot: unknown): number | null {
+    if (!snapshot || typeof snapshot !== 'object') return null
+    const total = (snapshot as { total?: unknown }).total
+    if (typeof total === 'number') return total
+    if (typeof total === 'string' && total.trim()) return Number(total)
+    return null
+  }
+
+  private roundMoney(value: number) {
+    return Math.round(value * 100) / 100
   }
 
   private priceSnapshot(price: Awaited<ReturnType<PricingService['quote']>>) {
