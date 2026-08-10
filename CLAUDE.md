@@ -61,7 +61,7 @@ Corrigido para todos os controllers existentes: use
 classe vence sobre override de rota — ver `orders.controller.ts` para o
 padrão de classe mista).
 
-## Checkout: o preco e recalculado, nunca carregado
+## Checkout: o preco e recalculado, e agora comparado antes de cobrar
 
 `PricingService.quote()` roda **tres vezes** num unico checkout:
 
@@ -69,13 +69,13 @@ padrão de classe mista).
 2. `CheckoutService.confirmSession()` — de novo, ao confirmar
 3. `OrdersService.create()` — de novo, ao gravar o pedido
 
-O total exibido **nunca e passado adiante**; o pedido usa o valor recalculado no
-passo 3. Se o preco mudar entre a tela e a confirmacao — promocao expirando, ou um
-sync do ERP sobrescrevendo `promotionalPrice` no meio do checkout — o cliente e
-cobrado diferente do que viu, sem aviso.
-
-Nao e bug comprovado, e uma janela de risco. `priceSnapshot()` ja guarda o que
-seria preciso para comparar e bloquear a confirmacao em vez de cobrar calado.
+O total exibido nao era passado adiante; o pedido usava o valor recalculado no
+passo 3 sem comparar com o que o cliente viu. Corrigido: `confirmSession()` le
+`session.priceSnapshot` **antes** de rodar `buildQuote()` de novo (que sobrescreve
+esse snapshot), compara com o total recalculado e bloqueia com 400 se a diferenca
+passar de 1 centavo — registra evento `PRICE_DIVERGED` (com os dois valores) em vez
+de cobrar calado. Cobre promocao expirando ou sync do ERP sobrescrevendo
+`promotionalPrice` no meio do checkout.
 
 `buildQuote` tambem chama o pricing duas vezes de proposito quando o frete gratis
 muda a taxa: o subtotal define o frete e o frete entra no total.

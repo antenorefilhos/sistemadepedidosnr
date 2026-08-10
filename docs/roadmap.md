@@ -72,9 +72,12 @@ Sem isto no ar, todo cliente cai no CEP.
       a integração com o ERP inteira (50 rotas). `RelaxedThrottle()` corrige
       todos; auditoria automatizada (reproduz a lógica real do guard) confirma
       zero rota esquecida sob o bucket de 20/min. Ver [CLAUDE.md](../CLAUDE.md).
-- [ ] **Trava de divergência de preço no checkout.** O preço é recalculado três
-      vezes e o total exibido nunca é carregado adiante (ver CLAUDE.md). Comparar
-      contra o `priceSnapshot()` e bloquear a confirmação em vez de cobrar calado.
+- [x] **Trava de divergência de preço no checkout.** `confirmSession()` agora
+      compara o `priceSnapshot()` mostrado ao cliente contra o total recalculado
+      antes de confirmar; diferença acima de 1 centavo bloqueia com 400 e loga
+      `PRICE_DIVERGED`. Testado ao vivo: subiu o preço de um produto no meio de
+      uma sessão real — bloqueou, 0 pedidos criados; sem alteração, confirma
+      normal. Ver [CLAUDE.md](../CLAUDE.md).
 - [ ] **Tela de Desempenho da Equipe.** Auditoria e métricas por pessoa: quem trocou
       qual produto no pedido, qual entregador levou, onde estão os gargalos da
       separação. Depende do controle de acesso por módulo, que já está pronto —
