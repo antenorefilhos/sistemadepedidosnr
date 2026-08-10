@@ -665,6 +665,16 @@ export class OrdersService {
   }
 
   async remove(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: { customer: true, items: { include: { product: true } } },
+    })
+    if (order) {
+      // Deletar o pedido nao deve deixar a reserva de vaga presa no slot --
+      // sem isso, a janela de entrega/retirada fica com capacidade artificialmente
+      // reduzida (achado durante limpeza de pedido de teste, ver CLAUDE.md fila).
+      await this.releaseFulfillmentSlotReservation(order, 'Pedido removido')
+    }
     return this.prisma.order.delete({
       where: { id },
     })
