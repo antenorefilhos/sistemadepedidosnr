@@ -605,6 +605,15 @@ function CategoriesTab() {
 
 const PENDING_PAGE_SIZE = 25
 
+// item.reason vem cru do backend (CategoryMappingPending.reason, enum em ingles) --
+// sem isso a tela mostrava "Motivo: not_found" direto pro usuario.
+const PENDING_REASON_LABELS: Record<string, string> = {
+  not_found: 'Sem sugestão automática',
+  auto_classify: 'Classificação automática sugerida',
+  ambiguous: 'Classificação ambígua (mais de uma categoria possível)',
+}
+const pendingReasonLabel = (reason: string) => PENDING_REASON_LABELS[reason] || reason
+
 function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }) {
   const [stats, setStats] = useState<MappingStats | null>(null)
   const [suggestions, setSuggestions] = useState<EanMappingSuggestion[]>([])
@@ -673,12 +682,12 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
           categoryId: chosenCategoryId!,
           notes:
             chosenCategoryId === item.suggestedCategory?.id
-              ? `Aprovado via admin com base em ${item.reason}`
+              ? `Aprovado via admin com base em: ${pendingReasonLabel(item.reason)}`
               : 'Aprovado via admin com categoria escolhida manualmente (sem sugestao automatica)',
         })
       } else {
         await cmsAPI.categories.rejectPendingMapping(item.id, {
-          notes: `Rejeitado via admin. Motivo original: ${item.reason}`,
+          notes: `Rejeitado via admin. Motivo original: ${pendingReasonLabel(item.reason)}`,
         })
       }
 
@@ -703,7 +712,7 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
       setWorkflowResult(res.data)
       await Promise.all([loadStats(), loadSuggestions()])
     } catch {
-      setError(dryRun ? 'Falha ao executar dry-run.' : 'Falha ao aplicar mapeamentos.')
+      setError(dryRun ? 'Falha ao simular.' : 'Falha ao aplicar mapeamentos.')
     } finally {
       setWorkflowLoading(false)
     }
@@ -736,23 +745,29 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
               Departamento = grupo principal da loja. Seção = subdivisão dentro do departamento.
             </p>
           </div>
-          <div className="flex gap-2 flex-wrap justify-end">
-            <Button type="button" onClick={loadSuggestions} disabled={workflowLoading} variant="outline" size="sm" className="rounded border-gray-300 text-xs hover:bg-gray-50">
-              Gerar sugestões
-            </Button>
-            <Button type="button" onClick={() => runMappingWorkflow(true)} disabled={workflowLoading} variant="outline" size="sm" className="rounded border-amber-300 bg-amber-50 text-xs text-amber-800 hover:bg-amber-100">
-              Dry-run
-            </Button>
-            <Button type="button" onClick={() => runMappingWorkflow(false)} disabled={workflowLoading} size="sm" className="rounded bg-[#5d082a] text-xs text-white hover:bg-[#7a1038]">
-              Aplicar real
-            </Button>
-          </div>
+          {/* Botoes de sugestao automatica so fazem sentido na aba "Sugestoes automaticas"
+              (mode='automation'): a lista que eles preenchem so renderiza nesse modo (ver
+              abaixo). Mostra-los tambem em mode='review' fazia parecer que o clique nao
+              fazia nada -- o resultado ficava escondido numa aba diferente. */}
+          {(mode === 'all' || mode === 'automation') && (
+            <div className="flex gap-2 flex-wrap justify-end">
+              <Button type="button" onClick={loadSuggestions} disabled={workflowLoading} variant="outline" size="sm" className="rounded border-gray-300 text-xs hover:bg-gray-50">
+                Gerar sugestões
+              </Button>
+              <Button type="button" onClick={() => runMappingWorkflow(true)} disabled={workflowLoading} variant="outline" size="sm" className="rounded border-amber-300 bg-amber-50 text-xs text-amber-800 hover:bg-amber-100">
+                Simular
+              </Button>
+              <Button type="button" onClick={() => runMappingWorkflow(false)} disabled={workflowLoading} size="sm" className="rounded bg-[#5d082a] text-xs text-white hover:bg-[#7a1038]">
+                Aplicar real
+              </Button>
+            </div>
+          )}
         </div>
 
-        {workflowResult && (
+        {workflowResult && (mode === 'all' || mode === 'automation') && (
           <div className={`rounded-lg border p-3 text-xs ${workflowResult.dryRun ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
             <p className="font-semibold">
-              {workflowResult.dryRun ? 'Dry-run concluído' : 'Aplicação concluída'}
+              {workflowResult.dryRun ? 'Simulação concluída' : 'Aplicação concluída'}
             </p>
             <p className="mt-1">Aplicados: {workflowResult.applied} | Válido: {workflowResult.validation?.valid ? 'sim' : 'não'} | Total analisado: {workflowResult.validation?.total ?? 0}</p>
             {(workflowResult.validation?.errors?.length ?? 0) > 0 && (
@@ -819,7 +834,7 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
                   <div className="space-y-1">
                     <p className="font-semibold text-gray-800">{item.productName}</p>
                     <p className="text-gray-500">EAN {item.ean}</p>
-                    <p className="text-gray-500">Motivo: <span className="font-medium text-gray-700">{item.reason}</span></p>
+                    <p className="text-gray-500">Motivo: <span className="font-medium text-gray-700">{pendingReasonLabel(item.reason)}</span></p>
                     {item.notes && <p className="text-gray-400">{item.notes}</p>}
                     <p className="text-[11px] text-gray-400">
                       Sugestão: Departamento {item.suggestedCategoryN1 || 'não definido'}{item.suggestedCategoryN2 ? ` / Seção ${item.suggestedCategoryN2}` : ''}
@@ -931,7 +946,7 @@ export default function CategoriesManager() {
     },
     automation: {
       title: 'O que fazer agora: gere sugestões e aplique mapeamentos automáticos com segurança.',
-      subtitle: 'Use dry-run primeiro para validar impacto, depois aplique real se estiver tudo consistente.',
+      subtitle: 'Use Simular primeiro para validar impacto, depois aplique real se estiver tudo consistente.',
     },
     review: {
       title: 'O que fazer agora: trate pendências para finalizar a categorização.',
