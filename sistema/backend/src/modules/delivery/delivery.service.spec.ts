@@ -55,11 +55,15 @@ const mockPrisma = {
   },
 }
 
+const mockNotificationsService = {
+  create: jest.fn(),
+}
+
 describe('DeliveryService', () => {
   let service: DeliveryService
 
   beforeEach(() => {
-    service = new DeliveryService(mockPrisma as unknown as PrismaService)
+    service = new DeliveryService(mockPrisma as unknown as PrismaService, mockNotificationsService as any)
   })
 
   afterEach(() => {
@@ -207,5 +211,103 @@ describe('DeliveryService', () => {
         }),
       }),
     )
+  })
+
+  describe('getDriverPerformance', () => {
+    function route(overrides: Partial<Record<string, any>> = {}) {
+      return {
+        id: 'route-1',
+        driverId: 'driver-1',
+        driver: { name: 'Fulano' },
+        status: 'COMPLETED',
+        startsAt: new Date('2026-01-01T10:00:00Z'),
+        completedAt: new Date('2026-01-01T10:30:00Z'),
+        createdAt: new Date('2026-01-01T09:00:00Z'),
+        stops: [{ status: 'DELIVERED' }, { status: 'DELIVERED' }, { status: 'FAILED' }],
+        ...overrides,
+      }
+    }
+
+    it('aggregates routes and stops per driver', async () => {
+      mockPrisma.deliveryRoute.findMany.mockResolvedValue([
+        route(),
+        route({ id: 'route-2', stops: [{ status: 'DELIVERED' }] }),
+        route({
+          id: 'route-3',
+          driverId: 'driver-2',
+          driver: { name: 'Ciclano' },
+          stops: [{ status: 'DELIVERED' }, { status: 'DELIVERED' }],
+        }),
+      ])
+
+      const result = await service.getDriverPerformance(undefined, {})
+
+      expect(result.totals.routes).toBe(3)
+      expect(result.totals.completed).toBe(3)
+      expect(result.drivers).toHaveLength(2)
+
+      const driver1 = result.drivers.find((d) => d.driverId === 'driver-1')!
+      expect(driver1.driverName).toBe('Fulano')
+      expect(driver1.routesCompleted).toBe(2)
+      expect(driver1.stopsDelivered).toBe(3)
+      expect(driver1.stopsFailed).toBe(1)
+      expect(driver1.avgDeliveryMinutes).toBe(30)
+
+      const driver2 = result.drivers.find((d) => d.driverId === 'driver-2')!
+      expect(driver2.driverName).toBe('Ciclano')
+      expect(driver2.stopsDelivered).toBe(2)
+      expect(driver2.stopsFailed).toBe(0)
+    })
+
+    it('groups routes without a driver under "unassigned"', async () => {
+      mockPrisma.deliveryRoute.findMany.mockResolvedValue([
+        route({ driverId: null, driver: null, stops: [{ status: 'DELIVERED' }] }),
+      ])
+
+      const result = await service.getDriverPerformance(undefined, {})
+
+      expect(result.drivers).toEqual([
+        expect.objectContaining({ driverId: 'unassigned', driverName: 'Sem motorista', stopsDelivered: 1 }),
+      ])
+    })
+
+    it('filters by period and passes it to the query', async () => {
+      mockPrisma.deliveryRoute.findMany.mockResolvedValue([])
+
+      const result = await service.getDriverPerformance(undefined, {
+        from: '2026-01-01T00:00:00.000Z',
+        to: '2026-01-31T00:00:00.000Z',
+      })
+
+      expect(mockPrisma.deliveryRoute.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: { gte: new Date('2026-01-01T00:00:00.000Z'), lte: new Date('2026-01-31T00:00:00.000Z') },
+          }),
+        }),
+      )
+      expect(result.period).toEqual({ from: '2026-01-01T00:00:00.000Z', to: '2026-01-31T00:00:00.000Z' })
+    })
+
+    it('scopes the query by tenant and store', async () => {
+      mockPrisma.deliveryRoute.findMany.mockResolvedValue([])
+
+      await service.getDriverPerformance({ tenantId: 'tenant-x', storeId: 'store-y' }, {})
+
+      expect(mockPrisma.deliveryRoute.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tenantId: 'tenant-x', storeId: 'store-y' }),
+        }),
+      )
+    })
+
+    it('returns an empty result when there are no routes in the period', async () => {
+      mockPrisma.deliveryRoute.findMany.mockResolvedValue([])
+
+      const result = await service.getDriverPerformance(undefined, {})
+
+      expect(result.totals).toEqual({ routes: 0, completed: 0 })
+      expect(result.drivers).toEqual([])
+    })
   })
 })

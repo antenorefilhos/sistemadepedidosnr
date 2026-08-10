@@ -21,6 +21,17 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { v4 as uuidv4 } from 'uuid';
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+// EAN so tem digitos; sem essa checagem, :ean vira parte literal de um path
+// (filename do multer e destino do sharp) e um staff comprometido/token vazado
+// poderia escrever fora de uploads/products via "../" no parametro da rota.
+const EAN_PARAM_RE = /^[0-9]{4,20}$/;
+
+function assertValidEan(ean: string | undefined): string {
+  if (!ean || !EAN_PARAM_RE.test(ean)) {
+    throw new BadRequestException('EAN invalido.');
+  }
+  return ean;
+}
 
 // Rotas de upload sao admin-only e podem ser chamadas em lote (import de fotos,
 // edicao em massa de catalogo). Sem isso, o guard global aplica TODOS os buckets
@@ -75,6 +86,10 @@ export class UploadsController {
         filename: (req, file, callback) => {
           const ean = req.params.ean;
           const slot = req.params.slot;
+          if (!ean || !EAN_PARAM_RE.test(ean) || (slot && slot !== '2')) {
+            callback(new BadRequestException('EAN invalido.'), '');
+            return;
+          }
           const suffix = slot === '2' ? '_2' : '';
           const tempName = `${ean}${suffix}-temp${extname(file.originalname)}`;
           callback(null, tempName);
@@ -94,6 +109,7 @@ export class UploadsController {
     )
     file: Express.Multer.File,
   ) {
+    assertValidEan(ean);
     if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException('Formato de imagem inválido. Envie JPG, PNG ou WebP.');
     }

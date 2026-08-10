@@ -138,6 +138,9 @@ export class CheckoutService {
     // nunca era comparado com o cobrado: promocao expirando ou sync do ERP
     // no meio do checkout cobrava o cliente calado (ver CLAUDE.md).
     const shownTotal = this.numericTotal(session.priceSnapshot)
+    if (shownTotal == null) {
+      throw new BadRequestException('Cotacao nao encontrada para esta sessao. Chame /quote antes de confirmar.')
+    }
 
     const quote = await this.buildQuote({ tenantId, storeId }, id, dto, { persist: true })
     if (!quote.canConfirm) {
@@ -633,8 +636,11 @@ export class CheckoutService {
   private numericTotal(snapshot: unknown): number | null {
     if (!snapshot || typeof snapshot !== 'object') return null
     const total = (snapshot as { total?: unknown }).total
-    if (typeof total === 'number') return total
-    if (typeof total === 'string' && total.trim()) return Number(total)
+    if (typeof total === 'number') return Number.isFinite(total) ? total : null
+    if (typeof total === 'string' && total.trim()) {
+      const parsed = Number(total)
+      return Number.isFinite(parsed) ? parsed : null
+    }
     return null
   }
 

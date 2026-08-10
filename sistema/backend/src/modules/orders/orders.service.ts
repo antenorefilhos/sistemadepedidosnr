@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { createHash, randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
+import { resolveDateRange } from '../../common/date-range.util'
 import { WhatsAppDispatchResult, WhatsAppService } from '../../modules/notifications/whatsapp.service'
 import { NotificationsService } from '../../modules/notifications/notifications.service'
 import { InternalOrderContract } from '../integrations/dto/order-contract.dto'
@@ -1350,8 +1351,7 @@ export class OrdersService {
 
   async listSubstitutionEvents(context: Partial<OrderTenantContext> | undefined, filters: { from?: string; to?: string; limit?: number } = {}) {
     const scoped = tenantStoreWhere(context)
-    const from = filters.from ? new Date(filters.from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const to = filters.to ? new Date(filters.to) : new Date()
+    const { from, to } = resolveDateRange(filters, 30)
 
     const events = await this.prisma.orderEvent.findMany({
       where: {

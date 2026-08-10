@@ -104,7 +104,9 @@ describe('CheckoutService', () => {
 
     mockCartService.findCart.mockResolvedValue(baseCart)
     mockCartService.markConverted.mockResolvedValue({ count: 1 })
-    mockPrisma.checkoutSession.findFirst.mockResolvedValue(baseSession)
+    // priceSnapshot com o mesmo total do mock de pricing abaixo (27), simulando
+    // uma sessao que ja passou por quoteSession antes de confirmar (fluxo real).
+    mockPrisma.checkoutSession.findFirst.mockResolvedValue({ ...baseSession, priceSnapshot: { total: 27 } })
     mockPrisma.checkoutSession.findUnique.mockResolvedValue(null)
     mockPrisma.checkoutSession.create.mockResolvedValue(baseSession)
     mockPrisma.checkoutSession.update.mockImplementation(async ({ data }: any) => ({ ...baseSession, ...data }))
@@ -243,5 +245,103 @@ describe('CheckoutService', () => {
         }),
       }),
     )
+  })
+
+  describe('trava de divergencia de preco (confirmSession)', () => {
+    it('confirma normalmente quando o total exibido bate com o recalculado', async () => {
+      mockPrisma.checkoutSession.findFirst.mockResolvedValue({
+        ...baseSession,
+        priceSnapshot: { total: 27 },
+      })
+
+      const result = await service.confirmSession(undefined, 'session-1', {
+        customerId: 'customer-1',
+        paymentMethod: 'PIX',
+        delivery: { cep: '01001000', slotId: 'slot-1' },
+      })
+
+      expect(result.order.id).toBe('order-1')
+      expect(mockPrisma.checkoutEvent.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ type: 'PRICE_DIVERGED' }) }),
+      )
+    })
+
+    it('bloqueia com 400 e loga PRICE_DIVERGED quando a diferenca passa de 1 centavo', async () => {
+      mockPrisma.checkoutSession.findFirst.mockResolvedValue({
+        ...baseSession,
+        priceSnapshot: { total: 27.5 },
+      })
+
+      await expect(
+        service.confirmSession(undefined, 'session-1', {
+          customerId: 'customer-1',
+          paymentMethod: 'PIX',
+          delivery: { cep: '01001000', slotId: 'slot-1' },
+        }),
+      ).rejects.toMatchObject({ status: 400 })
+
+      expect(mockPrisma.checkoutEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'PRICE_DIVERGED',
+            metadata: expect.objectContaining({ shownTotal: 27.5, confirmedTotal: 27 }),
+          }),
+        }),
+      )
+      expect(mockOrdersService.create).not.toHaveBeenCalled()
+    })
+
+    it('confirma quando a diferenca esta dentro da tolerancia de 1 centavo', async () => {
+      mockPrisma.checkoutSession.findFirst.mockResolvedValue({
+        ...baseSession,
+        priceSnapshot: { total: 27.005 },
+      })
+
+      const result = await service.confirmSession(undefined, 'session-1', {
+        customerId: 'customer-1',
+        paymentMethod: 'PIX',
+        delivery: { cep: '01001000', slotId: 'slot-1' },
+      })
+
+      expect(result.order.id).toBe('order-1')
+      expect(mockPrisma.checkoutEvent.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ type: 'PRICE_DIVERGED' }) }),
+      )
+    })
+
+    it('bloqueia confirmacao quando priceSnapshot esta ausente (cliente nao chamou quote antes)', async () => {
+      // priceSnapshot null (default do baseSession): numericTotal() retorna null.
+      // Antes essa trava era pulada silenciosamente (nada pra comparar); agora exige
+      // quote previo -- ver checkout.service.ts.
+      mockPrisma.checkoutSession.findFirst.mockResolvedValue({
+        ...baseSession,
+        priceSnapshot: null,
+      })
+
+      await expect(
+        service.confirmSession(undefined, 'session-1', {
+          customerId: 'customer-1',
+          paymentMethod: 'PIX',
+          delivery: { cep: '01001000', slotId: 'slot-1' },
+        }),
+      ).rejects.toThrow('Cotacao nao encontrada')
+      expect(mockOrdersService.create).not.toHaveBeenCalled()
+    })
+
+    it('bloqueia confirmacao quando priceSnapshot esta malformado (total nao numerico)', async () => {
+      mockPrisma.checkoutSession.findFirst.mockResolvedValue({
+        ...baseSession,
+        priceSnapshot: { total: 'nao-e-numero' },
+      })
+
+      await expect(
+        service.confirmSession(undefined, 'session-1', {
+          customerId: 'customer-1',
+          paymentMethod: 'PIX',
+          delivery: { cep: '01001000', slotId: 'slot-1' },
+        }),
+      ).rejects.toThrow('Cotacao nao encontrada')
+      expect(mockOrdersService.create).not.toHaveBeenCalled()
+    })
   })
 })

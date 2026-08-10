@@ -6,6 +6,7 @@ import { PrismaService } from '../../common/prisma.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
+import { resolveDateRange } from '../../common/date-range.util'
 import { CreateDeliveryZoneDto, UpdateDeliveryZoneDto } from './dto/delivery-zone.dto'
 import {
   AddDeliveryStopDto,
@@ -504,8 +505,7 @@ export class DeliveryService {
 
   async getDriverPerformance(context: Partial<FulfillmentContext> | undefined, filters: { from?: string; to?: string } = {}) {
     const scoped = this.resolveContext(context)
-    const from = filters.from ? new Date(filters.from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    const to = filters.to ? new Date(filters.to) : new Date()
+    const { from, to } = resolveDateRange(filters, 7)
 
     const routes = await this.prisma.deliveryRoute.findMany({
       where: {

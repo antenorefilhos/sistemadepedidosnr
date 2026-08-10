@@ -214,20 +214,34 @@ async function main() {
 
   let written = 0
   let skipped = 0
+  const failed: Array<{ file: string; ean: string; error: string }> = []
   for (const m of matched) {
     const destPath = path.join(uploadsDir, `${m.ean}.webp`)
     if (!overwrite && fs.existsSync(destPath)) {
       skipped++
       continue
     }
-    await sharp(m.file)
-      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toFile(destPath)
-    written++
+    try {
+      await sharp(m.file)
+        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toFile(destPath)
+      written++
+    } catch (err) {
+      failed.push({ file: m.file, ean: m.ean, error: err instanceof Error ? err.message : String(err) })
+    }
   }
   console.log(`\nFotos gravadas: ${written}`)
   console.log(`Puladas (ja tinham foto, use --overwrite para substituir): ${skipped}`)
+  if (failed.length) {
+    console.log(`Falharam (arquivo pode estar corrompido/formato inesperado): ${failed.length}`)
+    writeCsv(
+      path.join(outDir, 'photo_match_failed.csv'),
+      ['file', 'ean', 'error'],
+      failed.map((f) => [f.file, f.ean, f.error]),
+    )
+    console.log(`Detalhes em: ${path.join(outDir, 'photo_match_failed.csv')}`)
+  }
 }
 
 main().catch((err) => {

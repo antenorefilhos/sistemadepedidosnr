@@ -48,6 +48,9 @@ const mockPrismaService = {
     create: jest.fn(),
     findMany: jest.fn(),
   },
+  admin: {
+    findMany: jest.fn(),
+  },
   idempotencyKey: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -150,6 +153,7 @@ describe('OrdersService', () => {
     mockPrismaService.idempotencyKey.update.mockResolvedValue({ id: 'idem-record' });
     mockPrismaService.orderEvent.create.mockResolvedValue({ id: 'event-1' });
     mockPrismaService.orderEvent.findMany.mockResolvedValue([]);
+    mockPrismaService.admin.findMany.mockResolvedValue([]);
     mockPrismaService.stockReservation.count.mockResolvedValue(1);
     mockInventoryService.reserveForCheckout.mockResolvedValue([{ id: 'reservation-1' }]);
     mockInventoryService.releaseOrderReservations.mockResolvedValue({ count: 1 });
@@ -801,6 +805,79 @@ describe('OrdersService', () => {
 
       expect(result.total).toBe(15);
       expect(result.data).toHaveLength(3);
+    });
+  });
+
+  describe('listSubstitutionEvents', () => {
+    function event(overrides: Partial<Record<string, any>> = {}) {
+      return {
+        id: 'event-1',
+        orderId: 'order-1',
+        createdAt: new Date('2026-01-05T12:00:00Z'),
+        type: 'order.substitution_accepted',
+        actorType: 'admin',
+        actorId: 'admin-1',
+        payload: { productId: 'p1' },
+        ...overrides,
+      };
+    }
+
+    it('aggregates events per actor across multiple orders', async () => {
+      mockPrismaService.orderEvent.findMany.mockResolvedValue([
+        event(),
+        event({ id: 'event-2', orderId: 'order-2', actorId: 'admin-2' }),
+        event({ id: 'event-3', orderId: 'order-3', actorId: 'admin-1' }),
+      ]);
+      mockPrismaService.admin.findMany.mockResolvedValue([
+        { id: 'admin-1', name: 'Fulano', role: 'picker' },
+        { id: 'admin-2', name: 'Ciclano', role: 'picker' },
+      ]);
+
+      const result = await service.listSubstitutionEvents(undefined, {});
+
+      expect(result).toHaveLength(3);
+      expect(result.filter((e: any) => e.actorId === 'admin-1')).toHaveLength(2);
+      expect(result.find((e: any) => e.id === 'event-1').actorName).toBe('Fulano');
+      expect(result.find((e: any) => e.id === 'event-2').actorName).toBe('Ciclano');
+    });
+
+    it('filters by period and passes it to the query', async () => {
+      mockPrismaService.orderEvent.findMany.mockResolvedValue([]);
+
+      await service.listSubstitutionEvents(undefined, {
+        from: '2026-01-01T00:00:00.000Z',
+        to: '2026-01-31T00:00:00.000Z',
+      });
+
+      expect(mockPrismaService.orderEvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            type: 'order.substitution_accepted',
+            createdAt: { gte: new Date('2026-01-01T00:00:00.000Z'), lte: new Date('2026-01-31T00:00:00.000Z') },
+          }),
+        }),
+      );
+    });
+
+    it('scopes the query by tenant and store', async () => {
+      mockPrismaService.orderEvent.findMany.mockResolvedValue([]);
+
+      await service.listSubstitutionEvents({ tenantId: 'tenant-x', storeId: 'store-y' }, {});
+
+      expect(mockPrismaService.orderEvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tenantId: 'tenant-x', storeId: 'store-y' }),
+        }),
+      );
+    });
+
+    it('returns an empty array when there are no events in the period', async () => {
+      mockPrismaService.orderEvent.findMany.mockResolvedValue([]);
+
+      const result = await service.listSubstitutionEvents(undefined, {});
+
+      expect(result).toEqual([]);
+      expect(mockPrismaService.admin.findMany).not.toHaveBeenCalled();
     });
   });
 });
