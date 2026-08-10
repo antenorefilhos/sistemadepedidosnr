@@ -1140,6 +1140,8 @@ export const ordersAPI = {
   // Phase 17
   getCategoryRevenue: () => api.get<CategoryRevenueItem[]>('/orders/analytics/category-revenue'),
   getRevenueHeatmap: () => api.get<RevenueHeatmapPoint[]>('/orders/analytics/heatmap'),
+  listSubstitutions: (params?: { from?: string; to?: string; limit?: number }) =>
+    api.get<SubstitutionEvent[]>('/admin/orders/audit/substitutions', { params }),
 }
 
 function orderEventTypeForStatus(status: string) {
@@ -1571,6 +1573,37 @@ export const fulfillmentAPI = {
   updateStopStatus: (routeId: string, stopId: string, data: { status: string; notes?: string }) =>
     api.post<Record<string, unknown>>(`/admin/fulfillment/routes/${routeId}/stops/${stopId}/status`, data),
   completeRoute: (routeId: string) => api.post<DeliveryRoute>(`/admin/fulfillment/routes/${routeId}/complete`),
+  getDriverPerformance: (params?: { from?: string; to?: string }) =>
+    api.get<DriverPerformanceResponse>('/admin/fulfillment/drivers/performance', { params }),
+}
+
+export interface DriverPerformanceResponse {
+  period: { from: string; to: string }
+  totals: { routes: number; completed: number }
+  drivers: Array<{
+    driverId: string
+    driverName: string
+    routesCompleted: number
+    stopsDelivered: number
+    stopsFailed: number
+    avgDeliveryMinutes: number
+  }>
+}
+
+export interface SubstitutionEvent {
+  id: string
+  orderId: string
+  createdAt: string
+  actorType: string
+  actorId: string | null
+  actorName: string | null
+  payload: {
+    sourceOrderItemId?: string
+    sourceProductName?: string
+    substituteProductName?: string
+    reason?: string
+    [key: string]: unknown
+  }
 }
 
 export interface FraudLog {

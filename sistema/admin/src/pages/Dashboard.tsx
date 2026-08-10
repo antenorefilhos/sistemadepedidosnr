@@ -29,6 +29,7 @@ export type Section =
   | 'orders'
   | 'picking'
   | 'staff'
+  | 'teamPerformance'
   | 'businessAccounts'
   | 'customers'
   | 'layout'
@@ -257,6 +258,7 @@ const BusinessAccountsSection = lazy(() => import('./sections/BusinessAccountsSe
 const CustomersSection = lazy(() => import('./sections/CustomersSection'))
 const PaymentEventsSection = lazy(() => import('./sections/PaymentEventsSection'))
 const StaffSection = lazy(() => import('./sections/StaffSection'))
+const TeamPerformanceSection = lazy(() => import('./sections/TeamPerformanceSection'))
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -1222,6 +1224,12 @@ export default function AdminDashboard() {
           {activeSection === 'staff' && (
             <Suspense fallback={lazySectionFallback}>
               <StaffSection />
+            </Suspense>
+          )}
+
+          {activeSection === 'teamPerformance' && (
+            <Suspense fallback={lazySectionFallback}>
+              <TeamPerformanceSection />
             </Suspense>
           )}
 

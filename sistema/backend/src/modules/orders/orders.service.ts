@@ -1346,4 +1346,37 @@ export class OrdersService {
       orderBy: { createdAt: 'desc' },
       take: Math.min(limit, 500),
     })
-  }}
+  }
+
+  async listSubstitutionEvents(context: Partial<OrderTenantContext> | undefined, filters: { from?: string; to?: string; limit?: number } = {}) {
+    const scoped = tenantStoreWhere(context)
+    const from = filters.from ? new Date(filters.from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const to = filters.to ? new Date(filters.to) : new Date()
+
+    const events = await this.prisma.orderEvent.findMany({
+      where: {
+        ...scoped,
+        type: 'order.substitution_accepted',
+        createdAt: { gte: from, lte: to },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(filters.limit || 200, 500),
+    })
+
+    const actorIds = Array.from(new Set(events.map((e) => e.actorId).filter((id): id is string => Boolean(id))))
+    const actors = actorIds.length
+      ? await this.prisma.admin.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true, role: true } })
+      : []
+    const actorById = new Map(actors.map((a) => [a.id, a]))
+
+    return events.map((event) => ({
+      id: event.id,
+      orderId: event.orderId,
+      createdAt: event.createdAt,
+      actorType: event.actorType,
+      actorId: event.actorId,
+      actorName: (event.actorId && actorById.get(event.actorId)?.name) || null,
+      payload: event.payload,
+    }))
+  }
+}

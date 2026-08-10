@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Section } from '../pages/Dashboard'
 import {
   BarChart3, Package, ShoppingCart, ClipboardCheck, Users, Briefcase,
-  Tag, ChefHat, Sparkles, Image, Palette, Truck, Clock3,
+  Tag, ChefHat, Sparkles, Image, Palette, Truck, Clock3, TrendingUp,
   Bot, Workflow, ShieldAlert, BellRing, CreditCard,
   LogOut, Menu, X, ChevronDown, ChevronRight,
 } from 'lucide-react'
@@ -26,6 +26,7 @@ const MENU_GROUPS: MenuGroup[] = [
       { key: 'orders', label: 'Pedidos', icon: ShoppingCart },
       { key: 'picking', label: 'Separação', icon: ClipboardCheck },
       { key: 'staff', label: 'Equipe', icon: Users },
+      { key: 'teamPerformance', label: 'Desempenho', icon: TrendingUp },
     ],
   },
   {

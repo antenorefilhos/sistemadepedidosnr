@@ -502,6 +502,71 @@ export class DeliveryService {
     })
   }
 
+  async getDriverPerformance(context: Partial<FulfillmentContext> | undefined, filters: { from?: string; to?: string } = {}) {
+    const scoped = this.resolveContext(context)
+    const from = filters.from ? new Date(filters.from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const to = filters.to ? new Date(filters.to) : new Date()
+
+    const routes = await this.prisma.deliveryRoute.findMany({
+      where: {
+        tenantId: scoped.tenantId,
+        storeId: scoped.storeId,
+        createdAt: { gte: from, lte: to },
+      },
+      include: { driver: true, stops: true },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    const byDriver = new Map<string, {
+      driverId: string
+      driverName: string
+      routesCompleted: number
+      stopsDelivered: number
+      stopsFailed: number
+      deliverySeconds: number
+      completedRoutes: number
+    }>()
+
+    for (const route of routes) {
+      const driverId = route.driverId || 'unassigned'
+      if (!byDriver.has(driverId)) {
+        byDriver.set(driverId, {
+          driverId,
+          driverName: route.driver?.name || 'Sem motorista',
+          routesCompleted: 0,
+          stopsDelivered: 0,
+          stopsFailed: 0,
+          deliverySeconds: 0,
+          completedRoutes: 0,
+        })
+      }
+      const bucket = byDriver.get(driverId)!
+      bucket.stopsDelivered += route.stops.filter((s) => s.status === 'DELIVERED').length
+      bucket.stopsFailed += route.stops.filter((s) => s.status === 'FAILED').length
+      if (route.status === 'COMPLETED' && route.startsAt && route.completedAt) {
+        bucket.completedRoutes += 1
+        bucket.routesCompleted += 1
+        bucket.deliverySeconds += Math.max(0, Math.round((route.completedAt.getTime() - route.startsAt.getTime()) / 1000))
+      }
+    }
+
+    const drivers = Array.from(byDriver.values()).map((bucket) => ({
+      ...bucket,
+      avgDeliveryMinutes: bucket.completedRoutes > 0
+        ? Number((bucket.deliverySeconds / bucket.completedRoutes / 60).toFixed(1))
+        : 0,
+    }))
+
+    return {
+      period: { from: from.toISOString(), to: to.toISOString() },
+      totals: {
+        routes: routes.length,
+        completed: routes.filter((r) => r.status === 'COMPLETED').length,
+      },
+      drivers,
+    }
+  }
+
   async createRoute(context: Partial<FulfillmentContext> | undefined, dto: CreateDeliveryRouteDto, actor?: { actorType?: string; actorId?: string }) {
     const scoped = this.resolveContext(context)
     if (dto.driverId) await this.findDriverOrThrow(dto.driverId, scoped)

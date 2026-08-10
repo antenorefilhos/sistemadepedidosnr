@@ -210,6 +210,12 @@ export class AdminFulfillmentController {
     return this.deliveryService.listRoutes(getTenantContext(req), { status })
   }
 
+  @Get('drivers/performance')
+  @ApiOperation({ summary: 'Desempenho de entregadores por periodo' })
+  getDriverPerformance(@Req() req: TenantContextRequest, @Query('from') from?: string, @Query('to') to?: string) {
+    return this.deliveryService.getDriverPerformance(getTenantContext(req), { from, to })
+  }
+
   @Post('routes')
   @ApiOperation({ summary: 'Criar rota manual' })
   createRoute(@Req() req: TenantContextRequest, @Body() dto: CreateDeliveryRouteDto) {

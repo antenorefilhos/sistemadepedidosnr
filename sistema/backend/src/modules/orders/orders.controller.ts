@@ -360,6 +360,21 @@ export class AdminOrdersController {
     })
   }
 
+  @Get('audit/substitutions')
+  @ApiOperation({ summary: 'Auditoria de substituicoes de itens', description: 'Quem trocou qual produto, em qual pedido.' })
+  async listSubstitutions(
+    @Req() req: TenantContextRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ordersService.listSubstitutionEvents(getTenantContext(req), {
+      from,
+      to,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    })
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Detalhar pedido OMS', description: 'Retorna pedido com itens e historico de eventos.' })
   async findOne(@Param('id') id: string, @Req() req: TenantContextRequest) {
