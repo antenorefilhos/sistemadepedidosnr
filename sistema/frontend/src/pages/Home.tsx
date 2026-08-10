@@ -489,7 +489,7 @@ export default function Home() {
 
       {/* Hero Slider — escondido no mobile, substituído pela seção Popular */}
       {isDesktop && slides.length > 0 && <div
-        className="hidden md:block relative h-[340px] sm:h-[430px] md:h-[520px] overflow-hidden bg-[#231F20]"
+        className="hidden md:block relative h-[420px] sm:h-[520px] md:h-[620px] overflow-hidden bg-[#231F20]"
         onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
         onTouchEnd={(e) => {
           const diff = touchStartX.current - e.changedTouches[0].clientX

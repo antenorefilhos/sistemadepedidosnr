@@ -18,12 +18,15 @@ import {
 } from 'lucide-react';
 import { cmsAPI, uploadsAPI, getApiErrorMessage, resolveApiUrl } from '../services/api';
 import PromoBannersManager from './PromoBannersManager';
+import { SectionMetric, SectionEmptyState } from '../pages/sections/SectionChrome';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+
+const CATEGORIES_PER_PAGE = 20;
 
 interface HeroSlide {
   id: string;
@@ -108,10 +111,15 @@ export default function LayoutManager() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [categoryBusyId, setCategoryBusyId] = useState<string | null>(null);
   const [slideBusyId, setSlideBusyId] = useState<string | null>(null);
+  const [categoryPage, setCategoryPage] = useState(0);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    setCategoryPage(0);
+  }, [categorySearch, categoryFilter]);
 
   const pushNotice = (tone: Notice['tone'], message: string) => {
     const id = Date.now() + Math.floor(Math.random() * 1000);
@@ -130,6 +138,12 @@ export default function LayoutManager() {
 
     return matchesSearch && matchesFilter;
   });
+
+  const categoryPageCount = Math.max(1, Math.ceil(filteredCategories.length / CATEGORIES_PER_PAGE));
+  const paginatedCategories = filteredCategories.slice(
+    categoryPage * CATEGORIES_PER_PAGE,
+    categoryPage * CATEGORIES_PER_PAGE + CATEGORIES_PER_PAGE
+  );
 
   const activeSlidesCount = slides.filter(slide => slide.active).length;
   const inactiveSlidesCount = slides.length - activeSlidesCount;
@@ -429,22 +443,13 @@ export default function LayoutManager() {
         <div className="flex flex-col gap-6 border-b border-[#f1dbe3] p-6 sm:p-8 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-4">
             <div>
-            <h2 className="text-xl font-bold text-gray-800">Slider de Destaque (Topo)</h2>
+              <h2 className="text-xl font-bold text-gray-800">Slider de Destaque (Topo)</h2>
               <p className="text-sm text-gray-500">Banners rotativos que aparecem no topo da página inicial.</p>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-[#f1dbe3] bg-white px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#8d5b70]">Total</p>
-                <p className="mt-2 text-2xl font-black text-[#5d082a]">{slides.length}</p>
-              </div>
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700">Ativos</p>
-                <p className="mt-2 text-2xl font-black text-emerald-900">{activeSlidesCount}</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Inativos</p>
-                <p className="mt-2 text-2xl font-black text-slate-700">{inactiveSlidesCount}</p>
-              </div>
+              <SectionMetric label="Total" value={slides.length} tone="brand" />
+              <SectionMetric label="Ativos" value={activeSlidesCount} tone="success" />
+              <SectionMetric label="Inativos" value={inactiveSlidesCount} tone="neutral" />
             </div>
           </div>
           <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
@@ -593,18 +598,9 @@ export default function LayoutManager() {
                 <p className="text-sm text-gray-500">Imagens de fundo para as divisões da vitrine na Home.</p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-[#f1dbe3] bg-white px-4 py-3">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#8d5b70]">Categorias</p>
-                  <p className="mt-2 text-2xl font-black text-[#5d082a]">{categories.length}</p>
-                </div>
-                <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700">Visíveis</p>
-                  <p className="mt-2 text-2xl font-black text-emerald-900">{visibleCategoriesCount}</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Filtradas</p>
-                  <p className="mt-2 text-2xl font-black text-slate-700">{filteredCategories.length}</p>
-                </div>
+                <SectionMetric label="Categorias" value={categories.length} tone="brand" />
+                <SectionMetric label="Visíveis" value={visibleCategoriesCount} tone="success" />
+                <SectionMetric label="Filtradas" value={filteredCategories.length} tone="neutral" />
               </div>
             </div>
             <div className="flex w-full max-w-xl flex-col gap-3">
@@ -646,7 +642,7 @@ export default function LayoutManager() {
         </div>
         <div>
           <Table className="text-left">
-            <TableHeader className="bg-gray-50 text-xs tracking-wider text-gray-600">
+            <TableHeader className="bg-[#fdf0f4] text-xs tracking-wider text-[#5d082a]">
               <TableRow>
                 <TableHead className="px-6 py-4">Categoria</TableHead>
                 <TableHead className="px-6 py-4">Banner Atual</TableHead>
@@ -658,7 +654,7 @@ export default function LayoutManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCategories.map(cat => (
+              {paginatedCategories.map(cat => (
                 <TableRow key={cat.id} className="hover:bg-gray-50/50">
                   <TableCell className="px-6 py-4 font-bold text-gray-800">{cat.name}</TableCell>
                   <TableCell className="px-6 py-4">
@@ -755,8 +751,40 @@ export default function LayoutManager() {
             </TableBody>
           </Table>
           {filteredCategories.length === 0 && (
-            <div className="px-6 py-12 text-center text-sm text-gray-400">
-              Nenhuma categoria encontrada com os filtros atuais.
+            <div className="p-6">
+              <SectionEmptyState
+                title="Nenhuma categoria encontrada"
+                description="Ajuste a busca ou os filtros para ver outras categorias."
+              />
+            </div>
+          )}
+          {filteredCategories.length > 0 && categoryPageCount > 1 && (
+            <div className="flex items-center justify-between gap-4 border-t border-[#f1dbe3] px-6 py-4">
+              <p className="text-xs text-gray-500">
+                Página {categoryPage + 1} de {categoryPageCount} · {filteredCategories.length} categorias
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  onClick={() => setCategoryPage(p => Math.max(0, p - 1))}
+                  disabled={categoryPage === 0}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-md border-[#ead7df] text-[#5d082a] hover:bg-[#fff5f8]"
+                >
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setCategoryPage(p => Math.min(categoryPageCount - 1, p + 1))}
+                  disabled={categoryPage >= categoryPageCount - 1}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-md border-[#ead7df] text-[#5d082a] hover:bg-[#fff5f8]"
+                >
+                  Próxima
+                </Button>
+              </div>
             </div>
           )}
         </div>
