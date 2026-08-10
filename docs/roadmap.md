@@ -96,4 +96,17 @@ delivery); migração shadcn/ui; decomposição de Home e Checkout; busca com
 MeiliSearch e ranking de relevância; auditoria seção a seção do admin (18 telas);
 controle de acesso por módulo e permissão granular; importação em massa das fotos
 de produto (cobertura de catálogo de 13% para 27%); mapa de zonas de entrega com
-raio/retângulo/polígono, busca de endereço e contexto das zonas já cadastradas.
+raio/retângulo/polígono, busca de endereço e contexto das zonas já cadastradas;
+tela de Desempenho da Equipe.
+
+## Fila (não bloqueiam o lançamento) — concluídos
+
+- [x] **Ferramenta de casamento automático de fotos por nome.** O import em
+      massa original foi um script avulso; virou ferramenta reutilizável em
+      `sistema/backend/scripts/match-photos.ts` (`npm run photos:match -- <pasta>`).
+      Casa por EAN exato no nome do arquivo ou por similaridade de nome
+      (Jaccard + razão de sequência, limiar 0.86 com margem de 0.05); roda em
+      dry-run por padrão e só grava com `--apply`. Ambíguos caem em
+      `photo_match_review.csv` em vez de aplicar errado. Testado com fotos
+      reais (match por EAN, match fuzzy abaixo do limiar indo pra revisão,
+      e gravação real via `--apply`).

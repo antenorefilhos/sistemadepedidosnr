@@ -37,6 +37,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
     "seed:qa": "ts-node scripts/seed-qa.ts",
+    "photos:match": "ts-node scripts/match-photos.ts",
     "seed:staging-recipes": "node scripts/seed-staging-recipes.js",
     "validate:staging-recipes": "node scripts/validate-staging-recipes.js"
   },
