@@ -1,0 +1,206 @@
+# Stack de producao. Arquivo separado de docker-compose.yml (nao um override
+# por cima dele) de proposito: assim nao depende de entender as regras de
+# merge do compose para saber com certeza que nenhuma porta de banco/cache/
+# busca vai parar exposta na internet. Ver docs/deploy.md para o passo a passo.
+#
+# Uso: docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: antenor_db
+    restart: always
+    environment:
+      POSTGRES_DB: antenor_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em .env.production}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - antenor_network
+    # Sem "ports": so a api precisa alcancar o banco, e ela esta na mesma rede
+    # Docker. Publicar 5432 no host expunha o Postgres direto na internet.
+
+  redis:
+    image: redis:7-alpine
+    container_name: antenor_redis
+    restart: always
+    networks:
+      - antenor_network
+
+  meili:
+    image: getmeili/meilisearch:v1.11
+    container_name: antenor_meili
+    restart: always
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?defina MEILI_MASTER_KEY em .env.production}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - meili_data:/meili_data
+    networks:
+      - antenor_network
+    # Idem: sem "ports". Painel do Meili so precisa ser acessado de dentro da
+    # rede (docker compose exec, ou tunel SSH quando for debugar).
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: antenor_api
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em .env.production}@db:5432/antenor_db?schema=public
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (min 32 chars) em .env.production}
+      CORS_ORIGIN: ${CORS_ORIGIN:?defina CORS_ORIGIN em .env.production}
+      FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL em .env.production}
+      ADMIN_URL: ${ADMIN_URL:?defina ADMIN_URL em .env.production}
+      WEB_PUSH_ORIGIN: ${WEB_PUSH_ORIGIN:-}
+      PORT: 3001
+      MEILI_HOST: http://meili:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?defina MEILI_MASTER_KEY em .env.production}
+      USE_MEILISEARCH: ${USE_MEILISEARCH:-true}
+      ALLOW_GUEST_CHECKOUT: ${ALLOW_GUEST_CHECKOUT:-true}
+      ALLOW_DEFAULT_TENANT_CONTEXT: ${ALLOW_DEFAULT_TENANT_CONTEXT:-false}
+      ENABLE_LEGACY_CLASSIFICATION_MAPPINGS: ${ENABLE_LEGACY_CLASSIFICATION_MAPPINGS:-false}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@antenorefilhos.com.br}
+      SOLIDCOM_API_URL: ${SOLIDCOM_API_URL:-}
+      SOLIDCOM_CNPJ: ${SOLIDCOM_CNPJ:-}
+      SOLIDCOM_CODECOM: ${SOLIDCOM_CODECOM:-}
+      HANDOFF_CSV_PATH: ${HANDOFF_CSV_PATH:-/data/handoff_ecommerce_v3_n1_n2.csv}
+      # Sync ERP: completo 1x/dia + incremental de hora em hora (ver
+      # docs/solidcom-api.md). Os dois crons so rodam com *_CRON_ENABLED=true.
+      ERP_SYNC_CRON_ENABLED: ${ERP_SYNC_CRON_ENABLED:-true}
+      ERP_SYNC_CRON: ${ERP_SYNC_CRON:-0 4 * * *}
+      ERP_SYNC_INCREMENTAL_CRON: ${ERP_SYNC_INCREMENTAL_CRON:-0 * * * *}
+      ERP_SYNC_INCREMENTAL_HOURS: ${ERP_SYNC_INCREMENTAL_HOURS:-2}
+      TZ: ${TZ:-America/Sao_Paulo}
+    depends_on:
+      - db
+      - redis
+      - meili
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - antenor_network
+    # Sem "ports": so o proxy fala com a api, pela rede interna.
+
+  storefront:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:?defina VITE_API_URL em .env.production}
+        VITE_GUEST_CHECKOUT_ENABLED: ${VITE_GUEST_CHECKOUT_ENABLED:-true}
+        VITE_PAYMENTS_UI_ENABLED: ${VITE_PAYMENTS_UI_ENABLED:-false}
+        VITE_MAPBOX_ACCESS_TOKEN: ${VITE_MAPBOX_ACCESS_TOKEN:-}
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
+        VITE_CONTACT_WHATSAPP: ${VITE_CONTACT_WHATSAPP:-}
+    container_name: antenor_storefront
+    restart: always
+    depends_on:
+      - api
+    networks:
+      - antenor_network
+    volumes:
+      # nginx.conf tem um server{} 443 fixo (usado hoje para teste local por
+      # IP); sem certificado montado o nginx nem sobe. O Caddy so fala com a
+      # porta 80 do container, entao o 443 interno fica ocioso -- reaproveita
+      # o certificado autoassinado que ja existe no repo em vez de criar um
+      # nginx.conf so para producao.
+      - ./certs:/etc/nginx/certs:ro
+    # Sem "ports": o Caddy e quem fala com a porta 80 deste container.
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: antenor_admin
+    restart: always
+    depends_on:
+      - api
+    networks:
+      - antenor_network
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+
+  picking:
+    build:
+      context: ./picking-app
+      dockerfile: Dockerfile
+    container_name: antenor_picking
+    restart: always
+    depends_on:
+      - api
+    networks:
+      - antenor_network
+
+  delivery:
+    build:
+      context: ./delivery-app
+      dockerfile: Dockerfile
+    container_name: antenor_delivery
+    restart: always
+    depends_on:
+      - api
+    networks:
+      - antenor_network
+
+  # --- Reverse proxy com HTTPS automatico ---
+  # Caddy obtem e renova os certificados Let's Encrypt sozinho para os 5
+  # subdominios do Caddyfile. E a unica coisa exposta na internet.
+  proxy:
+    image: caddy:2-alpine
+    container_name: antenor_proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - storefront
+      - admin
+      - api
+      - picking
+      - delivery
+    networks:
+      - antenor_network
+
+  # --- Backup diario (Postgres + fotos de produto) ---
+  # Ver backup/README.md. Roda dentro da rede, sem porta nenhuma exposta.
+  backup:
+    build:
+      context: ./backup
+    container_name: antenor_backup
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em .env.production}
+      RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
+      RETENTION_DAILY: ${BACKUP_RETENTION_DAILY:-7}
+      RETENTION_WEEKLY: ${BACKUP_RETENTION_WEEKLY:-4}
+    volumes:
+      - uploads_data:/uploads:ro
+      - backup_data:/backup
+      - ./backup/rclone.conf:/config/rclone/rclone.conf:ro
+    depends_on:
+      - db
+    networks:
+      - antenor_network
+
+networks:
+  antenor_network:
+    driver: bridge
+
+volumes:
+  pgdata:
+  meili_data:
+  uploads_data:
+  caddy_data:
+  caddy_config:
+  backup_data:

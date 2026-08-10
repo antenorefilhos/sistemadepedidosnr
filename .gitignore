@@ -37,6 +37,10 @@ arquivos-projeto/md/06\ -\ Sessões/Day_0_Historico.md
 !.env.example
 !.env.*.example
 
+# Credenciais do backup remoto (mesma regra: exemplo vai, real nao)
+sistema/backup/rclone.conf
+!sistema/backup/rclone.conf.example
+
 # OS/editor noise
 .DS_Store
 Thumbs.db

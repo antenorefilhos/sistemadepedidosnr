@@ -1,0 +1,27 @@
+# Caddy obtem e renova certificado Let's Encrypt automaticamente para cada
+# dominio listado abaixo -- nao precisa de certbot nem de cron de renovacao.
+# So mexe nestes 5 subdominios; o dominio raiz antenorefilhos.com.br e o
+# sistema da outra loja continuam em outro lugar, intocados.
+{
+	email admin@antenorefilhos.com.br
+}
+
+mercado.antenorefilhos.com.br {
+	reverse_proxy storefront:80
+}
+
+admin.antenorefilhos.com.br {
+	reverse_proxy admin:80
+}
+
+api.antenorefilhos.com.br {
+	reverse_proxy api:3001
+}
+
+separacao.antenorefilhos.com.br {
+	reverse_proxy picking:80
+}
+
+entrega.antenorefilhos.com.br {
+	reverse_proxy delivery:80
+}

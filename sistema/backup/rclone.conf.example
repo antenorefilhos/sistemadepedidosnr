@@ -1,0 +1,12 @@
+# Copie para rclone.conf (sem .example) e preencha com as credenciais reais.
+# rclone.conf NAO deve ir pro git -- ver .gitignore.
+#
+# Exemplo com Backblaze B2 (barato, ~R$0,03/GB/mes). Rode `rclone config`
+# localmente uma vez pra gerar isto certinho, ou preencha na mao:
+#
+# [antenor-backup]
+# type = b2
+# account = SEU_KEY_ID
+# key = SUA_APPLICATION_KEY
+#
+# BACKUP_RCLONE_REMOTE no .env.production fica: antenor-backup:antenor-backups

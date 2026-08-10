@@ -44,6 +44,14 @@ function resolveCorsOrigins() {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { logger: false })
 
+  // Atras do proxy reverso de producao (Caddy), toda requisicao chegaria com o
+  // mesmo IP interno se isso nao fosse setado -- rate limit, anti-fraude e
+  // auditoria por IP (checkout, orders, CRM, data-privacy) passariam a ver um
+  // cliente so. `1` confia exatamente no primeiro salto: e o unico caminho de
+  // entrada, a porta da api nao e publicada (so o proxy alcanca a rede
+  // interna), entao nao da pra falsificar X-Forwarded-For pulando o Caddy.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1)
+
   app.useGlobalInterceptors(new HttpLoggingInterceptor())
 
   app.use(helmet({
