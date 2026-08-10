@@ -78,10 +78,11 @@ Sem isto no ar, todo cliente cai no CEP.
       `PRICE_DIVERGED`. Testado ao vivo: subiu o preço de um produto no meio de
       uma sessão real — bloqueou, 0 pedidos criados; sem alteração, confirma
       normal. Ver [CLAUDE.md](../CLAUDE.md).
-- [ ] **Tela de Desempenho da Equipe.** Auditoria e métricas por pessoa: quem trocou
-      qual produto no pedido, qual entregador levou, onde estão os gargalos da
-      separação. Depende do controle de acesso por módulo, que já está pronto —
-      e agora também da trilha de eventos por ator, confirmada na Semana 1.
+- [x] **Tela de Desempenho da Equipe.** Nova seção Operações > Desempenho:
+      separadores (reusa endpoint existente), entregadores (novo endpoint
+      agregando rotas/paradas por motorista) e substituições (novo endpoint
+      lendo `order_events` e resolvendo o nome de quem trocou). Testado com
+      dados reais e em mobile.
 - [ ] **Configurar zonas de entrega e janelas de horário reais.** A
       `ZONA TESTE QA - REMOVER` (CEP 20000000-29999999) continua ativa pra não
       travar os testes — precisa sair antes do domínio de produção ir ao ar,
