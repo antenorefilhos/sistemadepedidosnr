@@ -603,10 +603,16 @@ function CategoriesTab() {
 
 // ─── Tab: Mapeamento EAN (modelo novo) ───────────────────────────────────────
 
+const PENDING_PAGE_SIZE = 25
+
 function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }) {
   const [stats, setStats] = useState<MappingStats | null>(null)
   const [suggestions, setSuggestions] = useState<EanMappingSuggestion[]>([])
   const [pendingMappings, setPendingMappings] = useState<PendingCategoryMappingItem[]>([])
+  const [pendingTotal, setPendingTotal] = useState(0)
+  const [pendingOffset, setPendingOffset] = useState(0)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategoryByItem, setSelectedCategoryByItem] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [workflowLoading, setWorkflowLoading] = useState(false)
@@ -618,16 +624,23 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
     setStats(res.data?.data || null)
   }
 
-  const loadPending = async () => {
-    const res = await cmsAPI.categories.getPendingMappings({ limit: 25, offset: 0 })
+  const loadCategories = async () => {
+    const res = await cmsAPI.categories.getAll()
+    setCategories(res.data || [])
+  }
+
+  const loadPending = async (offset = pendingOffset) => {
+    const res = await cmsAPI.categories.getPendingMappings({ limit: PENDING_PAGE_SIZE, offset })
     setPendingMappings(res.data?.data || [])
+    setPendingTotal(res.data?.pagination?.total ?? 0)
+    setPendingOffset(offset)
   }
 
   const load = async () => {
     setLoading(true)
     setError('')
     try {
-      await Promise.all([loadStats(), loadSuggestions(), loadPending()])
+      await Promise.all([loadStats(), loadSuggestions(), loadPending(0), loadCategories()])
     } catch {
       setError('Falha ao carregar dados.')
     } finally {
@@ -649,15 +662,19 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
   }
 
   const resolvePending = async (item: PendingCategoryMappingItem, action: 'approve' | 'reject') => {
-    if (action === 'approve' && !item.suggestedCategory?.id) return
+    const chosenCategoryId = selectedCategoryByItem[item.id] || item.suggestedCategory?.id
+    if (action === 'approve' && !chosenCategoryId) return
 
     setPendingActionId(item.id)
     setError('')
     try {
       if (action === 'approve') {
         await cmsAPI.categories.approvePendingMapping(item.id, {
-          categoryId: item.suggestedCategory!.id,
-          notes: `Aprovado via admin com base em ${item.reason}`,
+          categoryId: chosenCategoryId!,
+          notes:
+            chosenCategoryId === item.suggestedCategory?.id
+              ? `Aprovado via admin com base em ${item.reason}`
+              : 'Aprovado via admin com categoria escolhida manualmente (sem sugestao automatica)',
         })
       } else {
         await cmsAPI.categories.rejectPendingMapping(item.id, {
@@ -665,7 +682,12 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
         })
       }
 
-      await Promise.all([loadStats(), loadSuggestions(), loadPending()])
+      setSelectedCategoryByItem((prev) => {
+        const next = { ...prev }
+        delete next[item.id]
+        return next
+      })
+      await Promise.all([loadStats(), loadSuggestions(), loadPending(pendingOffset)])
     } catch {
       setError(action === 'approve' ? 'Falha ao aprovar pendência.' : 'Falha ao rejeitar pendência.')
     } finally {
@@ -786,7 +808,7 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Pendências de categorização</p>
               <p className="text-[11px] text-gray-400 mt-1">Exibe motivo original do handoff e notas da fila PENDING.</p>
             </div>
-            <Badge variant="outline" className="rounded-full border-gray-200 bg-gray-50 text-xs text-gray-500">{pendingMappings.length} itens</Badge>
+            <Badge variant="outline" className="rounded-full border-gray-200 bg-gray-50 text-xs text-gray-500">{pendingTotal} itens</Badge>
           </div>
           <div className="max-h-80 overflow-auto divide-y divide-gray-100">
             {pendingMappings.length === 0 ? (
@@ -802,6 +824,25 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
                     <p className="text-[11px] text-gray-400">
                       Sugestão: Departamento {item.suggestedCategoryN1 || 'não definido'}{item.suggestedCategoryN2 ? ` / Seção ${item.suggestedCategoryN2}` : ''}
                     </p>
+                    {/* Maioria das pendencias chega sem sugestao automatica (reason "not_found") --
+                        sem este seletor manual, "Aprovar" ficava travado pra sempre e a unica saida
+                        era Rejeitar, que so tira da fila sem categorizar o produto. */}
+                    <select
+                      value={selectedCategoryByItem[item.id] ?? item.suggestedCategory?.id ?? ''}
+                      onChange={(e) =>
+                        setSelectedCategoryByItem((prev) => ({ ...prev, [item.id]: e.target.value }))
+                      }
+                      disabled={pendingActionId === item.id}
+                      className="mt-1 h-8 w-56 rounded border border-gray-300 px-2 text-[11px]"
+                      aria-label={`Categoria para ${item.productName}`}
+                    >
+                      <option value="">Escolher categoria...</option>
+                      {categories
+                        .filter((cat) => !cat.parentId)
+                        .map((cat) => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                    </select>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Button
@@ -817,7 +858,10 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
                     <Button
                       type="button"
                       onClick={() => resolvePending(item, 'approve')}
-                      disabled={pendingActionId === item.id || !item.suggestedCategory?.id}
+                      disabled={
+                        pendingActionId === item.id ||
+                        !(selectedCategoryByItem[item.id] || item.suggestedCategory?.id)
+                      }
                       size="sm"
                       className="rounded bg-[#5d082a] text-[11px] text-white hover:bg-[#7a1038]"
                     >
@@ -828,6 +872,35 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
               ))
             )}
           </div>
+          {pendingTotal > PENDING_PAGE_SIZE && (
+            <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-xs text-gray-500">
+              <span>
+                {pendingOffset + 1}–{Math.min(pendingOffset + PENDING_PAGE_SIZE, pendingTotal)} de {pendingTotal}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded border-gray-300 text-[11px] hover:bg-gray-50"
+                  disabled={pendingOffset === 0}
+                  onClick={() => loadPending(Math.max(0, pendingOffset - PENDING_PAGE_SIZE))}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded border-gray-300 text-[11px] hover:bg-gray-50"
+                  disabled={pendingOffset + PENDING_PAGE_SIZE >= pendingTotal}
+                  onClick={() => loadPending(pendingOffset + PENDING_PAGE_SIZE)}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
           </div>
         )}
       </div>
