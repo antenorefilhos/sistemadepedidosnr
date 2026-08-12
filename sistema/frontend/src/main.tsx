@@ -31,8 +31,17 @@ if (import.meta.env.DEV) {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {
-      // Sem bloqueio funcional: notificações in-app continuam funcionando
-    })
+    // updateViaCache: 'none' + update() explicito -- o header no-store do
+    // nginx no service-worker.js nao basta: Safari/iOS (e as vezes Chrome
+    // Android) tem bug conhecido de ignorar no-store so pra checagem de SW,
+    // servindo a versao antiga do arquivo indefinidamente ate o cache do
+    // navegador expirar por conta propria. Sem isso, mudanca nenhuma no
+    // storefront chegava em quem ja tinha visitado antes (so em aba anonima).
+    navigator.serviceWorker
+      .register('/service-worker.js', { updateViaCache: 'none' })
+      .then((registration) => registration.update())
+      .catch(() => {
+        // Sem bloqueio funcional: notificações in-app continuam funcionando
+      })
   })
 }
