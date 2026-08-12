@@ -191,7 +191,7 @@ export function TopMenuBar({ activeSection, onSectionChange, adminName, onLogout
                 onClick={() => setOpenMenu(isOpen ? null : group.label)}
                 className={`flex items-center gap-1.5 px-3 h-10 text-[13px] font-medium tracking-wide transition-colors rounded-none
                   ${isActive ? 'text-white bg-[#5d082a]' : 'text-[#dbb0c4] hover:text-white hover:bg-[#5d082a]/60'}
-                  ${isOpen ? 'bg-[#5d082a] text-white' : ''}
+                  ${isOpen && !isActive ? 'bg-[#5d082a]/60 text-white' : ''}
                 `}
               >
                 {group.label}
