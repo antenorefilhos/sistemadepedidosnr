@@ -35,7 +35,7 @@ export class EmailService {
       <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
         <h2 style="color: #5D082A;">Redefinir senha</h2>
         <p>Olá, ${name}.</p>
-        <p>Recebemos um pedido para redefinir a senha da sua conta no admin do Antenor & Filhos.</p>
+        <p>Recebemos um pedido de redefinição de senha para a sua conta no Antenor & Filhos. Se não foi você, ignore este e-mail.</p>
         <p><a href="${resetUrl}" style="display:inline-block;background:#5D082A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;">Redefinir senha</a></p>
         <p style="color:#888;font-size:13px;">Esse link expira em 1 hora. Se você não pediu isso, ignore este e-mail.</p>
       </div>
