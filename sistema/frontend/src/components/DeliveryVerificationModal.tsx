@@ -356,10 +356,13 @@ export function DeliveryVerificationModal() {
             {calc && !calc.outOfArea && (
               <Button
                 type="button"
-                onClick={() => navigate('/checkout')}
-                className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-300"
+                onClick={() => {
+                  handleCloseModal()
+                  navigate('/checkout')
+                }}
+                className="w-full mt-3 h-14 text-base bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-300"
               >
-                <CheckCircle2 size={16} />
+                <CheckCircle2 size={18} />
                 Usar este endereço e continuar
               </Button>
             )}
@@ -367,7 +370,10 @@ export function DeliveryVerificationModal() {
             <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
               <Button
                 type="button"
-                onClick={() => navigate('/checkout')}
+                onClick={() => {
+                  handleCloseModal()
+                  navigate('/checkout')
+                }}
                 variant="ghost"
                 size="sm"
                 className="h-8 px-2 text-xs"

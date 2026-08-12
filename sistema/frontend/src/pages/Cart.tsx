@@ -10,7 +10,7 @@ import { useTopSellingProducts } from '../hooks/useCMS'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
-import { getProductLineTotal, getProductPricePresentation, formatProductQuantity, getProductStep, formatPortionFromStep, getFractionDisplayUnit } from '../utils/productPricing'
+import { getProductLineTotal, getProductPricePresentation, formatProductQuantity } from '../utils/productPricing'
 import { Trash2, Plus, Minus, ArrowLeft, ShoppingCart } from 'lucide-react'
 import { FreeShippingBar } from '../components/FreeShippingBar'
 import { Badge } from '../components/ui/badge'
@@ -188,34 +188,29 @@ export default function Cart() {
                     </div>
 
                     {item.product?.isFractional && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <div className="flex flex-1 gap-1 rounded-lg bg-[#f5f2ec] p-1 border border-[#D2BB8A]/40">
-                          <button
-                            type="button"
-                            onClick={() => setUnitModeByItem((prev) => ({ ...prev, [item.productId]: 'unit' }))}
-                            className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-colors ${
-                              (unitModeByItem[item.productId] ?? 'unit') === 'unit'
-                                ? 'bg-[#5D082A] text-white'
-                                : 'text-[#5d4f33] hover:bg-white/60'
-                            }`}
-                          >
-                            Unidades
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setUnitModeByItem((prev) => ({ ...prev, [item.productId]: 'weight' }))}
-                            className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-colors ${
-                              unitModeByItem[item.productId] === 'weight'
-                                ? 'bg-[#5D082A] text-white'
-                                : 'text-[#5d4f33] hover:bg-white/60'
-                            }`}
-                          >
-                            Peso
-                          </button>
-                        </div>
-                        <span className="text-[11px] text-[#8A6A3A] font-semibold whitespace-nowrap">
-                          cada {formatPortionFromStep(getProductStep(item.product), getFractionDisplayUnit(item.product))}
-                        </span>
+                      <div className="mt-3 flex gap-1 rounded-lg bg-[#f5f2ec] p-1 border border-[#D2BB8A]/40">
+                        <button
+                          type="button"
+                          onClick={() => setUnitModeByItem((prev) => ({ ...prev, [item.productId]: 'unit' }))}
+                          className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-colors ${
+                            (unitModeByItem[item.productId] ?? 'unit') === 'unit'
+                              ? 'bg-[#5D082A] text-white'
+                              : 'text-[#5d4f33] hover:bg-white/60'
+                          }`}
+                        >
+                          Unidade
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setUnitModeByItem((prev) => ({ ...prev, [item.productId]: 'weight' }))}
+                          className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-colors ${
+                            unitModeByItem[item.productId] === 'weight'
+                              ? 'bg-[#5D082A] text-white'
+                              : 'text-[#5d4f33] hover:bg-white/60'
+                          }`}
+                        >
+                          Peso
+                        </button>
                       </div>
                     )}
 

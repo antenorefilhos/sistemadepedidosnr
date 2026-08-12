@@ -60,6 +60,15 @@ export default function ProductDetail() {
 
   const backTo = (location.state as { from?: string } | null)?.from || '/mercado'
   const backLabel = backTo === '/adega' ? 'Voltar para Adega' : 'Voltar ao Mercado'
+  // ponytail: navigate(-1) volta pra pagina real de origem (preserva scroll/filtros);
+  // so cai no backTo fixo quando nao ha historico dentro do site (link direto/aba nova)
+  const goBack = () => {
+    if (window.history.state?.idx > 0) {
+      navigate(-1)
+    } else {
+      navigate(backTo)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -75,7 +84,7 @@ export default function ProductDetail() {
         <header className="glass sticky top-0 z-50 border-b border-[#D2BB8A]/20">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
             <Button
-              onClick={() => navigate(backTo)}
+              onClick={goBack}
               variant="ghost"
               size="sm"
               className="px-0 hover:bg-transparent"
@@ -160,7 +169,7 @@ export default function ProductDetail() {
       <header className="glass sticky top-0 z-50 border-b border-[#D2BB8A]/20">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <Button
-            onClick={() => navigate(backTo)}
+            onClick={goBack}
             variant="ghost"
             size="sm"
             className="px-0 hover:bg-transparent"

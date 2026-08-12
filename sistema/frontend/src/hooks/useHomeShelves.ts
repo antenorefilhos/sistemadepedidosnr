@@ -42,6 +42,8 @@ type UseHomeShelvesInput = {
   topSellingProducts: unknown
   rebuyProducts: Product[]
   marginShowcase: Product[]
+  /** Lista real de promocoes (endpoint dedicado, sem limite de paginacao). */
+  promotionalProducts?: Product[]
 }
 
 const PANTRY_TERMS = [
@@ -94,6 +96,7 @@ export function useHomeShelves({
   topSellingProducts,
   rebuyProducts,
   marginShowcase,
+  promotionalProducts = [],
 }: UseHomeShelvesInput) {
   const enabledHomeRules = useMemo<CMSCategoryConfig[]>(() => {
     const list = Array.isArray(cmsCategories) ? (cmsCategories as CMSCategoryItem[]) : []
@@ -238,12 +241,16 @@ export function useHomeShelves({
           .filter((product): product is Product => Boolean(product?.id))
       : []
 
-    const promotional = productsList.filter(
-      (product) =>
-        typeof product.promotionalPrice === 'number' &&
-        product.promotionalPrice > 0 &&
-        product.promotionalPrice < product.price,
-    )
+    // Endpoint dedicado primeiro (catalogo inteiro, sem paginacao) -- so cai
+    // pro filtro local se a lista dedicada ainda nao carregou.
+    const promotional = promotionalProducts.length > 0
+      ? promotionalProducts
+      : productsList.filter(
+          (product) =>
+            typeof product.promotionalPrice === 'number' &&
+            product.promotionalPrice > 0 &&
+            product.promotionalPrice < product.price,
+        )
 
     const pantry = productsList.filter((product) => {
       const haystack = `${product.category || ''} ${product.name || ''}`
@@ -286,7 +293,7 @@ export function useHomeShelves({
     const bestSellers = claim(analyticsBestSellers, 8)
 
     return { rebuy, offers, fresh, fair, churrascoOccasion, recurring, bestSellers, claimed }
-  }, [categorized, marginShowcase, productsList, rebuyProducts, topSellingProducts])
+  }, [categorized, marginShowcase, productsList, promotionalProducts, rebuyProducts, topSellingProducts])
 
   /**
    * Um produto aparece uma unica vez na Home: o que as vitrines de intencao

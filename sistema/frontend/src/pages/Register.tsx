@@ -61,6 +61,8 @@ export default function Register() {
     if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errs.email = 'Email inválido'
     const cpfDigits = data.cpf.replace(/\D/g, '')
     if (cpfDigits && cpfDigits.length < 11) errs.cpf = 'CPF deve ter 11 dígitos'
+    const whatsappDigits = data.whatsapp.replace(/\D/g, '')
+    if (whatsappDigits && !/^\d{10,11}$/.test(whatsappDigits)) errs.whatsapp = 'Celular inválido. Use DDD + número, ex: 11987654321'
     if (data.password && data.password.length < 6) errs.password = 'Mínimo 6 caracteres'
     if (data.confirmPassword && data.confirmPassword !== data.password) errs.confirmPassword = 'Senhas não conferem'
     return errs
@@ -95,7 +97,7 @@ export default function Register() {
         email: formData.email,
         password: formData.password,
         cpf: formData.cpf.replace(/\D/g, ''),
-        whatsapp: formData.whatsapp,
+        whatsapp: formData.whatsapp.replace(/\D/g, ''),
         origin: formData.origin || 'DESCONHECIDO',
       })
     } catch (err: unknown) {
@@ -214,13 +216,17 @@ export default function Register() {
                 id="whatsapp"
                 name="whatsapp"
                 type="tel"
+                inputMode="numeric"
                 autoComplete="tel"
-                className={fieldClass(!!touched.whatsapp, undefined)}
+                aria-invalid={touched.whatsapp && !!errors.whatsapp}
+                className={fieldClass(!!touched.whatsapp, errors.whatsapp)}
                 placeholder="11987654321"
+                maxLength={11}
                 value={formData.whatsapp}
                 onChange={handleChange}
                 onBlur={handleBlur}
               />
+              <FieldError msg={touched.whatsapp ? errors.whatsapp : undefined} />
             </div>
 
             <div>

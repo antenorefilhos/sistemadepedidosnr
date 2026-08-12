@@ -16,7 +16,8 @@ import { useBrand } from '../hooks/useBrand'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
-import { resolveApiUrl } from '../services/api'
+import { useQuery } from '@tanstack/react-query'
+import { resolveApiUrl, productsAPI } from '../services/api'
 import type { Product } from '../types'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductShelf } from '../components/ProductShelf'
@@ -74,6 +75,16 @@ export default function Home() {
   const { data: rebuyProducts = [] } = useRebuyRecommendations(user?.id, 10)
   const { data: marginShowcase = [] } = useRecommendationShowcase(undefined, 12)
   const { data: heroSlidesRaw = [] } = useHeroSlides()
+  // Endpoint dedicado (nao pagina em 80 como o catalogo geral) -- sem isso a
+  // vitrine "Ofertas para hoje" so via as promocoes que por acaso caissem na
+  // primeira pagina alfabetica de ~2500 produtos, quase nunca acontecia com
+  // o catalogo real (funcionava "sempre" local so porque o catalogo de teste
+  // e pequeno o bastante pra caber inteiro numa pagina).
+  const { data: promotionalProducts = [] } = useQuery({
+    queryKey: ['products-promotions-home'],
+    queryFn: async () => (await productsAPI.getPromotions()).data as Product[],
+    staleTime: 1000 * 60 * 5,
+  })
 
   const productsList = (products || []) as Product[]
 
@@ -119,6 +130,7 @@ export default function Home() {
     topSellingProducts,
     rebuyProducts,
     marginShowcase,
+    promotionalProducts,
   })
 
   // Vitrines de intencao do grid desktop (xl:grid-cols-3). Filtra vazias ANTES de
