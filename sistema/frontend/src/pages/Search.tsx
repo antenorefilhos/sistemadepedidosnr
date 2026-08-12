@@ -9,6 +9,7 @@ import { formatPrice, formatProductTitle } from '../utils/format'
 import { trackEvent } from '../utils/analytics'
 import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X } from 'lucide-react'
 import NotificationBell from '../components/NotificationBell'
+import { useDragScroll } from '../hooks/useDragScroll'
 import { SEO } from '../components/SEO'
 import { SkeletonCard } from '../components/Skeleton'
 import type { Product } from '../types'
@@ -108,6 +109,9 @@ export default function MercadoPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { count, total: cartTotal } = useCart()
   const { user } = useAuth()
+  const categoriesScroll = useDragScroll<HTMLDivElement>()
+  const subcategoriesScroll = useDragScroll<HTMLDivElement>()
+  const filterChipsScroll = useDragScroll<HTMLDivElement>()
   const { data: categoriesCMS } = useCategoriesCMS()
   const navigate = useNavigate()
 
@@ -610,7 +614,11 @@ export default function MercadoPage() {
         {/* Linha 3: categorias + botão filtros */}
         <div className="px-4 pb-3 flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <div className="flex-1 flex gap-2 overflow-x-auto no-scrollbar">
+            <div
+              ref={categoriesScroll.ref}
+              className="flex-1 flex gap-2 overflow-x-auto no-scrollbar"
+              {...categoriesScroll.dragProps}
+            >
               {categories.map((c) => (
                 <Button
                   key={c.key}
@@ -650,7 +658,11 @@ export default function MercadoPage() {
           </div>
 
           {selectedRoot && selectedSubcategories.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+            <div
+              ref={subcategoriesScroll.ref}
+              className="flex gap-2 overflow-x-auto no-scrollbar"
+              {...subcategoriesScroll.dragProps}
+            >
               <Button
                 type="button"
                 onClick={() => setCategory(selectedRoot)}
@@ -808,7 +820,11 @@ export default function MercadoPage() {
         )}
 
         {hasActiveFilters && activeFilterLabels.length > 0 && (
-          <div className="mb-5 flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div
+            ref={filterChipsScroll.ref}
+            className="mb-5 flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar"
+            {...filterChipsScroll.dragProps}
+          >
             {activeFilterLabels.map((label) => (
               <span
                 key={label}

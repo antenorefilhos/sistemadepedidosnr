@@ -4,6 +4,7 @@ import { ArrowRight, type LucideIcon } from 'lucide-react'
 import type { Product } from '../types'
 import { StoreProductCard } from './StoreProductCard'
 import { useAutoScroll } from '../hooks/useAutoScroll'
+import { useDragScroll } from '../hooks/useDragScroll'
 import { cn } from '../lib/cn'
 
 export type ProductShelfLayout = 'carousel' | 'grid'
@@ -48,6 +49,7 @@ export function ProductShelf({
 }: ProductShelfProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   useAutoScroll(scrollRef, autoScroll && layout === 'carousel')
+  const dragScroll = useDragScroll(scrollRef)
 
   if (products.length === 0) return null
 
@@ -83,6 +85,7 @@ export function ProductShelf({
         <div
           ref={scrollRef}
           className="no-scrollbar flex snap-x gap-3 overflow-x-auto pb-3"
+          {...dragScroll.dragProps}
         >
           {products.map((product) => (
             <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />

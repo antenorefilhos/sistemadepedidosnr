@@ -240,11 +240,20 @@ export class ProductSearchService implements OnModuleInit {
         filter: clauses.join(' AND '),
         offset,
         limit,
+        showRankingScore: true,
       })
 
-      const total = result.estimatedTotalHits ?? 0
+      // Sem limiar de relevancia, uma palavra sem estoque ("fraldinha", tudo
+      // zerado) deixava passar um match forcado por tolerancia a erro de
+      // digitacao (ex: "FEIJAO FRADINHO" para "fraldinha") como se fosse o
+      // resultado certo. Descarta hits fracos e deixa cair no fallback do
+      // Postgres (que devolve vazio de verdade nesse caso) em vez de mostrar
+      // um produto errado com confianca.
+      const relevantHits = result.hits.filter((hit: any) => (hit._rankingScore ?? 1) >= 0.6)
+      const total = relevantHits.length === result.hits.length ? (result.estimatedTotalHits ?? 0) : relevantHits.length
+
       return {
-        data: result.hits,
+        data: relevantHits,
         total,
         page,
         limit,
