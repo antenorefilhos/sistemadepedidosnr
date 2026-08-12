@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import {
   ordersAPI,
@@ -260,11 +260,31 @@ const PaymentEventsSection = lazy(() => import('./sections/PaymentEventsSection'
 const StaffSection = lazy(() => import('./sections/StaffSection'))
 const TeamPerformanceSection = lazy(() => import('./sections/TeamPerformanceSection'))
 
+const VALID_SECTIONS: Section[] = [
+  'dashboard', 'products', 'orders', 'picking', 'staff', 'teamPerformance',
+  'businessAccounts', 'customers', 'layout', 'categories', 'deliveryZones',
+  'businessHours', 'fraudAudit', 'notifications', 'recipes', 'storeBanners',
+  'brandIdentity', 'intelligence', 'integrations', 'payments',
+]
+
 export default function AdminDashboard() {
   const navigate = useNavigate()
   const { logout, getAdminData } = useAuth()
   const admin = getAdminData()
-  const [activeSection, setActiveSection] = useState<Section>('dashboard')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const sectionParam = searchParams.get('section') as Section | null
+  const [activeSection, setActiveSectionState] = useState<Section>(
+    sectionParam && VALID_SECTIONS.includes(sectionParam) ? sectionParam : 'dashboard'
+  )
+  // Mantem a secao ativa na URL (?section=) pra um F5/recarregar nao voltar
+  // sempre pra dashboard -- activeSection era so estado em memoria antes.
+  const setActiveSection = useCallback(
+    (section: Section) => {
+      setActiveSectionState(section)
+      setSearchParams(section === 'dashboard' ? {} : { section }, { replace: true })
+    },
+    [setSearchParams]
+  )
   const [stats, setStats] = useState({
     orders: 0,
     customers: 0,
