@@ -4,6 +4,7 @@ import { ChefHat, Clock, Users, ArrowRight, ArrowLeft } from 'lucide-react'
 import { useRecipes, useRecipeCategories } from '../hooks/useRecipes'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
+import { MobileBottomNav } from '../components/MobileBottomNav'
 import { SEO, StructuredData } from '../components/SEO'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
@@ -180,6 +181,7 @@ export default function RecipeList() {
           </div>
         )}
       </main>
+      <MobileBottomNav />
     </div>
   )
 }

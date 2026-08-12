@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Navigation, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, CheckCircle2, Loader2, MapPin, Search, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
@@ -55,6 +55,16 @@ export function DeliveryVerificationModal() {
   )
   const [calc, setCalc] = useState<DeliveryCalcSnapshot | null>(cached?.calc || null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const feedbackRef = useRef<HTMLDivElement | null>(null)
+
+  // Aviso explicito: sem isto, o cliente clica em "Verificar entrega" la
+  // embaixo do formulario e o motivo do erro fica escondido acima da dobra,
+  // fora da area visivel -- sobe a tela ate o aviso pra ele nao precisar caçar.
+  useEffect(() => {
+    if (errorMessage || calc) {
+      feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [errorMessage, calc])
 
   const handleCloseModal = useCallback(() => {
     setGeoLoading(false)
@@ -306,37 +316,52 @@ export function DeliveryVerificationModal() {
                     disabled={geoLoading}
                     variant="outline"
                   >
-                    <Navigation size={14} />
-                    Tentar GPS
+                    <MapPin size={14} />
+                    Usar minha localização atual
                   </Button>
                   )}
                 </div>
               </div>
 
-            {errorMessage && (
-              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">
-                {errorMessage}
-              </div>
-            )}
+            <div ref={feedbackRef}>
+              {errorMessage && (
+                <div className="mb-3 flex items-start gap-2.5 rounded-lg border-2 border-red-300 bg-red-50 text-red-800 px-3 py-2.5 text-sm font-medium">
+                  <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
 
-            {calc && (
-              <div className={cn(
-                'rounded-lg border px-3 py-2 text-sm',
-                calc.outOfArea ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800',
-              )}>
-                {calc.outOfArea ? (
-                  <p>Infelizmente ainda nao entregamos nesse endereco.</p>
-                ) : (
-                  <p>
-                    Entrega disponivel{calc.zoneName ? ` para ${calc.zoneName}` : ''}. Taxa: {' '}
-                    <strong>
-                      {calc.fee == null
-                        ? 'Indisponível'
-                        : calc.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </strong>
-                  </p>
-                )}
-              </div>
+              {calc && (
+                <div className={cn(
+                  'flex items-start gap-2.5 rounded-lg border-2 px-3 py-2.5 text-sm font-medium',
+                  calc.outOfArea ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-emerald-300 bg-emerald-50 text-emerald-900',
+                )}>
+                  {calc.outOfArea ? <AlertTriangle size={18} className="shrink-0 mt-0.5" /> : <CheckCircle2 size={18} className="shrink-0 mt-0.5" />}
+                  {calc.outOfArea ? (
+                    <span>Infelizmente ainda nao entregamos nesse endereco.</span>
+                  ) : (
+                    <span>
+                      Entrega disponivel{calc.zoneName ? ` para ${calc.zoneName}` : ''}. Taxa: {' '}
+                      <strong>
+                        {calc.fee == null
+                          ? 'Indisponível'
+                          : calc.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {calc && !calc.outOfArea && (
+              <Button
+                type="button"
+                onClick={() => navigate('/checkout')}
+                className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-300"
+              >
+                <CheckCircle2 size={16} />
+                Usar este endereço e continuar
+              </Button>
             )}
 
             <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">

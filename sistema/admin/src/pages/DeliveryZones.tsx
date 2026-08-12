@@ -896,8 +896,22 @@ export default function DeliveryZones() {
       if (mapRef.current && !mapRef.current.getBounds().intersects(poly.getBounds())) {
         mapRef.current.fitBounds(poly.getBounds(), { padding: [10, 10] })
       }
+
+      // Zona sendo editada nunca entra no grupo "others" (fica excluida por id),
+      // entao sem isto ela era a unica sem nome/valor no mapa -- inclusive logo
+      // depois de salva, se o operador reabre pra conferir.
+      const feeValue = Number(form.fee)
+      L.marker(poly.getBounds().getCenter(), {
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: 'zone-label',
+          html: `<span style="border-color:#5D082A;color:#5D082A">${escapeHtml(form.name || 'Nova zona')}${Number.isFinite(feeValue) && feeValue > 0 ? `<b>${formatFee(feeValue)}</b>` : ''}</span>`,
+          iconSize: [0, 0],
+        }),
+      }).addTo(drawnItems)
     }
-  }, [polygonPreview])
+  }, [polygonPreview, form.name, form.fee])
 
   const thresholdDirty = freeShippingThreshold !== originalThreshold
 

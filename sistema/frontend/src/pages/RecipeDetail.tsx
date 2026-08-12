@@ -5,6 +5,7 @@ import { useRecipe } from '../hooks/useRecipes'
 import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
+import { MobileBottomNav } from '../components/MobileBottomNav'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { getProductPricePresentation } from '../utils/productPricing'
 import { SEO, StructuredData } from '../components/SEO'
@@ -344,7 +345,7 @@ export default function RecipeDetail() {
 
       {/* Carrinho flutuante — visível em mobile quando há itens */}
       {cartCount > 0 && cartOpen && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#D2BB8A] p-4 shadow-xl md:hidden">
+        <div className="fixed bottom-16 left-0 right-0 z-50 bg-white border-t border-[#D2BB8A] p-4 shadow-xl md:hidden">
           <div className="flex items-center justify-between mb-3">
             <span className="font-bold text-[#231F20]">
               {cartCount} {cartCount === 1 ? 'item' : 'itens'} no carrinho
@@ -375,12 +376,13 @@ export default function RecipeDetail() {
         <Button
           onClick={() => setCartOpen(true)}
           size="lg"
-          className="fixed bottom-5 right-5 z-50 md:hidden shadow-lg"
+          className="fixed bottom-[76px] right-5 z-50 md:hidden shadow-lg"
         >
           <ShoppingCart size={16} />
           {cartCount} · {formatPrice(total)}
         </Button>
       )}
+      <MobileBottomNav />
     </div>
   )
 }

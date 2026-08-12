@@ -4,6 +4,7 @@ import { ArrowLeft, Tag, Flame } from 'lucide-react'
 import { productsAPI } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
+import { MobileBottomNav } from '../components/MobileBottomNav'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { SkeletonCard } from '../components/Skeleton'
 import { SEO } from '../components/SEO'
@@ -70,6 +71,7 @@ export default function Promocoes() {
           </>
         )}
       </main>
+      <MobileBottomNav />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useProducts, useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
+import { MobileBottomNav } from '../components/MobileBottomNav'
 import type { Product } from '../types'
 import { getProductPricePresentation } from '../utils/productPricing'
 import { trackEvent } from '../utils/analytics'
@@ -289,6 +290,7 @@ function WineCard({ product }: { product: Product }) {
              </div>
           </div>
        </div>
+      <MobileBottomNav />
     </div>
   )
 }

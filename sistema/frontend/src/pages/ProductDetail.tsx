@@ -14,6 +14,7 @@ import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
+import { MobileBottomNav } from '../components/MobileBottomNav'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
 import { surfaceClasses } from '../components/ui/surface'
@@ -353,6 +354,7 @@ export default function ProductDetail() {
           </div>
         </section>
       )}
+      <MobileBottomNav />
     </div>
   )
 }

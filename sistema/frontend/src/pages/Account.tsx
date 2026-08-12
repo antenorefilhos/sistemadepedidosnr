@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { LogOut, User, Clock, MapPin, RotateCcw, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Banknote, QrCode, CreditCard } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
+import { MobileBottomNav } from '../components/MobileBottomNav'
 import { useCustomerById, useOrders } from '../hooks/useOrders'
 import { useCart } from '../hooks/useCart'
 import { useBrand } from '../hooks/useBrand'
@@ -183,6 +184,7 @@ function Account() {
             </Link>
           </div>
         </main>
+        <MobileBottomNav />
       </div>
     )
   }
@@ -468,6 +470,7 @@ function Account() {
           </div>
         </div>
       </main>
+      <MobileBottomNav />
     </div>
   )
 }

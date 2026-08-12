@@ -9,6 +9,7 @@ import { formatPrice, formatProductTitle } from '../utils/format'
 import { trackEvent } from '../utils/analytics'
 import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X } from 'lucide-react'
 import NotificationBell from '../components/NotificationBell'
+import { MobileBottomNav } from '../components/MobileBottomNav'
 import { useDragScroll } from '../hooks/useDragScroll'
 import { SEO } from '../components/SEO'
 import { SkeletonCard } from '../components/Skeleton'
@@ -798,7 +799,7 @@ export default function MercadoPage() {
         )}
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-4">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
         {/* Contagem de resultados */}
         {!isLoading && (
           <p className="text-sm text-gray-500 mb-4">
@@ -865,7 +866,7 @@ export default function MercadoPage() {
 
         {/* Grade de produtos */}
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 py-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 py-2">
             <SkeletonCard count={10} />
           </div>
         ) : allProducts.length === 0 ? (
@@ -883,7 +884,7 @@ export default function MercadoPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {allProducts.map((product) => (
                 <StoreProductCard
                   key={product.id}
@@ -911,7 +912,7 @@ export default function MercadoPage() {
         )}
       </main>
       {count > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur md:hidden">
+        <div className="fixed inset-x-0 bottom-16 z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur md:hidden">
           <Link
             to="/cart"
             className={buttonVariants({ className: 'flex min-h-14 w-full justify-between px-4 text-white shadow-lg' })}
@@ -925,6 +926,7 @@ export default function MercadoPage() {
           </Link>
         </div>
       )}
+      <MobileBottomNav />
     </div>
   )
 }

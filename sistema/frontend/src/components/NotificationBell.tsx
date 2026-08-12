@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Bell, BellRing, Check, X } from 'lucide-react'
 import { useNotifications } from '../hooks/useNotifications'
 import { Button } from './ui/button'
@@ -16,6 +16,22 @@ export default function NotificationBell() {
     isSubscribingToPush,
   } = useNotifications()
   const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
+    }
+  }, [open])
 
   const pushEnabled = pushStatus === 'enabled'
   const pushGranted = pushPermission === 'granted'
@@ -32,7 +48,7 @@ export default function NotificationBell() {
   })()
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <Button
         onClick={() => setOpen(!open)}
         variant="ghost"
@@ -70,7 +86,14 @@ export default function NotificationBell() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-[#231F20]">Avisos no navegador</p>
-                <p className="mt-0.5 text-xs text-gray-500">{pushMessage}</p>
+                <p className={cn(
+                  'mt-0.5 text-xs',
+                  pushDenied || pushStatus === 'error' || pushStatus === 'unsupported'
+                    ? 'font-semibold text-red-600'
+                    : 'text-gray-500',
+                )}>
+                  {pushMessage}
+                </p>
                 {!pushEnabled && !pushDenied && (
                   <Button
                     onClick={() => requestPushPermission()}

@@ -2,6 +2,7 @@ import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import { Link } from 'react-router-dom'
 import NotificationBell from '../components/NotificationBell'
+import { MobileBottomNav } from '../components/MobileBottomNav'
 import { useEffect, useState } from 'react'
 import type { Product } from '../types'
 import { useProductRecommendations, useSmartSubstitutes } from '../hooks/useCart'
@@ -391,6 +392,7 @@ export default function Cart() {
           </>
         )}
       </main>
+      <MobileBottomNav />
     </div>
   )
 }

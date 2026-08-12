@@ -23,12 +23,13 @@ import { ProductShelf } from '../components/ProductShelf'
 import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
 import {
-  Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock, Home as HomeIcon,
+  Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock,
   Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
 import NotificationBell from '../components/NotificationBell'
+import { MobileBottomNav } from '../components/MobileBottomNav'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
 import { surfaceClasses } from '../components/ui/surface'
@@ -394,7 +395,7 @@ export default function Home() {
                 {deliveryAddressLabel || 'Escolher endereço de entrega'}
               </span>
             </Button>
-            <div className={`inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-1 text-caption ${deliveryOperation.isOpen ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-[#D2BB8A]/60 bg-[#FBFAF7] text-[#5d4f33]'}`}>
+            <div className={`inline-flex h-8 max-w-full items-center gap-2 rounded-lg border px-3 text-caption ${deliveryOperation.isOpen ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-[#D2BB8A]/60 bg-[#FBFAF7] text-[#5d4f33]'}`}>
               <Clock size={14} className="shrink-0" />
               <span className="truncate">
                 {deliveryOperation.headline}: {deliveryOperation.countdownLabel || deliveryOperation.detail}
@@ -563,7 +564,7 @@ export default function Home() {
             >
               <ChevronLeft size={18} />
             </button>
-            <div ref={categoryScrollRef} className="flex overflow-x-auto no-scrollbar py-3 gap-3 snap-x scroll-smooth">
+            <div ref={categoryScrollRef} className="flex overflow-x-auto no-scrollbar py-3 px-1 gap-3 snap-x scroll-smooth">
               {homeCategories.map((category) => {
                 const IconComponent = CATEGORY_ICONS[category.id] || CATEGORY_ICONS.default
                 const name = category.label.replace(/^\S+\s*/, '')
@@ -971,39 +972,7 @@ export default function Home() {
       {/* ── MOBILE Bottom Navigation ── */}
       {!isDesktop && (
       <>
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-100 shadow-xl">
-        <div className="grid grid-cols-5 h-16">
-          <Link to="/" className="flex flex-col items-center justify-center gap-0.5 text-[#5D082A] cursor-pointer">
-            <HomeIcon size={21} className="fill-[#5D082A]" />
-            <span className="text-label font-semibold">Home</span>
-          </Link>
-          <Link to="/mercado" className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
-            <Search size={21} />
-            <span className="text-label font-medium">Buscar</span>
-          </Link>
-          <Link to="/promocoes" className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
-            <Flame size={21} />
-            <span className="text-label font-medium">Promos</span>
-          </Link>
-          <Link to="/cart" className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors relative cursor-pointer">
-            <ShoppingCart size={21} />
-            {count > 0 && (
-              <span className="absolute top-2 right-4 bg-[#5D082A] text-white text-label font-black rounded-full w-4 h-4 flex items-center justify-center">{count}</span>
-            )}
-            {freeShipping.enabled && freeShipping.achieved && (
-              <span className="absolute top-1.5 right-3 bg-emerald-500 rounded-full w-2.5 h-2.5 border-2 border-white" />
-            )}
-            <span className="text-label font-medium">Carrinho</span>
-          </Link>
-          <Link to={user ? '/account' : '/login'} className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
-            <User size={21} />
-            <span className="text-label font-medium">{user ? 'Conta' : 'Entrar'}</span>
-          </Link>
-        </div>
-      </nav>
-
-      {/* Mobile bottom padding para não tapar conteúdo com nav */}
-      <div className="md:hidden h-16" />
+      <MobileBottomNav />
       </>
       )}
     </div>

@@ -1,11 +1,11 @@
 {
   "name": "Antenor & Filhos",
-  "short_name": "Antenor",
+  "short_name": "Antenor e Filhos",
   "description": "Mercado premium Antenor & Filhos com pedidos online.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#5D082A",
   "theme_color": "#5D082A",
   "orientation": "portrait",
   "icons": [
