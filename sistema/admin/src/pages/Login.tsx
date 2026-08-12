@@ -59,7 +59,6 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="h-10 rounded-lg border-gray-200 px-4 py-2 focus-visible:ring-[#5d082a]"
-              placeholder="admin@mercado.com"
             />
           </div>
 
@@ -74,7 +73,6 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="h-10 rounded-lg border-gray-200 px-4 py-2 focus-visible:ring-[#5d082a]"
-              placeholder="••••••••"
             />
           </div>
 
