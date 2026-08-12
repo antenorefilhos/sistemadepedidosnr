@@ -57,9 +57,16 @@ Sem isto no ar, todo cliente cai no CEP.
   vindo do mesmo IP assim que o Caddy entrasse — quebraria rate limit e
   qualquer verificação por IP em checkout/pedidos/CRM/LGPD. Corrigido em
   `main.ts` junto com o proxy.
-- [ ] **Deploy real** — depende do Jonathan: contratar o VPS, apontar os 5
-      registros DNS, rodar (ou me dar acesso pra rodar) o runbook. Ver
-      [docs/deploy.md](deploy.md).
+- [x] **Deploy real** — no ar em `179.198.122.67` (Hostinger VPS KVM2), 5
+      subdomínios com HTTPS automático via Caddy. Estado completo do que está
+      rodando, DNS, segredos (só os nomes, nunca os valores) e os bugs achados
+      só neste primeiro deploy real: [docs/infraestrutura.md](infraestrutura.md).
+- [x] **Recuperação de senha do admin** — não existia mecanismo nenhum antes
+      (só reset direto no banco via SSH). Fluxo por e-mail via Resend
+      (`/auth/forgot-password` + `/auth/reset-password`, token com hash + 1h
+      de validade). Domínio `antenorefilhos.com.br` sendo verificado no Resend
+      (DKIM/SPF em subdomínio dedicado, não conflita com o e-mail real da
+      empresa) — ver seção 7 de [docs/infraestrutura.md](infraestrutura.md).
 
 ## Semana 4 — fechamento
 
