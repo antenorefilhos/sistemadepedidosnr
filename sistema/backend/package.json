@@ -42,7 +42,7 @@
     "validate:staging-recipes": "node scripts/validate-staging-recipes.js"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "node -r ts-node/register -e \"require('./prisma/seed.ts')\""
   },
   "dependencies": {
     "@nestjs/common": "^11.1.24",

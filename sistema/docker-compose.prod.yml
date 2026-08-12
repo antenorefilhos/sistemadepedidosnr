@@ -87,6 +87,12 @@ services:
       SOLIDCOM_API_URL: ${SOLIDCOM_API_URL:-}
       SOLIDCOM_CNPJ: ${SOLIDCOM_CNPJ:-}
       SOLIDCOM_CODECOM: ${SOLIDCOM_CODECOM:-}
+      # Lidas pelo prisma/seed.ts (admin master + contas de picker/driver de
+      # teste) -- faltavam aqui, entao "prisma db seed" nunca funcionou contra
+      # uma imagem real de producao (so testado localmente, onde a env vem de
+      # outro lugar).
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      QA_CUSTOMER_PASSWORD: ${QA_CUSTOMER_PASSWORD:-}
       HANDOFF_CSV_PATH: ${HANDOFF_CSV_PATH:-/data/handoff_ecommerce_v3_n1_n2.csv}
       # Sync ERP: completo 1x/dia + incremental de hora em hora (ver
       # docs/solidcom-api.md). Os dois crons so rodam com *_CRON_ENABLED=true.
