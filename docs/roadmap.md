@@ -90,6 +90,14 @@ Sem isto no ar, todo cliente cai no CEP.
       agregando rotas/paradas por motorista) e substituições (novo endpoint
       lendo `order_events` e resolvendo o nome de quem trocou). Testado com
       dados reais e em mobile.
+- [x] **Checkout rejeitava endereço já confirmado como entregável na Home.**
+      `useAddressAutofill` disparava GPS automático toda vez que o checkout
+      entrava na etapa de endereço, sobrescrevendo silenciosamente as
+      coordenadas já verificadas no modal da Home por uma leitura nova (às
+      vezes menos precisa, principalmente no desktop) — jogando o ponto pra
+      fora do polígono da zona. Corrigido: GPS automático não dispara mais
+      quando já existe uma verificação válida (dentro da área) salva. Ver
+      `Checkout.tsx`.
 - [ ] **Configurar zonas de entrega e janelas de horário reais.** A
       `ZONA TESTE QA - REMOVER` (CEP 20000000-29999999) continua ativa pra não
       travar os testes — precisa sair antes do domínio de produção ir ao ar,

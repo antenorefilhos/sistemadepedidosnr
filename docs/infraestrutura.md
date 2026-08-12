@@ -16,7 +16,7 @@ da variável e *onde* ela mora — nunca o valor.
 | Plano | VPS KVM 2 (2 vCPU / 8 GB RAM / 100 GB NVMe) |
 | IP público | `179.198.122.67` |
 | Sistema operacional | Ubuntu 26.04 LTS |
-| Acesso | SSH `root@179.198.122.67` — senha guardada só localmente/gestor de senhas, nunca commitada |
+| Acesso | SSH `root@179.198.122.67`. Autenticação por chave (ed25519) cadastrada no painel Hostinger (VPS → Configurações → Chaves SSH); senha segue guardada só localmente/gestor de senhas, nunca commitada, como fallback |
 | Firewall (ufw) | Só `22/tcp` (SSH), `80/tcp`, `443/tcp` liberados. Tudo mais bloqueado, inclusive do lado de dentro (Postgres/Redis/Meili nunca têm porta publicada no host) |
 | Localização do repositório no servidor | `/opt/antenor` (clone de `https://github.com/antenorefilhos/sistemadepedidosnr.git`, branch `main`) |
 
