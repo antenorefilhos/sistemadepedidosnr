@@ -380,6 +380,45 @@ export class OrdersService {
             throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
           }
         }
+
+        // Verificação por endereço (mesmo endereco usado por outra conta que ja pediu antes --
+        // nao bloqueia o pedido, so tira o frete gratis, entao familia/inquilino real so paga entrega)
+        if (address) {
+          const sameAddressCustomers = await this.prisma.address.findMany({
+            where: { tenantId, street: address.street, number: address.number, zipCode: address.zipCode, customerId: { not: customerId } },
+            select: { customerId: true },
+          })
+          if (sameAddressCustomers.length) {
+            const prevByAddress = await this.prisma.order.findFirst({
+              where: { tenantId, storeId, customerId: { in: sameAddressCustomers.map(a => a.customerId) }, status: { not: 'CANCELLED' } },
+            })
+            if (prevByAddress) {
+              await log('ADDRESS', `${address.street}, ${address.number}`)
+              await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+              throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
+            }
+          }
+        }
+      }
+    }
+
+    // ── Anti-fraude: velocidade de pedidos (so log, nao bloqueia) ──────
+    // Muitos pedidos em pouco tempo do mesmo cliente ou IP e sinal de bot/teste
+    // de cartao -- fica visivel na Auditoria de Anti-fraude pro admin decidir.
+    {
+      const since = new Date(Date.now() - 10 * 60 * 1000)
+      const recentByCustomer = await this.prisma.order.count({
+        where: { tenantId, storeId, customerId, createdAt: { gte: since }, status: { not: 'CANCELLED' } },
+      })
+      if (recentByCustomer >= 3) {
+        await this.prisma.fraudLog.create({ data: { tenantId, storeId, vector: 'VELOCITY', value: `customer:${customerId}`, customerId } }).catch(() => null)
+      } else if (clientIp) {
+        const recentByIp = await this.prisma.order.count({
+          where: { tenantId, storeId, clientIp, createdAt: { gte: since }, status: { not: 'CANCELLED' } },
+        })
+        if (recentByIp >= 5) {
+          await this.prisma.fraudLog.create({ data: { tenantId, storeId, vector: 'VELOCITY', value: `ip:${clientIp}`, customerId } }).catch(() => null)
+        }
       }
     }
     // ─────────────────────────────────────────────────────────────────
@@ -406,6 +445,36 @@ export class OrdersService {
       await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
       throw error
     }
+
+    // ── Anti-fraude: cupom reaproveitado em outra conta ─────────────────
+    // maxUsesPerCustomer ja e checado por customerId no PricingService; aqui
+    // fecha a brecha de burlar isso criando uma conta nova com o mesmo
+    // WhatsApp/aparelho que ja resgatou o mesmo cupom antes.
+    const usedCouponId = quote.appliedPromotions?.find((p: { couponId?: string }) => p.couponId)?.couponId
+    if (usedCouponId) {
+      const priorUsages = await this.prisma.promotionUsage.findMany({
+        where: { tenantId, couponId: usedCouponId, customerId: { not: customerId }, orderId: { not: null } },
+        select: { orderId: true },
+      })
+      if (priorUsages.length) {
+        const customerForCoupon = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId } })
+        const reusedOrder = await this.prisma.order.findFirst({
+          where: {
+            id: { in: priorUsages.map(u => u.orderId as string) },
+            OR: [
+              ...(deviceId ? [{ deviceId }] : []),
+              ...(customerForCoupon ? [{ customer: { whatsapp: customerForCoupon.whatsapp } }] : []),
+            ],
+          },
+        })
+        if (reusedOrder) {
+          await this.prisma.fraudLog.create({ data: { tenantId, storeId, vector: 'COUPON', value: usedCouponId, customerId } }).catch(() => null)
+          await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+          throw new BadRequestException('Este cupom ja foi utilizado nesta conta ou dispositivo.')
+        }
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────
 
     const subtotal = quote.subtotal
     const discountAmount = quote.discountAmount

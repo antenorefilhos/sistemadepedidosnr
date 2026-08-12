@@ -1861,7 +1861,7 @@ model FraudLog {
   id          String   @id @default(cuid())
   tenantId    String   @default("tenant_default")
   storeId     String?
-  vector      String   // WHATSAPP | DEVICE | IP
+  vector      String   // WHATSAPP | DEVICE | IP | ADDRESS | COUPON | VELOCITY
   value       String   // valor detectado (hash/ip/whatsapp)
   orderId     String?  // pedido que tentou o benefício
   customerId  String?

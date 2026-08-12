@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fraudAPI, type FraudLog } from '../services/api'
-import { ShieldAlert, Smartphone, Phone, Wifi, RefreshCw } from 'lucide-react'
+import { ShieldAlert, Smartphone, Phone, Wifi, RefreshCw, MapPin, Ticket, Gauge } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -10,6 +10,9 @@ const VECTOR_META: Record<string, { label: string; icon: ReactNode; color: strin
   WHATSAPP: { label: 'WhatsApp', icon: <Phone size={14} />, color: 'border-green-200 bg-green-50 text-green-700' },
   DEVICE:   { label: 'Dispositivo', icon: <Smartphone size={14} />, color: 'border-blue-200 bg-blue-50 text-blue-700' },
   IP:       { label: 'IP', icon: <Wifi size={14} />, color: 'border-orange-200 bg-orange-50 text-orange-700' },
+  ADDRESS:  { label: 'Endereço', icon: <MapPin size={14} />, color: 'border-purple-200 bg-purple-50 text-purple-700' },
+  COUPON:   { label: 'Cupom', icon: <Ticket size={14} />, color: 'border-pink-200 bg-pink-50 text-pink-700' },
+  VELOCITY: { label: 'Velocidade', icon: <Gauge size={14} />, color: 'border-red-200 bg-red-50 text-red-700' },
 }
 
 function fmt(dateStr: string) {
@@ -56,7 +59,7 @@ export default function FraudAudit() {
 
       {/* Filtros */}
       <div className="flex gap-2 mb-5 flex-wrap">
-        {['', 'WHATSAPP', 'DEVICE', 'IP'].map((v) => (
+        {['', 'WHATSAPP', 'DEVICE', 'IP', 'ADDRESS', 'COUPON', 'VELOCITY'].map((v) => (
           <Button
             key={v}
             type="button"
@@ -138,7 +141,10 @@ export default function FraudAudit() {
           <li><strong>WhatsApp:</strong> cliente tentou frete grátis com número que já fez pedido.</li>
           <li><strong>Dispositivo:</strong> mesmo aparelho (fingerprint) já usou frete grátis em outra conta.</li>
           <li><strong>IP:</strong> mesmo endereço de rede usou frete grátis nas últimas 24h.</li>
-          <li>O cliente não vê este log — recebe apenas "não elegível" de forma silenciosa.</li>
+          <li><strong>Endereço:</strong> mesmo endereço de entrega já recebeu pedido de outra conta.</li>
+          <li><strong>Cupom:</strong> mesmo WhatsApp/aparelho já resgatou este cupom em outra conta.</li>
+          <li><strong>Velocidade:</strong> muitos pedidos em pouco tempo (3+ do mesmo cliente ou 5+ do mesmo IP em 10 min) — só registra, não bloqueia.</li>
+          <li>Endereço, WhatsApp, dispositivo e IP não bloqueiam o pedido — só tiram o frete grátis. O cliente não vê este log.</li>
         </ul>
       </div>
     </div>
