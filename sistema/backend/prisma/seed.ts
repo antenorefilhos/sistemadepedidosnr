@@ -101,6 +101,7 @@ async function main() {
         password: await bcrypt.hash(pickerPw, 10),
         name: 'Separador Antenor',
         role: 'picker',
+        moduleAccess: ['picking'],
       },
     })
     console.log('✅ Usuário picker criado: separador@antenorefilhos.com.br')
@@ -115,6 +116,7 @@ async function main() {
         password: await bcrypt.hash(driverPw, 10),
         name: 'Motorista Antenor',
         role: 'driver',
+        moduleAccess: ['delivery'],
       },
     })
     // Vincular ao Driver model se existir
