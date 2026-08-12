@@ -73,7 +73,7 @@ services:
       ENABLE_LEGACY_CLASSIFICATION_MAPPINGS: "false"
       VAPID_PUBLIC_KEY: ${STAGING_VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${STAGING_VAPID_PRIVATE_KEY:-}
-      VAPID_SUBJECT: ${STAGING_VAPID_SUBJECT:-mailto:admin@antenor.com.br}
+      VAPID_SUBJECT: ${STAGING_VAPID_SUBJECT:-mailto:admin@antenorefilhos.com.br}
     depends_on:
       - db_staging
       - redis_staging

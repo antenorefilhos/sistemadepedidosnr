@@ -61,7 +61,7 @@ services:
       ENABLE_LEGACY_CLASSIFICATION_MAPPINGS: ${ENABLE_LEGACY_CLASSIFICATION_MAPPINGS:-false}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@antenor.com.br}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@antenorefilhos.com.br}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
       HANDOFF_CSV_PATH: ${HANDOFF_CSV_PATH:-/data/handoff_ecommerce_v3_n1_n2.csv}
