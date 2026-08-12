@@ -168,7 +168,7 @@ export function TopMenuBar({ activeSection, onSectionChange, adminName, onLogout
       {/* Desktop menu bar */}
       <nav
         ref={menuBarRef}
-        className="hidden lg:flex items-center h-10 px-2 gap-0.5 bg-[#3d0519] border-b border-[#2d0412]"
+        className="hidden lg:flex items-center h-10 px-2 gap-1 bg-[#3d0519] border-b border-[#2d0412]"
         role="menubar"
         aria-label="Menu principal"
       >
