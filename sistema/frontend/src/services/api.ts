@@ -345,7 +345,7 @@ export const couponsAPI = {
 
 // Auth
 export const authAPI = {
-  login: (email: string, password: string) => api.post('/auth/customer/login', { email, password }),
+  login: (identifier: string, password: string) => api.post('/auth/customer/login', { identifier, password }),
   register: (data: RegisterPayload) => api.post('/auth/customer/register', data),
   guestCheckout: (data: GuestCheckoutPayload) => api.post('/auth/customer/guest-checkout', data),
 }

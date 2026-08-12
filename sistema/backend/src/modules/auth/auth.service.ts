@@ -5,7 +5,7 @@ import { PrismaService } from '../../common/prisma.service'
 import { CreateAdminDto, STAFF_MODULES, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
-import { LoginDto } from './dto/login.dto'
+import { LoginDto, CustomerLoginDto } from './dto/login.dto'
 import * as bcrypt from 'bcrypt'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { EmailService } from '../notifications/email.service'
@@ -92,15 +92,14 @@ export class AuthService {
     return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role, moduleAccess, tenantId, storeId } }
   }
 
-  async customerLogin(loginDto: LoginDto) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { email: loginDto.email },
-    })
+  async customerLogin(loginDto: CustomerLoginDto) {
+    const identifier = (loginDto.identifier ?? loginDto.email ?? '').trim()
+    const customer = await this.findCustomerByLoginIdentifier(identifier)
 
     if (!customer || !customer.password || !await bcrypt.compare(loginDto.password, customer.password)) {
       throw new UnauthorizedException({
         statusCode: 401,
-        message: 'Email ou senha invalidos',
+        message: 'Credenciais invalidas',
         error: 'Nao autorizado',
       })
     }
@@ -128,6 +127,27 @@ export class AuthService {
    * o token JWT nao carrega permissions e user_store_access fica vazio
    * se ninguem popular manualmente. Idempotente: nao faz nada se ja existe.
    */
+  /**
+   * Login do storefront aceita e-mail, CPF ou celular num campo unico.
+   * Detecta pelo formato: contem "@" -> email; senao normaliza removendo
+   * mascara e busca por digitos. CPF (11 digitos) e celular com DDD (10-11
+   * digitos, celular novo tem o 9 na frente) se sobrepoem em quantidade de
+   * digitos, entao busca por CPF OU whatsapp igual e deixa o banco resolver
+   * -- ambos sao @unique, so pode bater um customer.
+   */
+  private async findCustomerByLoginIdentifier(identifier: string) {
+    if (!identifier) return null
+
+    if (identifier.includes('@')) {
+      return this.prisma.customer.findUnique({ where: { email: identifier.toLowerCase() } })
+    }
+
+    const digits = identifier.replace(/\D/g, '')
+    if (digits.length < 10 || digits.length > 11) return null
+
+    return this.prisma.customer.findFirst({ where: { OR: [{ cpf: digits }, { whatsapp: digits }] } })
+  }
+
   private async grantDefaultAdminAccess(userId: string, tenantId: string, storeId: string) {
     const existing = await this.prisma.userStoreAccess.findFirst({
       where: { userId, storeId },

@@ -11,7 +11,7 @@ import { surfaceClasses } from '../components/ui/surface'
 const HORIZONTAL_LOGO_SRC = '/branding/logo-horizontal-bordo.png'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -24,7 +24,7 @@ export default function Login() {
     setIsLoading(true)
 
     try {
-      await login(email, password)
+      await login(identifier, password)
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Falha ao fazer login'))
     } finally {
@@ -61,18 +61,19 @@ export default function Login() {
 
           <div className="space-y-3">
             <div>
-              <label htmlFor="email-address" className="sr-only">
-                Email
+              <label htmlFor="login-identifier" className="sr-only">
+                E-mail, CPF ou celular
               </label>
               <Input
-                id="email-address"
-                name="email"
-                type="email"
+                id="login-identifier"
+                name="identifier"
+                type="text"
+                autoComplete="username"
                 required
                 className="h-12 bg-white/70 px-4"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="E-mail, CPF ou celular"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
               />
             </div>
             <div>

@@ -5,7 +5,7 @@ import { AuthService } from './auth.service'
 import { CreateAdminDto, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
-import { LoginDto } from './dto/login.dto'
+import { LoginDto, CustomerLoginDto } from './dto/login.dto'
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -62,8 +62,8 @@ export class AuthController {
     description: 'Autentica um cliente e retorna um token JWT.',
   })
   @ApiBody({
-    type: LoginDto,
-    description: 'Credenciais de login (email e password)',
+    type: CustomerLoginDto,
+    description: 'identifier (e-mail, CPF ou celular) e password',
   })
   @ApiResponse({
     status: 200,
@@ -83,8 +83,8 @@ export class AuthController {
     status: 401,
     description: 'Credenciais inválidas',
   })
-  customerLogin(@Body() loginDto: LoginDto) {
-    return this.authService.customerLogin(loginDto)
+  customerLogin(@Body() dto: CustomerLoginDto) {
+    return this.authService.customerLogin(dto)
   }
 
   @Post('forgot-password')
