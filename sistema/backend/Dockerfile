@@ -20,8 +20,11 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-# Remove deps de dev para economizar espaço
-RUN npm prune --production
+# NAO faz "npm prune --production": "prisma db seed" roda via ts-node em
+# runtime (prisma.seed no package.json), que precisa de ts-node/typescript/
+# @types/* -- prune quebrava o seed com TS7016 (bcrypt sem .d.ts) na primeira
+# vez que rodou de verdade contra uma imagem de producao real. Disco nao e o
+# gargalo aqui.
 
 # --- Stage 2: Production ---
 FROM node:20-alpine AS runner
