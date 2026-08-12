@@ -95,6 +95,12 @@ services:
       QA_CUSTOMER_PASSWORD: ${QA_CUSTOMER_PASSWORD:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-3.1-8b-instruct}
+      # Notificacao automatica de promocao via IA (NVIDIA NIM). Desligada por
+      # padrao ate confirmar com o dono do negocio -- liga so com o env var.
+      AI_NOTIFICATIONS_CRON_ENABLED: ${AI_NOTIFICATIONS_CRON_ENABLED:-false}
+      AI_NOTIFICATIONS_CRON: ${AI_NOTIFICATIONS_CRON:-0 9,13,18 * * *}
       HANDOFF_CSV_PATH: ${HANDOFF_CSV_PATH:-/data/handoff_ecommerce_v3_n1_n2.csv}
       # Sync ERP: completo 1x/dia + incremental de hora em hora (ver
       # docs/solidcom-api.md). Os dois crons so rodam com *_CRON_ENABLED=true.

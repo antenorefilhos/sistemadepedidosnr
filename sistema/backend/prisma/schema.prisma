@@ -463,6 +463,10 @@ model Product {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // Dedupe do disparo automatico de notificacao por IA -- evita renotificar
+  // o mesmo produto varias vezes no mesmo dia. So esse campo, sem tabela
+  // separada: o volume de produtos notificados por dia e pequeno.
+  aiNotifiedAt DateTime?
   orderItems OrderItem[]
   categoryCurations CategoryProductCuration[]
   promoHighlights PromoBanner[] @relation("PromoBannerHighlightedProduct")
@@ -2019,6 +2023,8 @@ model Notification {
   title      String
   body       String
   customerId String?
+  imageUrl   String?
+  productId  String?
   read       Boolean  @default(false)
   createdAt  DateTime @default(now())
 

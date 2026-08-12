@@ -8,6 +8,8 @@ export interface CreateNotificationDto {
   title: string
   body: string
   customerId?: string
+  imageUrl?: string
+  productId?: string
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -43,6 +45,8 @@ export class NotificationsService {
         title: dto.title,
         body: dto.body,
         customerId: dto.customerId,
+        imageUrl: dto.imageUrl,
+        productId: dto.productId,
       },
     })
 
@@ -50,7 +54,8 @@ export class NotificationsService {
       await this.pushNotificationService.sendNotification(notification.customerId, {
         title: notification.title,
         body: notification.body,
-        url: '/',
+        image: notification.imageUrl || undefined,
+        url: notification.productId ? `/produto/${notification.productId}` : '/',
       })
     }
 

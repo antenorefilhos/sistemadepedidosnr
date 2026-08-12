@@ -11,6 +11,7 @@ self.addEventListener('push', (event) => {
     title: 'Antenor & Filhos',
     body: 'Você tem uma nova notificação',
     icon: '/branding/logo-branco.png',
+    image: undefined,
     url: '/',
   }
   try {
@@ -20,6 +21,7 @@ self.addEventListener('push', (event) => {
         title: payload?.title || data.title,
         body: payload?.body || data.body,
         icon: payload?.icon || data.icon,
+        image: payload?.image || data.image,
         url: payload?.url || data.url,
       }
     }
@@ -31,6 +33,7 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: data.icon,
+      image: data.image,
       badge: '/branding/logo-branco.png',
       data: { url: data.url },
     }),

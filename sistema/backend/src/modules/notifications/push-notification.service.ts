@@ -16,6 +16,7 @@ interface PushNotification {
   title: string
   body: string
   icon?: string
+  image?: string
   url?: string
 }
 
@@ -135,6 +136,7 @@ export class PushNotificationService {
           title: notification.title,
           body: notification.body,
           icon: notification.icon || '/branding/logo-branco.png',
+          image: notification.image,
           url: notification.url || '/',
         }),
       )

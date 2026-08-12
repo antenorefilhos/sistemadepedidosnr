@@ -6,6 +6,7 @@ import { getApiErrorMessage } from '../utils/apiError'
 import { LoadingButton } from '../components/LoadingButton'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Input } from '../components/ui/input'
+import { PasswordInput } from '../components/ui/password-input'
 import { Select } from '../components/ui/select'
 import { surfaceClasses } from '../components/ui/surface'
 import { cn } from '../lib/cn'
@@ -226,10 +227,9 @@ export default function Register() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Senha
               </label>
-              <Input
+              <PasswordInput
                 id="password"
                 name="password"
-                type="password"
                 autoComplete="new-password"
                 aria-required="true"
                 aria-invalid={touched.password && !!errors.password}
@@ -257,10 +257,9 @@ export default function Register() {
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                 Confirmar Senha
               </label>
-              <Input
+              <PasswordInput
                 id="confirmPassword"
                 name="confirmPassword"
-                type="password"
                 autoComplete="new-password"
                 aria-required="true"
                 aria-invalid={touched.confirmPassword && !!errors.confirmPassword}

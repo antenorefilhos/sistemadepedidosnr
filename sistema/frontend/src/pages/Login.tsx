@@ -6,6 +6,7 @@ import { getApiErrorMessage } from '../utils/apiError'
 import { LoadingButton } from '../components/LoadingButton'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Input } from '../components/ui/input'
+import { PasswordInput } from '../components/ui/password-input'
 import { surfaceClasses } from '../components/ui/surface'
 
 const HORIZONTAL_LOGO_SRC = '/branding/logo-horizontal-bordo.png'
@@ -80,10 +81,10 @@ export default function Login() {
               <label htmlFor="password" className="sr-only">
                 Senha
               </label>
-              <Input
+              <PasswordInput
                 id="password"
                 name="password"
-                type="password"
+                autoComplete="current-password"
                 required
                 className="h-12 bg-white/70 px-4"
                 placeholder="Senha"
@@ -104,19 +105,21 @@ export default function Login() {
             </LoadingButton>
           </div>
 
-          <div className="text-center text-sm">
-            <p className="text-gray-500">
-              Ainda não tem cadastro?{' '}
-              <Button
-                type="button"
-                onClick={() => navigate('/register')}
-                variant="ghost"
-                size="sm"
-                className="h-auto px-1 py-0 align-baseline"
-              >
-                Criar conta grátis
-              </Button>
-            </p>
+          <div className="relative flex items-center gap-3 py-1">
+            <div className="h-px flex-1 bg-[#D2BB8A]/30" />
+            <span className="text-xs text-gray-400">ou</span>
+            <div className="h-px flex-1 bg-[#D2BB8A]/30" />
+          </div>
+
+          <div>
+            <Button
+              type="button"
+              onClick={() => navigate('/register')}
+              variant="outline"
+              className="w-full py-3 px-4 text-sm rounded-lg border-[#5D082A] text-[#5D082A] hover:bg-[#5D082A]/5"
+            >
+              Criar conta grátis
+            </Button>
           </div>
         </form>
 

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req, Unaut
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { NotificationsService } from './notifications.service'
 import { NotificationService } from './notification.service'
+import { AiNotificationService } from './ai-notification.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
@@ -14,6 +15,7 @@ export class NotificationsController {
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly notificationService: NotificationService,
+    private readonly aiNotificationService: AiNotificationService,
   ) {}
 
   @Get()
@@ -80,6 +82,8 @@ export class NotificationsController {
       title: string
       body: string
       customerId?: string // se vazio, para todos
+      imageUrl?: string
+      productId?: string
     },
   ) {
     const customers = body.customerId
@@ -93,11 +97,22 @@ export class NotificationsController {
         title: body.title,
         body: body.body,
         customerId,
+        imageUrl: body.imageUrl,
+        productId: body.productId,
       })
       created.push(notification)
     }
 
     return { count: created.length, notifications: created }
+  }
+
+  @Post('admin/ai-cycle/run')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Roda manualmente um ciclo de notificacao automatica por IA (para teste/disparo avulso)' })
+  async runAiNotificationCycle() {
+    return this.aiNotificationService.runCycle()
   }
 
   @Post('admin/pending-mappings/notify')
