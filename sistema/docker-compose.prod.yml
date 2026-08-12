@@ -4,12 +4,23 @@
 # busca vai parar exposta na internet. Ver docs/deploy.md para o passo a passo.
 #
 # Uso: docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+#
+# Limites de CPU/RAM: a VPS (KVM2, 2 vCPU/8GB) tambem roda outros testes
+# fora deste compose. Sem limite, um teste pesado sufoca a loja em producao
+# (ou o contrario). `mem_limit`/`cpus` reservam uma fatia fixa pra cada
+# servico do Antenor (~4.5GB de 8GB, ~2 vCPU de teto), deixando o resto da
+# maquina livre. Redes de compose sao isoladas por projeto por padrao --
+# qualquer coisa nova testada na VPS deve morar em outra pasta com seu
+# proprio docker-compose.yml (network separada automaticamente) e nao pode
+# usar as portas 80/443 (reservadas pro Caddy abaixo).
 
 services:
   db:
     image: postgres:15-alpine
     container_name: antenor_db
     restart: always
+    mem_limit: 1g
+    cpus: 0.5
     environment:
       POSTGRES_DB: antenor_db
       POSTGRES_USER: postgres
@@ -25,6 +36,8 @@ services:
     image: redis:7-alpine
     container_name: antenor_redis
     restart: always
+    mem_limit: 256m
+    cpus: 0.25
     networks:
       - antenor_network
 
@@ -32,6 +45,8 @@ services:
     image: getmeili/meilisearch:v1.11
     container_name: antenor_meili
     restart: always
+    mem_limit: 1g
+    cpus: 0.5
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?defina MEILI_MASTER_KEY em .env.production}
       MEILI_NO_ANALYTICS: "true"
@@ -48,6 +63,8 @@ services:
       dockerfile: Dockerfile
     container_name: antenor_api
     restart: always
+    mem_limit: 1g
+    cpus: 0.75
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em .env.production}@db:5432/antenor_db?schema=public
       REDIS_URL: redis://redis:6379
@@ -101,6 +118,8 @@ services:
         VITE_CONTACT_WHATSAPP: ${VITE_CONTACT_WHATSAPP:-}
     container_name: antenor_storefront
     restart: always
+    mem_limit: 256m
+    cpus: 0.25
     depends_on:
       - api
     networks:
@@ -120,6 +139,8 @@ services:
       dockerfile: Dockerfile
     container_name: antenor_admin
     restart: always
+    mem_limit: 256m
+    cpus: 0.25
     depends_on:
       - api
     networks:
@@ -133,6 +154,8 @@ services:
       dockerfile: Dockerfile
     container_name: antenor_picking
     restart: always
+    mem_limit: 128m
+    cpus: 0.15
     depends_on:
       - api
     networks:
@@ -144,6 +167,8 @@ services:
       dockerfile: Dockerfile
     container_name: antenor_delivery
     restart: always
+    mem_limit: 128m
+    cpus: 0.15
     depends_on:
       - api
     networks:
@@ -156,6 +181,8 @@ services:
     image: caddy:2-alpine
     container_name: antenor_proxy
     restart: always
+    mem_limit: 256m
+    cpus: 0.25
     ports:
       - "80:80"
       - "443:443"
@@ -179,6 +206,8 @@ services:
       context: ./backup
     container_name: antenor_backup
     restart: always
+    mem_limit: 256m
+    cpus: 0.25
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em .env.production}
       RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
