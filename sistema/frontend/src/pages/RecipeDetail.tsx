@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom'
 import { ChefHat, Clock, Users, ShoppingCart, Plus, Check, ArrowLeft } from 'lucide-react'
 import { useRecipe } from '../hooks/useRecipes'
 import { useCart } from '../hooks/useCart'
+import { useAuth } from '../hooks/useAuth'
+import NotificationBell from '../components/NotificationBell'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { getProductPricePresentation } from '../utils/productPricing'
 import { SEO, StructuredData } from '../components/SEO'
@@ -60,6 +62,7 @@ export default function RecipeDetail() {
   const { slug } = useParams<{ slug: string }>()
   const { data: recipe, isLoading, isError } = useRecipe(slug ?? '')
   const { addItem, cart, total } = useCart()
+  const { user } = useAuth()
   const [cartOpen, setCartOpen] = useState(false)
 
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0)
@@ -141,15 +144,18 @@ export default function RecipeDetail() {
             Receitas
           </Link>
 
-          {cartCount > 0 && (
-            <Button
-              onClick={() => setCartOpen((prev) => !prev)}
-              size="sm"
-            >
-              <ShoppingCart size={14} />
-              {cartCount} {cartCount === 1 ? 'item' : 'itens'} · {formatPrice(total)}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {cartCount > 0 && (
+              <Button
+                onClick={() => setCartOpen((prev) => !prev)}
+                size="sm"
+              >
+                <ShoppingCart size={14} />
+                {cartCount} {cartCount === 1 ? 'item' : 'itens'} · {formatPrice(total)}
+              </Button>
+            )}
+            {user && <NotificationBell />}
+          </div>
         </div>
       </header>
 

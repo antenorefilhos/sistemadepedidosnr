@@ -8,6 +8,7 @@ import { productsAPI } from '../services/api'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { trackEvent } from '../utils/analytics'
 import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X } from 'lucide-react'
+import NotificationBell from '../components/NotificationBell'
 import { SEO } from '../components/SEO'
 import { SkeletonCard } from '../components/Skeleton'
 import type { Product } from '../types'
@@ -593,6 +594,8 @@ export default function MercadoPage() {
               </span>
             )}
           </Link>
+
+          {user && <NotificationBell />}
 
           <Link to={user ? '/account' : '/login'} className="shrink-0 hidden sm:flex items-center gap-1 hover:bg-black/5 p-1 rounded-full transition-all">
             <div className="w-8 h-8 rounded-full bg-[#D2BB8A]/20 flex items-center justify-center border border-[#D2BB8A]/40">

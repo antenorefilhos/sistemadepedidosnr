@@ -1,5 +1,7 @@
 import { useCart } from '../hooks/useCart'
+import { useAuth } from '../hooks/useAuth'
 import { Link } from 'react-router-dom'
+import NotificationBell from '../components/NotificationBell'
 import { useEffect, useState } from 'react'
 import type { Product } from '../types'
 import { useProductRecommendations, useSmartSubstitutes } from '../hooks/useCart'
@@ -34,6 +36,7 @@ function getAvailabilityLabel(product?: Product) {
 }
 
 export default function Cart() {
+  const { user } = useAuth()
   const { cart, removeItem, updateQuantity, updateAllowSubstitution, clear, total, subtotal, discount, couponCode, applyCoupon, removeCoupon } = useCart()
   const [couponInput, setCouponInput] = useState(couponCode || '')
   const [couponFeedback, setCouponFeedback] = useState<string | null>(null)
@@ -75,12 +78,15 @@ export default function Cart() {
             <ArrowLeft size={18} />
             Voltar para compras
           </Link>
-          <div className="inline-flex items-center gap-2 text-[#231F20] font-semibold">
-            <ShoppingCart size={18} className="text-[#5D082A]" />
-            Carrinho
-            <Badge tone="burgundy" className="bg-[#5D082A] text-white">
-              {totalItems}
-            </Badge>
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center gap-2 text-[#231F20] font-semibold">
+              <ShoppingCart size={18} className="text-[#5D082A]" />
+              Carrinho
+              <Badge tone="burgundy" className="bg-[#5D082A] text-white">
+                {totalItems}
+              </Badge>
+            </div>
+            {user && <NotificationBell />}
           </div>
         </div>
       </header>

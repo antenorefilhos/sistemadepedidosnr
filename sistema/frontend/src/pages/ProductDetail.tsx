@@ -12,6 +12,8 @@ import { SEO, StructuredData } from '../components/SEO'
 import { getProductDetailSections } from '../utils/productDetailSchema'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
+import { useAuth } from '../hooks/useAuth'
+import NotificationBell from '../components/NotificationBell'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
 import { surfaceClasses } from '../components/ui/surface'
@@ -24,6 +26,7 @@ export default function ProductDetail() {
   const { data: recommendations = [] } = useProductRecommendations(id, 6)
   const { data: substitutes = [] } = useSmartSubstitutes(id, 6)
   const { count } = useCart()
+  const { user } = useAuth()
   const [imageIndex, setImageIndex] = useState(0)
   const [imgError, setImgError] = useState(false)
   const imageVersion = '2'
@@ -165,14 +168,17 @@ export default function ProductDetail() {
             {backLabel}
           </Button>
 
-          <Link to="/cart" className="relative p-2 text-[#231F20] hover:text-[#5D082A] transition-colors">
-            <ShoppingCart size={22} />
-            {count > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {count > 9 ? '9+' : count}
-              </span>
-            )}
-          </Link>
+          <div className="flex items-center gap-1">
+            <Link to="/cart" className="relative p-2 text-[#231F20] hover:text-[#5D082A] transition-colors">
+              <ShoppingCart size={22} />
+              {count > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {count > 9 ? '9+' : count}
+                </span>
+              )}
+            </Link>
+            {user && <NotificationBell />}
+          </div>
         </div>
       </header>
 

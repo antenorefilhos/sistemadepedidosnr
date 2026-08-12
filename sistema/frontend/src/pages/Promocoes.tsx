@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Tag, Flame } from 'lucide-react'
 import { productsAPI } from '../services/api'
+import { useAuth } from '../hooks/useAuth'
+import NotificationBell from '../components/NotificationBell'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { SkeletonCard } from '../components/Skeleton'
 import { SEO } from '../components/SEO'
@@ -9,6 +11,7 @@ import type { Product } from '../types'
 import { buttonVariants } from '../components/ui/button'
 
 export default function Promocoes() {
+  const { user } = useAuth()
   const { data: promos = [], isLoading } = useQuery({
     queryKey: ['products-promotions'],
     queryFn: async () => {
@@ -27,10 +30,15 @@ export default function Promocoes() {
         <Link to="/" className="p-1 -ml-1 rounded-lg hover:bg-white/10 transition-colors">
           <ArrowLeft size={22} />
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
           <Flame size={20} className="text-[#D2BB8A] fill-[#D2BB8A]" />
           <h1 className="text-base font-bold tracking-tight">Promoções</h1>
         </div>
+        {user && (
+          <div className="[&_button]:text-white [&_button]:hover:bg-white/10">
+            <NotificationBell />
+          </div>
+        )}
       </header>
 
       <main className="px-4 py-5">

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { LogOut, User, Clock, MapPin, RotateCcw, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Banknote, QrCode, CreditCard } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import NotificationBell from '../components/NotificationBell'
 import { useCustomerById, useOrders } from '../hooks/useOrders'
 import { useCart } from '../hooks/useCart'
 import { useBrand } from '../hooks/useBrand'
@@ -198,14 +199,17 @@ function Account() {
               Antenor <span className="text-[#5D082A]">& Filhos</span>
             </h1>
           </Link>
-          <Button
-            onClick={handleLogout}
-            variant="primary"
-            size="md"
-          >
-            <LogOut size={18} />
-            Sair
-          </Button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <Button
+              onClick={handleLogout}
+              variant="primary"
+              size="md"
+            >
+              <LogOut size={18} />
+              Sair
+            </Button>
+          </div>
         </div>
       </header>
 

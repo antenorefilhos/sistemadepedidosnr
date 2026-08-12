@@ -1,4 +1,6 @@
 import { useProducts, useCart } from '../hooks/useCart'
+import { useAuth } from '../hooks/useAuth'
+import NotificationBell from '../components/NotificationBell'
 import type { Product } from '../types'
 import { getProductPricePresentation } from '../utils/productPricing'
 import { trackEvent } from '../utils/analytics'
@@ -38,6 +40,7 @@ const formatWineTitle = (value?: string | null) => normalizeUppercaseDisplayText
 export default function WinePage() {
   const { data: products, isLoading } = useProducts(undefined, 'Adega')
   const { count } = useCart()
+  const { user } = useAuth()
 
   useEffect(() => {
     trackEvent('VIEW_CATEGORY', 'CATEGORY', 'VINHOS')
@@ -91,14 +94,21 @@ export default function WinePage() {
              <h1 className="luxury-text text-xl text-[#D2BB8A] tracking-[0.2em] uppercase">Adega Antenor</h1>
              <p className="text-label text-[#D2BB8A]/60 -mt-1 tracking-widest uppercase">Since 2026</p>
           </div>
-          <Link to="/cart" className="relative p-2 text-[#D2BB8A]" aria-label={`Carrinho com ${count} itens`}>
-            <ShoppingCart size={24} />
-            {count > 0 && (
-              <span className="absolute -top-1 -right-1 bg-white text-[#231F20] text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {count}
-              </span>
+          <div className="flex items-center gap-1">
+            <Link to="/cart" className="relative p-2 text-[#D2BB8A]" aria-label={`Carrinho com ${count} itens`}>
+              <ShoppingCart size={24} />
+              {count > 0 && (
+                <span className="absolute -top-1 -right-1 bg-white text-[#231F20] text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {count}
+                </span>
+              )}
+            </Link>
+            {user && (
+              <div className="[&_button]:text-[#D2BB8A] [&_button]:hover:bg-white/10">
+                <NotificationBell />
+              </div>
             )}
-          </Link>
+          </div>
         </div>
       </header>
 

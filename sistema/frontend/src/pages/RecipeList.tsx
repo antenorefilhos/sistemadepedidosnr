@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChefHat, Clock, Users, ArrowRight, ArrowLeft } from 'lucide-react'
 import { useRecipes, useRecipeCategories } from '../hooks/useRecipes'
+import { useAuth } from '../hooks/useAuth'
+import NotificationBell from '../components/NotificationBell'
 import { SEO, StructuredData } from '../components/SEO'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
@@ -86,6 +88,7 @@ function RecipeCard({ recipe }: { recipe: Recipe }) {
 }
 
 export default function RecipeList() {
+  const { user } = useAuth()
   const [activeCategory, setActiveCategory] = useState<string | undefined>()
   const { data: categories = [] } = useRecipeCategories()
   const { data, isLoading } = useRecipes(activeCategory)
@@ -111,9 +114,12 @@ export default function RecipeList() {
             <ArrowLeft size={16} />
             Voltar
           </Link>
-          <span className="inline-flex items-center gap-2 font-semibold text-[#231F20]">
-            <ChefHat size={18} className="text-[#5D082A]" /> Receitas
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-2 font-semibold text-[#231F20]">
+              <ChefHat size={18} className="text-[#5D082A]" /> Receitas
+            </span>
+            {user && <NotificationBell />}
+          </div>
         </div>
       </header>
 
