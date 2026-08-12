@@ -231,6 +231,7 @@ export default function StaffSection() {
       </div>
 
       <SectionToolbar>
+        <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap flex-1">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -271,6 +272,7 @@ export default function StaffSection() {
           <Plus size={14} />
           <span className="ml-1">Novo Membro</span>
         </Button>
+        </div>
       </SectionToolbar>
 
       {error && (
