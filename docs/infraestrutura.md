@@ -196,9 +196,21 @@ saída era resetar a senha direto no banco via SSH. Implementado hoje:
   esse fluxo — não depende de WhatsApp (o `WhatsAppService` existente só gera
   link `wa.me`, não envia nada sozinho; automatizar por WhatsApp de verdade
   exigiria contratar Twilio/Z-API, decisão adiada).
-- Domínio `antenorefilhos.com.br` verificado no Resend (ver seção 2) —
-  depois de verificado, trocar `RESEND_FROM_EMAIL` no `.env.production` pra
-  um remetente `@antenorefilhos.com.br` em vez do sandbox `onboarding@resend.dev`.
+- Domínio `antenorefilhos.com.br` verificado no Resend, `RESEND_FROM_EMAIL`
+  em produção já é `naoresponda@antenorefilhos.com.br` (trocado do sandbox
+  `onboarding@resend.dev`). **Testado ponta a ponta em produção — chegou.**
+
+**Bug real achado no teste em produção**: a `RESEND_API_KEY` que foi pro
+primeiro deploy era a key antiga (sending-only, criada antes da verificação
+de domínio), que tinha sido **revogada** quando a key full-access foi criada
+depois. `EmailService.send()` falhava com 401 do Resend, mas caía no
+`catch` e retornava `false` **sem logar nada visível** (nem sucesso nem erro
+apareciam nos logs do container com o filtro usado) — o endpoint sempre
+responde 200 genérico por design (não revela se o e-mail existe), então o
+sintoma era só "não chega e-mail nenhum", sem pista nenhuma no log. Corrigido
+trocando a key em `.env.production` pela full-access válida. **Fica como
+ponto de atenção**: se o Resend girar/revogar outra key no futuro, o único
+sintoma vai ser silêncio — não tem alerta automático pra isso hoje.
 
 ## 8. Pendências conhecidas (não bloqueiam operação, mas valem registro)
 
