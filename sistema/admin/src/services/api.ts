@@ -1639,6 +1639,9 @@ export const notificationsAdminAPI = {
     body: string
     customerId?: string
   }) => api.post('/notifications/admin/broadcast', data),
+  getAiCycleStatus: () => api.get<{ enabled: boolean }>('/notifications/admin/ai-cycle/status'),
+  toggleAiCycle: (enabled: boolean) => api.post('/notifications/admin/ai-cycle/toggle', { enabled }),
+  runAiCycleNow: () => api.post('/notifications/admin/ai-cycle/run'),
 }
 
 export interface StaffMember {

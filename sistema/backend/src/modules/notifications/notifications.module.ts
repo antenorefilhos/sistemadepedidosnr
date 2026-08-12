@@ -7,6 +7,7 @@ import { NotificationsController } from './notifications.controller'
 import { EmailService } from './email.service'
 import { AiNotificationService } from './ai-notification.service'
 import { AiNotificationScheduler } from './ai-notification.scheduler'
+import { IntegrationModulesService } from '../integrations/integration-modules.service'
 import { PrismaService } from '../../common/prisma.service'
 
 @Module({
@@ -20,6 +21,7 @@ import { PrismaService } from '../../common/prisma.service'
     EmailService,
     AiNotificationService,
     AiNotificationScheduler,
+    IntegrationModulesService,
   ],
   exports: [
     NotificationsService,

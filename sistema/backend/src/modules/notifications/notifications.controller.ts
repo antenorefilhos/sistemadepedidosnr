@@ -3,6 +3,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { NotificationsService } from './notifications.service'
 import { NotificationService } from './notification.service'
 import { AiNotificationService } from './ai-notification.service'
+import { IntegrationModulesService } from '../integrations/integration-modules.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
@@ -16,6 +17,7 @@ export class NotificationsController {
     private readonly notificationsService: NotificationsService,
     private readonly notificationService: NotificationService,
     private readonly aiNotificationService: AiNotificationService,
+    private readonly integrationModules: IntegrationModulesService,
   ) {}
 
   @Get()
@@ -104,6 +106,24 @@ export class NotificationsController {
     }
 
     return { count: created.length, notifications: created }
+  }
+
+  @Get('admin/ai-cycle/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Le se a notificacao automatica por IA esta ligada' })
+  async getAiNotificationStatus() {
+    return { enabled: await this.integrationModules.isEnabled('ai-notifications') }
+  }
+
+  @Post('admin/ai-cycle/toggle')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Liga/desliga a notificacao automatica por IA' })
+  async toggleAiNotification(@Body() body: { enabled: boolean }) {
+    return this.integrationModules.setEnabled('ai-notifications', Boolean(body?.enabled))
   }
 
   @Post('admin/ai-cycle/run')

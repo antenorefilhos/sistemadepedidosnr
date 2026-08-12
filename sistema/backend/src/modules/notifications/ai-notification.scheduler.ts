@@ -1,34 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { AiNotificationService } from './ai-notification.service'
+import { IntegrationModulesService } from '../integrations/integration-modules.service'
 
 /**
  * Agenda o ciclo de notificacao automatica por IA (produtos em promocao
  * recente -> NVIDIA NIM decide se notifica -> broadcast).
  *
- * Controlado por variaveis de ambiente, seguindo o mesmo padrao do sync do
- * ERP (ProductsSyncScheduler): desabilitado por padrao, trava em memoria
- * contra execucao concorrente.
- * - AI_NOTIFICATIONS_CRON_ENABLED: 'true' para habilitar.
- * - AI_NOTIFICATIONS_CRON: expressao cron (default: 3x/dia -- 9h, 13h, 18h).
+ * O liga/desliga fica no interruptor persistido no banco (modulo
+ * 'ai-notifications', mesmo mecanismo dos conectores de integracao,
+ * controlavel na tela de Notificacoes do admin sem precisar redeploy).
+ * AI_NOTIFICATIONS_CRON_ENABLED so serve de valor inicial/fallback antes
+ * de qualquer toggle ser salvo. AI_NOTIFICATIONS_CRON define a expressao
+ * cron (default: 3x/dia -- 9h, 13h, 18h).
  */
 @Injectable()
 export class AiNotificationScheduler {
   private readonly logger = new Logger(AiNotificationScheduler.name)
-  private readonly enabled = String(process.env.AI_NOTIFICATIONS_CRON_ENABLED || '').toLowerCase() === 'true'
   private isRunning = false
 
-  constructor(private readonly aiNotificationService: AiNotificationService) {
-    if (this.enabled) {
-      this.logger.log(`Notificacao automatica por IA HABILITADA (cron: ${process.env.AI_NOTIFICATIONS_CRON || '0 9,13,18 * * *'}).`)
-    } else {
-      this.logger.log('Notificacao automatica por IA desabilitada (defina AI_NOTIFICATIONS_CRON_ENABLED=true para ativar).')
-    }
-  }
+  constructor(
+    private readonly aiNotificationService: AiNotificationService,
+    private readonly integrationModules: IntegrationModulesService,
+  ) {}
 
   @Cron(process.env.AI_NOTIFICATIONS_CRON || '0 9,13,18 * * *', { name: 'ai-notification-cycle' })
   async handleCycle(): Promise<void> {
-    if (!this.enabled) return
+    const enabled = await this.integrationModules.isEnabled('ai-notifications')
+    if (!enabled) return
+
     if (this.isRunning) {
       this.logger.warn('Ciclo de notificacao IA ignorado: ciclo anterior ainda em andamento.')
       return

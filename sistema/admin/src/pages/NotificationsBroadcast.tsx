@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { Bell, Send, RefreshCw } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Bell, Send, RefreshCw, Sparkles, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { notificationsAdminAPI } from '../services/api'
 
@@ -14,6 +15,31 @@ export default function NotificationsBroadcast() {
   const [body, setBody] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [aiCycleResult, setAiCycleResult] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  const { data: aiStatus } = useQuery({
+    queryKey: ['ai-notification-status'],
+    queryFn: async () => (await notificationsAdminAPI.getAiCycleStatus()).data,
+  })
+
+  const toggleAiMut = useMutation({
+    mutationFn: (enabled: boolean) => notificationsAdminAPI.toggleAiCycle(enabled),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-notification-status'] }),
+  })
+
+  const runAiCycleMut = useMutation({
+    mutationFn: () => notificationsAdminAPI.runAiCycleNow(),
+    onSuccess: (res) => {
+      const data = res.data as { candidates?: number; notified?: number; skipped?: number; reason?: string }
+      if (data.reason) {
+        setAiCycleResult(`Nao rodou: ${data.reason}`)
+      } else {
+        setAiCycleResult(`${data.candidates ?? 0} candidato(s) avaliados, ${data.notified ?? 0} notificado(s).`)
+      }
+    },
+    onError: () => setAiCycleResult('Falha ao rodar o ciclo. Tente novamente.'),
+  })
 
   const broadcastMut = useMutation({
     mutationFn: () =>
@@ -42,6 +68,40 @@ export default function NotificationsBroadcast() {
       <div className="flex items-center gap-3 mb-6">
         <Bell className="text-[#5D082A]" size={24} />
         <h1 className="text-2xl font-bold text-gray-800">Notificações</h1>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm space-y-4 mb-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <Sparkles className="text-[#5D082A] mt-0.5 shrink-0" size={20} />
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Notificação automática por IA</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Quando ligado, a IA olha as promoções ativas 3x por dia e decide sozinha quando vale notificar os clientes.
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={Boolean(aiStatus?.enabled)}
+            onChange={(checked) => toggleAiMut.mutate(checked)}
+            disabled={toggleAiMut.isPending}
+            aria-label="Ligar notificação automática por IA"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => { setAiCycleResult(null); runAiCycleMut.mutate() }}
+            disabled={runAiCycleMut.isPending}
+          >
+            {runAiCycleMut.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+            {runAiCycleMut.isPending ? 'Rodando...' : 'Rodar agora (teste)'}
+          </Button>
+          {aiCycleResult && <span className="text-xs text-gray-500">{aiCycleResult}</span>}
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm space-y-4">
