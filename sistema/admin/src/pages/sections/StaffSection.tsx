@@ -121,7 +121,12 @@ export default function StaffSection() {
     return list
   }, [staff, filterModule, filterStatus, search])
 
-  const countByModule = (moduleKey: string) => staff.filter(s => s.active && memberModules(s).includes(moduleKey)).length
+  // Conta so quem tem o modulo de verdade no moduleAccess -- nao usa memberModules()
+  // aqui porque ele "infla" admin/master em todo modulo (acesso implicito via guard),
+  // o que faria "Acesso Separacao"/"Acesso Entrega" contar o master junto com quem
+  // realmente é separador/entregador.
+  const countByModule = (moduleKey: string) =>
+    staff.filter(s => s.active && (moduleKey === 'admin' ? s.role === 'admin' : (s.moduleAccess || []).includes(moduleKey))).length
   const masters = staff.filter(s => s.role === 'admin' && s.active).length
   const inactive = staff.filter(s => !s.active).length
 
