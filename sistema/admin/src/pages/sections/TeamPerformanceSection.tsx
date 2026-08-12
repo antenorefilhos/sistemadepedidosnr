@@ -14,6 +14,14 @@ import {
 } from '../../services/api'
 import { SectionEmptyState, SectionMetric, SectionPanel, SectionToolbar } from './SectionChrome'
 
+const ACTOR_TYPE_LABELS: Record<string, string> = {
+  PICKER: 'Separador',
+  ADMIN: 'Administrador',
+  DRIVER: 'Entregador',
+  CUSTOMER: 'Cliente',
+  SYSTEM: 'Sistema',
+}
+
 function formatMinutes(seconds: number) {
   if (!seconds) return '—'
   const minutes = Math.round(seconds / 60)
@@ -185,7 +193,7 @@ export default function TeamPerformanceSection() {
                   <tr key={event.id}>
                     <td className="py-2 text-gray-500">{new Date(event.createdAt).toLocaleString('pt-BR')}</td>
                     <td className="py-2 font-semibold text-[#5d082a]">
-                      {event.actorName || (event.actorType === 'PICKER' ? 'Separador' : event.actorType)}
+                      {event.actorName || ACTOR_TYPE_LABELS[event.actorType] || event.actorType}
                     </td>
                     <td className="py-2">{String(event.payload.sourceProductName || '—')}</td>
                     <td className="py-2">{String(event.payload.substituteProductName || '—')}</td>

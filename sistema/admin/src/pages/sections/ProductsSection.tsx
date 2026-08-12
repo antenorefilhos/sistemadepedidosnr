@@ -646,7 +646,7 @@ export default function ProductsSection({
 
             <Button onClick={onSyncProducts} disabled={syncingProducts || !canRunSolidcomActions} title={!canRunSolidcomActions ? solidcomActionHint : 'Sincronizar produtos com Solidcom'} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm text-white hover:bg-sky-700">
               <RefreshCw size={15} className={syncingProducts ? 'animate-spin' : ''} />
-              Sync Solidcom
+              Sincronizar Solidcom
             </Button>
 
             <Button onClick={onSyncTaxonomy} disabled={syncingTaxonomy || !canRunSolidcomActions} title={!canRunSolidcomActions ? solidcomActionHint : 'Gerar taxonomia com dados do Solidcom'} className="min-h-11 rounded-xl bg-amber-600 px-4 text-sm text-white hover:bg-amber-700">

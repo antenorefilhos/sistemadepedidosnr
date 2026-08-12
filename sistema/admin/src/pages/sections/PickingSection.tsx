@@ -415,7 +415,7 @@ export default function PickingSection() {
                 ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
                 : 'border-[#ead7df] bg-white text-gray-700 hover:bg-gray-50'
             }`}
-            title={autoRefresh ? 'Auto-refresh ligado (30s)' : 'Ligar auto-refresh'}
+            title={autoRefresh ? 'Atualização automática ligada (30s)' : 'Ligar atualização automática'}
           >
             <RefreshCw size={16} className={autoRefresh ? 'animate-spin' : ''} style={autoRefresh ? { animationDuration: '3s' } : undefined} />
             {autoRefresh ? '30s' : 'Auto'}

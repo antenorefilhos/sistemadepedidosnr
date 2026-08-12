@@ -83,7 +83,7 @@ export default function NotificationsBroadcast() {
         </div>
 
         <div>
-          <Label htmlFor="notification-customer" className="block text-xs font-semibold text-gray-600 mb-1">Customer ID (opcional)</Label>
+          <Label htmlFor="notification-customer" className="block text-xs font-semibold text-gray-600 mb-1">ID do Cliente (opcional)</Label>
           <Input
             id="notification-customer"
             type="text"

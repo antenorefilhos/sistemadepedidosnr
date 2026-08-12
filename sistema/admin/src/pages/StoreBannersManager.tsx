@@ -91,7 +91,7 @@ const PAGES_OPTIONS: { value: BannerPages; label: string }[] = [
 ];
 
 const TYPE_LABEL: Record<BannerType, string> = {
-  full: 'Full',
+  full: 'Completo',
   tarja: 'Tarja',
   vitrine: 'Vitrine',
   mini: 'Mini',
@@ -657,7 +657,7 @@ export default function StoreBannersManager() {
                     value={form.name}
                     onChange={(e) => set('name', e.target.value)}
                     className={`rounded-lg text-sm focus-visible:ring-gray-900 ${errors.name ? 'border-red-400' : 'border-gray-200'}`}
-                    placeholder="Ex: Banner Summer Sale Desktop"
+                    placeholder="Ex: Banner Promoção de Verão Desktop"
                   />
                   {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
                 </div>

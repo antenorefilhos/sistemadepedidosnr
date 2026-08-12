@@ -111,7 +111,7 @@ export function SystemHealthWidget() {
                 className={`flex items-center gap-2.5 px-4 py-3 rounded-[12px] border text-xs transition-all duration-200 hover:shadow-sm ${statusBg(svc.status)}`}
               >
                 <StatusIcon status={svc.status} />
-                <span className="font-semibold text-[#231F20]">{SERVICE_LABELS[key] ?? key}</span>
+                <span className="font-semibold text-[#231F20]">{SERVICE_LABELS[key] ?? (key.charAt(0).toUpperCase() + key.slice(1))}</span>
                 {svc.latencyMs !== undefined && (
                   <span className="ml-auto text-gray-400 tabular-nums font-mono">{svc.latencyMs}ms</span>
                 )}

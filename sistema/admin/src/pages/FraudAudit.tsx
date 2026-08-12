@@ -98,7 +98,7 @@ export default function FraudAudit() {
             </TableHeader>
             <TableBody>
               {logs.map((log: FraudLog) => {
-                const meta = VECTOR_META[log.vector] ?? { label: log.vector, icon: null, color: 'border-gray-200 bg-gray-50 text-gray-600' }
+                const meta = VECTOR_META[log.vector] ?? { label: 'Outro', icon: null, color: 'border-gray-200 bg-gray-50 text-gray-600' }
                 const count = countByValue[log.value] ?? 1
                 return (
                   <TableRow key={log.id} className={count > 1 ? 'bg-red-50/40' : ''}>

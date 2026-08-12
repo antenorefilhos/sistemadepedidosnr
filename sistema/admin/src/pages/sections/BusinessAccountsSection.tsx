@@ -17,6 +17,14 @@ import {
 } from '../../services/api'
 import { SectionEmptyState, SectionMetric, SectionPanel, SectionToolbar } from './SectionChrome'
 
+const ACCOUNT_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Ativa',
+  SUSPENDED: 'Suspensa',
+  INACTIVE: 'Inativa',
+  BLOCKED: 'Bloqueada',
+}
+const accountStatusVariant = (status: string) => (status === 'ACTIVE' ? 'success' : 'outline')
+
 type AccountFormState = {
   name: string
   document: string
@@ -438,7 +446,7 @@ export default function BusinessAccountsSection() {
                       <p className="truncate text-sm font-black text-[#2d0b18]">{account.name}</p>
                       <p className="mt-1 text-xs font-semibold text-gray-500">{formatDocument(account.document)}</p>
                     </div>
-                    <Badge variant="success" className="rounded-full px-2 py-1 text-[11px] font-black">{account.status}</Badge>
+                    <Badge variant={accountStatusVariant(account.status)} className="rounded-full px-2 py-1 text-[11px] font-black">{ACCOUNT_STATUS_LABELS[account.status] ?? account.status}</Badge>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[11px] font-bold text-gray-600">
                     <span className="rounded-md bg-gray-50 px-2 py-2">{account._count?.users || 0} usuarios</span>

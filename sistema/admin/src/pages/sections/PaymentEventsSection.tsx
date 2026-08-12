@@ -118,7 +118,7 @@ function HealthStatusCard({ health }: { health: PaymentsHealthResponse }) {
             {ok ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
             <span className="font-medium capitalize">
               {key === 'providerName'
-                ? 'Provider'
+                ? 'Provedor'
                 : key === 'providerUrl'
                   ? 'URL'
                   : key === 'webhookSecret'
@@ -148,7 +148,7 @@ function EventRow({ event }: { event: PaymentEventLedgerItem }) {
           ) : (
             <AlertTriangle size={13} className="text-amber-500" />
           )}
-          <span className="font-medium">{event.type}</span>
+          <span className="font-medium">{WEBHOOK_EVENT_LABELS[event.type] ?? event.type}</span>
         </div>
       </TableCell>
       <TableCell>
@@ -242,7 +242,7 @@ function TransactionRow({
                   {tx.refunds.map((refund) => (
                     <div key={refund.id} className="flex items-center gap-3 text-xs py-1">
                       <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600">
-                        {refund.status}
+                        {TX_STATUS_LABELS[refund.status] ?? refund.status}
                       </Badge>
                       <span className="font-semibold">{formatCurrency(refund.amount)}</span>
                       <span className="text-gray-500">{refund.reason}</span>

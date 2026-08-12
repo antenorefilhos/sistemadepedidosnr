@@ -482,7 +482,7 @@ export default function Intelligence() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Inteligência de Vendas</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Analytics Pro — Phase 17</p>
+          <p className="text-sm text-gray-500 mt-0.5">Painel de inteligência de vendas</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="sr-only" htmlFor="search-window-days">Periodo da saude da busca</label>
@@ -512,7 +512,7 @@ export default function Intelligence() {
           </Select>
 
           <Badge className="border-transparent bg-[#5D082A]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-[#5D082A]">
-            <Zap size={12} /> Live Data
+            <Zap size={12} /> Tempo real
           </Badge>
           {searchInsightsLoading && (
             <Badge variant="outline" className="border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-700">
