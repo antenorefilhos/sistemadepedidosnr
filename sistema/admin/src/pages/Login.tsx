@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { Loader2 } from 'lucide-react'
 import { getApiErrorMessage } from '../services/api'
@@ -86,6 +86,12 @@ export default function Login() {
             {loading && <Loader2 className="animate-spin" size={20} />}
             Entrar
           </Button>
+          <Link
+            to="/redefinir-senha"
+            className="block text-center text-sm font-semibold text-[#5d082a] hover:underline"
+          >
+            Esqueci minha senha
+          </Link>
         </form>
       </div>
     </div>

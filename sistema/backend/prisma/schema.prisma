@@ -114,6 +114,11 @@ model Admin {
   // ele so importa para contas de equipe criadas via Equipe.
   moduleAccess String[] @default([])
   active    Boolean  @default(true)
+  // Recuperacao de senha por e-mail: token e o HASH (sha256) de um valor
+  // aleatorio enviado por e-mail, nunca o valor em si -- se o banco vazar,
+  // o token sozinho nao serve pra resetar a senha de ninguem.
+  resetTokenHash      String?
+  resetTokenExpiresAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

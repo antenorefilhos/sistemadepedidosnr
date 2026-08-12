@@ -4,6 +4,7 @@ import { WhatsAppService } from './whatsapp.service'
 import { NotificationService } from './notification.service'
 import { NotificationsService } from './notifications.service'
 import { NotificationsController } from './notifications.controller'
+import { EmailService } from './email.service'
 import { PrismaService } from '../../common/prisma.service'
 
 @Module({
@@ -14,12 +15,14 @@ import { PrismaService } from '../../common/prisma.service'
     WhatsAppService,
     PrismaService,
     NotificationService,
+    EmailService,
   ],
   exports: [
     NotificationsService,
     PushNotificationService,
     WhatsAppService,
     NotificationService,
+    EmailService,
   ],
 })
 export class NotificationsModule {}

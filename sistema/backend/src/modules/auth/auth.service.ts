@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
+import { createHash, randomBytes } from 'crypto'
 import { PrismaService } from '../../common/prisma.service'
 import { CreateAdminDto, STAFF_MODULES, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
@@ -7,13 +8,54 @@ import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
 import { LoginDto } from './dto/login.dto'
 import * as bcrypt from 'bcrypt'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
+import { EmailService } from '../notifications/email.service'
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hora
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
+
+  /**
+   * Sempre responde generico (nunca revela se o e-mail existe) pra nao virar
+   * oraculo de enumeracao de contas. So envia e-mail de verdade se achar a
+   * conta.
+   */
+  async forgotPassword(email: string) {
+    const admin = await this.prisma.admin.findUnique({ where: { email } })
+    if (admin) {
+      const token = randomBytes(32).toString('hex')
+      const tokenHash = createHash('sha256').update(token).digest('hex')
+      await this.prisma.admin.update({
+        where: { id: admin.id },
+        data: { resetTokenHash: tokenHash, resetTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+      })
+      const adminUrl = process.env.ADMIN_URL || 'http://localhost:3002'
+      const resetUrl = `${adminUrl}/redefinir-senha?token=${token}`
+      await this.emailService.sendPasswordReset(admin.email, admin.name, resetUrl)
+    }
+    return { message: 'Se o e-mail existir, enviamos um link de redefinicao.' }
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const tokenHash = createHash('sha256').update(token).digest('hex')
+    const admin = await this.prisma.admin.findFirst({
+      where: { resetTokenHash: tokenHash, resetTokenExpiresAt: { gt: new Date() } },
+    })
+    if (!admin) {
+      throw new BadRequestException('Link invalido ou expirado. Peca uma nova redefinicao.')
+    }
+    const password = await bcrypt.hash(newPassword, 10)
+    await this.prisma.admin.update({
+      where: { id: admin.id },
+      data: { password, resetTokenHash: null, resetTokenExpiresAt: null },
+    })
+    return { message: 'Senha redefinida com sucesso.' }
+  }
 
   async login(loginDto: LoginDto) {
     const admin = await this.prisma.admin.findUnique({

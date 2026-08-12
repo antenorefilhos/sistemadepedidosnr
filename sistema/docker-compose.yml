@@ -62,6 +62,8 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@antenor.com.br}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
       HANDOFF_CSV_PATH: ${HANDOFF_CSV_PATH:-/data/handoff_ecommerce_v3_n1_n2.csv}
       ERP_SYNC_CRON_ENABLED: ${ERP_SYNC_CRON_ENABLED:-true}
       ERP_SYNC_CRON: ${ERP_SYNC_CRON:-0 4 * * *}

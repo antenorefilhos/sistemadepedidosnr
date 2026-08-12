@@ -93,6 +93,8 @@ services:
       # outro lugar).
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       QA_CUSTOMER_PASSWORD: ${QA_CUSTOMER_PASSWORD:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
       HANDOFF_CSV_PATH: ${HANDOFF_CSV_PATH:-/data/handoff_ecommerce_v3_n1_n2.csv}
       # Sync ERP: completo 1x/dia + incremental de hora em hora (ver
       # docs/solidcom-api.md). Os dois crons so rodam com *_CRON_ENABLED=true.

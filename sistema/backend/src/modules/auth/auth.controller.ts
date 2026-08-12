@@ -6,6 +6,7 @@ import { CreateAdminDto, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
 import { LoginDto } from './dto/login.dto'
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
@@ -84,6 +85,28 @@ export class AuthController {
   })
   customerLogin(@Body() loginDto: LoginDto) {
     return this.authService.customerLogin(loginDto)
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Solicitar redefinicao de senha (admin)',
+    description: 'Envia um link de redefinicao por e-mail se a conta existir. Resposta sempre generica.',
+  })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email)
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Redefinir senha com token (admin)',
+    description: 'Troca a senha usando o token recebido por e-mail.',
+  })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword)
   }
 
   @Post('customer/register')
