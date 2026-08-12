@@ -110,6 +110,12 @@ export default function Checkout() {
     return undefined
   }, [step, whatsappDispatch])
 
+  // Endereco ja verificado (com coordenadas de GPS confirmadas) na Home nao
+  // pode ser sobrescrito pela tentativa automatica de GPS do checkout: isso
+  // troca coordenadas boas por uma leitura nova (menos precisa, principalmente
+  // no desktop) e derruba um endereco que ja tinha sido aceito na zona.
+  const hasVerifiedAddressRef = useRef(Boolean(readDeliveryVerification()?.calc && !readDeliveryVerification()?.calc.outOfArea))
+
   const [formData, setFormData] = useState(() => {
     const saved = readDeliveryVerification()?.address
     return {
@@ -144,7 +150,7 @@ export default function Checkout() {
   } = useAddressAutofill({
     formData,
     setFormData,
-    autoGpsEnabled: step === 'address',
+    autoGpsEnabled: step === 'address' && !hasVerifiedAddressRef.current,
   })
 
   const [deliveryCalc, setDeliveryCalc] = useState<{
