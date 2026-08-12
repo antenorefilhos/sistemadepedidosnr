@@ -124,7 +124,11 @@ export class HealthController {
     const start = Date.now()
     const url = process.env.SOLIDCOM_API_URL || process.env.ERP_API_URL || 'http://45.239.193.56:5000'
     try {
-      await axios.get(`${url}/api/Produto/GetProdutos?ativo=true&limit=1`, { timeout: 5000 })
+      // GetProdutos e um endpoint pesado do Solidcom (ver docs/solidcom-api.md) --
+      // mesmo com limit=1 respondeu ~9.7s a partir da VPS de producao. 5s
+      // marcava "down" um ERP que na verdade estava respondendo normal; o sync
+      // de verdade (solidcom-erp.service.ts) ja usa 15-30s pros mesmos endpoints.
+      await axios.get(`${url}/api/Produto/GetProdutos?ativo=true&limit=1`, { timeout: 15000 })
       return { status: 'ok', latencyMs: Date.now() - start }
     } catch (err) {
       const latencyMs = Date.now() - start
