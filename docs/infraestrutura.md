@@ -180,6 +180,15 @@ commitados:
    identificada (suspeita: estado interno do Caddy travado durante emissão
    simultânea de 5 certificados), mas não é recorrente — não precisou de
    fix de código.
+6. **`502 Bad Gateway` intermitente do admin/storefront/picking/delivery
+   depois de reconstruir só o `api`** — o nginx de cada frontend resolve o
+   hostname `api` (DNS interno do Docker) uma vez e guarda o IP em cache.
+   Quando o `api` é recriado sozinho (`docker compose up -d --build api`),
+   ele ganha um IP novo — os nginx que já estavam de pé continuam batendo
+   no IP antigo até serem reiniciados. **Sempre que o `api` for reconstruído
+   sozinho, reiniciar também quem fala com ele**:
+   `docker compose -f docker-compose.prod.yml restart admin storefront picking delivery`
+   (ou, mais simples, incluir esses serviços no mesmo `--build` do api).
 
 ## 7. Recuperação de senha do admin (Resend)
 
