@@ -15,6 +15,12 @@
 | Deploy (VPS Hostinger) | `root@179.198.122.67`, repo clonado em `/opt/antenor` (branch `main`) |
 | Domínio | `antenorefilhos.com.br` (subdomínios: `mercado.`, `admin.`, `api.`, `separacao.`, `entrega.`) |
 
+Projeto é portátil por design: código, `.env`, uploads e docs vivem dentro da
+pasta do projeto (hoje num HD separado do `C:`). Pra trocar de máquina ou
+reformatar, ver [docs/nova-maquina.md](docs/nova-maquina.md) — lista o que
+fica fora da pasta (config global do Claude Code, chave SSH da VPS) e precisa
+de backup manual.
+
 Não confundir com caminhos antigos que aparecem em notas arquivadas do vault
 (`D:\NOVA ORGANIZAÇÃO\PROJETOS\...` não existe mais — era de um setup
 anterior). Os caminhos acima são os reais, verificados nesta reorganização.
