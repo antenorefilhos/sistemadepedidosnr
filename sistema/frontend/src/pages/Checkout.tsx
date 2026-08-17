@@ -61,6 +61,10 @@ export default function Checkout() {
   const backendCartIdRef = useRef<string | null>(null)
   const checkoutSessionIdRef = useRef<string | null>(null)
   const deliverySlotRef = useRef<ReturnType<typeof createFallbackDeliverySlot> | null>(null)
+  // setDeliveryCalc so aplica no proximo render -- getDeliveryPayload roda
+  // sincrono logo depois de setDeliveryCalc(calc) no mesmo handleSubmit, e
+  // pegaria o valor antigo (null) via state. Ref le o valor certo na hora.
+  const resolvedCoordsRef = useRef<{ lat: number | null; lng: number | null }>({ lat: null, lng: null })
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [checkoutQuote, setCheckoutQuote] = useState<CheckoutQuoteResponse | null>(null)
   const { data: deliverySlots = [] } = useQuery({
@@ -226,8 +230,8 @@ export default function Checkout() {
     // coordenada certa (GPS ou geocode do endereco via Mapbox) -- sem
     // reenvia-la aqui, a sessao de checkout so teria o CEP e nunca bateria
     // com zona por poligono. Ver deliveryVerification.ts.
-    const lat = deliveryCalc?.lat ?? formData.lat ?? undefined
-    const lng = deliveryCalc?.lng ?? formData.lng ?? undefined
+    const lat = resolvedCoordsRef.current.lat ?? formData.lat ?? undefined
+    const lng = resolvedCoordsRef.current.lng ?? formData.lng ?? undefined
 
     if (selectedDeliverySlot) {
       return {
@@ -254,7 +258,7 @@ export default function Checkout() {
       addressId: deliveryAddressId,
       ...deliverySlotRef.current,
     }
-  }, [deliveryCalc?.lat, deliveryCalc?.lng, formData.lat, formData.lng, formData.zipCode, selectedDeliverySlot])
+  }, [formData.lat, formData.lng, formData.zipCode, selectedDeliverySlot])
 
   const ensureCheckoutSession = useCallback(async ({
     customerId,
@@ -381,6 +385,7 @@ export default function Checkout() {
           lng: formData.lng,
         })
         setDeliveryCalc(calc)
+        resolvedCoordsRef.current = { lat: calc.lat ?? null, lng: calc.lng ?? null }
 
         if (calc.outOfArea) {
           setCheckoutError('Endereco fora da zona de entrega cadastrada.')
