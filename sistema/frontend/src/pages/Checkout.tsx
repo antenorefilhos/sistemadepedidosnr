@@ -401,6 +401,10 @@ export default function Checkout() {
 
         setStep('payment')
       } catch (error) {
+        // Sessao pode ter expirado ou falhado entre tentativas (ex.: usuario
+        // demorou preenchendo o endereco) -- sem isto, toda nova tentativa
+        // reusa o mesmo id morto e nunca sai de "Sessao nao esta ativa".
+        checkoutSessionIdRef.current = null
         setCheckoutError(getApiErrorMessage(error, 'Nao foi possivel validar endereco, estoque e zona de entrega. Revise os dados e tente novamente.'))
       }
       return
@@ -499,6 +503,10 @@ export default function Checkout() {
         clear()
         setStep('confirmation')
       } catch (error) {
+        // Mesmo motivo do catch da etapa de endereco: sessao pode ter
+        // expirado entre a confirmacao do endereco e o fechamento do
+        // pagamento -- limpa pra proxima tentativa criar uma nova.
+        checkoutSessionIdRef.current = null
         setCheckoutError(getApiErrorMessage(error, 'Nao foi possivel concluir o pedido.'))
       }
     }
