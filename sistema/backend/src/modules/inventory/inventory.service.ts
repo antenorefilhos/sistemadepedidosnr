@@ -74,9 +74,20 @@ export class InventoryService {
       )
 
       const reservations = []
+      // syncOption='SEMPRE' vem do Solidcom: produto sempre vendavel, ignora
+      // o numero de estoque sincronizado (que fica errado com frequencia,
+      // ex.: negativo em item de producao propria). Mesmo criterio usado na
+      // vitrine (ver isStorefrontVisible/products.service.ts) e no quote do
+      // checkout (CheckoutService.buildStockSnapshot).
+      const alwaysAvailableProducts = await tx.product.findMany({
+        where: { tenantId, storeId, id: { in: items.map((item) => item.productId) }, syncOption: 'SEMPRE' },
+        select: { id: true },
+      })
+      const alwaysAvailableIds = new Set(alwaysAvailableProducts.map((product) => product.id))
 
       for (const item of items) {
         const policy = await this.findPolicy(tx, tenantId, storeId, item.productId)
+        const allowBackorder = policy?.allowBackorder || alwaysAvailableIds.has(item.productId)
         const ttlMinutes = request.ttlMinutes || Number(policy?.reservationTtlMin || DEFAULT_RESERVATION_TTL_MIN)
         const expiresAt = request.expiresAt || new Date(Date.now() + ttlMinutes * 60 * 1000)
         const quantity = this.toDecimal(item.quantity)
@@ -86,12 +97,12 @@ export class InventoryService {
             tenantId,
             storeId,
             productId: item.productId,
-            ...(policy?.allowBackorder ? {} : { available: { gte: quantity } }),
+            ...(allowBackorder ? {} : { available: { gte: quantity } }),
           },
           data: {
             reserved: { increment: quantity },
             available: { decrement: quantity },
-            source: policy?.allowBackorder ? 'BACKORDER_POLICY' : 'RESERVATION',
+            source: allowBackorder ? 'BACKORDER_POLICY' : 'RESERVATION',
           },
         })
 
@@ -125,7 +136,7 @@ export class InventoryService {
             quantity,
             balance: position.available,
             referenceId: reservation.id,
-            reason: policy?.allowBackorder ? 'Reserva com politica explicita de backorder' : 'Reserva de checkout',
+            reason: allowBackorder ? 'Reserva com politica explicita de backorder' : 'Reserva de checkout',
           },
         })
 

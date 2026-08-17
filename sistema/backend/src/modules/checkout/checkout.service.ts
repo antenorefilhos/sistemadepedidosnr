@@ -411,15 +411,25 @@ export class CheckoutService {
   }
 
   private async buildStockSnapshot(context: { tenantId: string; storeId: string }, cart: CartPayload): Promise<StockSnapshot> {
-    const availability = await this.inventoryService.getAvailability(
-      context,
-      cart.items.map((item) => item.productId),
-    )
+    const [availability, products] = await Promise.all([
+      this.inventoryService.getAvailability(
+        context,
+        cart.items.map((item) => item.productId),
+      ),
+      this.prisma.product.findMany({
+        where: { tenantId: context.tenantId, storeId: context.storeId, id: { in: cart.items.map((item) => item.productId) } },
+        select: { id: true, syncOption: true },
+      }),
+    ])
     const availableByProduct = new Map(availability.items.map((item) => [item.productId, item.available]))
+    // syncOption='SEMPRE' vem do Solidcom e significa "sempre vendavel, ignore
+    // o numero de estoque" -- necessario porque o estoque sincronizado do ERP
+    // fica errado com frequencia (ex.: negativo em item de producao propria).
+    const syncOptionByProduct = new Map(products.map((product) => [product.id, product.syncOption]))
     const items = cart.items.map((item) => {
       const requested = Number(item.quantity)
       const available = Number(availableByProduct.get(item.productId) || 0)
-      const inStock = available >= requested
+      const inStock = syncOptionByProduct.get(item.productId) === 'SEMPRE' || available >= requested
       return {
         productId: item.productId,
         requested,
