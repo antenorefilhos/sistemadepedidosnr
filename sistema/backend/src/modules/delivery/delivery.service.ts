@@ -425,6 +425,13 @@ export class DeliveryService {
       throw new BadRequestException(`Janela indisponivel: ${validation.reason}`)
     }
 
+    // Validou como valido mas nao ha registro real (caso 'ASAP' sem nenhum
+    // FulfillmentSlot cadastrado, ver validateSlotCapacity) -- nao ha o que
+    // reservar/decrementar, so confirmar sem tocar no banco.
+    if (!validation.slot) {
+      return null
+    }
+
     const slot = await this.prisma.fulfillmentSlot.update({
       where: { id: slotId },
       data: {
