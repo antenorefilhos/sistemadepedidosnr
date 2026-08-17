@@ -383,7 +383,18 @@ export class AuthService {
     })
 
     if (existing) {
-      return this.buildCustomerTokenResponse(existing)
+      // O match pode ter vindo por CPF/e-mail com um whatsapp desatualizado
+      // (ex.: numero salvo errado num checkout anterior) -- sincroniza pro
+      // que o cliente acabou de digitar, senao a mensagem de confirmacao
+      // sempre vai pro numero velho, silenciosamente.
+      const updated =
+        existing.whatsapp !== whatsapp || (name && existing.name !== name)
+          ? await this.prisma.customer.update({
+              where: { id: existing.id },
+              data: { whatsapp, ...(name ? { name } : {}) },
+            })
+          : existing
+      return this.buildCustomerTokenResponse(updated)
     }
 
     const customer = await this.prisma.customer.create({
