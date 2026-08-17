@@ -7,6 +7,14 @@ import {
 
 export const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
 
+/**
+ * Acima disso a leitura de geolocalizacao do navegador nao e confiavel pra
+ * decidir zona por poligono -- desktop resolve por Wi-Fi/IP e erra por
+ * quilometros mesmo com enableHighAccuracy, mas ainda retorna coordenada
+ * "valida" (nao gera erro). GPS de celular real fica bem abaixo disso.
+ */
+export const GPS_ACCURACY_THRESHOLD_M = 150
+
 const DELIVERY_VERIFICATION_STORAGE_KEY = 'antenor.deliveryVerification'
 const DELIVERY_VERIFICATION_UPDATED_EVENT = 'delivery-verification-updated'
 
@@ -55,9 +63,14 @@ export function normalizeMapboxContext(feature: any): DeliveryAddressSnapshot {
 export async function requestCurrentPosition() {
   if (!('geolocation' in navigator)) throw new Error('geolocation-not-supported')
 
-  return await new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+  return await new Promise<{ lat: number; lng: number; accuracy: number | null }>((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      (position) =>
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
+        }),
       (error) => reject(error),
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
     )

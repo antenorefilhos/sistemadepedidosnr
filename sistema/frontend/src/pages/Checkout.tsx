@@ -752,6 +752,7 @@ export default function Checkout() {
                 <div className="rounded-lg border border-[#D2BB8A]/40 bg-[#FBFAF7] px-3 py-2 text-xs text-[#5d4f33]">
                   {geoLoading && 'Tentando localizar via GPS...'}
                   {!geoLoading && locationStatus === 'gps-success' && 'Endereco inicial preenchido via GPS. Confira e confirme os dados.'}
+                  {!geoLoading && locationStatus === 'gps-imprecise' && 'Localizacao aproximada (comum em desktop). Confira o endereco preenchido antes de continuar.'}
                   {!geoLoading && locationStatus === 'gps-fallback' && 'GPS indisponivel. Continue pelo CEP para preencher automaticamente.'}
                   {!geoLoading && locationStatus === 'idle' && 'Ao abrir o cadastro tentamos localizar via GPS automaticamente.'}
                 </div>

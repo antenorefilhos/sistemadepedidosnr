@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchAddressByCep,
+  GPS_ACCURACY_THRESHOLD_M,
   requestCurrentPosition,
   reverseGeocodeByMapbox,
 } from '../services/deliveryVerification'
@@ -22,7 +23,7 @@ export type AddressFields = {
   lng?: number | null
 }
 
-export type LocationStatus = 'idle' | 'gps-success' | 'gps-fallback'
+export type LocationStatus = 'idle' | 'gps-success' | 'gps-imprecise' | 'gps-fallback'
 
 type UseAddressAutofillInput<T extends AddressFields> = {
   formData: T
@@ -107,6 +108,13 @@ export function useAddressAutofill<T extends AddressFields>({
       setGeoLoading(true)
       const position = await requestCurrentPosition()
       const normalized = await reverseGeocodeByMapbox(position.lat, position.lng)
+      // Desktop resolve geolocalizacao por Wi-Fi/IP e pode errar por
+      // quilometros mesmo "com sucesso" -- so confia na coordenada bruta pra
+      // decidir zona quando a precisao reportada e digna de GPS de celular.
+      // Fora disso deixa lat/lng nulos: verifyDeliveryForAddress cai no
+      // geocode do endereco completo pelo Mapbox, que testado bate certo.
+      const isPreciseEnough =
+        position.accuracy == null || position.accuracy <= GPS_ACCURACY_THRESHOLD_M
 
       setFormData((prev) => ({
         ...prev,
@@ -116,13 +124,10 @@ export function useAddressAutofill<T extends AddressFields>({
         neighborhood: normalized.neighborhood || prev.neighborhood,
         city: normalized.city || prev.city,
         state: normalized.state || prev.state,
-        // Posicao exata do aparelho: e ela que decide a zona por poligono.
-        // Geocodificar o endereco de volta daria o centroide da via, que numa
-        // rua de divisa cai do lado errado. Ver deliveryVerification.
-        lat: position.lat,
-        lng: position.lng,
+        lat: isPreciseEnough ? position.lat : null,
+        lng: isPreciseEnough ? position.lng : null,
       }))
-      setLocationStatus('gps-success')
+      setLocationStatus(isPreciseEnough ? 'gps-success' : 'gps-imprecise')
     } catch {
       setLocationStatus('gps-fallback')
     } finally {

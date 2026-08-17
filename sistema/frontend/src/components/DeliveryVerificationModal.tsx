@@ -10,6 +10,7 @@ import { cn } from '../lib/cn'
 import {
   fetchAddressByCep,
   formatZipCode,
+  GPS_ACCURACY_THRESHOLD_M,
   readDeliveryVerification,
   requestCurrentPosition,
   reverseGeocodeByMapbox,
@@ -89,9 +90,16 @@ export function DeliveryVerificationModal() {
     try {
       const coords = await requestCurrentPosition()
       const detected = await reverseGeocodeByMapbox(coords.lat, coords.lng)
-      // Guarda a posicao real junto do endereco: o Mapbox serve para preencher
-      // rua e bairro na tela, mas quem decide a zona de entrega e o GPS.
-      setGpsDetected({ ...detected, lat: coords.lat, lng: coords.lng })
+      // Desktop resolve por Wi-Fi/IP e pode errar por quilometros mesmo
+      // "com sucesso" -- so guarda a coordenada bruta pra decidir zona quando
+      // a precisao e digna de GPS de celular. Fora disso, handleVerify cai no
+      // geocode do endereco completo (mais preciso nesse caso).
+      const isPreciseEnough = coords.accuracy == null || coords.accuracy <= GPS_ACCURACY_THRESHOLD_M
+      setGpsDetected({
+        ...detected,
+        lat: isPreciseEnough ? coords.lat : null,
+        lng: isPreciseEnough ? coords.lng : null,
+      })
       setShowCepFallback(false)
     } catch (err: any) {
       setGpsDetected(null)
