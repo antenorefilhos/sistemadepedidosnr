@@ -20,6 +20,8 @@ const Checkout = lazy(() => import('./pages/Checkout'))
 const Account = lazy(() => import('./pages/Account'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const WinePage = lazy(() => import('./pages/WinePage'))
 const SearchPage = lazy(() => import('./pages/Search'))
 const ProductDetail = lazy(() => import('./pages/ProductDetail'))
@@ -91,6 +93,8 @@ function AppRoutes() {
         <Routes location={location} key={location.pathname}>
           <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
           <Route path="/register" element={<PageTransition><Register /></PageTransition>} />
+          <Route path="/esqueci-minha-senha" element={<PageTransition><ForgotPassword /></PageTransition>} />
+          <Route path="/redefinir-senha" element={<PageTransition><ResetPassword /></PageTransition>} />
           <Route path="/forbidden" element={<PageTransition><Forbidden /></PageTransition>} />
           <Route path="/vinhos" element={<PageTransition><WinePage /></PageTransition>} />
           <Route path="/adega" element={<PageTransition><WinePage /></PageTransition>} />

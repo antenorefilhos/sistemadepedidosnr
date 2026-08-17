@@ -348,6 +348,9 @@ export const authAPI = {
   login: (identifier: string, password: string) => api.post('/auth/customer/login', { identifier, password }),
   register: (data: RegisterPayload) => api.post('/auth/customer/register', data),
   guestCheckout: (data: GuestCheckoutPayload) => api.post('/auth/customer/guest-checkout', data),
+  forgotPassword: (email: string) => api.post('/auth/customer/forgot-password', { email }),
+  resetPassword: (token: string, newPassword: string) =>
+    api.post('/auth/customer/reset-password', { token, newPassword }),
 }
 
 // Addresses

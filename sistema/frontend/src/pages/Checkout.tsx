@@ -20,7 +20,7 @@ import { getDeviceId } from '../utils/device'
 import { trackEvent } from '../utils/analytics'
 import type { Order } from '../types'
 import { buildChangeForOptions, formatChangeForLabel } from '../utils/changeOptions'
-import { getProductLineTotal, getProductPricePresentation } from '../utils/productPricing'
+import { getProductLineTotal, getProductPricePresentation, getProductStep } from '../utils/productPricing'
 import { saveDeliveryAddress } from '../utils/deliveryAddress'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAddressAutofill } from '../hooks/useAddressAutofill'
@@ -263,11 +263,14 @@ export default function Checkout() {
       backendCartIdRef.current = backendCartId
 
       for (const item of cart) {
+        // O carrinho guarda "numero de passos" para produtos pesaveis (ver
+        // CartContext.addItem); o backend espera a quantidade real (kg).
+        const realQuantity = item.quantity * getProductStep(item.product)
         await addBackendCartItem.mutateAsync({
           cartId: backendCartId,
           data: {
             productId: item.productId,
-            quantity: item.quantity,
+            quantity: realQuantity,
             allowSubstitution: item.allowSubstitution !== false,
           },
         })

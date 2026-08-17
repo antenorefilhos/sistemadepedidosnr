@@ -136,6 +136,10 @@ model Customer {
   email     String?  @unique
   password  String?
   origin    String?
+  // Recuperacao de senha por e-mail, mesmo padrao do Admin: hash (sha256) do
+  // token enviado por e-mail, nunca o valor em si.
+  resetTokenHash      String?
+  resetTokenExpiresAt DateTime?
   addresses Address[]
   orders    Order[]
   profile   CustomerProfile?

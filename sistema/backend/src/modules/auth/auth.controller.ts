@@ -109,6 +109,28 @@ export class AuthController {
     return this.authService.resetPassword(dto.token, dto.newPassword)
   }
 
+  @Post('customer/forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Solicitar redefinicao de senha (cliente)',
+    description: 'Envia um link de redefinicao por e-mail se a conta existir. Resposta sempre generica.',
+  })
+  customerForgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.customerForgotPassword(dto.email)
+  }
+
+  @Post('customer/reset-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Redefinir senha com token (cliente)',
+    description: 'Troca a senha usando o token recebido por e-mail.',
+  })
+  customerResetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.customerResetPassword(dto.token, dto.newPassword)
+  }
+
   @Post('customer/register')
   @Throttle({ auth: { limit: 10, ttl: 60000 } })
   @ApiOperation({

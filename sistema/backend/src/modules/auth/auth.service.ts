@@ -57,6 +57,43 @@ export class AuthService {
     return { message: 'Senha redefinida com sucesso.' }
   }
 
+  /**
+   * Mesmo padrao de forgotPassword do admin, mas para clientes do storefront.
+   * So funciona se o cliente tiver e-mail cadastrado -- contas criadas via
+   * checkout convidado sem e-mail nao tem como recuperar senha por aqui.
+   */
+  async customerForgotPassword(email: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { email } })
+    if (customer) {
+      const token = randomBytes(32).toString('hex')
+      const tokenHash = createHash('sha256').update(token).digest('hex')
+      await this.prisma.customer.update({
+        where: { id: customer.id },
+        data: { resetTokenHash: tokenHash, resetTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+      })
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+      const resetUrl = `${frontendUrl}/redefinir-senha?token=${token}`
+      await this.emailService.sendPasswordReset(customer.email!, customer.name, resetUrl)
+    }
+    return { message: 'Se o e-mail existir, enviamos um link de redefinicao.' }
+  }
+
+  async customerResetPassword(token: string, newPassword: string) {
+    const tokenHash = createHash('sha256').update(token).digest('hex')
+    const customer = await this.prisma.customer.findFirst({
+      where: { resetTokenHash: tokenHash, resetTokenExpiresAt: { gt: new Date() } },
+    })
+    if (!customer) {
+      throw new BadRequestException('Link invalido ou expirado. Peca uma nova redefinicao.')
+    }
+    const password = await bcrypt.hash(newPassword, 10)
+    await this.prisma.customer.update({
+      where: { id: customer.id },
+      data: { password, resetTokenHash: null, resetTokenExpiresAt: null },
+    })
+    return { message: 'Senha redefinida com sucesso.' }
+  }
+
   async login(loginDto: LoginDto) {
     const admin = await this.prisma.admin.findUnique({
       where: { email: loginDto.email },

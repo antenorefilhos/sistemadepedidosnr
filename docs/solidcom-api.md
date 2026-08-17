@@ -158,3 +158,23 @@ produto novo e promoção nova rápido, sem pagar o sync completo.
 - Não há webhook nem push na doc — só polling.
 - Rate limit não documentado; nenhum 429 observado até agora.
 - `GetProdutosCadastro` existe no servidor mas não está na doc nem integrado ao sync.
+
+## Investigação em andamento: pular a separação do módulo Dorsal
+
+Hoje o `PostPedido` grava o pedido no banco `DORSAL` (retaguarda/e-commerce
+da Solidcom), que expõe o pedido pro app de separação **deles**. Como já
+temos `sistema/picking-app`, o objetivo é usar o nosso app de separação e
+mesmo assim conseguir fechar a venda no PDV deles sem passar pela
+separação da Solidcom.
+
+Investigação feita direto no banco SQL Server deles (schema, campos de
+`tbPedido`/`tbPedidoItem`, valores de `EcommerceSolidconStatus`, o que
+`hrSeparacaoInicio/Fim` faz — ou não faz — nesse fluxo) está documentada
+em detalhe no vault Obsidian:
+`pipeline/solidcom-dorsal-banco-direto.md`. **Não duplicar aqui** — esse
+arquivo do repo cobre só a API REST; o banco fica só no vault.
+
+Achado crítico: o fechamento no PDV emite NFC-e real (comunicação com a
+SEFAZ) — não dá, e não é seguro, simular isso via escrita direta em banco.
+O bypass, se existir, é só na etapa de separação, nunca no fechamento
+fiscal.

@@ -92,6 +92,11 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+            <div className="text-right">
+              <Link to="/esqueci-minha-senha" className="text-xs font-medium text-[#5D082A] hover:underline">
+                Esqueci minha senha
+              </Link>
+            </div>
           </div>
 
           <div>
