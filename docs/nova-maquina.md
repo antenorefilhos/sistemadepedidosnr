@@ -58,6 +58,18 @@ de novo (`git push` pede usuário/token na primeira vez na máquina nova).
 5. Confirma o `git remote`/login: `git -C "F:\...\pedidos nr" push` (vai
    pedir autenticação na primeira vez).
 
+## Aconteceu de verdade: chave SSH não foi copiada (17/08/2026)
+
+Numa reformatação real, o backup em `_backup-pre-formatacao/` só continha
+`claude-global-config` — a pasta `.ssh` nunca foi copiada, apesar da
+instrução acima. Resultado: nenhuma chave pra VPS na máquina nova. Solução
+aplicada: gerou-se uma chave nova (`ssh-keygen -t ed25519`), cadastrada como
+chave *adicional* no painel Hostinger (VPS → Configurações → Chaves SSH,
+nome `claude-code@antenor`) — não substitui a original, só soma. **Confirme
+de verdade que `Copy-Item -Recurse ... .ssh` rodou** antes de reformatar;
+não custa nada e evita ter que regenerar chave e recadastrar no painel toda
+vez.
+
 ## Vault Obsidian
 
 O vault (`E:\_Biblioteca\Notas Obsidian\Antenor e Filhos\`) está num terceiro

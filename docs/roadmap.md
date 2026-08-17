@@ -98,11 +98,14 @@ Sem isto no ar, todo cliente cai no CEP.
       fora do polígono da zona. Corrigido: GPS automático não dispara mais
       quando já existe uma verificação válida (dentro da área) salva. Ver
       `Checkout.tsx`.
-- [ ] **Configurar zonas de entrega e janelas de horário reais.** A
-      `ZONA TESTE QA - REMOVER` (CEP 20000000-29999999) continua ativa pra não
-      travar os testes — precisa sair antes do domínio de produção ir ao ar,
-      substituída pelas zonas reais (CEP + polígono, ver a tela "Taxas de
-      Entrega" no admin).
+- [ ] **Configurar zonas de entrega e janelas de horário reais.** Checado em
+      17/08/2026: a `ZONA TESTE QA - REMOVER` não existe mais em produção —
+      hoje só tem a zona real "Chafariz" (polígono GEO cobrindo Pedro do
+      Rio, Petrópolis), cadastrada na tela "Taxas de Entrega" do admin.
+      Falta o que nunca existiu: uma zona `CEP_RANGE` de fallback pra quem
+      digita endereço manual (sem GPS) ou edita qualquer campo do
+      endereço — hoje isso sempre cai em "fora da área" mesmo dentro da
+      zona real, porque só tem validação por polígono.
 
 ## Concluído antes deste plano
 
