@@ -383,17 +383,18 @@ export class AuthService {
     })
 
     if (existing) {
-      // O match pode ter vindo por CPF/e-mail com um whatsapp desatualizado
-      // (ex.: numero salvo errado num checkout anterior) -- sincroniza pro
-      // que o cliente acabou de digitar, senao a mensagem de confirmacao
-      // sempre vai pro numero velho, silenciosamente.
-      const updated =
-        existing.whatsapp !== whatsapp || (name && existing.name !== name)
-          ? await this.prisma.customer.update({
-              where: { id: existing.id },
-              data: { whatsapp, ...(name ? { name } : {}) },
-            })
-          : existing
+      // So autocorrige o caso especifico de DDD faltando (numero salvo
+      // truncado por um bug antigo) -- o novo numero precisa terminar
+      // exatamente com o numero salvo, senao seria dar a qualquer um que
+      // souber o CPF/e-mail do cliente o poder de trocar o contato dele
+      // pra um numero arbitrario (sequestro de conta). Nunca mexe no nome.
+      const isDddFix =
+        existing.whatsapp !== whatsapp &&
+        whatsapp.length > existing.whatsapp.length &&
+        whatsapp.endsWith(existing.whatsapp)
+      const updated = isDddFix
+        ? await this.prisma.customer.update({ where: { id: existing.id }, data: { whatsapp } })
+        : existing
       return this.buildCustomerTokenResponse(updated)
     }
 
