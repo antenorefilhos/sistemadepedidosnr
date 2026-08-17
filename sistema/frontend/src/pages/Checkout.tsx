@@ -23,6 +23,7 @@ import { buildChangeForOptions, formatChangeForLabel } from '../utils/changeOpti
 import { getProductLineTotal, getProductPricePresentation, getProductStep } from '../utils/productPricing'
 import { saveDeliveryAddress } from '../utils/deliveryAddress'
 import { useFreeShipping } from '../hooks/useFreeShipping'
+import { FreeShippingBar } from '../components/FreeShippingBar'
 import { useAddressAutofill } from '../hooks/useAddressAutofill'
 import {
   PAYMENT_METHOD_LABEL,
@@ -594,6 +595,11 @@ export default function Checkout() {
               ))}
               {cart.length > 3 && <p className="text-xs text-[#5d4f33]">+{cart.length - 3} item(ns) no resumo final.</p>}
             </div>
+            {!freeShipping.achieved && (
+              <div className="mt-3">
+                <FreeShippingBar subtotal={subtotal} />
+              </div>
+            )}
           </div>
         )}
         {step === 'confirmation' ? (
@@ -905,7 +911,7 @@ export default function Checkout() {
                 <div className="grid grid-cols-1 gap-3">
                   {[
                     { id: 'CASH', label: 'Dinheiro', icon: <Banknote className="w-5 h-5 text-[#5D082A]" /> },
-                    { id: 'PIX', label: 'PIX (Copia e Cola)', icon: <QrCode className="w-5 h-5 text-[#5D082A]" /> },
+                    { id: 'PIX', label: 'PIX', icon: <QrCode className="w-5 h-5 text-[#5D082A]" /> },
                     { id: 'CARD', label: 'Cartão na Entrega', icon: <CreditCard className="w-5 h-5 text-[#5D082A]" /> },
                   ].map((method) => (
                     <label
@@ -924,7 +930,7 @@ export default function Checkout() {
                           <p className="font-bold text-gray-800">{method.label}</p>
                           <p className="text-xs text-gray-500">
                             {method.id === 'CASH' && 'Você paga quando receber'}
-                            {method.id === 'PIX' && 'Pagamento rápido por chave PIX'}
+                            {method.id === 'PIX' && 'Por chave PIX ou QR na maquininha do entregador'}
                             {method.id === 'CARD' && 'Cartão na entrega com maquininha'}
                           </p>
                         </div>
