@@ -381,7 +381,23 @@ export class DeliveryService {
     const slot = await this.prisma.fulfillmentSlot.findFirst({
       where: { id: slotId, tenantId: scoped.tenantId, storeId: scoped.storeId },
     })
-    if (!slot) return { valid: false, reason: 'SLOT_NOT_FOUND', slot: null, occupancy: null }
+    if (!slot) {
+      // 'ASAP' e o marcador que o storefront manda quando o cliente nao
+      // escolheu (nem existe) uma janela real -- ver createFallbackDeliverySlot
+      // no frontend. Enquanto a loja nao cadastrar FulfillmentSlot nenhum,
+      // nao ha capacidade pra checar: deixa passar em vez de bloquear todo
+      // checkout de entrega por um recurso que ainda nao esta em uso.
+      if (slotId === 'ASAP') {
+        const normalizedType = type.toUpperCase() === 'RETIRADA' ? 'PICKUP' : type.toUpperCase()
+        const anyConfigured = await this.prisma.fulfillmentSlot.count({
+          where: { tenantId: scoped.tenantId, storeId: scoped.storeId, type: normalizedType, status: 'ACTIVE' },
+        })
+        if (anyConfigured === 0) {
+          return { valid: true, reason: null, slot: null, occupancy: null }
+        }
+      }
+      return { valid: false, reason: 'SLOT_NOT_FOUND', slot: null, occupancy: null }
+    }
 
     const normalizedType = type.toUpperCase() === 'RETIRADA' ? 'PICKUP' : type.toUpperCase()
     const occupancy = this.slotOccupancy(slot, options)
