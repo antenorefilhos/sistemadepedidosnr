@@ -603,11 +603,9 @@ export default function Checkout() {
               ))}
               {cart.length > 3 && <p className="text-xs text-[#5d4f33]">+{cart.length - 3} item(ns) no resumo final.</p>}
             </div>
-            {!freeShipping.achieved && (
-              <div className="mt-3">
-                <FreeShippingBar subtotal={subtotal} />
-              </div>
-            )}
+            <div className="mt-3">
+              <FreeShippingBar subtotal={subtotal} />
+            </div>
           </div>
         )}
         {step === 'confirmation' ? (
