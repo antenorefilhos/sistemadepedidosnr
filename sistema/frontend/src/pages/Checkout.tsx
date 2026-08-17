@@ -159,6 +159,8 @@ export default function Checkout() {
     zoneName: string | null
     isFree: boolean
     outOfArea: boolean
+    lat?: number | null
+    lng?: number | null
   } | null>(() => readDeliveryVerification()?.calc ?? null)
 
   /**
@@ -220,10 +222,19 @@ export default function Checkout() {
   }, [cart])
 
   const getDeliveryPayload = useCallback((deliveryAddressId?: string) => {
+    // A verificacao rapida (verifyDeliveryForAddress) ja resolveu a
+    // coordenada certa (GPS ou geocode do endereco via Mapbox) -- sem
+    // reenvia-la aqui, a sessao de checkout so teria o CEP e nunca bateria
+    // com zona por poligono. Ver deliveryVerification.ts.
+    const lat = deliveryCalc?.lat ?? formData.lat ?? undefined
+    const lng = deliveryCalc?.lng ?? formData.lng ?? undefined
+
     if (selectedDeliverySlot) {
       return {
         mode: 'DELIVERY',
         zipCode: formData.zipCode,
+        lat,
+        lng,
         addressId: deliveryAddressId,
         slotId: selectedDeliverySlot.id,
         windowStart: selectedDeliverySlot.startsAt,
@@ -238,10 +249,12 @@ export default function Checkout() {
     return {
       mode: 'DELIVERY',
       zipCode: formData.zipCode,
+      lat,
+      lng,
       addressId: deliveryAddressId,
       ...deliverySlotRef.current,
     }
-  }, [formData.zipCode, selectedDeliverySlot])
+  }, [deliveryCalc?.lat, deliveryCalc?.lng, formData.lat, formData.lng, formData.zipCode, selectedDeliverySlot])
 
   const ensureCheckoutSession = useCallback(async ({
     customerId,

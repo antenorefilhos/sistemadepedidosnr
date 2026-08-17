@@ -25,6 +25,14 @@ export interface DeliveryCalcSnapshot {
   zoneId?: string | null
   isFree: boolean
   outOfArea: boolean
+  /**
+   * Coordenada que decidiu esse resultado (do GPS ou do geocode do endereco
+   * pelo Mapbox) -- precisa ser reenviada pro backend na criacao da sessao
+   * de checkout, senao o calculo la so tem o CEP e nunca bate com zona por
+   * poligono. Ver Checkout.tsx (getDeliveryPayload).
+   */
+  lat?: number | null
+  lng?: number | null
 }
 
 export interface DeliveryVerificationSnapshot {
@@ -141,10 +149,24 @@ export async function forwardGeocodeAddressByMapbox(address: DeliveryAddressSnap
 export async function verifyDeliveryForAddress(address: DeliveryAddressSnapshot): Promise<DeliveryCalcSnapshot> {
   const zipCode = address.zipCode?.trim() || undefined
 
-  // A API pode omitir outOfArea; normalizamos aqui num unico ponto.
-  const toSnapshot = (data: Omit<DeliveryCalcSnapshot, 'outOfArea'> & { outOfArea?: boolean }) => {
+  // A API pode omitir outOfArea; normalizamos aqui num unico ponto. Guarda
+  // tambem a coordenada que decidiu o resultado -- o checkout precisa dela
+  // pra criar a sessao com o mesmo calculo, nao so o CEP (ver getDeliveryPayload).
+  const toSnapshot = (
+    data: Omit<DeliveryCalcSnapshot, 'outOfArea' | 'lat' | 'lng'> & { outOfArea?: boolean },
+    coords?: { lat: number; lng: number } | null,
+  ) => {
     const { fee, freeAbove, zoneName, zoneId, isFree, outOfArea } = data
-    return { fee, freeAbove, zoneName, zoneId, isFree, outOfArea: Boolean(outOfArea || fee == null || fee === -1) }
+    return {
+      fee,
+      freeAbove,
+      zoneName,
+      zoneId,
+      isFree,
+      outOfArea: Boolean(outOfArea || fee == null || fee === -1),
+      lat: coords?.lat ?? null,
+      lng: coords?.lng ?? null,
+    }
   }
 
   // Posicao do proprio aparelho vence: e a unica exata. Geocodificar o endereco
@@ -153,7 +175,7 @@ export async function verifyDeliveryForAddress(address: DeliveryAddressSnapshot)
   // se o cliente editar o endereco depois.
   if (address.lat != null && address.lng != null) {
     const res = await deliveryAPI.calculate(zipCode, address.lat, address.lng)
-    return toSnapshot(res.data)
+    return toSnapshot(res.data, { lat: address.lat, lng: address.lng })
   }
 
   if (!MAPBOX_TOKEN) {
@@ -164,7 +186,7 @@ export async function verifyDeliveryForAddress(address: DeliveryAddressSnapshot)
   try {
     const coords = await forwardGeocodeAddressByMapbox(address)
     const res = await deliveryAPI.calculate(zipCode, coords.lat, coords.lng)
-    return toSnapshot(res.data)
+    return toSnapshot(res.data, coords)
   } catch {
     // Mapbox fora do ar nao pode impedir a compra: sem coordenada o backend
     // ainda resolve por faixa de CEP.
