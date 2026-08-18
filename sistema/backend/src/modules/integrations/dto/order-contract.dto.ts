@@ -24,6 +24,16 @@ export interface InternalOrderItemContract {
   listUnitPrice?: number
 }
 
+export interface InternalOrderAddressContract {
+  street?: string | null
+  number?: string | null
+  complement?: string | null
+  neighborhood?: string | null
+  city?: string | null
+  state?: string | null
+  zipCode?: string | null
+}
+
 export interface InternalOrderContract {
   orderId: string
   customerId: string
@@ -39,5 +49,7 @@ export interface InternalOrderContract {
   total: number
   notes: string | null
   customer: InternalOrderCustomerContract
+  /** Endereco de entrega -- o ERP quebra sem ele, ver mapToSolidcomPedido. */
+  deliveryAddress?: InternalOrderAddressContract | null
   items: InternalOrderItemContract[]
 }

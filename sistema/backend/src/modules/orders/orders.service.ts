@@ -619,7 +619,9 @@ export class OrdersService {
     await this.pricingService.recordPromotionUsage(quote, order.id, customerId)
 
     if (businessApprovalStatus !== 'PENDING') {
-      await this.orderOrchestrationService.syncCreatedOrder(this.toOrderOrchestrationPayload(order, orchestrationItems))
+      await this.orderOrchestrationService.syncCreatedOrder(
+        this.toOrderOrchestrationPayload(order, orchestrationItems, address),
+      )
     }
 
     const whatsapp = businessApprovalStatus === 'PENDING' ? null : await this.sendWhatsAppMessage(order, changeAmount)
@@ -1382,6 +1384,7 @@ export class OrdersService {
       subtotal: number
       scannedCode?: string | null
     }>,
+    deliveryAddress?: { street: string; number: string; complement: string | null; neighborhood: string; city: string; state: string; zipCode: string } | null,
   ): InternalOrderContract {
     const sourceByProduct = new Map(sourceItems.map((item) => [item.productId, item]))
 
@@ -1406,6 +1409,7 @@ export class OrdersService {
         whatsapp: order.customer.whatsapp,
         email: order.customer.email,
       },
+      deliveryAddress: deliveryAddress ?? null,
       items: order.items.map((item) => {
         const source = sourceByProduct.get(item.productId)
         const { isFractional, fractionStep } = item.product

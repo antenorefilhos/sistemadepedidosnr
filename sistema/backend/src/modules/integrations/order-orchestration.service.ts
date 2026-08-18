@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
-import { InternalOrderContract } from './dto/order-contract.dto'
+import { InternalOrderAddressContract, InternalOrderContract } from './dto/order-contract.dto'
 import { SolidcomPedidoDto } from './dto/solidcom-order.dto'
 import { SolidcomERPService } from './solidcom-erp.service'
 import { IntegrationModulesService } from './integration-modules.service'
@@ -128,6 +128,7 @@ export class OrderOrchestrationService {
         whatsapp: order.customer.whatsapp,
         email: order.customer.email,
       },
+      deliveryAddress: (order.addressSnapshot as InternalOrderAddressContract | null) ?? null,
       items: order.items.map((item) => ({
         productId: item.productId,
         productName: item.product?.name || null,
@@ -407,10 +408,25 @@ export class OrderOrchestrationService {
       retiraNaLoja: payload.fulfillmentType === 'PICKUP',
       ecommerceSolidcon: true,
       ecommerceSolidconStatus: 1,
+      // `obs` e `cliente.endereco` NAO podem ser null: o GravaPedido do
+      // Solidcom (Dorsal/Pedido.cs, linhas 111 e 148) chama .Length neles sem
+      // checagem de nulo e devolve 400 "Object reference not set to an
+      // instance of an object" -- que foi o que travou todo pedido em 17/08.
+      // String vazia passa; so nao pode ser null.
+      obs: this.buildPedidoObs(payload),
       referencia: `PDV-${externalNumber}`,
       cliente: {
         cpf: this.parseCpf(payload.customer.cpf),
         nome: payload.customer.name || 'BALCAO',
+        endereco: {
+          logradouro: payload.deliveryAddress?.street || '',
+          numero: payload.deliveryAddress?.number || '',
+          complemento: payload.deliveryAddress?.complement || '',
+          bairro: payload.deliveryAddress?.neighborhood || '',
+          cidade: payload.deliveryAddress?.city || '',
+          cep: (payload.deliveryAddress?.zipCode || '').replace(/\D/g, ''),
+          estado: payload.deliveryAddress?.state || '',
+        },
       },
       itens: payload.items.map((item, index) => {
         const scaleData = this.parseScaleBarcode(item.scannedCode)
@@ -443,6 +459,22 @@ export class OrderOrchestrationService {
         }
       }),
     }
+  }
+
+  /** Observacao que a loja le na separacao/caixa. Cortada em 500 por nossa
+   *  conta -- o truncamento do lado deles e justamente o trecho bugado. */
+  private buildPedidoObs(payload: InternalOrderContract): string {
+    const paymentLabels: Record<string, string> = {
+      CASH: 'Dinheiro',
+      PIX: 'PIX',
+      CARD: 'Cartao na entrega',
+    }
+    const payment = paymentLabels[payload.paymentMethod] || payload.paymentMethod
+
+    return [payload.notes?.trim(), payment ? `Pgto: ${payment}` : null]
+      .filter(Boolean)
+      .join(' / ')
+      .slice(0, 500)
   }
 
   private parseScaleBarcode(scannedCode?: string | null): ScaleBarcodeParsingResult | null {

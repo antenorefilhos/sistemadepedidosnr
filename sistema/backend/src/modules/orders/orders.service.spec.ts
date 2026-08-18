@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { PricingService } from '../pricing/pricing.service';
 import { PublicApiService } from '../public-api/public-api.service';
+import { BrandService } from '../brand/brand.service';
 
 const mockPrismaService = {
   order: {
@@ -20,6 +21,7 @@ const mockPrismaService = {
     delete: jest.fn(),
     groupBy: jest.fn(),
     aggregate: jest.fn(),
+    count: jest.fn(),
   },
   orderItem: {
     findMany: jest.fn(),
@@ -83,6 +85,7 @@ const mockIntegrationsService = {
 
 const mockNotificationsService = {
   create: jest.fn(),
+  notifyOrderStatusChange: jest.fn().mockResolvedValue(undefined),
 };
 const mockInventoryService = {
   reserveForCheckout: jest.fn(),
@@ -95,6 +98,9 @@ const mockPricingService = {
 };
 const mockPublicApiService = {
   emitWebhookEvent: jest.fn().mockResolvedValue({ deliveries: [] }),
+};
+const mockBrandService = {
+  get: jest.fn().mockResolvedValue({ contactWhatsapp: '5524999999999' }),
 };
 
 describe('OrdersService', () => {
@@ -114,6 +120,7 @@ describe('OrdersService', () => {
         { provide: InventoryService, useValue: mockInventoryService },
         { provide: PricingService, useValue: mockPricingService },
         { provide: PublicApiService, useValue: mockPublicApiService },
+        { provide: BrandService, useValue: mockBrandService },
       ],
     }).compile();
 
@@ -148,6 +155,7 @@ describe('OrdersService', () => {
       isDefault: true,
     });
     mockPrismaService.order.findFirst.mockResolvedValue(null);
+    mockPrismaService.order.count.mockResolvedValue(0);
     mockPrismaService.idempotencyKey.findUnique.mockResolvedValue(null);
     mockPrismaService.idempotencyKey.create.mockResolvedValue({ id: 'idem-record' });
     mockPrismaService.idempotencyKey.update.mockResolvedValue({ id: 'idem-record' });
