@@ -174,7 +174,7 @@ export function StoreProductCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                toast(FRACTIONAL_INFO_TEXT, { id: `fractional-info-${product.id}`, icon: '⚖️' })
+                toast(FRACTIONAL_INFO_TEXT, { id: `fractional-info-${product.id}`, icon: '⚖️', duration: 5200 })
               }}
               className="relative flex w-fit pointer-events-auto before:absolute before:-inset-2.5 before:content-['']"
               title={FRACTIONAL_INFO_TEXT}
