@@ -159,7 +159,10 @@ export function StoreProductCard({
         {!viewModel.outOfStock && (viewModel.badgeText || viewModel.isFractional) && (
           <div className="absolute left-2 top-2 flex flex-col gap-1 pointer-events-none">
             {viewModel.badgeText && (
-              <Badge className={cn('h-4 w-fit whitespace-nowrap px-1.5 text-[8px] leading-none tracking-[0.04em]', badgeColorClass)}>
+              <Badge className={cn('h-4 w-fit gap-0.5 whitespace-nowrap px-1.5 text-[8px] leading-none tracking-[0.04em]', badgeColorClass)}>
+                {viewModel.badgeVariant === 'promo' && (
+                  <img src="/icons/icon-promo-menu.gif" alt="" width={10} height={10} className="h-2.5 w-2.5 object-contain" />
+                )}
                 {viewModel.badgeText}
               </Badge>
             )}

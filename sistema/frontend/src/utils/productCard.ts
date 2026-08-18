@@ -116,7 +116,7 @@ export function getProductCardViewModel(product: Product): ProductCardViewModel 
     badgeText = hasPromotionalPrice ? '🚨 Oferta acabando' : '🚨 Ta acabando'
     badgeVariant = 'urgent'
   } else if (hasPromotionalPrice) {
-    badgeText = '🤑 Promoção'
+    badgeText = 'Promoção'
     badgeVariant = 'promo'
   } else if (isTopSeller) {
     badgeText = '🔥 Mais vendido'
