@@ -114,6 +114,38 @@ describe('OrderOrchestrationService', () => {
     )
   })
 
+  it('deve gerar numero que cabe em int32 e e estavel para o mesmo pedido', async () => {
+    // O PutCancelamentoPedido do ERP recebe cdPedido como int32: numero maior
+    // gera pedido que nunca da pra cancelar pela API. E precisa ser estavel,
+    // porque eles deduplicam por numero no reprocesso. Ver CLAUDE.md.
+    const base: InternalOrderContract = {
+      orderId: 'order_a851ab96-e8f1-44da-8bb8-a7b1cdbca339',
+      customerId: 'cust-1',
+      status: 'PENDING',
+      paymentMethod: 'CASH',
+      paymentStatus: 'UNPAID',
+      subtotal: 10,
+      delivery: 0,
+      discount: 0,
+      total: 10,
+      notes: null,
+      customer: { id: 'cust-1', cpf: '23715771704', name: 'Cliente', whatsapp: '5511999999999', email: null },
+      items: [],
+    }
+
+    mockSolidcomERPService.syncOrder.mockResolvedValue(undefined)
+    mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+    await service.syncCreatedOrder(base)
+    await service.syncCreatedOrder(base)
+
+    const numeros = mockSolidcomERPService.syncOrder.mock.calls.map((call: any[]) => call[1].numero)
+    expect(numeros[0]).toBe(numeros[1])
+    expect(numeros[0]).toBeGreaterThan(0)
+    expect(numeros[0]).toBeLessThanOrEqual(2147483647)
+    expect(Number.isInteger(numeros[0])).toBe(true)
+  })
+
   it('deve enviar pedido de retirada ao ERP com retiraNaLoja ativo', async () => {
     const payload: InternalOrderContract = {
       orderId: 'order-pickup',

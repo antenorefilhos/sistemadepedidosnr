@@ -543,12 +543,24 @@ export class OrderOrchestrationService {
     return Number.isFinite(numeric) ? numeric : 0
   }
 
+  /**
+   * `numero` precisa caber em int32: o PutCancelamentoPedido do Solidcom
+   * recebe cdPedido como int32, entao numero maior que isso gera um pedido
+   * que NUNCA da pra cancelar pela API deles ("The value 'X' is not valid").
+   *
+   * Tem que ser deterministico tambem: eles deduplicam por numero, entao um
+   * reprocesso precisa cair no mesmo numero em vez de inserir duplicado.
+   * Por isso hash do orderId, e nao Date.now().
+   */
   private toExternalOrderNumber(orderId: string): number {
-    const digits = orderId.replace(/\D/g, '')
-    if (digits.length >= 8) {
-      return Number(digits.slice(-12))
+    // FNV-1a 32 bits, dobrado pra 31 bits (positivo, cabe em int32).
+    let hash = 0x811c9dc5
+    for (let i = 0; i < orderId.length; i += 1) {
+      hash ^= orderId.charCodeAt(i)
+      hash = Math.imul(hash, 0x01000193)
     }
-    return Date.now()
+    // >>> 1 mantem positivo e dentro de 2^31-1; 0 nao e numero valido de pedido.
+    return (hash >>> 1) || 1
   }
 
   private round2(value: number): number {
