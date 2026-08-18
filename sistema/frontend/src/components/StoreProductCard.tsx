@@ -159,7 +159,7 @@ export function StoreProductCard({
         {!viewModel.outOfStock && (viewModel.badgeText || viewModel.isFractional) && (
           <div className="absolute left-2 top-2 flex flex-col gap-1 pointer-events-none">
             {viewModel.badgeText && (
-              <Badge className={cn('w-fit whitespace-nowrap text-label tracking-[0.04em]', badgeColorClass)}>
+              <Badge className={cn('h-4 w-fit whitespace-nowrap px-1.5 text-[8px] leading-none tracking-[0.04em]', badgeColorClass)}>
                 {viewModel.badgeText}
               </Badge>
             )}
@@ -174,9 +174,9 @@ export function StoreProductCard({
                 title={FRACTIONAL_INFO_TEXT}
                 aria-label={`Pesável. ${FRACTIONAL_INFO_TEXT}`}
               >
-                <Badge tone="neutral" className="w-fit gap-1 normal-case tracking-normal">
+                <Badge tone="neutral" className="h-4 w-fit gap-1 px-1.5 text-[8px] leading-none normal-case tracking-normal">
                   Pesável
-                  <Info className="h-3 w-3 text-[#8A6A3A]" aria-hidden="true" />
+                  <Info className="h-2.5 w-2.5 text-[#8A6A3A]" aria-hidden="true" />
                 </Badge>
               </button>
             )}
