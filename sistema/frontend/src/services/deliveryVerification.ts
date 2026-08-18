@@ -59,7 +59,7 @@ export function normalizeMapboxContext(feature: any): DeliveryAddressSnapshot {
 
   return {
     street: String(feature?.text || ''),
-    number: String(feature?.address || 's/n'),
+    number: String(feature?.address || ''),
     complement: null,
     neighborhood: String(getMapboxContext(feature, 'neighborhood')?.text || getMapboxContext(feature, 'locality')?.text || getMapboxContext(feature, 'district')?.text || ''),
     city: String(getMapboxContext(feature, 'place')?.text || ''),
