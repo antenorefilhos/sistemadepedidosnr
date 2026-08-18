@@ -34,7 +34,7 @@ export function MobileBottomNav() {
                 {Icon ? (
                   <Icon size={21} className={active ? 'fill-[#5D082A]' : ''} />
                 ) : (
-                  <img src="/icons/icon-promo-menu.gif" alt="" width={21} height={21} className="h-[21px] w-[21px] object-contain" />
+                  <img src="/icons/icon-promo-menu.gif" alt="" width={34} height={34} className="-my-1.5 h-[34px] w-[34px] object-contain" />
                 )}
                 <span className={`text-label ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
               </Link>
