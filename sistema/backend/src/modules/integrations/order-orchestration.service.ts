@@ -410,10 +410,12 @@ export class OrderOrchestrationService {
       // instance of an object" -- que foi o que travou todo pedido em 17/08.
       // String vazia passa; so nao pode ser null.
       obs: this.buildPedidoObs(payload),
+      cep: (payload.deliveryAddress?.zipCode || '').replace(/\D/g, '').slice(0, 8),
       referencia: `PDV-${externalNumber}`,
       cliente: {
         cpf: this.parseCpf(payload.customer.cpf),
         nome: payload.customer.name || 'BALCAO',
+        telefone: (payload.customer.whatsapp || '').replace(/\D/g, '').slice(0, 12),
         endereco: {
           logradouro: payload.deliveryAddress?.street || '',
           numero: payload.deliveryAddress?.number || '',
