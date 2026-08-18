@@ -25,8 +25,13 @@ de mercado.
       Corrigiu um bug real: promoção nunca era removida (`undefined` fazia o
       Prisma ignorar a coluna) — 13 das 31 promoções no ar eram fantasmas.
       Ver [solidcom-api.md](solidcom-api.md).
-- [ ] **Validar um pedido real na Solidcom via PDV** — o pedido tem que chegar
-      pronto para ser puxado no caixa. Depende do Jonathan ter o PDV à mão.
+- [x] **Validar um pedido real na Solidcom via PDV** — pedido de teste
+      `cdPedido=2023` (`cdEcomPedido=444447`, 17/08/2026) rastreado do
+      storefront até o caixa: separado no app deles, puxado no PDV
+      Concentrador, venda fechada e NFC-e real autorizada pela SEFAZ (nº
+      201777, série 102, protocolo `233 2619564227 00`). Sinal real de
+      "venda fechada" identificado: `EcommerceSolidconStatus` 5→6. Detalhe
+      completo no vault: `pipeline/solidcom-dorsal-banco-direto.md`.
 
 ## Semana 3 — infraestrutura de produção
 
