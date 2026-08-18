@@ -46,6 +46,10 @@ export interface SolidcomPedidoDto {
   /** O ERP grava a coluna CEP do pedido a partir DESTE campo, nao do
    *  cliente.endereco.cep. Max 8 no schema deles (so digitos). */
   cep: string
+  /** Hora combinada de entrega/retirada. O Dorsal so libera o pedido pra
+   *  separacao 15 min antes desse horario -- mandar vazio deixa o pedido
+   *  sem previsao na tela deles. */
+  hrCombinada: string
   referencia: string
   itens: SolidcomPedidoItemDto[]
   cliente: SolidcomPedidoClienteDto

@@ -51,5 +51,8 @@ export interface InternalOrderContract {
   customer: InternalOrderCustomerContract
   /** Endereco de entrega -- o ERP quebra sem ele, ver mapToSolidcomPedido. */
   deliveryAddress?: InternalOrderAddressContract | null
+  /** Horario agendado pelo cliente. Sem isso, o pedido vale como "o quanto
+   *  antes" e a hora combinada vira agora + 15 min. */
+  scheduledFor?: string | null
   items: InternalOrderItemContract[]
 }

@@ -411,6 +411,7 @@ export class OrderOrchestrationService {
       // String vazia passa; so nao pode ser null.
       obs: this.buildPedidoObs(payload),
       cep: (payload.deliveryAddress?.zipCode || '').replace(/\D/g, '').slice(0, 8),
+      hrCombinada: this.buildHoraCombinada(payload),
       referencia: `PDV-${externalNumber}`,
       cliente: {
         cpf: this.parseCpf(payload.customer.cpf),
@@ -473,6 +474,18 @@ export class OrderOrchestrationService {
       .filter(Boolean)
       .join(' / ')
       .slice(0, 500)
+  }
+
+  /** Minutos entre o pedido e a hora combinada quando o cliente nao agenda. */
+  private static readonly ASAP_LEAD_MINUTES = 15
+
+  private buildHoraCombinada(payload: InternalOrderContract): string {
+    if (payload.scheduledFor) {
+      return new Date(payload.scheduledFor).toISOString()
+    }
+
+    const asap = new Date(Date.now() + OrderOrchestrationService.ASAP_LEAD_MINUTES * 60 * 1000)
+    return asap.toISOString()
   }
 
   private parseScaleBarcode(scannedCode?: string | null): ScaleBarcodeParsingResult | null {
