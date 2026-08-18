@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer'
-import { IsArray, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
+import { IsArray, IsISO8601, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
 
 export class CheckoutDeliveryDto {
   @IsOptional()
@@ -90,6 +90,11 @@ export class ConfirmCheckoutSessionDto extends QuoteCheckoutSessionDto {
   @IsOptional()
   @IsString()
   notes?: string
+
+  /** ISO do horario escolhido pelo cliente. Ausente = "o quanto antes". */
+  @IsOptional()
+  @IsISO8601()
+  scheduledFor?: string
 
   @IsOptional()
   @IsString()

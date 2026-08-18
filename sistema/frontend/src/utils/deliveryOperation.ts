@@ -238,3 +238,52 @@ export const getDeliveryOperationStatusWithConfig = (
     exceptionNote: null,
   }
 }
+export type ScheduleOption = {
+  /** ISO enviado ao backend (vira hrCombinada no ERP). */
+  value: string
+  /** Rotulo curto, ex.: "14:30". */
+  label: string
+}
+
+/** Antecedencia minima entre o pedido e a entrega/retirada. */
+export const SCHEDULE_LEAD_MINUTES = 15
+const SCHEDULE_STEP_MINUTES = 30
+
+/**
+ * Horarios que o cliente pode escolher HOJE, dentro das janelas de
+ * funcionamento configuradas no admin (que ja embutem o fechamento
+ * antecipado) e respeitando a antecedencia minima.
+ *
+ * O ISO e derivado do deslocamento em minutos a partir de `now`, em vez de
+ * montar a data no fuso -- evita erro de timezone sem depender de lib.
+ */
+export const getScheduleOptionsWithConfig = (
+  config: { weekly: Record<number, { enabled: boolean; windows: { start: string; end: string }[] }> },
+  now = new Date(),
+): ScheduleOption[] => {
+  const { weekday, minutesOfDay } = getZonedDateParts(now)
+  const dayConfig = config.weekly[weekday]
+  if (!dayConfig?.enabled || !dayConfig.windows.length) return []
+
+  const earliest = minutesOfDay + SCHEDULE_LEAD_MINUTES
+  const options: ScheduleOption[] = []
+
+  for (const window of dayConfig.windows) {
+    const windowStart = parseHHMM(window.start)
+    const windowEnd = parseHHMM(window.end)
+    // Primeiro passo cheio a partir do maior entre abertura e agora+lead.
+    const from = Math.max(windowStart, earliest)
+    const firstStep = Math.ceil(from / SCHEDULE_STEP_MINUTES) * SCHEDULE_STEP_MINUTES
+
+    for (let minute = firstStep; minute <= windowEnd; minute += SCHEDULE_STEP_MINUTES) {
+      const target = new Date(now.getTime() + (minute - minutesOfDay) * 60 * 1000)
+      target.setSeconds(0, 0)
+      options.push({
+        value: target.toISOString(),
+        label: `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`,
+      })
+    }
+  }
+
+  return options
+}

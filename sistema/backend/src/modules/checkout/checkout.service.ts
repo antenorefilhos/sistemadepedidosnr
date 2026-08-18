@@ -186,6 +186,7 @@ export class CheckoutService {
         delivery: Number(quote.delivery.fee || 0),
         paymentMethod,
         notes: dto.notes,
+        scheduledFor: dto.scheduledFor,
         changeAmount: dto.changeAmount,
         deviceId: dto.deviceId || quote.cart.deviceId || undefined,
         couponCode: dto.couponCode,

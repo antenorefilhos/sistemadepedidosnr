@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsArray, IsOptional, IsNotEmpty, IsObject, Min } from 'class-validator'
+import { IsString, IsNumber, IsArray, IsOptional, IsNotEmpty, IsObject, IsISO8601, Min } from 'class-validator'
 
 export class CreateOrderItemDto {
   @IsString()
@@ -79,6 +79,11 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   fulfillmentSlotId?: string
+
+  /** ISO do horario escolhido pelo cliente. Ausente = "o quanto antes". */
+  @IsOptional()
+  @IsISO8601()
+  scheduledFor?: string
 
   @IsOptional()
   @IsNumber()

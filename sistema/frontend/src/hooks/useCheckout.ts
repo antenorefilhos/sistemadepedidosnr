@@ -74,6 +74,8 @@ export function useConfirmCheckoutSession() {
         paymentMethod?: string
         notes?: string
         changeAmount?: string
+        /** ISO do horario escolhido. Ausente = o quanto antes. */
+        scheduledFor?: string
         deviceId?: string
       }
     }) => checkoutAPI.confirmSession(id, data),

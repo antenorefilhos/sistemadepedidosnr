@@ -551,6 +551,7 @@ export class OrdersService {
         fulfillmentType,
         fulfillmentSlotId: fulfillmentSlotId || null,
         fulfillmentSlotItemCount: fulfillmentSlotId ? Math.max(0, Math.ceil(Number(fulfillmentSlotItemCount || itemsWithPrices.length))) : null,
+        scheduledFor: createOrderDto.scheduledFor ? new Date(createOrderDto.scheduledFor) : null,
         deliveryAreaId: deliveryAreaId || null,
         status: orderStatus,
         paymentMethod: paymentMethod || 'CASH',
@@ -1410,6 +1411,7 @@ export class OrdersService {
         email: order.customer.email,
       },
       deliveryAddress: deliveryAddress ?? null,
+      scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
       items: order.items.map((item) => {
         const source = sourceByProduct.get(item.productId)
         const { isFractional, fractionStep } = item.product

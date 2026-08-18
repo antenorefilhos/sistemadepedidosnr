@@ -36,6 +36,8 @@ import { Button, buttonVariants } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Radio } from '../components/ui/radio'
 import { surfaceClasses } from '../components/ui/surface'
+import { useBrand } from '../hooks/useBrand'
+import { getScheduleOptionsWithConfig } from '../utils/deliveryOperation'
 import {
   formatZipCode,
   readDeliveryVerification,
@@ -47,6 +49,18 @@ export default function Checkout() {
   const [step, setStep] = useState('address') // address, payment, confirmation
   const [fulfillmentType, setFulfillmentType] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY')
   const isPickup = fulfillmentType === 'PICKUP'
+  // '' = o quanto antes. Os horarios saem das janelas do admin, que ja
+  // embutem o fechamento antecipado da loja.
+  const [scheduledFor, setScheduledFor] = useState('')
+  const brandForSchedule = useBrand()
+  const scheduleOptions = useMemo(() => {
+    if (!brandForSchedule.businessHours) return []
+    try {
+      return getScheduleOptionsWithConfig({ weekly: JSON.parse(brandForSchedule.businessHours) })
+    } catch {
+      return []
+    }
+  }, [brandForSchedule.businessHours])
   const [whatsappDispatch, setWhatsappDispatch] = useState<WhatsAppDispatch | null>(null)
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null)
   const navigate = useNavigate()
@@ -516,6 +530,7 @@ export default function Checkout() {
             customerId,
             paymentMethod: formData.paymentMethod,
             notes: formData.notes?.trim() || undefined,
+            scheduledFor: scheduledFor || undefined,
             changeAmount,
             deviceId: getDeviceId(),
             deliveryAddressId,
@@ -1071,6 +1086,30 @@ export default function Checkout() {
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {scheduleOptions.length > 0 && (
+                  <div className="mt-4">
+                    <label htmlFor="scheduledFor" className="block text-sm font-medium text-gray-700 mb-2">
+                      {isPickup ? 'Quando você vai retirar?' : 'Quando você quer receber?'}
+                    </label>
+                    <select
+                      id="scheduledFor"
+                      value={scheduledFor}
+                      onChange={(e) => setScheduledFor(e.target.value)}
+                      className="w-full min-h-12 rounded-lg border border-[#D2BB8A]/60 bg-white px-3 text-sm text-[#231F20] focus:border-[#5D082A] focus:outline-none focus:ring-1 focus:ring-[#5D082A]"
+                    >
+                      <option value="">O quanto antes</option>
+                      {scheduleOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          A partir das {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-[#5d4f33]">
+                      Horários de hoje, dentro do funcionamento da loja.
+                    </p>
                   </div>
                 )}
 

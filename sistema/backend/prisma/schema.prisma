@@ -667,6 +667,9 @@ model Order {
   deliveryAreaId String?
   fulfillmentSlotId String?
   fulfillmentSlotItemCount Int?
+  /// Horario escolhido pelo cliente pra receber/retirar. Null = "o quanto
+  /// antes". Vira hrCombinada no Solidcom.
+  scheduledFor DateTime?
   customerSnapshot Json?
   addressSnapshot Json?
   deliverySnapshot Json?

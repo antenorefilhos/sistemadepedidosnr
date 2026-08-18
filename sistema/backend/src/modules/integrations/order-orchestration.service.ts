@@ -146,6 +146,7 @@ export class OrderOrchestrationService {
         email: order.customer.email,
       },
       deliveryAddress: (order.addressSnapshot as InternalOrderAddressContract | null) ?? null,
+      scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
       items: order.items.map((item) => ({
         productId: item.productId,
         productName: item.product?.name || null,
