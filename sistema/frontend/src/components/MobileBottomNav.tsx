@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home as HomeIcon, Search, Flame, ShoppingCart, User } from 'lucide-react'
+import { Home as HomeIcon, Search, ShoppingCart, User } from 'lucide-react'
 import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import { useFreeShipping } from '../hooks/useFreeShipping'
@@ -7,7 +7,7 @@ import { useFreeShipping } from '../hooks/useFreeShipping'
 const ITEMS = [
   { to: '/', label: 'Home', icon: HomeIcon, match: (path: string) => path === '/' },
   { to: '/mercado', label: 'Buscar', icon: Search, match: (path: string) => path.startsWith('/mercado') },
-  { to: '/promocoes', label: 'Promos', icon: Flame, match: (path: string) => path.startsWith('/promocoes') },
+  { to: '/promocoes', label: 'Promos', icon: null, match: (path: string) => path.startsWith('/promocoes') },
 ]
 
 /** Menu inferior mobile, compartilhado entre todas as telas do storefront. */
@@ -31,7 +31,11 @@ export function MobileBottomNav() {
                   active ? 'text-[#5D082A]' : 'text-[#6B7280] hover:text-[#5D082A]'
                 }`}
               >
-                <Icon size={21} className={active ? 'fill-[#5D082A]' : ''} />
+                {Icon ? (
+                  <Icon size={21} className={active ? 'fill-[#5D082A]' : ''} />
+                ) : (
+                  <img src="/icons/icon-promo-menu.gif" alt="" width={21} height={21} className="h-[21px] w-[21px] object-contain" />
+                )}
                 <span className={`text-label ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
               </Link>
             )
