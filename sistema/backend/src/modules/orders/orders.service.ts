@@ -16,6 +16,7 @@ import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-cont
 import { InventoryService } from '../inventory/inventory.service'
 import { PricingService } from '../pricing/pricing.service'
 import { PublicApiService } from '../public-api/public-api.service'
+import { BrandService } from '../brand/brand.service'
 import { resolveEffectiveFractional } from '../../common/fractional.util'
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
@@ -58,6 +59,7 @@ export class OrdersService {
     private inventoryService: InventoryService,
     private pricingService: PricingService,
     private publicApiService: PublicApiService,
+    private brandService: BrandService,
   ) {}
 
   async getSalesAnalytics(period: string) {
@@ -1351,7 +1353,14 @@ export class OrdersService {
   }
 
   private async sendWhatsAppMessage(order: OrderWithRelations, changeAmount?: string): Promise<WhatsAppDispatchResult | null> {
-    return this.whatsappService.sendOrderConfirmation(order.customer.whatsapp, {
+    const brand = await this.brandService.get()
+    const storeWhatsapp = brand.contactWhatsapp || process.env.VITE_CONTACT_WHATSAPP
+    if (!storeWhatsapp) {
+      this.logger.warn('Nenhum WhatsApp da loja configurado (Admin > Marca) - confirmacao nao enviada')
+      return null
+    }
+
+    return this.whatsappService.sendOrderConfirmation(storeWhatsapp, {
       id: order.id.slice(-8).toUpperCase(),
       total: order.total,
       items: order.items.reduce((sum, item) => sum + item.quantity, 0),
