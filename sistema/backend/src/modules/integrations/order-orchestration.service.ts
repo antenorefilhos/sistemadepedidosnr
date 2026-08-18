@@ -88,6 +88,26 @@ export class OrderOrchestrationService {
       }
     }
 
+    const contract = await this.buildLiveOrderContract(orderId)
+
+    if (!contract) {
+      return {
+        found: false,
+        orderId,
+      }
+    }
+
+    return {
+      found: true,
+      orderId,
+      source: 'live',
+      contract,
+      externalPreview: this.mapToSolidcomPedido(contract),
+    }
+  }
+
+  /** Monta o contrato a partir do estado atual do pedido, ignorando snapshots. */
+  private async buildLiveOrderContract(orderId: string): Promise<InternalOrderContract | null> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -101,13 +121,10 @@ export class OrderOrchestrationService {
     })
 
     if (!order) {
-      return {
-        found: false,
-        orderId,
-      }
+      return null
     }
 
-    const contract: InternalOrderContract = {
+    return {
       orderId: order.id,
       customerId: order.customerId,
       fulfillmentType: order.fulfillmentType,
@@ -138,14 +155,6 @@ export class OrderOrchestrationService {
         subtotal: item.subtotal,
         scannedCode: null,
       })),
-    }
-
-    return {
-      found: true,
-      orderId,
-      source: 'live',
-      contract,
-      externalPreview: this.mapToSolidcomPedido(contract),
     }
   }
 
@@ -349,30 +358,17 @@ export class OrderOrchestrationService {
       return { orderId, retried: false, reason: 'Modulo Solidcom desativado.' }
     }
 
-    const failed = await this.prisma.auditLog.findFirst({
-      where: {
-        entity: 'ORDER_SYNC_SOLIDCOM',
-        entityId: orderId,
-        action: 'SYNC_ORDER_FAILED',
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    // Remonta o pedido a partir do estado atual em vez de reenviar o payload
+    // que ja falhou -- senao um pedido que quebrou por payload incompleto
+    // (ex.: obs/endereco nulos, que travaram tudo em 17/08) fica preso pra
+    // sempre repetindo exatamente o mesmo erro.
+    const contract = await this.buildLiveOrderContract(orderId)
 
-    if (!failed?.changes) {
-      return { orderId, retried: false, reason: 'Nenhum payload de falha encontrado para reprocessar.' }
+    if (!contract) {
+      return { orderId, retried: false, reason: 'Pedido nao encontrado para reprocessar.' }
     }
 
-    let payload: SolidcomPedidoDto | null = null
-    try {
-      const parsed = JSON.parse(failed.changes) as { payload?: SolidcomPedidoDto }
-      payload = parsed.payload || null
-    } catch {
-      payload = null
-    }
-
-    if (!payload) {
-      return { orderId, retried: false, reason: 'Payload inválido no histórico de falha.' }
-    }
+    const payload = this.mapToSolidcomPedido(contract)
 
     try {
       await this.solidcomERPService.syncOrder(orderId, payload)
