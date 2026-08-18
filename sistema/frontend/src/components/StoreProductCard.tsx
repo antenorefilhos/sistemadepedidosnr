@@ -97,7 +97,7 @@ export function StoreProductCard({
 
   const badgeColorClass = ({
     urgent: 'border-red-600 bg-red-600 text-white',
-    promo: 'border-emerald-500 bg-emerald-500 text-white',
+    promo: 'border-[#5D082A] bg-[#5D082A] text-white',
     frozen: 'border-sky-500 bg-sky-500 text-white',
     pet: 'border-violet-600 bg-violet-600 text-white',
     tobacco: 'border-zinc-700 bg-zinc-700 text-white',
@@ -156,33 +156,35 @@ export function StoreProductCard({
         )}
 
         {/* Badge top-left */}
-        {!viewModel.outOfStock && (viewModel.badgeText || viewModel.isFractional) && (
+        {!viewModel.outOfStock && viewModel.badgeText && (
           <div className="absolute left-2 top-2 flex flex-col gap-1 pointer-events-none">
-            {viewModel.badgeText && (
-              <Badge className={cn('h-4 w-fit gap-0.5 whitespace-nowrap px-1.5 text-[8px] leading-none tracking-[0.04em]', badgeColorClass)}>
-                {viewModel.badgeVariant === 'promo' && (
-                  <img src="/icons/icon-promo-menu.gif" alt="" width={10} height={10} className="h-2.5 w-2.5 object-contain" />
-                )}
-                {viewModel.badgeText}
+            <Badge className={cn('h-4 w-fit gap-0.5 whitespace-nowrap px-1.5 text-[8px] leading-none tracking-[0.04em]', badgeColorClass)}>
+              {viewModel.badgeVariant === 'promo' && (
+                <img src="/icons/icon-promo-menu.gif" alt="" width={10} height={10} className="h-2.5 w-2.5 object-contain" />
+              )}
+              {viewModel.badgeText}
+            </Badge>
+          </div>
+        )}
+
+        {/* Badge top-right */}
+        {!viewModel.outOfStock && viewModel.isFractional && (
+          <div className="absolute right-2 top-2 pointer-events-none">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                toast(FRACTIONAL_INFO_TEXT, { id: `fractional-info-${product.id}`, icon: '⚖️' })
+              }}
+              className="relative w-fit pointer-events-auto before:absolute before:-inset-2.5 before:content-['']"
+              title={FRACTIONAL_INFO_TEXT}
+              aria-label={`Pesável. ${FRACTIONAL_INFO_TEXT}`}
+            >
+              <Badge tone="neutral" className="h-4 w-fit gap-1 px-1.5 text-[8px] leading-none normal-case tracking-normal">
+                Pesável
+                <Info className="h-2.5 w-2.5 text-[#8A6A3A]" aria-hidden="true" />
               </Badge>
-            )}
-            {viewModel.isFractional && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  toast(FRACTIONAL_INFO_TEXT, { id: `fractional-info-${product.id}`, icon: '⚖️' })
-                }}
-                className="relative w-fit pointer-events-auto before:absolute before:-inset-2.5 before:content-['']"
-                title={FRACTIONAL_INFO_TEXT}
-                aria-label={`Pesável. ${FRACTIONAL_INFO_TEXT}`}
-              >
-                <Badge tone="neutral" className="h-4 w-fit gap-1 px-1.5 text-[8px] leading-none normal-case tracking-normal">
-                  Pesável
-                  <Info className="h-2.5 w-2.5 text-[#8A6A3A]" aria-hidden="true" />
-                </Badge>
-              </button>
-            )}
+            </button>
           </div>
         )}
 
