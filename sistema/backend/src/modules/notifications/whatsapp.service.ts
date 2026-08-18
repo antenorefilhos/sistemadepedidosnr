@@ -31,39 +31,39 @@ export class WhatsAppService {
     },
   ): Promise<WhatsAppDispatchResult | null> {
     const methodLabels: Record<string, string> = {
-      CASH: '💵 Dinheiro',
-      PIX: '📱 PIX',
-      CARD: '💳 Cartão na Entrega',
+      CASH: 'Dinheiro',
+      PIX: 'PIX',
+      CARD: 'Cartão na Entrega',
     }
 
     const paymentLabel = methodLabels[orderData.paymentMethod || 'CASH'] || orderData.paymentMethod
-    
-    let message = `
-🎉 *Pedido Confirmado!*
 
-🆔 ID: #${orderData.id}
-📦 Itens: ${orderData.items}
-💰 *Total: R$ ${orderData.total.toFixed(2)}*
-💳 Pagamento: ${paymentLabel}
+    let message = `
+✅ *Pedido Confirmado!*
+
+ID: #${orderData.id}
+Itens: ${orderData.items}
+*Total: R$ ${orderData.total.toFixed(2)}*
+Pagamento: ${paymentLabel}
 `.trim()
 
     // Evita duplicação: só mostra troco separado se não estiver já nas notes
     const hasChangeInNotes = orderData.notes?.includes('Troco para:')
     if (orderData.changeAmount && !hasChangeInNotes) {
-      message += `\n💵 *Troco para:* ${orderData.changeAmount}`
+      message += `\n*Troco para:* ${orderData.changeAmount}`
     }
 
     if (orderData.notes) {
-      message += `\n📝 *Obs:* ${orderData.notes}`
+      message += `\n*Obs:* ${orderData.notes}`
     }
 
     message += `\n\nSeu pedido foi recebido e está em processamento.`
 
     if (orderData.paymentMethod === 'PIX') {
-      message += `\n\n🔑 *Chave PIX:* \`11.222.333/0001-99\` (Antenor & Filhos)\n_Por favor, envie o comprovante após o pagamento._`
+      message += `\n\n*Chave PIX:* \`11.222.333/0001-99\` (Antenor & Filhos)\n_Por favor, envie o comprovante após o pagamento._`
     }
 
-    message += `\n\nObrigado por comprar no *Antenor & Filhos*! 🏬`
+    message += `\n\nObrigado por comprar no *Antenor & Filhos*!`
 
     return this.sendMessage(whatsappNumber, message.trim())
   }
@@ -85,17 +85,17 @@ export class WhatsAppService {
     const hasMore = cartItems.length > 3 ? `\n_...e mais ${cartItems.length - 3} item(s)_` : ''
 
     const message = `
-🛒 *Olá, ${firstName}!*
+*Olá, ${firstName}!*
 
 Você deixou alguns produtos no carrinho do *Antenor & Filhos*:
 
 ${itemsList}${hasMore}
 
-💰 *Total estimado: R$ ${total.toFixed(2)}*
+*Total estimado: R$ ${total.toFixed(2)}*
 
-Seu carrinho está te esperando! Finalize seu pedido agora e receba em casa com a qualidade que você conhece. 🏬
+Seu carrinho está te esperando! Finalize seu pedido agora e receba em casa com a qualidade que você conhece.
 
-👇 Acesse: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart
+Acesse: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart
     `.trim()
 
     return this.sendMessage(whatsappNumber, message)
@@ -112,15 +112,15 @@ Seu carrinho está te esperando! Finalize seu pedido agora e receba em casa com 
     const messages: Record<string, string> = {
       PENDING: `⏳ Seu pedido #${orderId} foi recebido!`,
       CONFIRMED: `✅ Seu pedido #${orderId} foi confirmado e entrou em preparo!`,
-      PICKING_PENDING: `📋 Seu pedido #${orderId} esta na fila de separacao!`,
-      PICKING: `🛒 Seu pedido #${orderId} esta sendo separado!`,
-      CONFERENCE_PENDING: `🔍 Seu pedido #${orderId} foi separado e esta em conferencia!`,
-      READY_FOR_CHECKOUT: `💳 Seu pedido #${orderId} esta no caixa sendo finalizado!`,
-      READY_FOR_DELIVERY: `📦 Seu pedido #${orderId} esta pronto para entrega!`,
-      READY_FOR_PICKUP: `📦 Seu pedido #${orderId} esta pronto para retirada na loja!`,
-      OUT_FOR_DELIVERY: `🚚 Seu pedido #${orderId} saiu para entrega!`,
-      DELIVERED: `✅ Seu pedido #${orderId} foi entregue! Obrigado pela preferencia! 🏬`,
-      COMPLETED: `🎉 Seu pedido #${orderId} foi concluido com sucesso!`,
+      PICKING_PENDING: `Seu pedido #${orderId} esta na fila de separacao!`,
+      PICKING: `Seu pedido #${orderId} esta sendo separado!`,
+      CONFERENCE_PENDING: `Seu pedido #${orderId} foi separado e esta em conferencia!`,
+      READY_FOR_CHECKOUT: `Seu pedido #${orderId} esta no caixa sendo finalizado!`,
+      READY_FOR_DELIVERY: `Seu pedido #${orderId} esta pronto para entrega!`,
+      READY_FOR_PICKUP: `Seu pedido #${orderId} esta pronto para retirada na loja!`,
+      OUT_FOR_DELIVERY: `Seu pedido #${orderId} saiu para entrega!`,
+      DELIVERED: `✅ Seu pedido #${orderId} foi entregue! Obrigado pela preferencia!`,
+      COMPLETED: `✅ Seu pedido #${orderId} foi concluido com sucesso!`,
       CANCELLED: `⚠️ Seu pedido #${orderId} foi cancelado. Se precisar, fale conosco no WhatsApp.`,
       FAILED_DELIVERY: `⚠️ Nao conseguimos entregar seu pedido #${orderId}. Entraremos em contato!`,
     }
