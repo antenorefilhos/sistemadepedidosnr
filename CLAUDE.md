@@ -17,6 +17,11 @@ As portas de picking/delivery já variaram entre reinícios — confirme com `do
 
 Toda alteração de código exige rebuild: `docker compose up -d --build <serviço>`.
 
+`Notificador/` (raiz do projeto, fora de `sistema/` de propósito) é um app
+Electron cliente pra Windows — roda na máquina local do separador, sem
+Dockerfile, sem build/deploy na VPS, só consome `https://api.antenorefilhos.com.br`
+via HTTPS com uma conta `role=picker`. Ver `Notificador/README.md`.
+
 ## Regras de trabalho
 
 - **Correção de bug vale nas duas versões.** Mobile e desktop, sempre — mobile é

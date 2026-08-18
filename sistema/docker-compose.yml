@@ -46,7 +46,7 @@ services:
     container_name: antenor_api
     restart: always
     environment:
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-antenor_password_2026}@db:5432/antenor_db?schema=public
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD_URLENC:-antenor_password_2026}@db:5432/antenor_db?schema=public
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET:-antenor_local_stack_jwt_secret_2026_min_32_chars}

@@ -106,6 +106,15 @@ Sem isto no ar, todo cliente cai no CEP.
       digita endereço manual (sem GPS) ou edita qualquer campo do
       endereço — hoje isso sempre cai em "fora da área" mesmo dentro da
       zona real, porque só tem validação por polígono.
+- [x] **Notificador Windows reescrito como app Electron + apontado pra produção.**
+      Era script Node solto (`node-notifier` + `systray2`), `.env` ainda
+      configurado pro Docker local (`localhost:3005`, domínio inexistente
+      `@antenor.com.br`) — nunca tinha acompanhado o deploy em produção.
+      Agora: app Electron de verdade (tray + painel com lista de pedidos e
+      andamento, ancorado no canto da tela ao clicar), autentica com conta
+      `separador@antenorefilhos.com.br` (`role=picker`, menor privilégio) e
+      aponta pra `https://api.antenorefilhos.com.br`. Testado ao vivo contra
+      produção. Ver `Notificador/README.md`.
 
 ## Concluído antes deste plano
 
