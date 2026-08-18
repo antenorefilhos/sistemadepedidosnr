@@ -39,10 +39,10 @@ export class WhatsAppService {
     const paymentLabel = methodLabels[orderData.paymentMethod || 'CASH'] || orderData.paymentMethod
 
     let message = `
-✅ *Pedido Confirmado!*
+*Pedido Confirmado!*
 
 ID: #${orderData.id}
-Itens: ${orderData.items}
+Itens: ${Number(orderData.items.toFixed(2))}
 *Total: R$ ${orderData.total.toFixed(2)}*
 Pagamento: ${paymentLabel}
 `.trim()
@@ -110,8 +110,8 @@ Acesse: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart
     status: string,
   ): Promise<WhatsAppDispatchResult | null> {
     const messages: Record<string, string> = {
-      PENDING: `⏳ Seu pedido #${orderId} foi recebido!`,
-      CONFIRMED: `✅ Seu pedido #${orderId} foi confirmado e entrou em preparo!`,
+      PENDING: `Seu pedido #${orderId} foi recebido!`,
+      CONFIRMED: `Seu pedido #${orderId} foi confirmado e entrou em preparo!`,
       PICKING_PENDING: `Seu pedido #${orderId} esta na fila de separacao!`,
       PICKING: `Seu pedido #${orderId} esta sendo separado!`,
       CONFERENCE_PENDING: `Seu pedido #${orderId} foi separado e esta em conferencia!`,
@@ -119,10 +119,10 @@ Acesse: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart
       READY_FOR_DELIVERY: `Seu pedido #${orderId} esta pronto para entrega!`,
       READY_FOR_PICKUP: `Seu pedido #${orderId} esta pronto para retirada na loja!`,
       OUT_FOR_DELIVERY: `Seu pedido #${orderId} saiu para entrega!`,
-      DELIVERED: `✅ Seu pedido #${orderId} foi entregue! Obrigado pela preferencia!`,
-      COMPLETED: `✅ Seu pedido #${orderId} foi concluido com sucesso!`,
-      CANCELLED: `⚠️ Seu pedido #${orderId} foi cancelado. Se precisar, fale conosco no WhatsApp.`,
-      FAILED_DELIVERY: `⚠️ Nao conseguimos entregar seu pedido #${orderId}. Entraremos em contato!`,
+      DELIVERED: `Seu pedido #${orderId} foi entregue! Obrigado pela preferencia!`,
+      COMPLETED: `Seu pedido #${orderId} foi concluido com sucesso!`,
+      CANCELLED: `Seu pedido #${orderId} foi cancelado. Se precisar, fale conosco no WhatsApp.`,
+      FAILED_DELIVERY: `Nao conseguimos entregar seu pedido #${orderId}. Entraremos em contato!`,
     }
 
     const message = messages[status]
