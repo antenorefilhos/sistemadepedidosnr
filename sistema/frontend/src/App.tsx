@@ -58,7 +58,15 @@ const queryClient = new QueryClient({
       cacheTime: 1000 * 60 * 10, // cache por 10 min
     },
     mutations: {
-      retry: 1,
+      retry: (failureCount, error: any) => {
+        // Não retry em 4xx: sao erros definitivos de negocio (ex.: sessao de
+        // checkout marcada FAILED apos rejeicao), reenviar so troca o erro
+        // real por "Sessao nao esta ativa" 1s depois.
+        if (error.response?.status >= 400 && error.response?.status < 500) {
+          return false
+        }
+        return failureCount < 1
+      },
       retryDelay: (attemptIndex) => Math.min(1000 * (2 ** attemptIndex), 3000),
     },
   },
