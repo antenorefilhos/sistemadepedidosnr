@@ -21,13 +21,14 @@ export class WhatsAppService {
    */
   async sendOrderConfirmation(
     whatsappNumber: string,
-    orderData: { 
-      id: string; 
-      total: number; 
-      items: number; 
+    orderData: {
+      id: string;
+      total: number;
+      items: number;
       paymentMethod?: string;
       notes?: string;
       changeAmount?: string;
+      customerName?: string;
     },
   ): Promise<WhatsAppDispatchResult | null> {
     const methodLabels: Record<string, string> = {
@@ -37,9 +38,10 @@ export class WhatsAppService {
     }
 
     const paymentLabel = methodLabels[orderData.paymentMethod || 'CASH'] || orderData.paymentMethod
+    const greeting = orderData.customerName ? `Olá, sou ${orderData.customerName}.` : 'Olá!'
 
     let message = `
-*Pedido Confirmado!*
+${greeting} Acabei de fazer um pedido no site:
 
 ID: #${orderData.id}
 Itens: ${Number(orderData.items.toFixed(2))}
@@ -57,13 +59,11 @@ Pagamento: ${paymentLabel}
       message += `\n*Obs:* ${orderData.notes}`
     }
 
-    message += `\n\nSeu pedido foi recebido e está em processamento.`
-
     if (orderData.paymentMethod === 'PIX') {
-      message += `\n\n*Chave PIX:* \`11.222.333/0001-99\` (Antenor & Filhos)\n_Por favor, envie o comprovante após o pagamento._`
+      message += `\n\n*Chave PIX:* \`11.222.333/0001-99\` (Antenor & Filhos)\nVou enviar o comprovante após o pagamento.`
     }
 
-    message += `\n\nObrigado por comprar no *Antenor & Filhos*!`
+    message += `\n\nAguardo a confirmação, obrigado!`
 
     return this.sendMessage(whatsappNumber, message.trim())
   }

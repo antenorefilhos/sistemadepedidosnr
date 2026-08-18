@@ -1364,6 +1364,7 @@ export class OrdersService {
       id: order.id.slice(-8).toUpperCase(),
       total: order.total,
       items: order.items.reduce((sum, item) => sum + item.quantity, 0),
+      customerName: order.customer.name,
       paymentMethod: order.paymentMethod,
       notes: order.notes,
       changeAmount: changeAmount,
