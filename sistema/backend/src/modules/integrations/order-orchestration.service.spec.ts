@@ -151,26 +151,37 @@ describe('OrderOrchestrationService', () => {
     )
   })
 
-  it('deve reprocessar pedido usando payload salvo em falha anterior', async () => {
-    mockPrismaService.auditLog.findFirst.mockResolvedValue({
-      id: 'log-failed',
-      changes: JSON.stringify({
-        payload: {
-          cnpj: 5147995000131,
-          numero: 1234567890,
-          data: new Date().toISOString(),
-          codEcom: 19,
-          dav: 0,
-          valorFrete: 0,
-          valorDesconto: 0,
-          retiraNaLoja: false,
-          ecommerceSolidcon: true,
-          ecommerceSolidconStatus: 1,
-          referencia: 'PDV-1234567890',
-          itens: [],
-          cliente: { cpf: 23715771704, nome: 'BALCAO' },
-        },
-      }),
+  it('deve reprocessar remontando o pedido do estado atual, com obs e endereco preenchidos', async () => {
+    // O ERP estoura NullReferenceException se `obs` ou `cliente.endereco`
+    // vierem nulos, e o retry costumava reenviar o payload ja falho -- o
+    // pedido ficava preso repetindo o mesmo erro. Ver CLAUDE.md.
+    mockPrismaService.order.findUnique.mockResolvedValue({
+      id: 'order-12345678',
+      customerId: 'cust-1',
+      status: 'PENDING',
+      paymentMethod: 'CASH',
+      subtotal: 24.93,
+      delivery: 0,
+      discount: 0,
+      total: 24.93,
+      notes: 'Entregar rapido',
+      addressSnapshot: {
+        street: 'Estrada Uniao e Industria',
+        number: '22117',
+        complement: null,
+        neighborhood: 'Sete Casas',
+        city: 'Petropolis',
+        state: 'RJ',
+        zipCode: '25750-222',
+      },
+      customer: {
+        id: 'cust-1',
+        cpf: '23715771704',
+        name: 'Cliente Teste',
+        whatsapp: '5511999999999',
+        email: null,
+      },
+      items: [],
     })
 
     mockSolidcomERPService.syncOrder.mockResolvedValue(undefined)
@@ -181,7 +192,21 @@ describe('OrderOrchestrationService', () => {
     expect(result).toEqual({ orderId: 'order-12345678', retried: true, success: true })
     expect(mockSolidcomERPService.syncOrder).toHaveBeenCalledWith(
       'order-12345678',
-      expect.objectContaining({ codEcom: 19 }),
+      expect.objectContaining({
+        codEcom: 19,
+        obs: 'Entregar rapido / Pgto: Dinheiro',
+        cliente: expect.objectContaining({
+          endereco: {
+            logradouro: 'Estrada Uniao e Industria',
+            numero: '22117',
+            complemento: '',
+            bairro: 'Sete Casas',
+            cidade: 'Petropolis',
+            cep: '25750222',
+            estado: 'RJ',
+          },
+        }),
+      }),
     )
   })
 

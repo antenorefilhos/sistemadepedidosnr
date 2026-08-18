@@ -52,6 +52,11 @@ describe('CheckoutService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    // buildStockSnapshot le syncOption pra tratar produto 'SEMPRE' como
+    // sempre disponivel, independente do estoque sincronizado do ERP.
+    product: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     address: {
       findFirst: jest.fn(),
     },

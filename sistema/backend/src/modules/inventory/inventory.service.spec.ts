@@ -101,6 +101,8 @@ describe('InventoryService', () => {
     mockPrismaService.stockReservation.findMany.mockResolvedValue([])
     mockPrismaService.stockReservation.update.mockResolvedValue({})
     mockPrismaService.analyticsEvent.create.mockResolvedValue({ id: 'event-1' })
+    // Produtos com syncOption='SEMPRE' (sempre vendaveis, ignoram estoque).
+    mockPrismaService.product.findMany.mockResolvedValue([])
   })
 
   afterEach(() => {

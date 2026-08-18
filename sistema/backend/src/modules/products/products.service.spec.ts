@@ -49,13 +49,27 @@ const mockPrismaService: any = {
     findMany: jest.fn().mockResolvedValue([]),
   },
   $transaction: jest.fn(),
+  // Busca por texto usa SQL cru (products.service: searchByRawQuery), nao
+  // product.findMany -- mockar o findMany aqui nao afeta o resultado.
+  $queryRaw: jest.fn(),
 };
 
 mockPrismaService.$transaction.mockImplementation((arg: any) =>
   Array.isArray(arg) ? Promise.all(arg) : arg(mockPrismaService),
 );
 
-const mockSolidcomERPService = { syncProducts: jest.fn() };
+/** A busca por texto faz dois $queryRaw: as linhas e depois o COUNT. */
+const mockSearchRows = (rows: any[]) => {
+  mockPrismaService.$queryRaw
+    .mockResolvedValueOnce(rows)
+    .mockResolvedValueOnce([{ total: BigInt(rows.length) }]);
+};
+
+const mockSolidcomERPService = {
+  syncProducts: jest.fn(),
+  fetchByEan: jest.fn().mockResolvedValue(null),
+  fetchRecentChanges: jest.fn().mockResolvedValue([]),
+};
 const mockAuditLogService = { log: jest.fn() };
 const mockProductSearchService = {
   searchProducts: jest.fn(),
@@ -64,6 +78,8 @@ const mockProductSearchService = {
   removeProduct: jest.fn(),
   indexProductById: jest.fn().mockResolvedValue(undefined),
   reindexAll: jest.fn().mockResolvedValue({ enabled: false, indexed: 0 }),
+  isEnabled: jest.fn().mockReturnValue(false),
+  suggest: jest.fn().mockResolvedValue([]),
 };
 const mockIntegrationModulesService = {
   isEnabled: jest.fn().mockResolvedValue(true),
@@ -155,7 +171,7 @@ describe('ProductsService', () => {
     });
 
     it('should search products', async () => {
-      mockPrismaService.product.findMany.mockResolvedValue([{ id: '1', name: 'Apple' }]);
+      mockSearchRows([{ id: '1', name: 'Apple' }]);
 
       const result = await service.findAll('Apple');
 
@@ -538,7 +554,7 @@ describe('ProductsService', () => {
 
   describe('search', () => {
     it('should search by name', async () => {
-      mockPrismaService.product.findMany.mockResolvedValue([
+      mockSearchRows([
         { id: '1', name: 'Arroz Integral' },
         { id: '2', name: 'Arroz Branco' },
       ]);
@@ -549,7 +565,7 @@ describe('ProductsService', () => {
     });
 
     it('should handle empty search', async () => {
-      mockPrismaService.product.findMany.mockResolvedValue([]);
+      mockSearchRows([]);
 
       const result = await service.findAll('NonExistent');
 
@@ -557,9 +573,7 @@ describe('ProductsService', () => {
     });
 
     it('should search with special characters', async () => {
-      mockPrismaService.product.findMany.mockResolvedValue([
-        { id: '1', name: 'Açúcar' },
-      ]);
+      mockSearchRows([{ id: '1', name: 'Açúcar' }]);
 
       const result = await service.findAll('Açúcar');
 

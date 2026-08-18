@@ -22,11 +22,16 @@ describe('NotificationsService', () => {
     const pushNotificationService = {
       sendNotification: jest.fn().mockResolvedValue({ sent: 1, failed: 0, skipped: 0 }),
     }
+    const whatsAppService = {
+      sendStatusUpdate: jest.fn().mockResolvedValue(null),
+      sendOrderConfirmation: jest.fn().mockResolvedValue(null),
+    }
 
     return {
-      service: new NotificationsService(prisma as any, pushNotificationService as any),
+      service: new NotificationsService(prisma as any, pushNotificationService as any, whatsAppService as any),
       prisma,
       pushNotificationService,
+      whatsAppService,
     }
   }
 

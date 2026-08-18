@@ -37,8 +37,41 @@ Plano de lançamento e pendências em [docs/roadmap.md](docs/roadmap.md).
 
 ## Integração Solidcom (ERP)
 
-Ver [docs/solidcom-api.md](docs/solidcom-api.md) — tem duas armadilhas sérias
+Ver [docs/solidcom-api.md](docs/solidcom-api.md) — tem armadilhas sérias
 documentadas que custaram caro para descobrir. Leia antes de mexer no sync.
+
+## Armadilha: `PostPedido` estoura com campo string nulo (obs e endereço)
+
+`GravaPedido` do Solidcom (`Dorsal/Pedido.cs`) chama `.Length` em campos de
+texto **sem checar nulo** — linha 111 no `obs` do pedido, linha 148 nos campos
+de `cliente.endereco`. Mandar `obs: null` ou omitir `cliente.endereco` derruba
+o endpoint com `400 "Object reference not set to an instance of an object"`,
+que é `NullReferenceException` vazando, não erro de validação.
+
+Isso travou **todo pedido** de 17/08 a 18/08/2026 — inclusive de cliente real.
+Não é erro de payload inválido: o payload passa na validação deles e quebra
+dentro da lógica de negócio. Por isso nenhum campo do nosso lado "faltava" no
+sentido do schema — o swagger deles marca os dois como opcionais.
+
+Regra: `mapToSolidcomPedido` **sempre** manda `obs` e `cliente.endereco`
+preenchidos. String vazia é aceita; `null` não. Não confie no schema/swagger
+deles pra decidir o que é opcional.
+
+Como diagnosticar erro de integração com eles de novo: o log da aplicação
+deles (log4net, `\\10.13.0.2\c\CONEXAODORSALNovaReal\Log\`) registra o JSON
+recebido **e o stack trace com número de linha**. É a fonte de verdade — nossa
+camada de integração só guarda `error.message` e perde o corpo da resposta.
+Atenção: metadado de tamanho de arquivo via SMB vem desatualizado (mostra 0
+byte em log de 1,8 GB) — leia o conteúdo, não confie no `Length`.
+
+### Pendência conhecida: cancelamento não funciona
+
+`PutCancelamentoPedido` recebe `cdPedido` como **int32**, mas
+`toExternalOrderNumber()` gera número de 12 dígitos (fatia do UUID do pedido),
+que estoura o limite. Ou seja, `syncCancelledOrder` nunca consegue cancelar
+pedido nenhum lá — dá `400 "The value 'X' is not valid"`. Precisa passar a
+gerar `numero` que caiba em int32 (< 2.147.483.647), sem colidir com número já
+usado (eles rejeitam duplicado).
 
 ## Domínio e acessos
 

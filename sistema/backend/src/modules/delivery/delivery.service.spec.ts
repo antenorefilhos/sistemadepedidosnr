@@ -53,6 +53,7 @@ const mockPrisma = {
   orderEvent: {
     create: jest.fn(),
   },
+  $transaction: jest.fn((cb: any) => cb(mockPrisma)),
 }
 
 const mockNotificationsService = {
@@ -198,6 +199,9 @@ describe('DeliveryService', () => {
     )
 
     mockPrisma.fulfillmentSlot.findFirst.mockResolvedValueOnce({ ...slot, reservedOrders: 2, reservedItems: 5 })
+    // A liberacao roda dentro de $transaction e le o estado atual com
+    // findUnique antes de descontar.
+    mockPrisma.fulfillmentSlot.findUnique.mockResolvedValueOnce({ ...slot, reservedOrders: 2, reservedItems: 5 })
     mockPrisma.fulfillmentSlot.update.mockResolvedValueOnce({ ...slot, reservedOrders: 1, reservedItems: 2 })
 
     await service.releaseSlotReservation(undefined, 'slot-1', 3, 'teste')

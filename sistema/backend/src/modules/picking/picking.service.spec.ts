@@ -2,6 +2,11 @@ import { BadRequestException } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
 import { PrismaService } from '../../common/prisma.service'
 import { PickingService } from './picking.service'
+import { NotificationsService } from '../notifications/notifications.service'
+
+const mockNotificationsService = {
+  notifyOrderStatusChange: jest.fn().mockResolvedValue(undefined),
+}
 
 const mockPrismaService = {
   pickingTask: {
@@ -129,6 +134,7 @@ describe('PickingService', () => {
       providers: [
         PickingService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile()
 
