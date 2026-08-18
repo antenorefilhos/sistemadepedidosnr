@@ -45,6 +45,8 @@ import {
 
 export default function Checkout() {
   const [step, setStep] = useState('address') // address, payment, confirmation
+  const [fulfillmentType, setFulfillmentType] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY')
+  const isPickup = fulfillmentType === 'PICKUP'
   const [whatsappDispatch, setWhatsappDispatch] = useState<WhatsAppDispatch | null>(null)
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null)
   const navigate = useNavigate()
@@ -251,6 +253,15 @@ export default function Checkout() {
       deliverySlotRef.current = createFallbackDeliverySlot()
     }
 
+    if (isPickup) {
+      // Retirada nao tem endereco nem zona: o backend devolve frete 0 e
+      // pula a validacao de area (checkout.service -> buildDeliverySnapshot).
+      return {
+        mode: 'PICKUP',
+        ...deliverySlotRef.current,
+      }
+    }
+
     return {
       mode: 'DELIVERY',
       zipCode: formData.zipCode,
@@ -259,7 +270,7 @@ export default function Checkout() {
       addressId: deliveryAddressId,
       ...deliverySlotRef.current,
     }
-  }, [formData.lat, formData.lng, formData.zipCode, selectedDeliverySlot])
+  }, [formData.lat, formData.lng, formData.zipCode, selectedDeliverySlot, isPickup])
 
   const ensureCheckoutSession = useCallback(async ({
     customerId,
@@ -358,6 +369,17 @@ export default function Checkout() {
 
     if (step === 'address') {
       try {
+        if (isPickup) {
+          // Sem endereco pra validar: o cliente busca na loja.
+          const quote = await ensureCheckoutSession({ customerId: user?.id })
+          if (!quote.canConfirm) {
+            setCheckoutError(getCheckoutBlockerMessage(quote))
+            return
+          }
+          setStep('payment')
+          return
+        }
+
         const addressToValidate = {
           street: formData.street.trim(),
           number: formData.number.trim(),
@@ -446,31 +468,35 @@ export default function Checkout() {
           throw new Error('Não foi possível identificar o cliente para finalizar o pedido')
         }
 
-        const deliveryAddress = {
-          street: formData.street,
-          number: formData.number,
-          complement: formData.complement || null,
-          neighborhood: formData.neighborhood,
-          city: formData.city,
-          state: formData.state,
-          zipCode: formData.zipCode || '00000000',
-          isDefault: true,
-        }
+        let deliveryAddressId: string | undefined
 
-        const createdAddressResponse = await createAddress.mutateAsync({
-          customerId: customerId,
-          data: deliveryAddress,
-        })
-        const deliveryAddressId =
-          typeof createdAddressResponse.data?.id === 'string'
-            ? createdAddressResponse.data.id
-            : undefined
+        if (!isPickup) {
+          const deliveryAddress = {
+            street: formData.street,
+            number: formData.number,
+            complement: formData.complement || null,
+            neighborhood: formData.neighborhood,
+            city: formData.city,
+            state: formData.state,
+            zipCode: formData.zipCode || '00000000',
+            isDefault: true,
+          }
 
-        saveDeliveryAddress(deliveryAddress)
+          const createdAddressResponse = await createAddress.mutateAsync({
+            customerId: customerId,
+            data: deliveryAddress,
+          })
+          deliveryAddressId =
+            typeof createdAddressResponse.data?.id === 'string'
+              ? createdAddressResponse.data.id
+              : undefined
 
-        if (!deliveryCalc || deliveryCalc.outOfArea || deliveryCalc.fee == null) {
-          setCheckoutError('Endereco fora da zona de entrega cadastrada.')
-          return
+          saveDeliveryAddress(deliveryAddress)
+
+          if (!deliveryCalc || deliveryCalc.outOfArea || deliveryCalc.fee == null) {
+            setCheckoutError('Endereco fora da zona de entrega cadastrada.')
+            return
+          }
         }
 
         const changeAmount =
@@ -785,6 +811,41 @@ export default function Checkout() {
                   </>
                 )}
 
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    { id: 'DELIVERY', title: 'Entrega', desc: 'Receba no seu endereço' },
+                    { id: 'PICKUP', title: 'Retirar na loja', desc: 'Sem taxa de entrega' },
+                  ] as const).map((option) => {
+                    const active = fulfillmentType === option.id
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setFulfillmentType(option.id)}
+                        aria-pressed={active}
+                        className={`rounded-xl border p-3 text-left transition-colors ${
+                          active
+                            ? 'border-[#5D082A] bg-[#5D082A]/5 ring-1 ring-[#5D082A]'
+                            : 'border-[#D2BB8A]/50 bg-white hover:border-[#5D082A]/40'
+                        }`}
+                      >
+                        <span className={`block text-sm font-semibold ${active ? 'text-[#5D082A]' : 'text-[#231F20]'}`}>
+                          {option.title}
+                        </span>
+                        <span className="block text-xs text-[#5d4f33] mt-0.5">{option.desc}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {isPickup && (
+                  <div className="rounded-lg border border-[#D2BB8A]/40 bg-[#FBFAF7] px-3 py-2 text-xs text-[#5d4f33]">
+                    Você retira na loja e não paga taxa de entrega. Avisamos no WhatsApp assim que o pedido estiver separado e pronto.
+                  </div>
+                )}
+
+                {!isPickup && (
+                <>
                 <div className="rounded-lg border border-[#D2BB8A]/40 bg-[#FBFAF7] px-3 py-2 text-xs text-[#5d4f33]">
                   {geoLoading && 'Tentando localizar via GPS...'}
                   {!geoLoading && locationStatus === 'gps-success' && 'Endereco inicial preenchido via GPS. Confira e confirme os dados.'}
@@ -908,6 +969,8 @@ export default function Checkout() {
                     />
                   </div>
                 </div>
+                </>
+                )}
               </div>
             )}
 
@@ -1067,11 +1130,13 @@ export default function Checkout() {
                       <span>Total:</span>
                       <span className="text-[#5D082A]">{formatPrice(payableTotal)}</span>
                     </div>
-                    {((checkoutQuote && !checkoutQuote.delivery.outOfArea) || (deliveryCalc && !deliveryCalc.outOfArea)) && (
+                    {(isPickup || (checkoutQuote && !checkoutQuote.delivery.outOfArea) || (deliveryCalc && !deliveryCalc.outOfArea)) && (
                       <div className="flex justify-between text-sm mt-1 text-gray-600">
-                        <span>Entrega{deliveryZoneName ? ` (${deliveryZoneName})` : ''}</span>
-                        <span className={deliveryIsFree ? 'text-emerald-600 font-semibold' : ''}>
-                          {deliveryIsFree
+                        <span>
+                          {isPickup ? 'Retirada na loja' : `Entrega${deliveryZoneName ? ` (${deliveryZoneName})` : ''}`}
+                        </span>
+                        <span className={isPickup || deliveryIsFree ? 'text-emerald-600 font-semibold' : ''}>
+                          {isPickup || deliveryIsFree
                             ? 'Grátis'
                             : quotedDeliveryFee == null
                             ? 'Indisponível'
