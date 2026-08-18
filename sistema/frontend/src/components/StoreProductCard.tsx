@@ -176,7 +176,7 @@ export function StoreProductCard({
                 e.stopPropagation()
                 toast(FRACTIONAL_INFO_TEXT, { id: `fractional-info-${product.id}`, icon: '⚖️' })
               }}
-              className="relative w-fit pointer-events-auto before:absolute before:-inset-2.5 before:content-['']"
+              className="relative flex w-fit pointer-events-auto before:absolute before:-inset-2.5 before:content-['']"
               title={FRACTIONAL_INFO_TEXT}
               aria-label={`Pesável. ${FRACTIONAL_INFO_TEXT}`}
             >
