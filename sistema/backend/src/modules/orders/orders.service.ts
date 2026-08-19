@@ -334,75 +334,6 @@ export class OrdersService {
       throw new BadRequestException('Endereco de entrega nao encontrado para o cliente.')
     }
 
-    // ── Anti-fraude: frete grátis no primeiro pedido ──────────────────
-    if (fulfillmentType === 'DELIVERY' && (delivery === 0 || delivery == null)) {
-      const customer = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId } })
-      if (customer) {
-        const log = (vector: string, value: string) =>
-          this.prisma.fraudLog.create({ data: { tenantId, storeId, vector, value, customerId } }).catch(() => null)
-
-        // Verificação por WhatsApp
-        const prevByWhatsapp = await this.prisma.order.findFirst({
-          where: { tenantId, storeId, customer: { whatsapp: customer.whatsapp }, status: { not: 'CANCELLED' } },
-        })
-        if (prevByWhatsapp) {
-          await log('WHATSAPP', customer.whatsapp)
-          await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-          throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
-        }
-
-        // Verificação por DeviceID
-        if (deviceId) {
-          const prevByDevice = await this.prisma.order.findFirst({
-            where: { tenantId, storeId, deviceId, status: { not: 'CANCELLED' } },
-          })
-          if (prevByDevice) {
-            await log('DEVICE', deviceId)
-            await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-            throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
-          }
-        }
-
-        // Verificação por IP (janela de 24h)
-        if (clientIp) {
-          const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
-          const prevByIp = await this.prisma.order.findFirst({
-            where: {
-              clientIp,
-              tenantId,
-              storeId,
-              delivery: 0,
-              status: { not: 'CANCELLED' },
-              createdAt: { gte: since },
-            },
-          })
-          if (prevByIp) {
-            await log('IP', clientIp)
-            await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-            throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
-          }
-        }
-
-        // Verificação por endereço (mesmo endereco usado por outra conta que ja pediu antes --
-        // nao bloqueia o pedido, so tira o frete gratis, entao familia/inquilino real so paga entrega)
-        if (address) {
-          const sameAddressCustomers = await this.prisma.address.findMany({
-            where: { tenantId, street: address.street, number: address.number, zipCode: address.zipCode, customerId: { not: customerId } },
-            select: { customerId: true },
-          })
-          if (sameAddressCustomers.length) {
-            const prevByAddress = await this.prisma.order.findFirst({
-              where: { tenantId, storeId, customerId: { in: sameAddressCustomers.map(a => a.customerId) }, status: { not: 'CANCELLED' } },
-            })
-            if (prevByAddress) {
-              await log('ADDRESS', `${address.street}, ${address.number}`)
-              await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-              throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
-            }
-          }
-        }
-      }
-    }
 
     // ── Anti-fraude: velocidade de pedidos (so log, nao bloqueia) ──────
     // Muitos pedidos em pouco tempo do mesmo cliente ou IP e sinal de bot/teste
@@ -482,6 +413,88 @@ export class OrdersService {
     const discountAmount = quote.discountAmount
     const quotedDeliveryAmount = quote.deliveryAmount
     const total = quote.total
+
+    // ── Anti-fraude: frete grátis no primeiro pedido ──────────────────
+    // Roda depois do quote de proposito: precisa do subtotal real pra saber
+    // se o frete zero foi merecido pela regra de valor minimo da zona. Sem
+    // isso, cliente recorrente que atinge o valor minimo era barrado.
+    const freeShippingEarned = await this.isFreeShippingEarnedByZone(
+      { tenantId, storeId },
+      deliveryAreaId,
+      subtotal,
+    )
+
+    if (!freeShippingEarned) {
+      if (fulfillmentType === 'DELIVERY' && (delivery === 0 || delivery == null)) {
+        const customer = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId } })
+        if (customer) {
+          const log = (vector: string, value: string) =>
+            this.prisma.fraudLog.create({ data: { tenantId, storeId, vector, value, customerId } }).catch(() => null)
+
+          // Verificação por WhatsApp
+          const prevByWhatsapp = await this.prisma.order.findFirst({
+            where: { tenantId, storeId, customer: { whatsapp: customer.whatsapp }, status: { not: 'CANCELLED' } },
+          })
+          if (prevByWhatsapp) {
+            await log('WHATSAPP', customer.whatsapp)
+            await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+            throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
+          }
+
+          // Verificação por DeviceID
+          if (deviceId) {
+            const prevByDevice = await this.prisma.order.findFirst({
+              where: { tenantId, storeId, deviceId, status: { not: 'CANCELLED' } },
+            })
+            if (prevByDevice) {
+              await log('DEVICE', deviceId)
+              await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+              throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
+            }
+          }
+
+          // Verificação por IP (janela de 24h)
+          if (clientIp) {
+            const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+            const prevByIp = await this.prisma.order.findFirst({
+              where: {
+                clientIp,
+                tenantId,
+                storeId,
+                delivery: 0,
+                status: { not: 'CANCELLED' },
+                createdAt: { gte: since },
+              },
+            })
+            if (prevByIp) {
+              await log('IP', clientIp)
+              await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+              throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
+            }
+          }
+
+          // Verificação por endereço (mesmo endereco usado por outra conta que ja pediu antes --
+          // nao bloqueia o pedido, so tira o frete gratis, entao familia/inquilino real so paga entrega)
+          if (address) {
+            const sameAddressCustomers = await this.prisma.address.findMany({
+              where: { tenantId, street: address.street, number: address.number, zipCode: address.zipCode, customerId: { not: customerId } },
+              select: { customerId: true },
+            })
+            if (sameAddressCustomers.length) {
+              const prevByAddress = await this.prisma.order.findFirst({
+                where: { tenantId, storeId, customerId: { in: sameAddressCustomers.map(a => a.customerId) }, status: { not: 'CANCELLED' } },
+              })
+              if (prevByAddress) {
+                await log('ADDRESS', `${address.street}, ${address.number}`)
+                await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+                throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
+              }
+            }
+          }
+        }
+      }
+    }
+
     if (quote.businessAccountId && quote.businessMinimumOrder != null && !quote.businessMinimumOrderMet) {
       await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
       throw new BadRequestException(`Pedido B2B abaixo do minimo de R$ ${Number(quote.businessMinimumOrder).toFixed(2)}.`)
@@ -1353,6 +1366,32 @@ export class OrdersService {
       estimatedMargin: quote?.estimatedMargin ?? null,
       items: quoteItems,
     }
+  }
+
+  /**
+   * O frete zero e legitimo quando a propria zona nao cobra taxa ou quando o
+   * pedido bateu o valor minimo de frete gratis dela.
+   *
+   * Consulta a zona no banco em vez de confiar no que veio na requisicao:
+   * o antifraude existe justamente porque da pra chamar POST /orders direto
+   * com delivery=0, entao o snapshot enviado pelo cliente nao vale como prova.
+   */
+  private async isFreeShippingEarnedByZone(
+    context: OrderTenantContext,
+    deliveryAreaId: string | undefined,
+    subtotal: number,
+  ): Promise<boolean> {
+    if (!deliveryAreaId) return false
+
+    const zone = await this.prisma.deliveryArea.findFirst({
+      where: { id: deliveryAreaId, ...tenantStoreWhere(context) },
+      select: { fee: true, freeAbove: true },
+    })
+    if (!zone) return false
+
+    if (Number(zone.fee) === 0) return true
+
+    return zone.freeAbove != null && subtotal >= Number(zone.freeAbove)
   }
 
   private async sendWhatsAppMessage(order: OrderWithRelations, changeAmount?: string): Promise<WhatsAppDispatchResult | null> {

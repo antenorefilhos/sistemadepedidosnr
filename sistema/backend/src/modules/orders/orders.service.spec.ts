@@ -222,6 +222,33 @@ describe('OrdersService', () => {
   });
 
   describe('create', () => {
+    it('nao barra cliente recorrente que ganhou frete gratis pelo valor minimo da zona', async () => {
+      // O antifraude de "frete gratis so no primeiro pedido" barrava QUALQUER
+      // pedido com frete zero, inclusive quem atingiu o valor minimo da zona.
+      mockPrismaService.order.findFirst.mockResolvedValue({ id: 'pedido-anterior' });
+      mockPrismaService.deliveryArea = {
+        findFirst: jest.fn().mockResolvedValue({ fee: 12, freeAbove: 100 }),
+      };
+      mockPrismaService.order.create.mockResolvedValue({
+        id: 'order-1',
+        items: [],
+        customer: { id: 'customer-1', name: 'John', whatsapp: '5511999999999' },
+      });
+
+      await expect(
+        service.create({
+          customerId: 'customer-1',
+          idempotencyKey: 'idem-frete-merecido',
+          items: [{ productId: 'prod-1', quantity: 10 }],
+          delivery: 0,
+          deliveryAreaId: 'zona-1',
+          paymentMethod: 'PIX',
+        } as any),
+      ).resolves.toBeDefined();
+
+      expect(mockPrismaService.deliveryArea.findFirst).toHaveBeenCalled();
+    });
+
     it('should create order with correct subtotal calculation with promotional prices', async () => {
       const mockCreateOrderDto = {
         customerId: 'customer-1',
