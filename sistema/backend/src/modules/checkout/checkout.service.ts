@@ -169,6 +169,7 @@ export class CheckoutService {
 
     const paymentMethod = String(dto.paymentMethod || 'CASH').toUpperCase()
     const paymentSnapshot = this.buildPaymentSnapshot(paymentMethod)
+    this.assertScheduledForIsSane(dto.scheduledFor)
 
     await this.prisma.checkoutSession.update({
       where: { id },
@@ -673,6 +674,34 @@ export class CheckoutService {
       appliedPromotions: price.appliedPromotions,
       couponCode: price.couponCode,
       estimatedMargin: price.estimatedMargin,
+    }
+  }
+
+  /**
+   * O @IsISO8601 do DTO so garante o formato: sem isto, da pra agendar no
+   * passado (o pedido cairia na fila de separacao do ERP na hora, furando a
+   * antecedencia) ou daqui a anos (o pedido nunca apareceria pra separar,
+   * ficando preso). O front so oferece horarios validos, mas quem chama a
+   * API direto nao passa por ele.
+   */
+  private assertScheduledForIsSane(scheduledFor?: string) {
+    if (!scheduledFor) return
+
+    const target = new Date(scheduledFor)
+    if (Number.isNaN(target.getTime())) {
+      throw new BadRequestException('Horario de entrega invalido.')
+    }
+
+    const now = Date.now()
+    // Tolerancia pra latencia/relogio do cliente, sem permitir passado real.
+    const earliest = now - 5 * 60 * 1000
+    const latest = now + 7 * 24 * 60 * 60 * 1000
+
+    if (target.getTime() < earliest) {
+      throw new BadRequestException('O horario escolhido ja passou. Escolha outro horario.')
+    }
+    if (target.getTime() > latest) {
+      throw new BadRequestException('So da pra agendar com ate 7 dias de antecedencia.')
     }
   }
 

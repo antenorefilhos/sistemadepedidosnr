@@ -371,13 +371,22 @@ export class SolidcomERPService {
   /**
    * Sincroniza pedido para o ERP
    */
-  async syncOrder(orderId: string, orderData: SolidcomPedidoDto): Promise<void> {
+  /**
+   * Devolve o DAV que o ERP gera pro pedido (resposta e texto puro, tipo
+   * "Pedido 123 inserido com sucesso.\nDAV:102022"). E o numero que o
+   * separador digita no PDV pra puxar o pedido -- sem ele, so sobraria o
+   * nosso id interno, que tem letra e o PDV nao aceita.
+   */
+  async syncOrder(orderId: string, orderData: SolidcomPedidoDto): Promise<string | null> {
     try {
       this.logger.log(`Sincronizando pedido ${orderId} para ERP`)
 
-      await axios.post(`${this.SOLIDCOM_API_URL}/api/Pedido/PostPedido`, orderData, {
+      const response = await axios.post(`${this.SOLIDCOM_API_URL}/api/Pedido/PostPedido`, orderData, {
         timeout: 30000,
       })
+
+      const dav = String(response.data ?? '').match(/DAV:\s*(\d+)/i)?.[1]
+      return dav || null
     } catch (error) {
       this.logger.error('Erro ao sincronizar pedido:', error)
       throw error

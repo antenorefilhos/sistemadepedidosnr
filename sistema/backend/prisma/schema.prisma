@@ -670,6 +670,8 @@ model Order {
   /// Horario escolhido pelo cliente pra receber/retirar. Null = "o quanto
   /// antes". Vira hrCombinada no Solidcom.
   scheduledFor DateTime?
+  /// DAV gerado pelo Solidcom. E o numero que o separador digita no PDV.
+  erpDav String?
   customerSnapshot Json?
   addressSnapshot Json?
   deliverySnapshot Json?

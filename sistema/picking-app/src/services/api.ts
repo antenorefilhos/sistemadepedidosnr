@@ -50,6 +50,8 @@ export interface Order {
   notes: string | null
   paymentMethod: string
   createdAt: string
+  /** DAV do Solidcom -- e o numero que se digita no PDV pra puxar o pedido. */
+  erpDav?: string | null
   customer?: { id: string; name: string; cpf: string; whatsapp: string }
   items: OrderItem[]
   pickingTask?: PickingTask | null

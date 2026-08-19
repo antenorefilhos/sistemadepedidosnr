@@ -5,6 +5,7 @@ import {
   Plus, Search, RotateCcw, Trash2,
 } from 'lucide-react'
 import { pickerApi, PickingTask, PickingTaskItem, Order } from '../services/api'
+import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
 import toast from 'react-hot-toast'
 import BarcodeScanner from '../components/BarcodeScanner'
 
@@ -343,7 +344,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
           <div className="flex-1 min-w-0">
             <p className="font-semibold truncate">{order.customer?.name || 'Pedido'}</p>
             <p className="text-xs text-white/60">
-              #{order.id.slice(-8).toUpperCase()} · {done.length}/{taskItems.length} itens
+              {hasPdvCode(order) ? `DAV ${getOrderPdvCode(order)}` : `#${getOrderPdvCode(order)}`} · {done.length}/{taskItems.length} itens
             </p>
           </div>
         </div>
@@ -684,7 +685,9 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
               </button>
               <div className="flex-1">
                 <p className="font-semibold">Revisao do Pedido</p>
-                <p className="text-xs text-white/60">#{order.id.slice(-8).toUpperCase()}</p>
+                <p className="text-xs text-white/60">
+                  {hasPdvCode(order) ? `DAV ${getOrderPdvCode(order)}` : `#${getOrderPdvCode(order)}`}
+                </p>
               </div>
             </div>
           </header>

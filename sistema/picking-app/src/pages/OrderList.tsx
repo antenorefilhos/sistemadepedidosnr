@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, RefreshCw, LogOut, Filter, X, Inbox, Package, ChevronRight, Clock } from 'lucide-react'
 import { pickerApi, Order } from '../services/api'
+import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
 import toast from 'react-hot-toast'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -200,7 +201,13 @@ function OrderCard({ order, onTap }: { order: Order; onTap: () => void }) {
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-gray-900 truncate">{order.customer?.name || 'Cliente'}</p>
-          <p className="text-xs text-gray-500 font-mono">#{order.id.slice(-8).toUpperCase()}</p>
+          <p className="text-xs font-mono">
+            {hasPdvCode(order) ? (
+              <span className="text-gray-900 font-semibold">DAV {getOrderPdvCode(order)}</span>
+            ) : (
+              <span className="text-gray-500">#{getOrderPdvCode(order)} · sem DAV</span>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATUS_COLOR[order.status] || 'bg-gray-100 text-gray-600'}`}>

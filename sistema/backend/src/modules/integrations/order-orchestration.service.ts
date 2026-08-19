@@ -41,10 +41,12 @@ export class OrderOrchestrationService {
     })
 
     try {
-      await this.solidcomERPService.syncOrder(payload.orderId, externalPayload)
+      const dav = await this.solidcomERPService.syncOrder(payload.orderId, externalPayload)
+      await this.persistErpDav(payload.orderId, dav)
       await this.logSyncEvent('SYNC_ORDER_SUCCESS', payload.orderId, {
         externalNumero: externalPayload.numero,
         codEcom: externalPayload.codEcom,
+        dav,
       })
     } catch (error) {
       const reason = this.stringifyError(error)
@@ -372,9 +374,11 @@ export class OrderOrchestrationService {
     const payload = this.mapToSolidcomPedido(contract)
 
     try {
-      await this.solidcomERPService.syncOrder(orderId, payload)
+      const dav = await this.solidcomERPService.syncOrder(orderId, payload)
+      await this.persistErpDav(orderId, dav)
       await this.logSyncEvent('SYNC_ORDER_RETRY_SUCCESS', orderId, {
         externalNumero: payload.numero,
+        dav,
       })
       return { orderId, retried: true, success: true }
     } catch (error) {
@@ -475,6 +479,14 @@ export class OrderOrchestrationService {
       .filter(Boolean)
       .join(' / ')
       .slice(0, 500)
+  }
+
+  /** Guarda o DAV pro separador conseguir puxar o pedido no PDV. */
+  private async persistErpDav(orderId: string, dav: string | null) {
+    if (!dav) return
+    await this.prisma.order
+      .update({ where: { id: orderId }, data: { erpDav: dav } })
+      .catch((error) => this.logger.warn(`Falha ao gravar DAV do pedido ${orderId}`, error))
   }
 
   /** Minutos entre o pedido e a hora combinada quando o cliente nao agenda. */
