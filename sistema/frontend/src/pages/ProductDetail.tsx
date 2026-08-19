@@ -240,7 +240,26 @@ export default function ProductDetail() {
               />
             </Button>
 
-            {imgError2 !== true && (
+            {/* Sonda a foto 2 fora da tela ate confirmar que existe -- so entao
+                mostra o botao, evita miniatura clicavel em branco/quebrada
+                enquanto os candidatos (webp/jpg/jpeg/png) ainda estao testando. */}
+            {imgError2 === 'loading' && (
+              <img
+                src={imageCandidates2[imageIndex2]}
+                alt=""
+                className="hidden"
+                aria-hidden="true"
+                onLoad={() => setImgError2(false)}
+                onError={() => {
+                  if (imageIndex2 < imageCandidates2.length - 1) {
+                    setImageIndex2(prev => prev + 1)
+                  } else {
+                    setImgError2(true)
+                  }
+                }}
+              />
+            )}
+            {imgError2 === false && (
               <Button
                 onClick={() => { setActivePhoto('2') }}
                 variant="outline"
@@ -253,14 +272,6 @@ export default function ProductDetail() {
                   src={imageCandidates2[imageIndex2]}
                   alt="Foto 2"
                   className="w-full h-full object-contain p-1"
-                  onLoad={() => setImgError2(false)}
-                  onError={() => {
-                    if (imageIndex2 < imageCandidates2.length - 1) {
-                      setImageIndex2(prev => prev + 1)
-                    } else {
-                      setImgError2(true)
-                    }
-                  }}
                 />
               </Button>
             )}

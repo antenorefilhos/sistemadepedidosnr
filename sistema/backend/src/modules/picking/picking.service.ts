@@ -277,6 +277,12 @@ export class PickingService {
     if (['COMPLETED', 'CANCELLED'].includes(task.status)) {
       throw new BadRequestException('Tarefa de separacao ja esta encerrada.')
     }
+    // Dois separadores abrindo o mesmo pedido ao mesmo tempo pegavam a mesma
+    // tarefa sem aviso -- se ja esta IN_PROGRESS com outro separador
+    // atribuido, barra em vez de deixar um segundo entrar por cima.
+    if (task.status === 'IN_PROGRESS' && task.assignedToId && actor?.actorId && task.assignedToId !== actor.actorId) {
+      throw new BadRequestException('Pedido ja esta sendo separado por outro membro da equipe.')
+    }
 
     const startedAt = task.startedAt || new Date()
     const assignedToId = task.assignedToId || actor?.actorId || null

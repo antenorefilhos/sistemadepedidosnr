@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common'
+import { Injectable, BadRequestException, UnauthorizedException, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { createHash, randomBytes } from 'crypto'
 import { PrismaService } from '../../common/prisma.service'
@@ -430,9 +430,15 @@ export class AuthService {
     return staff.map((s) => ({ ...s, permissions: permissionsByUserId.get(s.id) || [] }))
   }
 
-  async updateStaff(id: string, dto: UpdateStaffDto) {
+  async updateStaff(id: string, dto: UpdateStaffDto, actorId?: string) {
     const staff = await this.prisma.admin.findUnique({ where: { id } })
     if (!staff) throw new NotFoundException('Membro nao encontrado')
+    // Admin so edita a propria conta de admin, nunca a de outro -- senao uma
+    // conta admin comprometida troca email/senha de qualquer outra (account
+    // takeover). Editar staff normal continua livre pra qualquer admin.
+    if (staff.role === 'admin' && staff.id !== actorId) {
+      throw new ForbiddenException('Nao e possivel editar outra conta admin')
+    }
 
     const data: Record<string, unknown> = {}
     if (dto.name) data.name = dto.name
@@ -462,6 +468,9 @@ export class AuthService {
   async toggleStaffActive(id: string) {
     const staff = await this.prisma.admin.findUnique({ where: { id } })
     if (!staff) throw new NotFoundException('Membro nao encontrado')
+    if (staff.role === 'admin') {
+      throw new ForbiddenException('Conta admin nao pode ser desativada por aqui')
+    }
     return this.prisma.admin.update({
       where: { id },
       data: { active: !staff.active },

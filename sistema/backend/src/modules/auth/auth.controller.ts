@@ -227,8 +227,8 @@ export class AuthController {
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Editar membro da equipe' })
-  updateStaff(@Param('id') id: string, @Body() dto: UpdateStaffDto) {
-    return this.authService.updateStaff(id, dto)
+  updateStaff(@Param('id') id: string, @Body() dto: UpdateStaffDto, @Req() req: any) {
+    return this.authService.updateStaff(id, dto, req.user?.id)
   }
 
   @Post('staff/:id/toggle-active')

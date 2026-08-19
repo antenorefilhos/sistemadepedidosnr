@@ -704,6 +704,25 @@ export class DeliveryService {
     if (!stop) throw new NotFoundException('Parada da rota nao encontrada.')
 
     const status = dto.status.toUpperCase()
+    // Mesma tabela de transicao permitida do frontend (RouteDetail.tsx,
+    // NEXT_STATUSES) -- so existia la, backend aceitava qualquer valor do
+    // enum em qualquer ordem (retry de fila reenviando acao antiga, ou
+    // chamada direta na API, podia voltar DELIVERED pra PENDING).
+    const allowedNext: Record<string, string[]> = {
+      PENDING: ['OUT_FOR_DELIVERY'],
+      OUT_FOR_DELIVERY: ['ARRIVED'],
+      ARRIVED: ['DELIVERED', 'FAILED'],
+    }
+    if (stop.status !== status && !(allowedNext[stop.status] || []).includes(status)) {
+      throw new BadRequestException(`Transicao de status invalida: ${stop.status} -> ${status}`)
+    }
+    // Sem foto/assinatura no app hoje (feature maior, fora deste lote) --
+    // pelo menos exige que o motorista escreva algo como evidencia da
+    // entrega, em vez de aceitar "Entregue" sem nenhum registro.
+    if (status === 'DELIVERED' && !dto.notes?.trim()) {
+      throw new BadRequestException('Descreva a entrega (quem recebeu, onde deixou) antes de confirmar.')
+    }
+
     const updated = await this.prisma.deliveryStop.update({
       where: { id: stop.id },
       data: {

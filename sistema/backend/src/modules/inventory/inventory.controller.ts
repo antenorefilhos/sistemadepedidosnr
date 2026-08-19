@@ -51,6 +51,11 @@ export class StockReservationsController {
     })
   }
 
+  // Nenhum frontend chama essa rota (checkout libera reserva internamente
+  // via releaseReservationsByCart no service, nao por aqui) -- so restringe
+  // a admin em vez de manter aberta sem checagem nenhuma.
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Post(':id/release')
   async releaseReservation(@Param('id') id: string) {
     return this.inventoryService.releaseReservation(id, 'Reserva liberada por API')

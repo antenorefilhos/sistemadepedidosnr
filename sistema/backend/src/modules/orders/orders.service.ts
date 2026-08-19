@@ -630,7 +630,15 @@ export class OrdersService {
       data: { status: 'COMPLETED', responseRef: order.id },
     })
 
-    await this.pricingService.recordPromotionUsage(quote, order.id, customerId)
+    // Pedido ja foi commitado e a idempotencyKey ja foi marcada COMPLETED
+    // acima -- se essa gravacao falhar (conexao caiu, limite de cupom
+    // estourado por concorrencia), nao pode derrubar a resposta pro cliente
+    // fingindo que o pedido nao foi criado quando ele ja foi. So loga.
+    try {
+      await this.pricingService.recordPromotionUsage(quote, order.id, customerId)
+    } catch (err) {
+      this.logger.error(`Falha ao registrar uso de promocao do pedido ${order.id}: ${err instanceof Error ? err.message : err}`)
+    }
 
     if (businessApprovalStatus !== 'PENDING') {
       await this.orderOrchestrationService.syncCreatedOrder(

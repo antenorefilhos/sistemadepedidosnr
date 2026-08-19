@@ -13,7 +13,7 @@ import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
 import { getProductLineTotal, getProductPricePresentation, formatProductQuantity } from '../utils/productPricing'
 import { Trash2, Plus, Minus, ArrowLeft, ShoppingCart } from 'lucide-react'
 import { FreeShippingBar } from '../components/FreeShippingBar'
-import { readDeliveryVerification, subscribeDeliveryVerification } from '../services/deliveryVerification'
+import { useKnownZoneFreeAbove } from '../hooks/useKnownZoneFreeAbove'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
@@ -35,21 +35,6 @@ function getAvailabilityLabel(product?: Product) {
     return { label: 'Poucas unidades', tone: 'border-amber-100 bg-amber-50 text-amber-700' }
   }
   return { label: 'Disponivel', tone: 'border-emerald-100 bg-emerald-50 text-emerald-700' }
-}
-
-// Endereco confirmado nesta etapa (ou salvo de compra anterior no mesmo
-// aparelho, ver saveDeliveryVerification) ja diz a zona -- usa o freeAbove
-// dela em vez do global assim que existir, igual o Checkout ja faz.
-function useKnownZoneFreeAbove() {
-  const readZoneFreeAbove = () => {
-    const verification = readDeliveryVerification()
-    return verification && !verification.calc.outOfArea ? verification.calc.freeAbove : undefined
-  }
-  const [zoneFreeAbove, setZoneFreeAbove] = useState<number | null | undefined>(readZoneFreeAbove)
-
-  useEffect(() => subscribeDeliveryVerification(() => setZoneFreeAbove(readZoneFreeAbove())), [])
-
-  return zoneFreeAbove
 }
 
 export default function Cart() {
@@ -386,7 +371,7 @@ export default function Cart() {
 
             {/* Fica acima do menu inferior (h-16), que so aparece abaixo de md.
                 Sem isso os dois disputam bottom-0 e o menu cobre o botao. */}
-            <div className="fixed inset-x-0 bottom-16 md:bottom-0 z-40 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur lg:hidden">
+            <div className="fixed inset-x-0 bottom-16 md:bottom-0 z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur lg:hidden">
               <Link
                 to="/checkout"
                 className={buttonVariants({

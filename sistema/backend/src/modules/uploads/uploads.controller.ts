@@ -59,6 +59,16 @@ export class UploadsController {
           callback(null, uniqueName);
         },
       }),
+      // Rejeita pelo fileFilter (antes de gravar em disco) em vez de checar
+      // so depois -- senao arquivo com mimetype invalido ja tinha sido
+      // gravado com nome unico e ficava orfao em ./uploads pra sempre.
+      fileFilter: (req, file, callback) => {
+        if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
+          callback(new BadRequestException('Formato de imagem inválido. Envie JPG, PNG ou WebP.'), false);
+          return;
+        }
+        callback(null, true);
+      },
     }),
   )
   uploadFile(
@@ -71,10 +81,6 @@ export class UploadsController {
     )
     file: Express.Multer.File,
   ) {
-    if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Formato de imagem inválido. Envie JPG, PNG ou WebP.');
-    }
-
     return {
       url: `/uploads/${file.filename}`,
       filename: file.filename,

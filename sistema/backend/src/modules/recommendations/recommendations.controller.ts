@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
+import { assertCustomerOwnership } from '../../common/security/customer-ownership'
 import { RecommendationsService } from './recommendations.service'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
@@ -10,11 +12,13 @@ import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decora
 export class RecommendationsController {
   constructor(private readonly recommendations: RecommendationsService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Get('rebuy')
   @ApiOperation({ summary: 'Recompre para cliente recorrente' })
   @ApiQuery({ name: 'customerId', required: true })
   @ApiQuery({ name: 'limit', required: false })
   getRebuy(@Query('customerId') customerId: string, @Query('limit') limit?: string, @Req() req?: TenantContextRequest) {
+    assertCustomerOwnership(req?.user, customerId)
     return this.recommendations.getRebuy(customerId, req ? getTenantContext(req) : undefined, Number(limit) || 12)
   }
 

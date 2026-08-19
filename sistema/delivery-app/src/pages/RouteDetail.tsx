@@ -50,7 +50,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
   const [route, setRoute] = useState<DeliveryRoute | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
-  const [failModal, setFailModal] = useState<{ stopId: string; notes: string } | null>(null)
+  const [failModal, setFailModal] = useState<{ stopId: string; status: 'FAILED' | 'DELIVERED'; notes: string } | null>(null)
 
   const fetchRoute = useCallback(async () => {
     try {
@@ -253,7 +253,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                 {!isFinished && nextStatuses.map((ns) => (
                   <button
                     key={ns}
-                    onClick={() => ns === 'FAILED' ? setFailModal({ stopId: stop.id, notes: '' }) : handleUpdateStop(stop.id, ns)}
+                    onClick={() => (ns === 'FAILED' || ns === 'DELIVERED') ? setFailModal({ stopId: stop.id, status: ns, notes: '' }) : handleUpdateStop(stop.id, ns)}
                     disabled={actionLoading}
                     className={`h-10 px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 active:scale-[0.98] disabled:opacity-60 ${STATUS_ACTION_COLOR[ns] || 'bg-gray-600'}`}
                   >
@@ -279,9 +279,11 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
             className="relative w-full max-w-lg bg-white rounded-t-2xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Motivo da nao entrega</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              {failModal.status === 'DELIVERED' ? 'Como foi a entrega?' : 'Motivo da nao entrega'}
+            </h2>
             <textarea
-              placeholder="Ex: cliente ausente, endereco nao encontrado"
+              placeholder={failModal.status === 'DELIVERED' ? 'Ex: entregue ao proprio cliente na portaria' : 'Ex: cliente ausente, endereco nao encontrado'}
               value={failModal.notes}
               onChange={(e) => setFailModal((s) => s ? { ...s, notes: e.target.value } : s)}
               rows={3}
@@ -295,9 +297,9 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                 Cancelar
               </button>
               <button
-                onClick={() => handleUpdateStop(failModal.stopId, 'FAILED', failModal.notes)}
+                onClick={() => handleUpdateStop(failModal.stopId, failModal.status, failModal.notes)}
                 disabled={!failModal.notes.trim() || actionLoading}
-                className="flex-1 h-12 rounded-xl bg-red-600 text-white font-semibold disabled:opacity-40"
+                className={`flex-1 h-12 rounded-xl text-white font-semibold disabled:opacity-40 ${failModal.status === 'DELIVERED' ? 'bg-green-600' : 'bg-red-600'}`}
               >
                 {actionLoading ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Confirmar'}
               </button>

@@ -3,6 +3,7 @@ import { Home as HomeIcon, Search, ShoppingCart, User } from 'lucide-react'
 import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import { useFreeShipping } from '../hooks/useFreeShipping'
+import { useKnownZoneFreeAbove } from '../hooks/useKnownZoneFreeAbove'
 
 const ITEMS = [
   { to: '/', label: 'Home', icon: HomeIcon, match: (path: string) => path === '/' },
@@ -15,7 +16,8 @@ export function MobileBottomNav() {
   const location = useLocation()
   const { count, subtotal } = useCart()
   const { user } = useAuth()
-  const freeShipping = useFreeShipping(subtotal)
+  const zoneFreeAbove = useKnownZoneFreeAbove()
+  const freeShipping = useFreeShipping(subtotal, zoneFreeAbove)
 
   return (
     <>
@@ -48,7 +50,7 @@ export function MobileBottomNav() {
               <span className="absolute top-2 right-4 bg-[#5D082A] text-white text-label font-black rounded-full w-4 h-4 flex items-center justify-center">{count}</span>
             )}
             {freeShipping.enabled && freeShipping.achieved && (
-              <span className="absolute top-1.5 right-3 bg-emerald-500 rounded-full w-2.5 h-2.5 border-2 border-white" />
+              <span className="absolute top-1.5 left-3 bg-emerald-500 rounded-full w-2.5 h-2.5 border-2 border-white" />
             )}
             <span className="text-label font-medium">Carrinho</span>
           </Link>

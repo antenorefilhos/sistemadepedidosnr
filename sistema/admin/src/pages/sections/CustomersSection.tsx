@@ -264,7 +264,7 @@ export default function CustomersSection({
                     <TableCell className="px-6 py-4">
                       {customer.cpf ? (
                         <Badge variant="outline" className="rounded-md border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs font-medium text-gray-600">
-                          {customer.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
+                          {customer.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.***-$4')}
                         </Badge>
                       ) : (
                         <span className="text-gray-400">—</span>

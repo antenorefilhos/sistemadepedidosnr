@@ -450,7 +450,10 @@ export default function StaffSection() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleToggle(m.id)}
+                    onClick={() => {
+                      if (m.active && !window.confirm(`Desativar o acesso de ${m.name}?`)) return
+                      handleToggle(m.id)
+                    }}
                     className={`text-xs ${m.active ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}
                   >
                     {m.active ? <UserX size={14} /> : <UserCheck size={14} />}

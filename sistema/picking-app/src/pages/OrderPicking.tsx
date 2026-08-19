@@ -451,8 +451,8 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 key={item.id}
                 taskItem={item}
                 product={getProductForTaskItem(item)}
-                onReset={() => handleResetItem(item.id)}
-                onRemove={() => handleRemoveItem(item.id)}
+                onReset={() => { if (window.confirm('Desfazer a separacao deste item?')) handleResetItem(item.id) }}
+                onRemove={() => { if (window.confirm('Remover este item ja separado?')) handleRemoveItem(item.id) }}
                 disabled={actionLoading || isSentToCashier}
               />
             ))}
@@ -557,7 +557,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 </label>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setAdjustQty(q => Math.max(minValue, Number((q - step).toFixed(2))))}
+                    onClick={() => setAdjustQty(q => Math.max(minValue, Number((q - step).toFixed(3))))}
                     className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
                   >
                     −
@@ -571,7 +571,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                     className="flex-1 h-10 rounded-lg border border-gray-200 text-center text-lg font-semibold focus:outline-none focus:border-brand-500"
                   />
                   <button
-                    onClick={() => setAdjustQty(q => Number((q + step).toFixed(2)))}
+                    onClick={() => setAdjustQty(q => Number((q + step).toFixed(3)))}
                     className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
                   >
                     +
