@@ -13,6 +13,7 @@ import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
 import { getProductLineTotal, getProductPricePresentation, formatProductQuantity } from '../utils/productPricing'
 import { Trash2, Plus, Minus, ArrowLeft, ShoppingCart } from 'lucide-react'
 import { FreeShippingBar } from '../components/FreeShippingBar'
+import { readDeliveryVerification, subscribeDeliveryVerification } from '../services/deliveryVerification'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
@@ -36,8 +37,24 @@ function getAvailabilityLabel(product?: Product) {
   return { label: 'Disponivel', tone: 'border-emerald-100 bg-emerald-50 text-emerald-700' }
 }
 
+// Endereco confirmado nesta etapa (ou salvo de compra anterior no mesmo
+// aparelho, ver saveDeliveryVerification) ja diz a zona -- usa o freeAbove
+// dela em vez do global assim que existir, igual o Checkout ja faz.
+function useKnownZoneFreeAbove() {
+  const readZoneFreeAbove = () => {
+    const verification = readDeliveryVerification()
+    return verification && !verification.calc.outOfArea ? verification.calc.freeAbove : undefined
+  }
+  const [zoneFreeAbove, setZoneFreeAbove] = useState<number | null | undefined>(readZoneFreeAbove)
+
+  useEffect(() => subscribeDeliveryVerification(() => setZoneFreeAbove(readZoneFreeAbove())), [])
+
+  return zoneFreeAbove
+}
+
 export default function Cart() {
   const { user } = useAuth()
+  const zoneFreeAbove = useKnownZoneFreeAbove()
   const { cart, removeItem, updateQuantity, updateAllowSubstitution, clear, total, subtotal, discount, couponCode, applyCoupon, removeCoupon } = useCart()
   const [couponInput, setCouponInput] = useState(couponCode || '')
   const [couponFeedback, setCouponFeedback] = useState<string | null>(null)
@@ -272,7 +289,7 @@ export default function Cart() {
                 <h2 className="text-lg font-bold text-[#231F20] mb-4">Resumo do Pedido</h2>
 
                 <div className="mb-4">
-                  <FreeShippingBar subtotal={subtotal} />
+                  <FreeShippingBar subtotal={subtotal} zoneFreeAbove={zoneFreeAbove} />
                 </div>
 
                 <div className="mb-4 rounded-lg border border-[#E8D7B0] bg-[#FBFAF7] p-3 space-y-2">
