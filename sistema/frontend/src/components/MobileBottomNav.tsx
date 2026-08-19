@@ -32,7 +32,9 @@ export function MobileBottomNav() {
                 }`}
               >
                 {Icon ? (
-                  <Icon size={21} className={active ? 'fill-[#5D082A]' : ''} />
+                  // lucide-react desenha a maioria dos ícones como stroke, não shape sólido;
+                  // fill quebra o contorno interno (porta da casa, cabo da lupa) — cor basta, igual ShoppingCart/User
+                  <Icon size={21} strokeWidth={active ? 2.5 : 2} />
                 ) : (
                   <img src="/icons/icon-promo-menu.gif" alt="" width={34} height={34} className="-my-1.5 h-[34px] w-[34px] object-contain" />
                 )}
