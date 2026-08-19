@@ -148,9 +148,13 @@ export default function WinePage() {
       <footer className="py-20 text-center border-t border-[#D2BB8A]/10 opacity-30">
          <p className="luxury-text text-2xl text-[#D2BB8A]">Antenor & Filhos</p>
       </footer>
+      <MobileBottomNav />
     </div>
   )
 }
+
+const WINE_QUANTITY_STEPS = [1, 6, 12] as const
+type WineQuantityStep = (typeof WINE_QUANTITY_STEPS)[number]
 
 function WineCard({ product }: { product: Product }) {
   const { cart, addItem, removeItem, updateQuantity } = useCart()
@@ -158,6 +162,7 @@ function WineCard({ product }: { product: Product }) {
   const quantity = cartItem?.quantity || 0
   const [imageIndex, setImageIndex] = useState(0)
   const [imgError, setImgError] = useState(false)
+  const [step, setStep] = useState<WineQuantityStep>(1)
 
   const imageBaseUrl = `/uploads/products/${product.ean}`
   const imageCandidates = [`${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`]
@@ -165,16 +170,26 @@ function WineCard({ product }: { product: Product }) {
   const imageUrl = imageCandidates[imageIndex]
 
   const handleDecrease = () => {
-    if (quantity > 1) {
-      updateQuantity(product.id, quantity - 1)
+    if (quantity > step) {
+      updateQuantity(product.id, quantity - step)
     } else {
       removeItem(product.id)
     }
   }
 
   const handleIncrease = () => {
-    addItem(product, 1)
+    addItem(product, step)
     trackEvent('ADD_TO_CART', 'PRODUCT', product.id, { name: product.name, price: product.price })
+  }
+
+  const handleSelectStep = (nextStep: WineQuantityStep) => {
+    setStep(nextStep)
+    if (quantity > 0) {
+      updateQuantity(product.id, nextStep)
+    } else {
+      addItem(product, nextStep)
+      trackEvent('ADD_TO_CART', 'PRODUCT', product.id, { name: product.name, price: product.price })
+    }
   }
 
   return (
@@ -242,6 +257,23 @@ function WineCard({ product }: { product: Product }) {
           </div>
           
           <div className="mt-auto pt-3 border-t border-white/5">
+             <div className="flex items-center gap-1 mb-2" role="group" aria-label="Quantidade por lote">
+               {WINE_QUANTITY_STEPS.map((n) => (
+                 <button
+                   key={n}
+                   type="button"
+                   onClick={() => handleSelectStep(n)}
+                   className={`text-[10px] font-bold px-2 py-1.5 rounded-full border transition-colors ${
+                     step === n
+                       ? 'bg-[#D2BB8A] text-[#231F20] border-[#D2BB8A]'
+                       : 'border-[#D2BB8A]/30 text-[#D2BB8A]/70 hover:border-[#D2BB8A]'
+                   }`}
+                   aria-pressed={step === n}
+                 >
+                   {n}un
+                 </button>
+               ))}
+             </div>
              <div className="flex flex-wrap items-center gap-y-1">
                 <span className="text-lg font-bold text-[#D2BB8A] whitespace-nowrap">
                  {getProductPricePresentation(product).fullLabel}
