@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { PrismaService } from '../../common/prisma.service'
@@ -719,15 +720,30 @@ export class ProductsService {
       where['AND'] = [...(where['AND'] || []), categoryMappingFilter]
     }
 
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.product.findMany({
-        where,
-        orderBy: { name: 'asc' },
-        skip,
-        take: safeLimit,
-      }),
-      this.prisma.product.count({ where }),
-    ])
+    // Sem termo de busca (ex.: categoria "Todos"), ordem alfabetica pura sempre
+    // empilhava os mesmos produtos "A..." no topo -- morto comercialmente.
+    // Embaralha por um hash estavel (id + semente do dia): a ordem muda todo
+    // dia mas fica FIXA durante o dia inteiro, entao paginacao/scroll infinito
+    // nao pula nem duplica item entre uma pagina e outra. So busca os ids
+    // (`select`) pra ordenar -- as colunas completas so sao lidas depois, so
+    // pros ids da pagina atual.
+    // ponytail: ordena a lista inteira de ids em JS a cada pagina -- ok pro
+    // tamanho atual do catalogo, trocar por coluna materializada
+    // (ex.: sortRank recalculado 1x/dia num cron) se o catalogo crescer muito.
+    const daySeed = new Date().toISOString().slice(0, 10)
+    const idRows = await this.prisma.product.findMany({ where, select: { id: true } })
+    const orderedIds = idRows
+      .map((row) => ({ id: row.id, key: createHash('md5').update(row.id + daySeed).digest('hex') }))
+      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+      .map((row) => row.id)
+    const total = orderedIds.length
+    const pageIds = orderedIds.slice(skip, skip + safeLimit)
+
+    const rows = pageIds.length
+      ? await this.prisma.product.findMany({ where: { id: { in: pageIds } } })
+      : []
+    const rowsById = new Map(rows.map((row) => [row.id, row]))
+    const data = pageIds.map((id) => rowsById.get(id)).filter((row): row is (typeof rows)[number] => Boolean(row))
 
     return {
       data: data.map((item) => this.toCustomerFacingProduct(item)),
