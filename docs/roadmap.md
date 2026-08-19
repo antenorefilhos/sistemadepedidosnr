@@ -75,10 +75,36 @@ Sem isto no ar, todo cliente cai no CEP.
 
 ## Semana 4 — fechamento
 
-- [ ] **QA final e checklist de lançamento.**
+- [x] **Testar no PDV se o separador consegue puxar o pedido pelo código
+      exibido.** Homologação física de ponta a ponta em 19/08/2026: pedido
+      DAV 102028 aberto no Picking App, bipado e enviado ao caixa; no PDV
+      físico da loja o DAV foi importado com sucesso, produtos e preços
+      corretos, venda finalizada. Confirma o DAV como código suficiente —
+      a alternativa via `numero`/`cdEcomPedido` (ver [CLAUDE.md](../CLAUDE.md))
+      fica só como plano B, não é mais necessária.
+- [x] **QA final e checklist de lançamento.** Concluído em 19/08/2026 junto
+      com a homologação física de ponta a ponta (storefront → picking → PDV).
 
 ## Fila (não bloqueiam o lançamento)
 
+- [x] **Auditoria de segurança multi-agente (23 achados ALTA/MEDIA/BAIXA).**
+      Corrigida em 19/08/2026 em duas levas (`8a822d1` e `0e4ad34`). Destaques
+      ALTA: promoção `FREE_SHIPPING` descontava o frete duas vezes (cobrando
+      pedido a menos); race condition no limite de uso de cupom resolvida com
+      `recordPromotionUsage` em transação `SERIALIZABLE`; `admin-categories` sem
+      `@Roles('admin')` (qualquer cliente criava/edita/apagava categoria); IDOR
+      no `crm.controller` (`upsertConsent`/`getLoyalty`/
+      `createShoppingList`/`getReorderPayload`), `business.getCustomerContext`
+      e `recommendations.getRebuy` sem checagem de posse; `inventory.
+      releaseReservation` e edição de admin por admin abertos; scan de item
+      pesável no picking agora decodifica GS1 prefixo-2 da etiqueta de balança
+      e usa o peso real (não o pedido). MEDIA/BAIXA incluem resiliência do
+      `recordPromotionUsage` (não derruba mais o pedido), mimetype validado
+      antes de gravar no disco, transição de parada + observação obrigatória
+      no Entregue validados no servidor, `startTask` bloqueando dupla separação,
+      e vários ajustes de front (CPF mascarado, confirmações, 3 casas decimais
+      no picking, dot de frete grátis, z-index). Sem efeito no fluxo real de
+      checkout — todas rotas de self-service do cliente já passam pela sessão.
 - [x] **Auditar rotas do admin sem `@Throttle` explícito.** Era pior do que a
       suspeita original: 31 dos 36 controllers tinham zero decorator, incluindo
       a integração com o ERP inteira (50 rotas). `RelaxedThrottle()` corrige
@@ -111,6 +137,23 @@ Sem isto no ar, todo cliente cai no CEP.
       digita endereço manual (sem GPS) ou edita qualquer campo do
       endereço — hoje isso sempre cai em "fora da área" mesmo dentro da
       zona real, porque só tem validação por polígono.
+      **Janelas de horário resolvidas em 18/08/2026**: o cliente escolhe o
+      horário no checkout a partir das janelas de funcionamento do admin
+      (que já embutem o fechamento antecipado), com 15 min de antecedência
+      mínima e sem limite de capacidade — decisão de negócio, não usa a
+      máquina de `FulfillmentSlot`. O horário vira `hrCombinada` no ERP.
+- [x] **Retirada na loja no site.** O backend já suportava `PICKUP` inteiro
+      (checkout, entrega e o `retiraNaLoja` do Solidcom); faltava a opção na
+      tela do cliente. Na retirada pula endereço e validação de zona, frete
+      zero, e o cliente é avisado no WhatsApp quando o pedido fica pronto.
+- [x] **Integração de pedidos com a Solidcom consertada.** Nenhum pedido
+      chegava no ERP desde 17/08 (os atingidos eram todos pedidos de teste da
+      equipe, mas qualquer pedido real teria falhado igual). Causa: o
+      `GravaPedido` deles faz `.Length` em `obs` e nos campos de
+      `cliente.endereco` sem checar nulo, e não enviávamos nenhum dos dois.
+      No mesmo arco: retry que reenviava payload já falho, número do pedido
+      estourando o int32 do cancelamento, e CEP/telefone que nunca gravavam.
+      Armadilhas documentadas em [CLAUDE.md](../CLAUDE.md).
 - [x] **Notificador Windows reescrito como app Electron + apontado pra produção.**
       Era script Node solto (`node-notifier` + `systray2`), `.env` ainda
       configurado pro Docker local (`localhost:3005`, domínio inexistente
@@ -120,6 +163,15 @@ Sem isto no ar, todo cliente cai no CEP.
       `separador@antenorefilhos.com.br` (`role=picker`, menor privilégio) e
       aponta pra `https://api.antenorefilhos.com.br`. Testado ao vivo contra
       produção. Ver `Notificador/README.md`.
+- [x] **Alerta escalonado no Notificador** (19/08/2026). Antes avisava uma
+      vez só e pronto — pedido podia ficar parado sem ninguém perceber.
+      Agora escala pela idade real do pedido (`createdAt`, não por quando o
+      app viu): verde até 5 min, amarelo de 5 a 10, vermelho depois dos 10 —
+      e o vermelho repete a cada 5 min até a separação começar. Som distinto
+      por nível. O toast nativo do Windows foi abandonado (aparecia como
+      "electron", preto, sem cor e engolindo avisos em sequência): trocado
+      por uma janela própria no canto, com fila pra não se atropelarem.
+      Lógica isolada em `Notificador/escalation.js` com testes (`npm test`).
 
 ## Concluído antes deste plano
 
