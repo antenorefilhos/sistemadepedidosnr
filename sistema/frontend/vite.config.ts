@@ -29,7 +29,7 @@ export default defineConfig({
           'vendor-query': ['@tanstack/react-query'],
           'vendor-ui': ['lucide-react', 'framer-motion'],
           'vendor-http': ['axios'],
-          'vendor-misc': ['react-helmet-async', 'react-hot-toast', 'date-fns', 'clsx', 'tailwind-merge'],
+          'vendor-misc': ['react-helmet-async', 'react-hot-toast', 'clsx', 'tailwind-merge'],
         }
       }
     },
