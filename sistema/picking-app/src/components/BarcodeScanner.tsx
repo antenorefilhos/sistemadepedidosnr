@@ -14,6 +14,8 @@ export default function BarcodeScanner({
   const [manualCode, setManualCode] = useState('')
   const streamRef = useRef<MediaStream | null>(null)
   const detectorRef = useRef<any>(null)
+  const zxingRef = useRef<any>(null)
+  const zxingControlsRef = useRef<{ stop: () => void } | null>(null)
   const scanningRef = useRef(true)
 
   useEffect(() => {
@@ -36,9 +38,27 @@ export default function BarcodeScanner({
             formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'],
           })
           scanLoop()
-        } else {
+          return
+        }
+
+        // Safari/iOS nao tem BarcodeDetector (e so do Chromium). Sem isto o
+        // iPhone abria a camera e caia direto na digitacao manual. O ZXing
+        // decodifica em JS; so carrega aqui pra nao pesar quem tem o nativo.
+        try {
+          const { BrowserMultiFormatReader } = await import('@zxing/browser')
+          if (!mounted) return
+          const reader = new BrowserMultiFormatReader()
+          zxingRef.current = reader
+          const controls = await reader.decodeFromVideoElement(videoRef.current!, (result) => {
+            if (!result || !scanningRef.current) return
+            scanningRef.current = false
+            onResult(result.getText())
+          })
+          zxingControlsRef.current = controls
+        } catch {
+          if (!mounted) return
           setManualFallback(true)
-          setError('Scanner nao suportado neste navegador. Digite o codigo manualmente.')
+          setError('Nao foi possivel iniciar a leitura. Digite o codigo manualmente.')
         }
       } catch {
         if (!mounted) return
@@ -74,6 +94,10 @@ export default function BarcodeScanner({
     return () => {
       mounted = false
       scanningRef.current = false
+      // Sem parar o ZXing a camera continua ligada depois de fechar o modal.
+      zxingControlsRef.current?.stop()
+      zxingControlsRef.current = null
+      zxingRef.current = null
       streamRef.current?.getTracks().forEach((t) => t.stop())
     }
   }, [onResult])
