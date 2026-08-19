@@ -41,6 +41,8 @@ export default function NotificationBell() {
     if (pushEnabled) return 'Notificações ativas neste navegador.'
     if (pushGranted) return 'Permissão concedida; conclua a ativação.'
     if (pushDenied) return 'Permissão bloqueada no navegador.'
+    if (pushStatus === 'ios-needs-install') return 'No iPhone/iPad, toque em Compartilhar e depois em "Adicionar à Tela de Início" para poder ativar notificações — o Safari não permite isso numa aba comum.'
+    if (pushStatus === 'ios-outdated') return 'Atualize o iOS para a versão 16.4 ou mais recente para ativar notificações.'
     if (pushStatus === 'unsupported') return 'Navegador sem suporte a push.'
     if (pushStatus === 'missing-key') return 'Notificações indisponíveis neste ambiente.'
     if (pushStatus === 'error') return 'Não foi possível ativar agora.'
@@ -88,9 +90,11 @@ export default function NotificationBell() {
                 <p className="text-sm font-semibold text-[#231F20]">Avisos no navegador</p>
                 <p className={cn(
                   'mt-0.5 text-xs',
-                  pushDenied || pushStatus === 'error' || pushStatus === 'unsupported'
+                  pushDenied || pushStatus === 'error' || pushStatus === 'unsupported' || pushStatus === 'ios-outdated'
                     ? 'font-semibold text-red-600'
-                    : 'text-gray-500',
+                    : pushStatus === 'ios-needs-install'
+                      ? 'text-gray-600'
+                      : 'text-gray-500',
                 )}>
                   {pushMessage}
                 </p>

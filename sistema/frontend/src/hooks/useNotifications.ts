@@ -17,8 +17,27 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray
 }
 
+// iOS/iPadOS só suporta Web Push a partir do 16.4, e só quando o site foi
+// instalado via "Adicionar à Tela de Início" — nunca numa aba normal, mesmo
+// em versão nova. iPad em modo desktop se identifica como Mac no userAgent,
+// por isso o teste extra de touch points.
+function isIOS() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  if (/iPad|iPhone|iPod/.test(ua)) return true
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+}
+
+function isStandalone() {
+  if (typeof window === 'undefined') return false
+  return (window.navigator as unknown as { standalone?: boolean }).standalone === true
+    || window.matchMedia('(display-mode: standalone)').matches
+}
+
 export function useNotifications() {
-  const [pushStatus, setPushStatus] = useState<'idle' | 'enabled' | 'denied' | 'unsupported' | 'missing-key' | 'error'>('idle')
+  const [pushStatus, setPushStatus] = useState<
+    'idle' | 'enabled' | 'denied' | 'unsupported' | 'ios-needs-install' | 'ios-outdated' | 'missing-key' | 'error'
+  >('idle')
   const canUsePush = useMemo(() => (
     typeof window !== 'undefined'
     && 'serviceWorker' in navigator
@@ -70,7 +89,11 @@ export function useNotifications() {
 
   const requestPushPermission = useCallback(async () => {
     if (!canUsePush) {
-      setPushStatus('unsupported')
+      if (isIOS()) {
+        setPushStatus(isStandalone() ? 'ios-outdated' : 'ios-needs-install')
+      } else {
+        setPushStatus('unsupported')
+      }
       return false
     }
 
