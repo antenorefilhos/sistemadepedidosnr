@@ -48,7 +48,10 @@ de `cliente.endereco`. Mandar `obs: null` ou omitir `cliente.endereco` derruba
 o endpoint com `400 "Object reference not set to an instance of an object"`,
 que é `NullReferenceException` vazando, não erro de validação.
 
-Isso travou **todo pedido** de 17/08 a 18/08/2026 — inclusive de cliente real.
+Isso travou **todo pedido** de 17/08 a 18/08/2026. Os pedidos atingidos eram
+todos de teste da equipe (a loja testa o sistema todo dia conforme o
+desenvolvimento avança), mas qualquer pedido real na janela teria falhado
+igual.
 Não é erro de payload inválido: o payload passa na validação deles e quebra
 dentro da lógica de negócio. Por isso nenhum campo do nosso lado "faltava" no
 sentido do schema — o swagger deles marca os dois como opcionais.
@@ -63,6 +66,28 @@ recebido **e o stack trace com número de linha**. É a fonte de verdade — nos
 camada de integração só guarda `error.message` e perde o corpo da resposta.
 Atenção: metadado de tamanho de arquivo via SMB vem desatualizado (mostra 0
 byte em log de 1,8 GB) — leia o conteúdo, não confie no `Length`.
+
+### Em aberto: o código do PDV depende do retorno da Solidcom
+
+O separador precisa de um número pra puxar o pedido no PDV (o id interno é
+UUID, tem letra, o PDV recusa). Hoje mostramos o **DAV**, que vem na resposta
+do `PostPedido` e é gravado em `orders.erpDav`.
+
+Isso cria uma dependência do retorno deles: pedido que não sincronizou fica
+"sem DAV" no app de separação. Na prática o pedido também não existe no PDV
+nesse caso, então o aviso reflete a realidade — mas o fallback atual é ruim:
+cai no id interno, que não serve pra digitar em lugar nenhum.
+
+**Alternativa não testada**, se o DAV se mostrar insuficiente: usar o nosso
+`numero` (`toExternalOrderNumber`, o hash int32) como código exibido. Ele é
+o `cdEcomPedido` do lado deles, aparece no CRM como "Código eCommerce", é
+numérico e existe desde a criação do pedido — sem depender de resposta.
+Falta confirmar no PDV se a tecla "venda automática" aceita esse código; o
+suporte disse que dá pra puxar por "venda automática" ou por DAV, mas não
+testamos qual número a primeira espera. Se aceitar, o DAV vira conveniência
+(6 dígitos, mais curto), não requisito.
+
+Decisão de 19/08/2026: seguir com o DAV até testar no PDV real.
 
 ### Pendência conhecida: cancelamento não funciona
 
@@ -173,10 +198,12 @@ copiada pro backup pré-formatação desta máquina. Se for reformatar de novo:
 ## Realidade do estoque
 
 ~82% do catálogo Solidcom tem estoque zero. Vitrine vazia geralmente é dado real,
-não bug. O sync roda sozinho (`ERP_SYNC_INCREMENTAL_CRON`, de hora em hora, mais
-sync completo diário às 4h) — não é mais manual, mas o dado do ERP ainda costuma
-vir errado, especialmente em item de produção própria (padaria/açougue da loja):
-já vimos `stock` negativo (ex.: -2897) sincronizado direto do Solidcom.
+não bug. O sync roda sozinho (`ERP_SYNC_INCREMENTAL_CRON`, de hora em hora — só
+grava quando o ERP acusa mudança, silêncio no log não quer dizer que parou —
+mais sync completo em `ERP_SYNC_CRON`, 4x ao dia desde 18/08/2026) — não é mais
+manual, mas o dado do ERP ainda costuma vir errado, especialmente em item de
+produção própria (padaria/açougue da loja): já vimos `stock` negativo
+(ex.: -2897) sincronizado direto do Solidcom.
 
 `syncOption` (`SEMPRE` / `NUNCA` / `ESTOQUE`, controlado no cadastro do produto
 no Solidcom) é o jeito de contornar isso: `SEMPRE` marca o produto como
@@ -188,3 +215,88 @@ só olhavam o número de estoque sincronizado, então um produto `SEMPRE` com
 estoque negativo no ERP passava na vitrine mas travava no fechamento do
 pedido com "alguns itens ficaram indisponíveis". Corrigido: os dois agora
 tratam `syncOption='SEMPRE'` como sempre disponível, igual à vitrine.
+
+## Armadilha: dois models de zona de entrega no schema, só um está vivo
+
+`DeliveryZone` (tabela `delivery_zones`) é onde a zona real ("Chafariz",
+fee/freeAbove) vive — criada pela tela "Taxas de Entrega" do admin, é o que
+`DeliveryService.calculate()` usa de verdade no fallback `calculateLegacyZone`.
+
+`DeliveryArea` (tabela `delivery_areas`) é um sistema mais novo e mais genérico
+(regra em JSON, prioridade, admin CRUD completo no backend) que foi projetado
+pra substituir o `DeliveryZone` — mas **nunca ganhou tela no admin**. Tem rota
+REST completa (`listAreas`/`createArea`/`updateArea`/`deleteArea`), mas nenhum
+componente do admin chama `createArea`/`updateArea`/`deleteArea`; a única
+aparição na UI é um aviso somente-leitura ("N área(s) tem prioridade sobre
+estas zonas") na tela de zonas. Resultado: `delivery_areas` está com **zero
+linhas** em produção, sempre foi.
+
+Isso já causou um bug real (18-19/08/2026): a correção do antifraude de frete
+grátis consultou `this.prisma.deliveryArea` em vez de `deliveryZone` — sintaxe
+válida, sempre compila, sempre roda, só que a query nunca acha nada porque a
+tabela está vazia. Nenhum erro, nenhum teste falha (o mock do spec também
+usava o model errado) — só o comportamento fica sempre "zona não encontrada".
+
+Se for mexer em qualquer lógica de zona/frete: confirme em qual tabela o dado
+realmente está antes de escrever a query (`SELECT * FROM delivery_zones` — não
+`delivery_areas`). Se algum dia `DeliveryArea` ganhar uma tela e passar a ter
+linhas, `DeliveryService.calculate()` já dá prioridade a ele automaticamente
+(`findMatchingArea` roda antes do fallback) — mas qualquer código que hoje
+consulta `DeliveryZone` diretamente (como `isFreeShippingEarnedByZone` em
+`orders.service.ts`) vai parar de reconhecer zonas cadastradas só no sistema
+novo. Ver `sistema/backend/src/modules/delivery/delivery.service.ts`.
+
+## Frete grátis: zona sobrepõe o global, sempre — dois lugares aplicam a regra
+
+Regra de negócio (confirmada com o Jonathan em 19/08/2026): frete grátis
+acontece (1) no primeiro pedido de um cadastro novo (liga/desliga no admin) ou
+(2) quando o subtotal bate um valor mínimo — configurável globalmente
+(`brand.freeShippingThreshold`, tela Marca) ou por zona
+(`DeliveryZone.freeAbove`, tela Taxas de Entrega), **e a zona sempre vence o
+global quando configurada**.
+
+Essa precedência precisa ser respeitada em dois lugares independentes, e até
+19/08/2026 só o backend (que decide o que cobrar) sabia disso:
+
+- **Backend** (`OrdersService.isFreeShippingEarnedByZone`): valida o frete
+  zero contra `DeliveryZone` antes do global, ao criar o pedido — é o que
+  decide se cobra ou não.
+- **Frontend** (`useFreeShipping`, `FreeShippingBar`, badge "Frete grátis
+  incluído!" no `Checkout.tsx`): até 19/08/2026 usava só
+  `brand.freeShippingThreshold`, cego a zona. Como o global está `null` em
+  produção, a badge "Frete grátis incluído!" nunca aparecia mesmo quando o
+  cliente batia o mínimo da zona (frete cobrado certo, R$0, só sem a
+  confirmação visual) — e a barra de progresso ficava visível durante
+  **retirada na loja**, prometendo frete grátis por valor num fluxo que já
+  não cobra frete nenhum. Corrigido: `useFreeShipping(subtotal, zoneFreeAbove)`
+  aceita o valor da zona (via `checkoutQuote?.delivery.freeAbove ??
+  deliveryCalc?.freeAbove`) e sobrepõe o global; a barra some em `isPickup`.
+
+## Armadilha: preview de frete na etapa de endereço nunca sabia se era grátis
+
+`deliveryAPI.calculate()` (usado no preview da etapa de endereço, antes da
+sessão de checkout existir) não mandava o subtotal do carrinho — o backend só
+aplica `freeAbove` quando recebe subtotal, então o preview sempre mostrava a
+taxa cheia mesmo pra quem já tinha batido o mínimo. O valor real cobrado
+sempre esteve certo (recalculado depois com o subtotal de verdade via
+`pricingService.quote()`), era só o preview que mentia por alguns segundos.
+Corrigido: `verifyDeliveryForAddress(address, subtotal)` repassa o subtotal.
+
+## `POST /orders` era alcançável por qualquer cliente com `delivery` cru
+
+Achado em revisão de segurança (19/08/2026), não explorado em produção até
+onde se sabe. `POST /orders` aceitava `delivery` e `deliveryAreaId` direto do
+corpo da requisição, sem recalcular contra o endereço/zona reais — só
+`customerId` tinha checagem de posse (`assertCustomerOwnership`). Um cliente
+autenticado na própria conta podia declarar qualquer zona com fee baixo e
+zerar o frete sem estar nela de verdade.
+
+Nenhum frontend nosso (storefront ou admin) chama essa rota — o cliente real
+sempre fecha pedido via `/checkout/sessions/:id/confirm`, que recalcula
+frete/zona/desconto no servidor e chama `ordersService.create()` por dentro
+(chamada direta ao service, não passa por este controller/guard). Corrigido
+restringindo a rota a `@Roles('admin')`, sem efeito no fluxo real de
+checkout. Se um dia precisar de criação de pedido self-service fora da sessão
+de checkout (ex.: app mobile), a correção certa lá é recalcular `delivery` a
+partir do endereço/zona no próprio `OrdersService.create()`, não reabrir a
+rota confiando no valor recebido.

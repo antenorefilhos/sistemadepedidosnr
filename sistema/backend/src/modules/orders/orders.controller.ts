@@ -200,13 +200,23 @@ export class OrdersController {
     return order
   }
 
-  @UseGuards(JwtAuthGuard, TenantAccessGuard)
+  // Admin-only de proposito: nenhum frontend nosso (storefront ou admin)
+  // chama esta rota -- o cliente real sempre fecha pedido via
+  // /checkout/sessions/:id/confirm, que recalcula frete/zona/desconto no
+  // servidor antes de chamar ordersService.create() por dentro (chamada
+  // direta ao service, nao passa por este controller/guard). Aberta pra
+  // qualquer cliente autenticado, esta rota aceitava `delivery` e
+  // `deliveryAreaId` crus do corpo da requisicao sem checar contra o
+  // endereco/zona reais -- um cliente na propria conta podia declarar
+  // qualquer zona com fee baixo e zerar o frete sem estar nela de verdade.
+  @UseGuards(JwtAuthGuard, RolesGuard, TenantAccessGuard)
+  @Roles('admin')
   @Post()
   @Throttle({ checkout: { limit: 30, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Criar novo pedido',
-    description: 'Cria um novo pedido no sistema.',
+    summary: 'Criar novo pedido (uso administrativo/manual)',
+    description: 'Cria um novo pedido no sistema. O cliente final fecha pedido via /checkout/sessions/:id/confirm.',
   })
   @ApiResponse({
     status: 201,

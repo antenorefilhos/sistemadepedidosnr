@@ -146,7 +146,14 @@ export async function forwardGeocodeAddressByMapbox(address: DeliveryAddressSnap
   return { lat: Number(lat), lng: Number(lng) }
 }
 
-export async function verifyDeliveryForAddress(address: DeliveryAddressSnapshot): Promise<DeliveryCalcSnapshot> {
+export async function verifyDeliveryForAddress(
+  address: DeliveryAddressSnapshot,
+  // Sem isto o preview da etapa de endereco nunca reconhece frete gratis --
+  // o backend so aplica freeAbove quando recebe o subtotal (calculate() sem
+  // ele sempre devolve isFree:false). O valor real cobrado ja calculava
+  // certo depois, mas o cliente via a taxa cheia antes da hora.
+  subtotal?: number,
+): Promise<DeliveryCalcSnapshot> {
   const zipCode = address.zipCode?.trim() || undefined
 
   // A API pode omitir outOfArea; normalizamos aqui num unico ponto. Guarda
@@ -174,23 +181,23 @@ export async function verifyDeliveryForAddress(address: DeliveryAddressSnapshot)
   // zona. Coordenada so chega aqui vinda do GPS, e `dropStaleCoords` a descarta
   // se o cliente editar o endereco depois.
   if (address.lat != null && address.lng != null) {
-    const res = await deliveryAPI.calculate(zipCode, address.lat, address.lng)
+    const res = await deliveryAPI.calculate(zipCode, address.lat, address.lng, subtotal)
     return toSnapshot(res.data, { lat: address.lat, lng: address.lng })
   }
 
   if (!MAPBOX_TOKEN) {
-    const res = await deliveryAPI.calculate(zipCode)
+    const res = await deliveryAPI.calculate(zipCode, undefined, undefined, subtotal)
     return toSnapshot(res.data)
   }
 
   try {
     const coords = await forwardGeocodeAddressByMapbox(address)
-    const res = await deliveryAPI.calculate(zipCode, coords.lat, coords.lng)
+    const res = await deliveryAPI.calculate(zipCode, coords.lat, coords.lng, subtotal)
     return toSnapshot(res.data, coords)
   } catch {
     // Mapbox fora do ar nao pode impedir a compra: sem coordenada o backend
     // ainda resolve por faixa de CEP.
-    const res = await deliveryAPI.calculate(zipCode)
+    const res = await deliveryAPI.calculate(zipCode, undefined, undefined, subtotal)
     return toSnapshot(res.data)
   }
 }

@@ -5,10 +5,12 @@ import { formatPrice } from '../utils/format'
 
 interface Props {
   subtotal: number
+  /** Ver useFreeShipping: zona sobrepõe o global quando conhecida. */
+  zoneFreeAbove?: number | null
 }
 
-export function FreeShippingBar({ subtotal }: Props) {
-  const info = useFreeShipping(subtotal)
+export function FreeShippingBar({ subtotal, zoneFreeAbove }: Props) {
+  const info = useFreeShipping(subtotal, zoneFreeAbove)
   const prevAchieved = useRef(false)
   const [pulse, setPulse] = useState(false)
 

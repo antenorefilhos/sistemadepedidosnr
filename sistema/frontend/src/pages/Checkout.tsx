@@ -66,7 +66,6 @@ export default function Checkout() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { cart, total, subtotal, clear, couponCode, discount } = useCart()
-  const freeShipping = useFreeShipping(subtotal)
   const guestCheckoutEnabled = (import.meta.env.VITE_GUEST_CHECKOUT_ENABLED ?? 'true') !== 'false'
   const createAddress = useCreateAddress()
   const createBackendCart = useCreateBackendCart()
@@ -362,6 +361,9 @@ export default function Checkout() {
   const quotedDiscount = checkoutQuote?.price.discountAmount ?? discount
   const quotedDeliveryFee = checkoutQuote?.delivery.fee ?? deliveryCalc?.fee ?? null
   const deliveryZoneName = checkoutQuote?.delivery.zoneName ?? deliveryCalc?.zoneName ?? null
+  // Zona sobrepõe o global (regra de negócio) assim que conhecida -- antes
+  // disso (nenhum endereço validado ainda) usa o global como estimativa.
+  const freeShipping = useFreeShipping(subtotal, checkoutQuote?.delivery.freeAbove ?? deliveryCalc?.freeAbove)
   const deliveryIsFree = quotedDeliveryFee === 0 || (!checkoutQuote && freeShipping.achieved)
   const checkoutIsPending =
     createAddress.isPending ||
@@ -408,19 +410,22 @@ export default function Checkout() {
           return
         }
 
-        const calc = await verifyDeliveryForAddress({
-          street: addressToValidate.street,
-          number: addressToValidate.number,
-          complement: formData.complement || null,
-          neighborhood: addressToValidate.neighborhood,
-          city: addressToValidate.city,
-          state: addressToValidate.state,
-          zipCode: addressToValidate.zipCode,
-          // Sem repassar isto, o calculo cairia no centroide do endereco e a
-          // zona por poligono erraria quem mora perto da divisa.
-          lat: formData.lat,
-          lng: formData.lng,
-        })
+        const calc = await verifyDeliveryForAddress(
+          {
+            street: addressToValidate.street,
+            number: addressToValidate.number,
+            complement: formData.complement || null,
+            neighborhood: addressToValidate.neighborhood,
+            city: addressToValidate.city,
+            state: addressToValidate.state,
+            zipCode: addressToValidate.zipCode,
+            // Sem repassar isto, o calculo cairia no centroide do endereco e a
+            // zona por poligono erraria quem mora perto da divisa.
+            lat: formData.lat,
+            lng: formData.lng,
+          },
+          subtotal,
+        )
         setDeliveryCalc(calc)
         resolvedCoordsRef.current = { lat: calc.lat ?? null, lng: calc.lng ?? null }
 
@@ -650,9 +655,14 @@ export default function Checkout() {
               ))}
               {cart.length > 3 && <p className="text-xs text-[#5d4f33]">+{cart.length - 3} item(ns) no resumo final.</p>}
             </div>
-            <div className="mt-3">
-              <FreeShippingBar subtotal={subtotal} />
-            </div>
+            {!isPickup && (
+              <div className="mt-3">
+                <FreeShippingBar
+                  subtotal={subtotal}
+                  zoneFreeAbove={checkoutQuote?.delivery.freeAbove ?? deliveryCalc?.freeAbove}
+                />
+              </div>
+            )}
           </div>
         )}
         {step === 'confirmation' ? (

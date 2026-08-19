@@ -92,6 +92,7 @@ export interface CheckoutQuoteResponse {
     mode: string
     fee: number | null
     rawFee: number | null
+    freeAbove: number | null
     zoneName: string | null
     outOfArea: boolean
     validSlot: boolean
@@ -361,7 +362,7 @@ export const addressesAPI = {
 
 // Delivery
 export const deliveryAPI = {
-  calculate: (cep?: string, lat?: number, lng?: number) =>
+  calculate: (cep?: string, lat?: number, lng?: number, subtotal?: number) =>
     api.get<{
       fee: number | null
       freeAbove: number | null
@@ -371,7 +372,14 @@ export const deliveryAPI = {
       outOfArea?: boolean
     }>(
       '/delivery/calculate',
-      { params: { ...(cep ? { cep } : {}), ...(lat != null ? { lat } : {}), ...(lng != null ? { lng } : {}) } },
+      {
+        params: {
+          ...(cep ? { cep } : {}),
+          ...(lat != null ? { lat } : {}),
+          ...(lng != null ? { lng } : {}),
+          ...(subtotal != null ? { subtotal } : {}),
+        },
+      },
     ),
   slots: (type = 'DELIVERY') =>
     api.get<FulfillmentSlot[]>('/delivery/slots', { params: { type } }),
