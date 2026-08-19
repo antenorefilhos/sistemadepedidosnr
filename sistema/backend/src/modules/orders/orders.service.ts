@@ -1381,17 +1381,25 @@ export class OrdersService {
     deliveryAreaId: string | undefined,
     subtotal: number,
   ): Promise<boolean> {
-    if (!deliveryAreaId) return false
+    // As zonas reais (com fee/freeAbove) moram em DeliveryZone -- DeliveryArea
+    // e outro model, hoje sem nenhuma linha em producao. Usar o model errado
+    // aqui fazia essa checagem nunca reconhecer frete gratis legitimo.
+    const zone = deliveryAreaId
+      ? await this.prisma.deliveryZone.findFirst({
+          where: { id: deliveryAreaId, ...tenantStoreWhere(context) },
+          select: { fee: true, freeAbove: true },
+        })
+      : null
 
-    const zone = await this.prisma.deliveryArea.findFirst({
-      where: { id: deliveryAreaId, ...tenantStoreWhere(context) },
-      select: { fee: true, freeAbove: true },
-    })
-    if (!zone) return false
+    if (zone) {
+      if (Number(zone.fee) === 0) return true
+      if (zone.freeAbove != null) return subtotal >= Number(zone.freeAbove)
+    }
 
-    if (Number(zone.fee) === 0) return true
-
-    return zone.freeAbove != null && subtotal >= Number(zone.freeAbove)
+    // Zona sem freeAbove proprio (ou pedido sem zona, ex.: retirada) cai no
+    // valor minimo global configurado em Admin > Marca.
+    const brand = await this.brandService.get()
+    return brand.freeShippingThreshold != null && subtotal >= Number(brand.freeShippingThreshold)
   }
 
   private async sendWhatsAppMessage(order: OrderWithRelations, changeAmount?: string): Promise<WhatsAppDispatchResult | null> {

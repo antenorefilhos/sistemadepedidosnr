@@ -226,7 +226,7 @@ describe('OrdersService', () => {
       // O antifraude de "frete gratis so no primeiro pedido" barrava QUALQUER
       // pedido com frete zero, inclusive quem atingiu o valor minimo da zona.
       mockPrismaService.order.findFirst.mockResolvedValue({ id: 'pedido-anterior' });
-      mockPrismaService.deliveryArea = {
+      mockPrismaService.deliveryZone = {
         findFirst: jest.fn().mockResolvedValue({ fee: 12, freeAbove: 100 }),
       };
       mockPrismaService.order.create.mockResolvedValue({
@@ -246,7 +246,7 @@ describe('OrdersService', () => {
         } as any),
       ).resolves.toBeDefined();
 
-      expect(mockPrismaService.deliveryArea.findFirst).toHaveBeenCalled();
+      expect(mockPrismaService.deliveryZone.findFirst).toHaveBeenCalled();
     });
 
     it('should create order with correct subtotal calculation with promotional prices', async () => {
