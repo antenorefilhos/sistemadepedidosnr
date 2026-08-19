@@ -62,6 +62,7 @@ export default function Checkout() {
     }
   }, [brandForSchedule.businessHours])
   const [whatsappDispatch, setWhatsappDispatch] = useState<WhatsAppDispatch | null>(null)
+  const whatsappAutoOpenFailedRef = useRef(false)
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null)
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -120,8 +121,11 @@ export default function Checkout() {
     }
   }, [guestCheckoutEnabled, user, navigate])
 
+  // Fallback: se o window.open sincrono (no handler de confirmacao, logo
+  // apos a resposta da API) tambem for bloqueado, tenta de novo aqui. So
+  // dispara se a ref indicar que a tentativa sincrona falhou.
   useEffect(() => {
-    if (step === 'confirmation' && whatsappDispatch?.url) {
+    if (step === 'confirmation' && whatsappDispatch?.url && whatsappAutoOpenFailedRef.current) {
       const timer = setTimeout(() => {
         window.open(whatsappDispatch.url, '_blank', 'noopener,noreferrer')
       }, 1500)
@@ -546,6 +550,16 @@ export default function Checkout() {
 
         setCreatedOrder(orderResponse.data.order)
         setWhatsappDispatch(orderResponse.data.whatsapp)
+        // Abre aqui, ainda na cadeia sincrona da promise disparada pelo
+        // clique -- navegador so libera window.open sem gesto explicito se
+        // for "proximo" o bastante da acao do usuario. No useEffect (varios
+        // renders depois de um await) o Safari/Chrome mobile bloqueia
+        // silenciosamente, sem erro. Se ainda assim for bloqueado (retorna
+        // null), marca a ref pro useEffect abaixo tentar de novo.
+        if (orderResponse.data.whatsapp?.url) {
+          const popup = window.open(orderResponse.data.whatsapp.url, '_blank', 'noopener,noreferrer')
+          whatsappAutoOpenFailedRef.current = !popup
+        }
         orderIdempotencyKeyRef.current = null
         backendCartIdRef.current = null
         checkoutSessionIdRef.current = null
