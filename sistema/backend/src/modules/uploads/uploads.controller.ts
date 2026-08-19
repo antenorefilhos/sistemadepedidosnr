@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  Delete,
   Post,
   UseInterceptors,
   UploadedFile,
@@ -24,7 +25,12 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp
 // EAN so tem digitos; sem essa checagem, :ean vira parte literal de um path
 // (filename do multer e destino do sharp) e um staff comprometido/token vazado
 // poderia escrever fora de uploads/products via "../" no parametro da rota.
-const EAN_PARAM_RE = /^[0-9]{4,20}$/;
+//
+// Aceita a partir de 1 digito: o catalogo usa codigo interno curto pra
+// hortifruti e producao propria (ex.: 6 = ALFACE, 303 = AIPIM). Exigir 4+
+// bloqueava foto de ~890 produtos ativos com "EAN invalido". So digitos ja
+// impede path traversal, o tamanho minimo nao acrescentava seguranca.
+const EAN_PARAM_RE = /^[0-9]{1,20}$/;
 
 function assertValidEan(ean: string | undefined): string {
   if (!ean || !EAN_PARAM_RE.test(ean)) {
@@ -123,6 +129,9 @@ export class UploadsController {
     
     const suffix = slot === '2' ? '_2' : '';
     const finalPath = join(finalDir, `${ean}${suffix}.webp`);
+    // Escreve num arquivo a parte e so entao substitui: se o sharp falhar no
+    // meio, a foto antiga continua intacta em vez de virar arquivo truncado.
+    const stagingPath = `${finalPath}.new`;
 
     try {
       await sharp(tempPath)
@@ -131,22 +140,52 @@ export class UploadsController {
           withoutEnlargement: true,
         })
         .webp({ quality: 80 })
-        .toFile(finalPath);
+        .toFile(stagingPath);
 
-      // Remove temp file
-      if (fs.existsSync(tempPath)) {
-        fs.unlinkSync(tempPath);
-      }
+      fs.renameSync(stagingPath, finalPath);
 
       return {
         success: true,
         url: `/uploads/products/${ean}${suffix}.webp?v=${Date.now()}`,
       };
     } catch (error) {
+      if (fs.existsSync(stagingPath)) {
+        fs.unlinkSync(stagingPath);
+      }
+      throw new BadRequestException('Erro ao processar imagem: ' + error.message);
+    } finally {
       if (fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);
       }
-      throw new BadRequestException('Erro ao processar imagem: ' + error.message);
+    }
+  }
+
+  /**
+   * Apaga a foto do disco de verdade -- nao basta sumir da tela, senao o
+   * armazenamento da VPS vai acumulando imagem orfa.
+   */
+  @Delete(['product/:ean', 'product/:ean/:slot'])
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  async deleteProductImage(@Param('ean') ean: string, @Param('slot') slot: string | undefined) {
+    assertValidEan(ean);
+    if (slot && slot !== '2') {
+      throw new BadRequestException('Slot invalido.');
+    }
+
+    const suffix = slot === '2' ? '_2' : '';
+    const filePath = join('./uploads/products', `${ean}${suffix}.webp`);
+
+    if (!fs.existsSync(filePath)) {
+      // Idempotente: se ja nao existe, o resultado desejado ja e o atual.
+      return { success: true, deleted: false };
+    }
+
+    try {
+      fs.unlinkSync(filePath);
+      return { success: true, deleted: true };
+    } catch (error) {
+      throw new BadRequestException('Erro ao apagar imagem: ' + error.message);
     }
   }
 }

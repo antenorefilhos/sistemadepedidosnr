@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { X, Package, Tag, BarChart2, Save, Camera, UploadCloud, Loader2, Store, CheckCircle2, AlertCircle, Scale } from 'lucide-react'
+import { X, Package, Tag, BarChart2, Save, Camera, UploadCloud, Loader2, Store, CheckCircle2, AlertCircle, Scale, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -255,6 +255,26 @@ export default function ProductSlideOver({
     }
   }
 
+  const handleImageDelete = async (slot: '1' | '2') => {
+    const setUpload = slot === '1' ? setUploading : setUploading2
+    const setError = slot === '1' ? setUploadError : setUploadError2
+    const setImgErr = slot === '1' ? setImgError : setImgError2
+
+    setUpload(true)
+    setError(null)
+
+    try {
+      await productsAPI.deleteImage(productForm.ean, slot)
+      setImgErr(true)
+    } catch (err: any) {
+      console.error(err)
+      const msg = err.response?.data?.message || err.message || 'Erro ao apagar a imagem'
+      setError(Array.isArray(msg) ? msg.join(', ') : msg)
+    } finally {
+      setUpload(false)
+    }
+  }
+
   const formatFriendlyCategoryLabel = (value: string) =>
     formatClassificationOptionLabel(value)
       .replace(/^\d+\s*-\s*/, '')
@@ -351,18 +371,31 @@ export default function ProductSlideOver({
                         )}
                       </div>
                       
-                      <label className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#5d082a] bg-[#fff0f5] border border-[#ead7df] hover:border-[#5d082a] cursor-pointer transition ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                        <UploadCloud size={13} />
-                        Carregar Foto 1
-                        <Input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          className="hidden"
-                          onChange={(e) => handleImageChange(e, '1')}
-                          disabled={uploading}
-                          aria-label="Carregar foto principal do produto"
-                        />
-                      </label>
+                      <div className="flex gap-1.5">
+                        <label className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#5d082a] bg-[#fff0f5] border border-[#ead7df] hover:border-[#5d082a] cursor-pointer transition ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <UploadCloud size={13} />
+                          Carregar
+                          <Input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(e) => handleImageChange(e, '1')}
+                            disabled={uploading}
+                            aria-label="Carregar foto principal do produto"
+                          />
+                        </label>
+                        {!imgError && (
+                          <button
+                            type="button"
+                            onClick={() => handleImageDelete('1')}
+                            disabled={uploading}
+                            aria-label="Apagar foto principal do produto"
+                            className="flex items-center justify-center rounded-lg px-2.5 py-1.5 text-red-600 bg-red-50 border border-red-100 hover:border-red-400 transition disabled:opacity-50"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
                       {uploadError && (
                         <p className="text-[10px] text-red-500 text-center leading-tight">{uploadError}</p>
                       )}
@@ -393,18 +426,31 @@ export default function ProductSlideOver({
                         )}
                       </div>
                       
-                      <label className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#5d082a] bg-[#fff0f5] border border-[#ead7df] hover:border-[#5d082a] cursor-pointer transition ${uploading2 ? 'opacity-50 pointer-events-none' : ''}`}>
-                        <UploadCloud size={13} />
-                        Carregar Foto 2
-                        <Input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          className="hidden"
-                          onChange={(e) => handleImageChange(e, '2')}
-                          disabled={uploading2}
-                          aria-label="Carregar foto auxiliar do produto"
-                        />
-                      </label>
+                      <div className="flex gap-1.5">
+                        <label className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#5d082a] bg-[#fff0f5] border border-[#ead7df] hover:border-[#5d082a] cursor-pointer transition ${uploading2 ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <UploadCloud size={13} />
+                          Carregar
+                          <Input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(e) => handleImageChange(e, '2')}
+                            disabled={uploading2}
+                            aria-label="Carregar foto auxiliar do produto"
+                          />
+                        </label>
+                        {!imgError2 && (
+                          <button
+                            type="button"
+                            onClick={() => handleImageDelete('2')}
+                            disabled={uploading2}
+                            aria-label="Apagar foto auxiliar do produto"
+                            className="flex items-center justify-center rounded-lg px-2.5 py-1.5 text-red-600 bg-red-50 border border-red-100 hover:border-red-400 transition disabled:opacity-50"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
                       {uploadError2 && (
                         <p className="text-[10px] text-red-500 text-center leading-tight">{uploadError2}</p>
                       )}

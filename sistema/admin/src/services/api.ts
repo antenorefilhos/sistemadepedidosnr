@@ -1117,6 +1117,10 @@ export const productsAPI = {
       },
     })
   },
+  deleteImage: (ean: string, slot: '1' | '2' = '1') => {
+    const url = slot === '2' ? `/uploads/product/${ean}/2` : `/uploads/product/${ean}`
+    return api.delete<{ success: boolean; deleted: boolean }>(url)
+  },
 }
 
 export const ordersAPI = {
