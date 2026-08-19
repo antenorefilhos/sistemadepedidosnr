@@ -12,9 +12,10 @@ const mockPrismaService: any = {
   priceList: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
   priceListItem: { findMany: jest.fn(), upsert: jest.fn() },
   promotion: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
-  coupon: { findFirst: jest.fn() },
+  coupon: { findFirst: jest.fn(), findUnique: jest.fn() },
   promotionUsage: { count: jest.fn(), createMany: jest.fn() },
   priceAuditLog: { create: jest.fn() },
+  $transaction: jest.fn((cb: any) => cb(mockPrismaService)),
 }
 
 describe('PricingService', () => {

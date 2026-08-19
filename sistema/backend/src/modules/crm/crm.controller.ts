@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
+import { assertCustomerOwnership } from '../../common/security/customer-ownership'
 import { CrmService } from './crm.service'
 import { CreateCampaignDto, CreateShoppingListDto, LoyaltyMutationDto, RefreshSegmentsDto, ReorderFromOrderDto, UpsertCustomerConsentDto, UpsertCustomerProfileDto } from './dto/crm.dto'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
@@ -32,6 +33,7 @@ export class CrmController {
   @Post('customers/:customerId/consents')
   @ApiOperation({ summary: 'Registrar consentimento ou opt-out do cliente' })
   upsertConsent(@Param('customerId') customerId: string, @Body() body: UpsertCustomerConsentDto, @Req() req: any) {
+    assertCustomerOwnership(req.user, customerId)
     return this.crm.upsertConsent(customerId, body, {
       ip: req.ip,
       userAgent: req.headers?.['user-agent'],
@@ -65,7 +67,8 @@ export class CrmController {
 
   @Get('customers/:customerId/loyalty')
   @ApiOperation({ summary: 'Consultar saldo e extrato de fidelidade' })
-  getLoyalty(@Param('customerId') customerId: string) {
+  getLoyalty(@Param('customerId') customerId: string, @Req() req: any) {
+    assertCustomerOwnership(req.user, customerId)
     return this.crm.getLoyalty(customerId)
   }
 
@@ -85,19 +88,22 @@ export class CrmController {
 
   @Post('customers/:customerId/shopping-lists')
   @ApiOperation({ summary: 'Criar lista de compra do cliente' })
-  createShoppingList(@Param('customerId') customerId: string, @Body() body: CreateShoppingListDto) {
+  createShoppingList(@Param('customerId') customerId: string, @Body() body: CreateShoppingListDto, @Req() req: any) {
+    assertCustomerOwnership(req.user, customerId)
     return this.crm.createShoppingList(customerId, body)
   }
 
   @Post('customers/:customerId/shopping-lists/from-order')
   @ApiOperation({ summary: 'Criar lista de recompra a partir de pedido anterior' })
-  createShoppingListFromOrder(@Param('customerId') customerId: string, @Body() body: ReorderFromOrderDto) {
+  createShoppingListFromOrder(@Param('customerId') customerId: string, @Body() body: ReorderFromOrderDto, @Req() req: any) {
+    assertCustomerOwnership(req.user, customerId)
     return this.crm.createShoppingListFromOrder(customerId, body)
   }
 
   @Get('customers/:customerId/reorder/:orderId')
   @ApiOperation({ summary: 'Gerar payload de recompra de pedido anterior' })
-  getReorderPayload(@Param('customerId') customerId: string, @Param('orderId') orderId: string) {
+  getReorderPayload(@Param('customerId') customerId: string, @Param('orderId') orderId: string, @Req() req: any) {
+    assertCustomerOwnership(req.user, customerId)
     return this.crm.getReorderPayload(customerId, orderId)
   }
 }

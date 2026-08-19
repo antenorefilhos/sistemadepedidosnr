@@ -90,9 +90,11 @@ export class PromotionEngineService {
       if (!candidate.stackable) lockedByNonStackable = true
     }
 
+    // Promocao FREE_SHIPPING ja zera o frete via `adjustedDelivery` no quote() --
+    // somar o discountAmount dela aqui de novo subtraia o frete duas vezes do total.
     const discountAmount = Math.min(
       quote.subtotal + quote.deliveryAmount,
-      applied.reduce((sum, item) => sum + item.discountAmount, 0),
+      applied.reduce((sum, item) => sum + (item.freeShipping ? 0 : item.discountAmount), 0),
     )
     const freeShipping = applied.some((item) => item.freeShipping)
 
@@ -347,16 +349,40 @@ export class PricingService {
   async recordPromotionUsage(quote: { tenantId: string; appliedPromotions: PromotionApplication[] }, orderId: string, customerId?: string) {
     if (!quote.appliedPromotions?.length) return { count: 0 }
 
-    await this.prisma.promotionUsage.createMany({
-      data: quote.appliedPromotions.map((promotion) => ({
-        tenantId: quote.tenantId,
-        promotionId: promotion.promotionId,
-        couponId: promotion.couponId,
-        customerId,
-        orderId,
-        discountAmount: this.toDecimal(promotion.discountAmount),
-      })),
-    })
+    // Isolamento SERIALIZABLE: dois checkouts concorrentes usando o mesmo
+    // cupom com maxUses=1 senao passam os dois pela contagem antes de
+    // qualquer um gravar o uso (ver assertCouponUsageLimit, checado so no
+    // quote, bem antes da criacao do pedido). Aqui o Postgres aborta um dos
+    // dois com erro de serializacao em vez de deixar estourar o limite.
+    await this.prisma.$transaction(
+      async (tx) => {
+        for (const promotion of quote.appliedPromotions) {
+          if (!promotion.couponId) continue
+          const coupon = await tx.coupon.findUnique({ where: { id: promotion.couponId } })
+          if (!coupon) continue
+          if (coupon.maxUses != null) {
+            const globalUses = await tx.promotionUsage.count({ where: { couponId: coupon.id } })
+            if (globalUses >= coupon.maxUses) throw new BadRequestException('Cupom atingiu o limite global de usos.')
+          }
+          if (coupon.maxUsesPerCustomer != null && customerId) {
+            const customerUses = await tx.promotionUsage.count({ where: { couponId: coupon.id, customerId } })
+            if (customerUses >= coupon.maxUsesPerCustomer) throw new BadRequestException('Cupom atingiu o limite por cliente.')
+          }
+        }
+
+        await tx.promotionUsage.createMany({
+          data: quote.appliedPromotions.map((promotion) => ({
+            tenantId: quote.tenantId,
+            promotionId: promotion.promotionId,
+            couponId: promotion.couponId,
+            customerId,
+            orderId,
+            discountAmount: this.toDecimal(promotion.discountAmount),
+          })),
+        })
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    )
 
     return { count: quote.appliedPromotions.length }
   }

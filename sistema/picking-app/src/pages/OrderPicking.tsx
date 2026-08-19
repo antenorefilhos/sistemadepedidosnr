@@ -105,6 +105,23 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     return Boolean(product?.isFractional) || ['kg', 'quilo', 'g'].includes(String(product?.unit || '').toLowerCase())
   }
 
+  // Etiqueta impressa na balanca da loja usa o padrao GS1 de "prefixo 2":
+  // 2 + 5 digitos de codigo interno + 5 digitos de peso em gramas + digito
+  // verificador (13 digitos) -- nunca bate com o EAN de catalogo fixo do
+  // produto, que era o unico formato aceito antes. Decodifica pra validar
+  // pelo codigo interno (sufixo do EAN cadastrado) e usar o peso real pesado
+  // em vez de assumir que bateu com o peso pedido.
+  // ponytail: layout assumido (peso em gramas nos digitos 7-11) -- confirmar
+  // contra etiqueta real da balanca da loja; se divergir, so ajustar os
+  // indices do slice abaixo.
+  const decodeScaleBarcode = (barcode: string): { code: string; weightKg: number } | null => {
+    if (!/^2\d{12}$/.test(barcode)) return null
+    const code = barcode.slice(1, 6)
+    const weightGrams = Number(barcode.slice(6, 11))
+    if (!Number.isFinite(weightGrams) || weightGrams <= 0) return null
+    return { code, weightKg: weightGrams / 1000 }
+  }
+
   const handleScan = (taskItem: PickingTaskItem) => {
     setConfirm({ mode: 'scan', itemId: null, taskItemId: taskItem.id, ean: '' })
   }
@@ -126,8 +143,11 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     const product = getProductForTaskItem(taskItem)
     const orderItem = getOrderItemForTaskItem(taskItem)
 
-    if (product?.ean && barcode !== product.ean) {
-      toast.error(`EAN ${barcode} nao corresponde ao produto (${product.ean})`)
+    const scaleDecoded = isWeightedProduct(product) ? decodeScaleBarcode(barcode) : null
+    const eanMatches = !product?.ean || barcode === product.ean || (scaleDecoded && product.ean.endsWith(scaleDecoded.code))
+
+    if (!eanMatches) {
+      toast.error(`EAN ${barcode} nao corresponde ao produto (${product?.ean})`)
       setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })
       return
     }
@@ -135,10 +155,11 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     setActionLoading(true)
     try {
       const qty = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1)
+      const finalWeight = scaleDecoded ? scaleDecoded.weightKg : qty
       const { data } = await pickerApi.pickItem(task.id, taskItem.id, {
         quantity: qty,
         barcode,
-        ...(isWeightedProduct(product) ? { finalWeight: qty } : {}),
+        ...(isWeightedProduct(product) ? { finalWeight } : {}),
       })
       setTask(data)
       setOrder(data.order || null)

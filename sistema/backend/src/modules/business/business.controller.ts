@@ -4,17 +4,20 @@ import { RolesGuard } from '../../common/guards/roles.guard'
 import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
+import { assertCustomerOwnership } from '../../common/security/customer-ownership'
 import { BusinessService } from './business.service'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @RelaxedThrottle()
 @Controller('business')
+@UseGuards(JwtAuthGuard)
 export class BusinessController {
   constructor(private readonly businessService: BusinessService) {}
 
   @Get('customers/:customerId/context')
-  getCustomerContext(@Param('customerId') customerId: string, @Req() req?: TenantContextRequest) {
-    return this.businessService.getCustomerBusinessContext(customerId, req ? getTenantContext(req) : undefined)
+  getCustomerContext(@Param('customerId') customerId: string, @Req() req: TenantContextRequest) {
+    assertCustomerOwnership(req.user, customerId)
+    return this.businessService.getCustomerBusinessContext(customerId, getTenantContext(req))
   }
 }
 
