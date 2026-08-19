@@ -367,7 +367,9 @@ export default function Cart() {
               </section>
             )}
 
-            <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur lg:hidden">
+            {/* Fica acima do menu inferior (h-16), que so aparece abaixo de md.
+                Sem isso os dois disputam bottom-0 e o menu cobre o botao. */}
+            <div className="fixed inset-x-0 bottom-16 md:bottom-0 z-40 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur lg:hidden">
               <Link
                 to="/checkout"
                 className={buttonVariants({
