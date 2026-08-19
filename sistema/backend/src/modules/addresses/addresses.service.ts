@@ -16,6 +16,13 @@ export interface CreateAddressPayload {
 export class AddressesService {
   constructor(private prisma: PrismaService) {}
 
+  async list(customerId: string) {
+    return this.prisma.address.findMany({
+      where: { customerId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+    })
+  }
+
   async create(customerId: string, data: CreateAddressPayload) {
     return this.prisma.$transaction(async (tx) => {
       if (data.isDefault) {

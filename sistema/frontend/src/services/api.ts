@@ -357,6 +357,7 @@ export const authAPI = {
 // Addresses
 export const addressesAPI = {
   searchCEP: (cep: string) => api.get(`/addresses/search/${cep}`),
+  list: (customerId: string) => api.get(`/addresses/${customerId}`),
   create: (customerId: string, data: CreateAddressPayload) => api.post(`/addresses/${customerId}`, data),
 }
 

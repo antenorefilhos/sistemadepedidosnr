@@ -5,6 +5,7 @@ import { AnimatePresence } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
 import { useAuth } from './hooks/useAuth'
+import { useAutoDeliveryVerification } from './hooks/useAutoDeliveryVerification'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { NetworkToast } from './components/NetworkToast'
 import { PageTransition } from './components/PageTransition'
@@ -94,6 +95,7 @@ function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth()
   const guestCheckoutEnabled = (import.meta.env.VITE_GUEST_CHECKOUT_ENABLED ?? 'true') !== 'false'
   const location = useLocation()
+  useAutoDeliveryVerification()
 
   return (
     <Suspense fallback={<PageLoader />}>

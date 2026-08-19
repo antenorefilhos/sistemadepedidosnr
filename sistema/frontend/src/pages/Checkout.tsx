@@ -775,7 +775,7 @@ export default function Checkout() {
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6 pb-28 md:pb-0">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {/* Steps Indicator */}
             <div className="hidden gap-4 mb-8 md:flex">
               {['address', 'payment'].map((s) => (

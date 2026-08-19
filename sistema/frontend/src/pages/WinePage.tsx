@@ -322,7 +322,6 @@ function WineCard({ product }: { product: Product }) {
              </div>
           </div>
        </div>
-      <MobileBottomNav />
     </div>
   )
 }

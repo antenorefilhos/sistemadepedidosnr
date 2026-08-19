@@ -44,6 +44,22 @@ export class AddressesController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get(':customerId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Listar endereços do cliente',
+    description: 'Lista os endereços salvos de um cliente, endereço padrão primeiro.',
+  })
+  @ApiParam({ name: 'customerId', type: String, description: 'ID do cliente' })
+  async listAddresses(
+    @Param('customerId') customerId: string,
+    @Req() req: { user?: { id?: string; role?: string } },
+  ) {
+    assertCustomerOwnership(req.user, customerId)
+    return this.addressesService.list(customerId)
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post(':customerId')
   @ApiBearerAuth()
   @ApiOperation({
