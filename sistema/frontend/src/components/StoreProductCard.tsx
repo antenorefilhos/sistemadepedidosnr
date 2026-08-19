@@ -113,7 +113,8 @@ export function StoreProductCard({
         interactive: true,
         className: cn(
           'group flex flex-col overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-[2.5px] hover:border-[#D2BB8A]',
-          isCarousel ? 'w-[160px] md:w-[220px] shrink-0 snap-start' : 'w-full',
+          // ponytail: metade do gap-3 (12px) do carrossel mobile em ProductShelf.tsx — se o gap mudar la, ajustar aqui tambem
+          isCarousel ? 'w-[calc(50%-6px)] md:w-[220px] shrink-0 snap-start' : 'w-full',
         ),
       })}
     >
