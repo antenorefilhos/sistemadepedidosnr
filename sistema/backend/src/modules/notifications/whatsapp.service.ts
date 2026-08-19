@@ -59,10 +59,8 @@ Pagamento: ${paymentLabel}
       message += `\n*Obs:* ${orderData.notes}`
     }
 
-    if (orderData.paymentMethod === 'PIX') {
-      message += `\n\n*Chave PIX:* \`11.222.333/0001-99\` (Antenor & Filhos)\nVou enviar o comprovante após o pagamento.`
-    }
-
+    // Chave PIX nao vai mais automatico aqui: a equipe da loja informa por
+    // telefone/WhatsApp depois de confirmar o pedido, nao antes.
     message += `\n\nAguardo a confirmação, obrigado!`
 
     return this.sendMessage(whatsappNumber, message.trim())
