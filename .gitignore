@@ -26,6 +26,11 @@ graphify-knowledge.json/
 # Session histories and sensitive docs
 arquivos-projeto/md/06\ -\ Sessões/Day_0_Historico.md
 
+# Uploads de produto (runtime, servidos por volume Docker na VPS -- ver
+# uploads_data em docker-compose.prod.yml -- nao por checkout de git; ~175MB
+# e cresce a cada resync do ERP, so inchava o repo)
+sistema/backend/uploads/products/
+
 # Local environment
 .env
 .env.local
