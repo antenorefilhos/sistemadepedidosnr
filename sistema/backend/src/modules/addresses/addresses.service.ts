@@ -12,7 +12,11 @@ export interface CreateAddressPayload {
   isDefault?: boolean
 }
 
-const DEFAULT_KEYS = ['street', 'number', 'neighborhood', 'zipCode'] as const
+/** Campos que definem "e o mesmo endereco" pro reaproveitamento no create.
+ * `complement` fica de fora de proposito: o cliente as vezes preenche e as
+ * vezes deixa vazio pro mesmo lugar, e incluir isso geraria justamente as
+ * linhas duplicadas que este dedupe existe pra evitar. */
+const DEDUPE_KEYS = ['street', 'number', 'neighborhood', 'zipCode'] as const
 
 /** Normaliza um valor de endereco pra comparacao de igualdade (desconsidera
  * caixa e espacos sobrando, inclusive duplicados no meio). */
@@ -47,14 +51,9 @@ export class AddressesService {
       // repetidas (ex.: a mesma 'Estrada Uniao e Industria, 22099' gravada
       // dezenas de vezes). A comparacao roda em memoria porque colapsar
       // espacos internos nao da pra expressar em uma query `equals`.
-      const existing = (await tx.address.findMany({ where: { customerId } })).find((candidate) => {
-        return (
-          normalize(candidate.street) === normalize(data.street) &&
-          normalize(candidate.number) === normalize(data.number) &&
-          normalize(candidate.neighborhood) === normalize(data.neighborhood) &&
-          normalize(candidate.zipCode) === normalize(data.zipCode)
-        )
-      })
+      const existing = (await tx.address.findMany({ where: { customerId } })).find((candidate) =>
+        DEDUPE_KEYS.every((key) => normalize(candidate[key]) === normalize(data[key])),
+      )
 
       if (existing) {
         const patch: Record<string, unknown> = {
