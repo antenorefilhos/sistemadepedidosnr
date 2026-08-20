@@ -62,7 +62,7 @@ export function DeliveryVerificationModal() {
     [],
   )
 
-const handleCloseModal = useCallback(() => {
+  const handleCloseModal = useCallback(() => {
     setGeoLoading(false)
     setCepLoading(false)
     setLocalityModalOpen(false)
@@ -181,6 +181,14 @@ const handleCloseModal = useCallback(() => {
     [updateAddress],
   )
 
+  const handleVerifyCep = useCallback(() => {
+    if (address.zipCode.replace(/\D/g, '').length !== 8) {
+      setErrorMessage('Digite um CEP completo com 8 digitos.')
+      return
+    }
+    handleCepBlur()
+  }, [address.zipCode, handleCepBlur])
+
   // Dispara a consulta automatica quando o CEP completa 8 digitos (cobre o
   // teclado numerico do mobile que "some" sem disparar blur) e, se o CEP tem
   // multiplas localidades, abre o sub-modal dedicado.
@@ -256,7 +264,7 @@ const handleCloseModal = useCallback(() => {
             aria-labelledby="delivery-verification-title"
             className={surfaceClasses({
               tone: 'warm',
-              className: 'w-full md:max-w-lg rounded-t-2xl md:rounded-lg p-4 md:p-6 shadow-2xl max-h-[92vh] overflow-auto',
+              className: 'w-full md:max-w-lg rounded-t-2xl md:rounded-lg p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain',
             })}
           >
             <div className="flex items-center justify-between mb-4">
@@ -305,14 +313,14 @@ const handleCloseModal = useCallback(() => {
                     className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-300"
                   >
                     <CheckCircle2 size={18} />
-                    Confirmar e Continuar
+                    Confirmar endereço e continuar
                   </Button>
                   <div className="grid grid-cols-2 gap-2">
                     <Button type="button" onClick={() => setMode('edit')} variant="outline" size="md">
-                      Trocar endereco
+                      Trocar endereço
                     </Button>
                     <Button type="button" onClick={handleClear} variant="ghost" size="md" className="text-red-700 hover:bg-red-50">
-                      Limpar
+                      Limpar endereço
                     </Button>
                   </div>
                 </div>
@@ -361,6 +369,17 @@ const handleCloseModal = useCallback(() => {
                   </div>
                 </div>
 
+                <Button
+                  type="button"
+                  onClick={handleVerifyCep}
+                  disabled={cepLoading}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {cepLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                  Verificar CEP
+                </Button>
+
                 {errorMessage && (
                   <div className="flex items-start gap-2.5 rounded-lg border-2 border-red-300 bg-red-50 text-red-800 px-3 py-2.5 text-sm font-medium">
                     <AlertTriangle size={18} className="shrink-0 mt-0.5" />
@@ -400,7 +419,7 @@ const handleCloseModal = useCallback(() => {
                       className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-300"
                     >
                       <CheckCircle2 size={16} />
-                      Confirmar e Continuar
+                      Confirmar endereço e continuar
                     </Button>
                   </div>
                 )}
@@ -446,7 +465,7 @@ const handleCloseModal = useCallback(() => {
             aria-labelledby="locality-modal-title"
             className={surfaceClasses({
               tone: 'warm',
-              className: 'w-full md:max-w-md rounded-t-2xl md:rounded-lg p-4 md:p-6 shadow-2xl max-h-[92vh] overflow-auto',
+              className: 'w-full md:max-w-md rounded-t-2xl md:rounded-lg p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain',
             })}
           >
             <div className="flex items-center justify-between mb-2">
@@ -459,7 +478,7 @@ const handleCloseModal = useCallback(() => {
             </div>
 
             <p className="text-xs text-gray-500 mb-4">
-              O CEP informado atende diferentes pontos da região.
+              O CEP digitado atende diferentes pontos de Pedro do Rio.
             </p>
 
             <div className="space-y-2">

@@ -15,9 +15,9 @@ export interface CreateAddressPayload {
 const DEFAULT_KEYS = ['street', 'number', 'neighborhood', 'zipCode'] as const
 
 /** Normaliza um valor de endereco pra comparacao de igualdade (desconsidera
- * caixa e espacos sobrando). */
+ * caixa e espacos sobrando, inclusive duplicados no meio). */
 function normalize(value?: string | null): string {
-  return String(value ?? '').trim().toLowerCase()
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
 @Injectable()
@@ -42,17 +42,18 @@ export class AddressesService {
   async create(customerId: string, data: CreateAddressPayload) {
     return this.prisma.$transaction(async (tx) => {
       // Reaproveita registro duplicado: mesmo cliente, mesma rua, numero,
-      // bairro e CEP -> atualiza o existente (e o torna default se pedido)
-      // em vez de criar linhas repetidas (ex.: a mesma 'Estrada Uniao e
-      // Industria, 22099' gravada dezenas de vezes).
-      const existing = await tx.address.findFirst({
-        where: {
-          customerId,
-          street: { equals: normalize(data.street), mode: 'insensitive' },
-          number: { equals: normalize(data.number), mode: 'insensitive' },
-          neighborhood: { equals: normalize(data.neighborhood), mode: 'insensitive' },
-          zipCode: { equals: normalize(data.zipCode), mode: 'insensitive' },
-        },
+      // bairro e CEP (ignorando caixa e espacos sobrando) -> atualiza o
+      // existente (e o torna default se pedido) em vez de criar linhas
+      // repetidas (ex.: a mesma 'Estrada Uniao e Industria, 22099' gravada
+      // dezenas de vezes). A comparacao roda em memoria porque colapsar
+      // espacos internos nao da pra expressar em uma query `equals`.
+      const existing = (await tx.address.findMany({ where: { customerId } })).find((candidate) => {
+        return (
+          normalize(candidate.street) === normalize(data.street) &&
+          normalize(candidate.number) === normalize(data.number) &&
+          normalize(candidate.neighborhood) === normalize(data.neighborhood) &&
+          normalize(candidate.zipCode) === normalize(data.zipCode)
+        )
       })
 
       if (existing) {

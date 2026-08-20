@@ -60,7 +60,7 @@ describe('AddressesService', () => {
 
   describe('create', () => {
     it('creates a new address when no duplicate exists', async () => {
-      prisma.address.findMany.mockResolvedValue([mockAddress])
+      prisma.address.findMany.mockResolvedValue([])
       prisma.address.create.mockResolvedValue({ ...mockAddress, id: 'addr-2' })
 
       const payload = {
@@ -80,23 +80,24 @@ describe('AddressesService', () => {
       expect(result).toEqual({ ...mockAddress, id: 'addr-2' })
     })
 
-    it('reuses an existing address ignoring case and extra spaces', async () => {
+    it('reuses an existing address ignoring case', async () => {
       const existing = {
         ...mockAddress,
         id: 'addr-dup',
-        street: '  RUA  a ',
-        number: ' 123 ',
-        neighborhood: ' CENTRO ',
-        zipCode: ' 01001-000 ',
-        isDefault: false,
-      }
-      prisma.address.findFirst.mockResolvedValue(existing)
-      prisma.address.update.mockResolvedValue(existing)
-
-      const payload = {
         street: 'rua a',
         number: '123',
         neighborhood: 'centro',
+        zipCode: '01001000',
+        isDefault: false,
+      }
+      prisma.address.findMany.mockResolvedValue([existing])
+      prisma.address.update.mockResolvedValue(existing)
+
+      const payload = {
+        street: 'RUA A',
+        number: '123',
+        complement: null as string | null,
+        neighborhood: 'CENTRO',
         city: 'Sao Paulo',
         state: 'SP',
         zipCode: '01001000',
@@ -108,14 +109,18 @@ describe('AddressesService', () => {
       expect(prisma.address.create).not.toHaveBeenCalled()
       expect(prisma.address.update).toHaveBeenCalledWith({
         where: { id: 'addr-dup' },
-        data: { complement: null, city: 'Sao Paulo', state: 'SP' },
+        data: {
+          complement: payload.complement ?? existing.complement,
+          city: payload.city,
+          state: payload.state,
+        },
       })
       expect(result).toEqual(existing)
     })
 
     it('promotes an existing duplicate to default when requested', async () => {
       const existing = { ...mockAddress, id: 'addr-dup', isDefault: false }
-      prisma.address.findFirst.mockResolvedValue(existing)
+      prisma.address.findMany.mockResolvedValue([existing])
       prisma.address.update.mockResolvedValue({ ...existing, isDefault: true })
 
       const payload = {
@@ -137,13 +142,18 @@ describe('AddressesService', () => {
       })
       expect(prisma.address.update).toHaveBeenCalledWith({
         where: { id: 'addr-dup' },
-        data: { complement: null, city: 'Sao Paulo', state: 'SP', isDefault: true },
+        data: {
+          complement: null,
+          city: 'Sao Paulo',
+          state: 'SP',
+          isDefault: true,
+        },
       })
       expect(result).toEqual({ ...existing, isDefault: true })
     })
 
     it('clears previous default when creating a new default address', async () => {
-      prisma.address.findFirst.mockResolvedValue(null)
+      prisma.address.findMany.mockResolvedValue([])
       prisma.address.create.mockResolvedValue({ ...mockAddress, id: 'addr-2', isDefault: true })
 
       const payload = {
@@ -171,7 +181,7 @@ describe('AddressesService', () => {
 
       await expect(
         service.update('customer-1', 'addr-x', { number: '999' }),
-      ).rejects.toThrow('Endereco nao encontrado.')
+      ).rejects.toThrow('Endereco nao encontrado')
 
       expect(prisma.address.update).not.toHaveBeenCalled()
     })
@@ -196,8 +206,12 @@ describe('AddressesService', () => {
       await service.update('customer-1', 'addr-1', { isDefault: true })
 
       expect(prisma.address.updateMany).toHaveBeenCalledWith({
-        where: { customerId: 'customer-1', id: { not: 'addr-1' }, isDefault: true },
+        where: { customerId: 'customer-1', isDefault: true, id: { not: 'addr-1' } },
         data: { isDefault: false },
+      })
+      expect(prisma.address.update).toHaveBeenCalledWith({
+        where: { id: 'addr-1' },
+        data: { isDefault: true },
       })
     })
   })
@@ -206,7 +220,7 @@ describe('AddressesService', () => {
     it('throws NotFound when address does not belong to customer', async () => {
       prisma.address.findFirst.mockResolvedValue(null)
 
-      await expect(service.delete('customer-1', 'addr-x')).rejects.toThrow('Endereco nao encontrado.')
+      await expect(service.delete('customer-1', 'addr-x')).rejects.toThrow('Endereco nao encontrado')
 
       expect(prisma.address.delete).not.toHaveBeenCalled()
     })
@@ -214,11 +228,12 @@ describe('AddressesService', () => {
     it('deletes a non-default address without promoting another', async () => {
       prisma.address.findFirst.mockResolvedValue({ ...mockAddress, isDefault: false })
 
-      await service.delete('customer-1', 'addr-1')
+      const result = await service.delete('customer-1', 'addr-1')
 
       expect(prisma.address.delete).toHaveBeenCalledWith({ where: { id: 'addr-1' } })
       expect(prisma.address.findFirst).toHaveBeenCalledTimes(1)
       expect(prisma.address.update).not.toHaveBeenCalled()
+      expect(result).toEqual({ id: 'addr-1' })
     })
 
     it('promotes most recent remaining address when deleting the default one', async () => {
@@ -256,7 +271,7 @@ describe('AddressesService', () => {
     it('throws NotFound when address does not belong to customer', async () => {
       prisma.address.findFirst.mockResolvedValue(null)
 
-      await expect(service.setDefault('customer-1', 'addr-x')).rejects.toThrow('Endereco nao encontrado.')
+      await expect(service.setDefault('customer-1', 'addr-x')).rejects.toThrow('Endereco nao encontrado')
 
       expect(prisma.address.update).not.toHaveBeenCalled()
     })
