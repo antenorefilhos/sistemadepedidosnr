@@ -113,6 +113,45 @@ describe('DeliveryService', () => {
     )
   })
 
+  it('prefers a higher-priority specific CEP zone over a wide-range base zone (seed de taxas de balcao)', async () => {
+    mockPrisma.deliveryArea.findMany.mockResolvedValue([])
+    // Ordem igual a query real (orderBy priority desc) -- o mock nao ordena
+    // sozinho, e o service usa .find() na ordem que recebe.
+    mockPrisma.deliveryZone.findMany.mockResolvedValue([
+      {
+        id: 'zone-specifica',
+        name: 'CHAFARIZ / 7 CASAS',
+        type: 'CEP_RANGE',
+        cepStart: '25750222',
+        cepEnd: '25750222',
+        fee: 22,
+        freeAbove: null,
+        priority: 10,
+      },
+      {
+        id: 'zone-base',
+        name: 'Pedro do Rio (base)',
+        type: 'CEP_RANGE',
+        cepStart: '25700000',
+        cepEnd: '25849999',
+        fee: 15,
+        freeAbove: null,
+        priority: 1,
+      },
+    ])
+
+    // CEP dentro da faixa da zona base E dentro da zona especifica --
+    // a especifica (priority 10) tem que ganhar da base (priority 1).
+    await expect(service.calculate({ cep: '25750-222' })).resolves.toEqual(
+      expect.objectContaining({ fee: 22, zoneName: 'CHAFARIZ / 7 CASAS', zoneId: 'zone-specifica', outOfArea: false }),
+    )
+
+    // CEP dentro so da faixa da base -- cai na base.
+    await expect(service.calculate({ cep: '25710-000' })).resolves.toEqual(
+      expect.objectContaining({ fee: 15, zoneName: 'Pedro do Rio (base)', zoneId: 'zone-base', outOfArea: false }),
+    )
+  })
+
   it('uses DeliveryArea rules before legacy zones', async () => {
     mockPrisma.deliveryArea.findMany.mockResolvedValue([
       {
