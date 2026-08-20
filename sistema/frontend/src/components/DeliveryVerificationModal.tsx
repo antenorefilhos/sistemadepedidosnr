@@ -7,6 +7,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { surfaceClasses } from './ui/surface'
 import { cn } from '../lib/cn'
+import { deliveryAPI } from '../services/api'
 import {
   fetchAddressByCep,
   formatZipCode,
@@ -114,9 +115,44 @@ export function DeliveryVerificationModal() {
     }
   }, [isGeolocationAvailable])
 
+  const lastAutoCalculatedCepRef = useRef<string | null>(null)
+
+  // Cliente digita so o CEP e quer ver a taxa (ou o seletor de localidade)
+  // na hora -- nao devia precisar preencher rua/numero primeiro so pra ver
+  // o preco. Chama o calculo direto pelo CEP, sem exigir endereco completo
+  // (diferente de handleVerify, que monta a sessao real).
+  const autoCalculateByCep = useCallback(async (zipCode: string) => {
+    const digits = zipCode.replace(/\D/g, '')
+    if (digits.length !== 8 || lastAutoCalculatedCepRef.current === digits) return
+    lastAutoCalculatedCepRef.current = digits
+
+    try {
+      const res = await deliveryAPI.calculate(zipCode)
+      const data = res.data
+      setCalc({
+        fee: data.fee,
+        freeAbove: data.freeAbove,
+        zoneName: data.zoneName,
+        zoneId: data.zoneId,
+        isFree: data.isFree,
+        outOfArea: Boolean(data.outOfArea || data.fee == null),
+        lat: null,
+        lng: null,
+        requiresLocalitySelection: Boolean(data.requiresLocalitySelection),
+        availableLocalities: data.availableLocalities || [],
+        locality: null,
+        deliveryPointCode: null,
+      })
+    } catch {
+      // Preview silencioso -- handleVerify (no fechamento do endereco) e a
+      // fonte de verdade e ja mostra erro se falhar de novo la.
+    }
+  }, [])
+
   const handleCepBlur = useCallback(async () => {
     if (address.zipCode.replace(/\D/g, '').length !== 8) return
 
+    autoCalculateByCep(address.zipCode)
     setCepLoading(true)
     setErrorMessage(null)
     try {
@@ -134,7 +170,15 @@ export function DeliveryVerificationModal() {
     } finally {
       setCepLoading(false)
     }
-  }, [address])
+  }, [address, autoCalculateByCep])
+
+  // Cobre o caso comum no mobile de o teclado numerico "sumir" sem disparar
+  // blur (usuario toca fora ou aperta "Concluido") -- dispara assim que o
+  // CEP chega a 8 digitos, sem depender do blur do campo.
+  useEffect(() => {
+    const digits = address.zipCode.replace(/\D/g, '')
+    if (digits.length === 8) autoCalculateByCep(address.zipCode)
+  }, [address.zipCode, autoCalculateByCep])
 
   const handleVerify = useCallback(async (nextAddress?: DeliveryAddressSnapshot) => {
     const target = nextAddress || address
@@ -163,10 +207,39 @@ export function DeliveryVerificationModal() {
   // Um CEP como 25750-222 cobre de Chafariz a um condominio 2km mais longe --
   // sem o cliente escolher o ponto certo, cobraria a taxa mais alta do grupo
   // de todo mundo (ver DeliveryService.resolveBalcaoLocality no backend).
-  const handleSelectLocality = useCallback((option: { name: string; code: string }) => {
+  // Escolher a localidade nesse ponto (so com o CEP preenchido, sem rua/
+  // numero ainda) precisa atualizar a taxa na hora -- handleVerify exigiria
+  // endereco completo e nao faria nada.
+  const handleSelectLocality = useCallback(async (option: { name: string; code: string }) => {
     const target: DeliveryAddressSnapshot = { ...address, locality: option.name, deliveryPointCode: option.code }
     setAddress(target)
-    handleVerify(target)
+
+    const hasFullAddress = target.street && target.number && target.neighborhood && target.city && target.state
+    if (hasFullAddress) {
+      handleVerify(target)
+      return
+    }
+
+    try {
+      const res = await deliveryAPI.calculate(target.zipCode, undefined, undefined, undefined, option.name, option.code)
+      const data = res.data
+      setCalc({
+        fee: data.fee,
+        freeAbove: data.freeAbove,
+        zoneName: data.zoneName,
+        zoneId: data.zoneId,
+        isFree: data.isFree,
+        outOfArea: Boolean(data.outOfArea || data.fee == null),
+        lat: null,
+        lng: null,
+        requiresLocalitySelection: Boolean(data.requiresLocalitySelection),
+        availableLocalities: data.availableLocalities || [],
+        locality: option.name,
+        deliveryPointCode: option.code,
+      })
+    } catch {
+      setErrorMessage('Nao foi possivel validar a localidade escolhida.')
+    }
   }, [address, handleVerify])
 
   useEffect(() => {
@@ -375,7 +448,7 @@ export function DeliveryVerificationModal() {
                 <div className="mt-3 space-y-2" role="radiogroup" aria-label="Selecione sua localidade">
                   {calc.availableLocalities.map((option) => (
                     <button
-                      key={option.code}
+                      key={`${option.code}--${option.name}`}
                       type="button"
                       role="radio"
                       aria-checked={false}

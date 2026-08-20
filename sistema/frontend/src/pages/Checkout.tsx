@@ -206,6 +206,45 @@ export default function Checkout() {
     setFormData((prev) => ({ ...prev, [name]: value, ...clearCoords }))
   }
 
+  const lastAutoCalculatedCepRef = useRef<string | null>(null)
+
+  // Cliente digita so o CEP e quer ver a taxa (ou o seletor de localidade)
+  // na hora -- nao devia precisar preencher rua/numero pra ver o preco.
+  // Chama o calculo direto pelo CEP, sem exigir endereco completo.
+  const autoCalculateByCep = useCallback(async (zipCode: string) => {
+    const digits = zipCode.replace(/\D/g, '')
+    if (digits.length !== 8 || lastAutoCalculatedCepRef.current === digits) return
+    lastAutoCalculatedCepRef.current = digits
+
+    try {
+      const res = await deliveryAPI.calculate(zipCode)
+      const data = res.data
+      setDeliveryCalc({
+        fee: data.fee,
+        freeAbove: data.freeAbove,
+        zoneName: data.zoneName,
+        zoneId: data.zoneId,
+        isFree: data.isFree,
+        outOfArea: Boolean(data.outOfArea || data.fee == null),
+        lat: null,
+        lng: null,
+        requiresLocalitySelection: Boolean(data.requiresLocalitySelection),
+        availableLocalities: data.availableLocalities || [],
+        locality: null,
+        deliveryPointCode: null,
+      })
+    } catch {
+      // Preview silencioso -- a submissao da etapa de endereco e a fonte de
+      // verdade e ja mostra erro se falhar de novo la.
+    }
+  }, [])
+
+  useEffect(() => {
+    if (step !== 'address') return
+    const digits = formData.zipCode.replace(/\D/g, '')
+    if (digits.length === 8) autoCalculateByCep(formData.zipCode)
+  }, [step, formData.zipCode, autoCalculateByCep])
+
   // CEP como 25750-222 cobre de Chafariz a um condominio 2km mais longe --
   // sem essa escolha o backend so libera passar de step (ver
   // requiresLocalitySelection acima), entao reverifica na hora.
@@ -952,7 +991,10 @@ export default function Checkout() {
                       name="zipCode"
                       value={formData.zipCode}
                       onChange={handleInputChange}
-                      onBlur={() => handleCepBlur(formData.zipCode)}
+                      onBlur={() => {
+                        handleCepBlur(formData.zipCode)
+                        autoCalculateByCep(formData.zipCode)
+                      }}
                       placeholder="00000-000"
                       maxLength={9}
                       required
@@ -984,7 +1026,7 @@ export default function Checkout() {
                     <div className="space-y-2" role="radiogroup" aria-label="Selecione sua localidade">
                       {deliveryCalc.availableLocalities.map((option) => (
                         <button
-                          key={option.code}
+                          key={`${option.code}--${option.name}`}
                           type="button"
                           role="radio"
                           aria-checked={formData.deliveryPointCode === option.code}

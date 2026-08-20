@@ -348,8 +348,19 @@ export class DeliveryService {
     subtotal?: number,
   ): DeliveryCalculation | null {
     const cepDigits = this.cleanCep(cep)
-    const points = this.getBalcaoRates().filter((entry) => this.cleanCep(entry.cep) === cepDigits && cepDigits.length === 8)
-    if (!points.length) return null
+    const rawPoints = this.getBalcaoRates().filter((entry) => this.cleanCep(entry.cep) === cepDigits && cepDigits.length === 8)
+    if (!rawPoints.length) return null
+
+    // A planilha repete a mesma localidade (ex.: CHAFARIZ) uma vez por
+    // sentido (Itaipava/Posse) -- dedup por nome, ficando com a menor taxa
+    // quando o mesmo nome aparecer com valores diferentes.
+    const byLocality = new Map<string, BalcaoRateEntry>()
+    for (const entry of rawPoints) {
+      const key = entry.localidade.trim().toUpperCase()
+      const existing = byLocality.get(key)
+      if (!existing || Number(entry.taxa) < Number(existing.taxa)) byLocality.set(key, entry)
+    }
+    const points = [...byLocality.values()]
 
     const toOption = (p: BalcaoRateEntry): DeliveryLocalityOption => ({
       code: p.codigo,
