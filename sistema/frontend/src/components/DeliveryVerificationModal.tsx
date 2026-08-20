@@ -160,6 +160,15 @@ export function DeliveryVerificationModal() {
     }
   }, [address])
 
+  // Um CEP como 25750-222 cobre de Chafariz a um condominio 2km mais longe --
+  // sem o cliente escolher o ponto certo, cobraria a taxa mais alta do grupo
+  // de todo mundo (ver DeliveryService.resolveBalcaoLocality no backend).
+  const handleSelectLocality = useCallback((option: { name: string; code: string }) => {
+    const target: DeliveryAddressSnapshot = { ...address, locality: option.name, deliveryPointCode: option.code }
+    setAddress(target)
+    handleVerify(target)
+  }, [address, handleVerify])
+
   useEffect(() => {
     if (!isOpen) return
     setGpsDetected(null)
@@ -347,6 +356,8 @@ export function DeliveryVerificationModal() {
                   {calc.outOfArea ? <AlertTriangle size={18} className="shrink-0 mt-0.5" /> : <CheckCircle2 size={18} className="shrink-0 mt-0.5" />}
                   {calc.outOfArea ? (
                     <span>Infelizmente ainda nao entregamos nesse endereco.</span>
+                  ) : calc.requiresLocalitySelection ? (
+                    <span>Achamos {calc.availableLocalities?.length} pontos de entrega nesse CEP. Escolha o seu abaixo.</span>
                   ) : (
                     <span>
                       Entrega disponivel{calc.zoneName ? ` para ${calc.zoneName}` : ''}. Taxa: {' '}
@@ -359,9 +370,35 @@ export function DeliveryVerificationModal() {
                   )}
                 </div>
               )}
+
+              {calc && !calc.outOfArea && calc.requiresLocalitySelection && calc.availableLocalities && calc.availableLocalities.length > 0 && (
+                <div className="mt-3 space-y-2" role="radiogroup" aria-label="Selecione sua localidade">
+                  {calc.availableLocalities.map((option) => (
+                    <button
+                      key={option.code}
+                      type="button"
+                      role="radio"
+                      aria-checked={false}
+                      onClick={() => handleSelectLocality(option)}
+                      disabled={verifyLoading}
+                      className="w-full flex items-center justify-between gap-3 rounded-lg border border-[#E8D7B0] bg-white px-3 py-2.5 text-left text-sm hover:border-[#5D082A]/60 hover:bg-[#FFF7FA] transition-colors disabled:opacity-60"
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-semibold text-[#231F20] truncate">{option.name}</span>
+                        {option.reference && (
+                          <span className="block text-xs text-gray-500 truncate">{option.reference}</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 font-bold text-[#5D082A]">
+                        {option.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {calc && !calc.outOfArea && (
+            {calc && !calc.outOfArea && !calc.requiresLocalitySelection && (
               <Button
                 type="button"
                 onClick={() => {

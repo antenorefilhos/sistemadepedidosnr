@@ -362,8 +362,17 @@ export const addressesAPI = {
 }
 
 // Delivery
+export interface DeliveryLocalityOption {
+  code: string
+  name: string
+  fee: number
+  minutes?: number | null
+  km?: number | null
+  reference?: string | null
+}
+
 export const deliveryAPI = {
-  calculate: (cep?: string, lat?: number, lng?: number, subtotal?: number) =>
+  calculate: (cep?: string, lat?: number, lng?: number, subtotal?: number, locality?: string, deliveryPointCode?: string) =>
     api.get<{
       fee: number | null
       freeAbove: number | null
@@ -371,6 +380,10 @@ export const deliveryAPI = {
       zoneId: string | null
       isFree: boolean
       outOfArea?: boolean
+      requiresLocalitySelection?: boolean
+      availableLocalities?: DeliveryLocalityOption[]
+      selectedLocality?: string | null
+      selectedLocalityCode?: string | null
     }>(
       '/delivery/calculate',
       {
@@ -379,6 +392,8 @@ export const deliveryAPI = {
           ...(lat != null ? { lat } : {}),
           ...(lng != null ? { lng } : {}),
           ...(subtotal != null ? { subtotal } : {}),
+          ...(locality ? { locality } : {}),
+          ...(deliveryPointCode ? { deliveryPointCode } : {}),
         },
       },
     ),

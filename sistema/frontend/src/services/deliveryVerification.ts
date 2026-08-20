@@ -1,4 +1,4 @@
-import { addressesAPI, deliveryAPI } from './api'
+import { addressesAPI, deliveryAPI, type DeliveryLocalityOption } from './api'
 import {
   readDeliveryAddress,
   saveDeliveryAddress,
@@ -33,6 +33,16 @@ export interface DeliveryCalcSnapshot {
    */
   lat?: number | null
   lng?: number | null
+  /**
+   * CEP com mais de um ponto mapeado na planilha de balcao (ex.: 25750-222
+   * cobre de Chafariz a Cond. Bosque das Mangueiras) -- true enquanto o
+   * cliente ainda nao escolheu qual dos pontos e o dele. `fee` acima fica
+   * como estimativa (a menor taxa do grupo) ate a escolha.
+   */
+  requiresLocalitySelection?: boolean
+  availableLocalities?: DeliveryLocalityOption[]
+  locality?: string | null
+  deliveryPointCode?: string | null
 }
 
 export interface DeliveryVerificationSnapshot {
@@ -155,6 +165,8 @@ export async function verifyDeliveryForAddress(
   subtotal?: number,
 ): Promise<DeliveryCalcSnapshot> {
   const zipCode = address.zipCode?.trim() || undefined
+  const locality = address.locality?.trim() || undefined
+  const deliveryPointCode = address.deliveryPointCode?.trim() || undefined
 
   // A API pode omitir outOfArea; normalizamos aqui num unico ponto. Guarda
   // tambem a coordenada que decidiu o resultado -- o checkout precisa dela
@@ -163,7 +175,7 @@ export async function verifyDeliveryForAddress(
     data: Omit<DeliveryCalcSnapshot, 'outOfArea' | 'lat' | 'lng'> & { outOfArea?: boolean },
     coords?: { lat: number; lng: number } | null,
   ) => {
-    const { fee, freeAbove, zoneName, zoneId, isFree, outOfArea } = data
+    const { fee, freeAbove, zoneName, zoneId, isFree, outOfArea, requiresLocalitySelection, availableLocalities } = data
     return {
       fee,
       freeAbove,
@@ -173,6 +185,10 @@ export async function verifyDeliveryForAddress(
       outOfArea: Boolean(outOfArea || fee == null || fee === -1),
       lat: coords?.lat ?? null,
       lng: coords?.lng ?? null,
+      requiresLocalitySelection: Boolean(requiresLocalitySelection),
+      availableLocalities: availableLocalities || [],
+      locality: locality || null,
+      deliveryPointCode: deliveryPointCode || null,
     }
   }
 
@@ -181,23 +197,23 @@ export async function verifyDeliveryForAddress(
   // zona. Coordenada so chega aqui vinda do GPS, e `dropStaleCoords` a descarta
   // se o cliente editar o endereco depois.
   if (address.lat != null && address.lng != null) {
-    const res = await deliveryAPI.calculate(zipCode, address.lat, address.lng, subtotal)
+    const res = await deliveryAPI.calculate(zipCode, address.lat, address.lng, subtotal, locality, deliveryPointCode)
     return toSnapshot(res.data, { lat: address.lat, lng: address.lng })
   }
 
   if (!MAPBOX_TOKEN) {
-    const res = await deliveryAPI.calculate(zipCode, undefined, undefined, subtotal)
+    const res = await deliveryAPI.calculate(zipCode, undefined, undefined, subtotal, locality, deliveryPointCode)
     return toSnapshot(res.data)
   }
 
   try {
     const coords = await forwardGeocodeAddressByMapbox(address)
-    const res = await deliveryAPI.calculate(zipCode, coords.lat, coords.lng, subtotal)
+    const res = await deliveryAPI.calculate(zipCode, coords.lat, coords.lng, subtotal, locality, deliveryPointCode)
     return toSnapshot(res.data, coords)
   } catch {
     // Mapbox fora do ar nao pode impedir a compra: sem coordenada o backend
     // ainda resolve por faixa de CEP.
-    const res = await deliveryAPI.calculate(zipCode, undefined, undefined, subtotal)
+    const res = await deliveryAPI.calculate(zipCode, undefined, undefined, subtotal, locality, deliveryPointCode)
     return toSnapshot(res.data)
   }
 }

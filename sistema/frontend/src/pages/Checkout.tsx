@@ -43,6 +43,7 @@ import {
   readDeliveryVerification,
   subscribeDeliveryVerification,
   verifyDeliveryForAddress,
+  type DeliveryCalcSnapshot,
 } from '../services/deliveryVerification'
 
 export default function Checkout() {
@@ -157,6 +158,9 @@ export default function Checkout() {
       // Posicao do aparelho, quando houve GPS. Decide a zona por poligono.
       lat: (saved?.lat ?? null) as number | null,
       lng: (saved?.lng ?? null) as number | null,
+      // CEP com mais de um ponto de entrega mapeado (ver DeliveryCalcSnapshot).
+      locality: (saved?.locality ?? '') as string,
+      deliveryPointCode: (saved?.deliveryPointCode ?? '') as string,
       paymentMethod: 'CASH',
       needsChange: 'NO',
       changeFor: '',
@@ -177,15 +181,7 @@ export default function Checkout() {
     autoGpsEnabled: step === 'address' && !hasVerifiedAddressRef.current,
   })
 
-  const [deliveryCalc, setDeliveryCalc] = useState<{
-    fee: number | null
-    freeAbove: number | null
-    zoneName: string | null
-    isFree: boolean
-    outOfArea: boolean
-    lat?: number | null
-    lng?: number | null
-  } | null>(() => readDeliveryVerification()?.calc ?? null)
+  const [deliveryCalc, setDeliveryCalc] = useState<DeliveryCalcSnapshot | null>(() => readDeliveryVerification()?.calc ?? null)
 
   /**
    * Campos que descrevem ONDE o cliente esta. Editar qualquer um invalida a
@@ -197,7 +193,9 @@ export default function Checkout() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    const clearCoords = LOCATION_FIELDS.includes(name) ? { lat: null, lng: null } : {}
+    // Locality escolhida vale pro CEP em que foi escolhida -- mudar qualquer
+    // campo de localizacao invalida tanto o GPS quanto essa escolha.
+    const clearCoords = LOCATION_FIELDS.includes(name) ? { lat: null, lng: null, locality: '', deliveryPointCode: '' } : {}
 
     // Máscara automática de CEP
     if (name === 'zipCode') {
@@ -206,6 +204,35 @@ export default function Checkout() {
     }
 
     setFormData((prev) => ({ ...prev, [name]: value, ...clearCoords }))
+  }
+
+  // CEP como 25750-222 cobre de Chafariz a um condominio 2km mais longe --
+  // sem essa escolha o backend so libera passar de step (ver
+  // requiresLocalitySelection acima), entao reverifica na hora.
+  const handleSelectLocality = async (option: { name: string; code: string }) => {
+    setFormData((prev) => ({ ...prev, locality: option.name, deliveryPointCode: option.code }))
+    try {
+      const calc = await verifyDeliveryForAddress(
+        {
+          street: formData.street.trim(),
+          number: formData.number.trim(),
+          complement: formData.complement || null,
+          neighborhood: formData.neighborhood.trim(),
+          city: formData.city.trim(),
+          state: formData.state.trim(),
+          zipCode: formData.zipCode.trim(),
+          lat: formData.lat,
+          lng: formData.lng,
+          locality: option.name,
+          deliveryPointCode: option.code,
+        },
+        subtotal,
+      )
+      setDeliveryCalc(calc)
+      setCheckoutError(null)
+    } catch (error) {
+      setCheckoutError(getApiErrorMessage(error, 'Nao foi possivel validar a localidade escolhida.'))
+    }
   }
 
   useEffect(() => {
@@ -226,6 +253,8 @@ export default function Checkout() {
         // checkout nao recair no centroide do endereco.
         lat: snapshot.address.lat ?? prev.lat ?? null,
         lng: snapshot.address.lng ?? prev.lng ?? null,
+        locality: snapshot.address.locality ?? prev.locality ?? '',
+        deliveryPointCode: snapshot.address.deliveryPointCode ?? prev.deliveryPointCode ?? '',
       }))
 
       if (snapshot.calc) {
@@ -260,6 +289,8 @@ export default function Checkout() {
         lat,
         lng,
         addressId: deliveryAddressId,
+        locality: formData.locality || undefined,
+        deliveryPointCode: formData.deliveryPointCode || undefined,
         slotId: selectedDeliverySlot.id,
         windowStart: selectedDeliverySlot.startsAt,
         windowEnd: selectedDeliverySlot.endsAt,
@@ -285,9 +316,11 @@ export default function Checkout() {
       lat,
       lng,
       addressId: deliveryAddressId,
+      locality: formData.locality || undefined,
+      deliveryPointCode: formData.deliveryPointCode || undefined,
       ...deliverySlotRef.current,
     }
-  }, [formData.lat, formData.lng, formData.zipCode, selectedDeliverySlot, isPickup])
+  }, [formData.lat, formData.lng, formData.zipCode, formData.locality, formData.deliveryPointCode, selectedDeliverySlot, isPickup])
 
   const ensureCheckoutSession = useCallback(async ({
     customerId,
@@ -427,6 +460,8 @@ export default function Checkout() {
             // zona por poligono erraria quem mora perto da divisa.
             lat: formData.lat,
             lng: formData.lng,
+            locality: formData.locality || null,
+            deliveryPointCode: formData.deliveryPointCode || null,
           },
           subtotal,
         )
@@ -435,6 +470,11 @@ export default function Checkout() {
 
         if (calc.outOfArea) {
           setCheckoutError('Endereco fora da zona de entrega cadastrada.')
+          return
+        }
+
+        if (calc.requiresLocalitySelection) {
+          setCheckoutError('Esse CEP tem mais de um ponto de entrega -- escolha sua localidade abaixo para continuar.')
           return
         }
 
@@ -934,6 +974,41 @@ export default function Checkout() {
                     {geoLoading ? 'Obtendo localizacao...' : 'Tentar GPS novamente'}
                   </Button>
                 </div>
+
+                {deliveryCalc?.requiresLocalitySelection && deliveryCalc.availableLocalities && deliveryCalc.availableLocalities.length > 0 && (
+                  <div className={surfaceClasses({ tone: 'warm', className: 'p-3' })}>
+                    <p className="text-sm font-semibold text-[#231F20] mb-1">
+                      Esse CEP tem {deliveryCalc.availableLocalities.length} pontos de entrega
+                    </p>
+                    <p className="text-xs text-gray-500 mb-3">Escolha o mais proximo do seu endereco para calcular a taxa certa.</p>
+                    <div className="space-y-2" role="radiogroup" aria-label="Selecione sua localidade">
+                      {deliveryCalc.availableLocalities.map((option) => (
+                        <button
+                          key={option.code}
+                          type="button"
+                          role="radio"
+                          aria-checked={formData.deliveryPointCode === option.code}
+                          onClick={() => handleSelectLocality(option)}
+                          className={`w-full flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
+                            formData.deliveryPointCode === option.code
+                              ? 'border-[#5D082A] bg-[#FFF7FA]'
+                              : 'border-[#E8D7B0] bg-white hover:border-[#5D082A]/60 hover:bg-[#FFF7FA]'
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block font-semibold text-[#231F20] truncate">{option.name}</span>
+                            {option.reference && (
+                              <span className="block text-xs text-gray-500 truncate">{option.reference}</span>
+                            )}
+                          </span>
+                          <span className="shrink-0 font-bold text-[#5D082A]">
+                            {option.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label htmlFor="street" className="block text-sm font-medium mb-1">Rua</label>

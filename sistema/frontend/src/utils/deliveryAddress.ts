@@ -19,6 +19,14 @@ export interface DeliveryAddressSnapshot {
    */
   lat?: number | null
   lng?: number | null
+  /**
+   * CEP com mais de um ponto de entrega mapeado (ver DeliveryCalcSnapshot em
+   * deliveryVerification.ts) -- localidade/condominio escolhido pelo
+   * cliente no seletor, reenviado ao recalcular o frete e ao criar a sessao
+   * de checkout.
+   */
+  locality?: string | null
+  deliveryPointCode?: string | null
 }
 
 /**
@@ -29,19 +37,29 @@ export interface DeliveryAddressSnapshot {
  */
 const ADDRESS_IDENTITY_FIELDS = ['street', 'number', 'neighborhood', 'city', 'state', 'zipCode'] as const
 
-/** Descarta lat/lng quando qualquer campo de identidade do endereco mudou. */
+/** Descarta lat/lng e a localidade escolhida quando algum campo de
+ * identidade do endereco mudou (ex.: editar o CEP invalida a escolha de
+ * ponto de entrega feita pro CEP antigo). */
 export const dropStaleCoords = (
   next: DeliveryAddressSnapshot,
   previous?: DeliveryAddressSnapshot | null,
 ): DeliveryAddressSnapshot => {
-  if (next.lat == null || next.lng == null) return next
   if (!previous) return next
 
   const changed = ADDRESS_IDENTITY_FIELDS.some(
     (field) => String(next[field] ?? '').trim() !== String(previous[field] ?? '').trim(),
   )
+  if (!changed) return next
 
-  return changed ? { ...next, lat: null, lng: null } : next
+  const dropsCoords = next.lat != null && next.lng != null
+  const dropsLocality = next.locality != null || next.deliveryPointCode != null
+  if (!dropsCoords && !dropsLocality) return next
+
+  return {
+    ...next,
+    ...(dropsCoords ? { lat: null, lng: null } : {}),
+    ...(dropsLocality ? { locality: null, deliveryPointCode: null } : {}),
+  }
 }
 
 const isNonEmptyString = (value: unknown): value is string =>
