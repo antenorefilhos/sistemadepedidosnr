@@ -31,7 +31,11 @@ const BASE_ZONE_CEP_START = '25700000'
 const BASE_ZONE_CEP_END = '25849999'
 
 async function main() {
-  const dataPath = path.join(__dirname, '../src/modules/delivery/data/delivery-rates-balcao.json')
+  // __dirname nao e confiavel aqui -- o node -e/require via ts-node em
+  // producao carrega este arquivo por um caminho ESM-interop onde __dirname
+  // fica vazio/relativo. process.cwd() e o WORKDIR do container (/app),
+  // estavel tanto local (raiz de sistema/backend) quanto em producao.
+  const dataPath = path.join(process.cwd(), 'src/modules/delivery/data/delivery-rates-balcao.json')
   const entries: RateEntry[] = JSON.parse(fs.readFileSync(dataPath, 'utf-8'))
 
   const withCep = entries.filter((e) => e.cep)
