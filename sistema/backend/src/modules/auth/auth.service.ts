@@ -373,8 +373,18 @@ export class AuthService {
       })
     }
 
-    const fallbackCpf = `9${whatsapp.padStart(10, '0').slice(-10)}`
-    const cpf = cpfInput || fallbackCpf
+    // CPF real (nao mais gerado a partir do whatsapp): sem ele, o
+    // antifraude de frete gratis e a deduplicacao de cliente por CPF
+    // (linha OR abaixo) nunca tinham um identificador de verdade pra
+    // cruzar contra outro pedido.
+    if (cpfInput.length !== 11) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Informe um CPF válido para finalizar o pedido',
+        error: 'Dados invalidos',
+      })
+    }
+    const cpf = cpfInput
 
     const existing = await this.prisma.customer.findFirst({
       where: {

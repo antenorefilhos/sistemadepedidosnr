@@ -7,9 +7,8 @@ export class CreateGuestCheckoutDto {
   @IsString()
   whatsapp: string
 
-  @IsOptional()
   @IsString()
-  cpf?: string
+  cpf: string
 
   @IsOptional()
   @IsEmail()

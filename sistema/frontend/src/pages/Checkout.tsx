@@ -545,18 +545,24 @@ export default function Checkout() {
           const name = formData.guestName.trim()
           const whatsappDigits = formData.guestWhatsapp.replace(/\D/g, '')
           const cpfDigits = formData.guestCpf.replace(/\D/g, '')
-          const generatedCpf = `9${whatsappDigits.padStart(10, '0').slice(-10)}`
           const normalizedEmail = formData.guestEmail.trim() || `guest.${whatsappDigits || Date.now()}@checkout.local`
 
           if (!name || !whatsappDigits) {
             setCheckoutError('Informe nome e WhatsApp para finalizar como convidado.')
             return
           }
+          // CPF real, nao mais gerado a partir do whatsapp -- sem ele o
+          // antifraude e a deduplicacao de cliente nunca tinham um
+          // identificador de verdade pra cruzar contra outro pedido.
+          if (cpfDigits.length !== 11) {
+            setCheckoutError('Informe um CPF válido para finalizar o pedido.')
+            return
+          }
 
           const guestAuth = await authAPI.guestCheckout({
             name,
             whatsapp: whatsappDigits,
-            cpf: cpfDigits || generatedCpf,
+            cpf: cpfDigits,
             email: normalizedEmail,
           })
 
@@ -582,6 +588,8 @@ export default function Checkout() {
             state: formData.state,
             zipCode: formData.zipCode || '00000000',
             isDefault: true,
+            locality: formData.locality || null,
+            deliveryPointCode: formData.deliveryPointCode || null,
           }
 
           const createdAddressResponse = await createAddress.mutateAsync({
@@ -903,14 +911,17 @@ export default function Checkout() {
                           />
                         </div>
                         <div>
-                          <label htmlFor="guestCpf" className="block text-sm font-medium mb-1">CPF (opcional)</label>
+                          <label htmlFor="guestCpf" className="block text-sm font-medium mb-1">CPF</label>
                           <Input
                             id="guestCpf"
                             type="text"
                             name="guestCpf"
                             value={formData.guestCpf}
                             onChange={handleInputChange}
-                            placeholder="Somente numeros"
+                            placeholder="Somente números"
+                            inputMode="numeric"
+                            maxLength={14}
+                            required
                           />
                         </div>
                       </div>

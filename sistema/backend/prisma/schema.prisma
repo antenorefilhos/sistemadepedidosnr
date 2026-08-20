@@ -425,6 +425,11 @@ model Address {
   city      String
   state     String
   zipCode   String
+  // Localidade/condominio escolhido quando o CEP cobre mais de um ponto da
+  // planilha de balcao (ex.: 25750-222 -> "Chafariz"). Ver
+  // DeliveryService.resolveBalcaoLocality.
+  locality  String?
+  deliveryPointCode String?
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

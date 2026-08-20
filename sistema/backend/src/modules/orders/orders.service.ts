@@ -1300,6 +1300,7 @@ export class OrdersService {
     city: string
     state: string
     zipCode: string
+    locality?: string | null
   }) {
     return {
       id: address.id,
@@ -1310,6 +1311,7 @@ export class OrdersService {
       city: address.city,
       state: address.state,
       zipCode: address.zipCode,
+      locality: address.locality ?? null,
     }
   }
 

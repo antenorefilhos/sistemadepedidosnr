@@ -4,6 +4,7 @@ import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useKnownZoneFreeAbove } from '../hooks/useKnownZoneFreeAbove'
+import { formatPrice } from '../utils/format'
 
 const ITEMS = [
   { to: '/', label: 'Home', icon: HomeIcon, match: (path: string) => path === '/' },
@@ -19,9 +20,31 @@ export function MobileBottomNav() {
   const zoneFreeAbove = useKnownZoneFreeAbove()
   const freeShipping = useFreeShipping(subtotal, zoneFreeAbove)
 
+  // Tira sutil de "falta pouco pro frete gratis": persiste em qualquer tela
+  // que monta o nav, nao so no carrinho/checkout, que e tarde demais pro
+  // gatilho funcionar (o cliente ja decidiu fechar o pedido). Some sozinha
+  // quando ja conquistou -- o ponto verde no icone do carrinho ja avisa isso.
+  const showFreeShippingHint = count > 0 && freeShipping.enabled && !freeShipping.achieved
+
   return (
     <>
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-100 shadow-xl">
+        {showFreeShippingHint && (
+          <div className="border-b border-[#E8D7B0] bg-[#FDF8F0] px-3 py-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-medium text-[#5d4f33]">
+                Faltam <strong className="font-bold text-[#5D082A]">{formatPrice(freeShipping.remaining)}</strong> para frete grátis
+              </p>
+              <span className="shrink-0 text-[11px] font-bold text-[#5D082A]">{freeShipping.pct}%</span>
+            </div>
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#E8D7B0]/70">
+              <div
+                className="h-full rounded-full bg-[#5D082A] transition-all duration-500 ease-out"
+                style={{ width: `${freeShipping.pct}%` }}
+              />
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-5 h-16">
           {ITEMS.map(({ to, label, icon: Icon, match }) => {
             const active = match(location.pathname)
@@ -61,8 +84,9 @@ export function MobileBottomNav() {
         </div>
       </nav>
 
-      {/* Espaco reservado mobile para o conteudo nao ficar tapado pelo nav fixo */}
-      <div className="md:hidden h-16" />
+      {/* Espaco reservado mobile para o conteudo nao ficar tapado pelo nav fixo
+          -- cresce quando a tira de frete gratis esta visivel. */}
+      <div className={`md:hidden ${showFreeShippingHint ? 'h-[4.75rem]' : 'h-16'}`} />
     </>
   )
 }

@@ -426,7 +426,13 @@ export class OrderOrchestrationService {
           logradouro: payload.deliveryAddress?.street || '',
           numero: payload.deliveryAddress?.number || '',
           complemento: payload.deliveryAddress?.complement || '',
-          bairro: payload.deliveryAddress?.neighborhood || '',
+          // CEP como 25750-222 cobre varios pontos ("Chafariz" a "Cond.
+          // Bosque das Mangueiras") -- sem anexar a localidade escolhida aqui,
+          // o separador so via o bairro generico ("Pedro do Rio") e nao sabia
+          // qual dos pontos era o pedido de verdade.
+          bairro: [payload.deliveryAddress?.neighborhood, payload.deliveryAddress?.locality]
+            .filter(Boolean)
+            .join(' - '),
           cidade: payload.deliveryAddress?.city || '',
           cep: (payload.deliveryAddress?.zipCode || '').replace(/\D/g, ''),
           estado: payload.deliveryAddress?.state || '',

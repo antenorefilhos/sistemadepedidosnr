@@ -32,6 +32,7 @@ export interface InternalOrderAddressContract {
   city?: string | null
   state?: string | null
   zipCode?: string | null
+  locality?: string | null
 }
 
 export interface InternalOrderContract {

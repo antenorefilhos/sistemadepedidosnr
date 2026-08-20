@@ -10,6 +10,8 @@ export interface CreateAddressPayload {
   state: string
   zipCode: string
   isDefault?: boolean
+  locality?: string | null
+  deliveryPointCode?: string | null
 }
 
 /** Campos que definem "e o mesmo endereco" pro reaproveitamento no create.
@@ -60,6 +62,8 @@ export class AddressesService {
           complement: data.complement ?? existing.complement,
           city: data.city || existing.city,
           state: data.state || existing.state,
+          locality: data.locality ?? existing.locality,
+          deliveryPointCode: data.deliveryPointCode ?? existing.deliveryPointCode,
         }
         if (data.isDefault) {
           await tx.address.updateMany({
@@ -99,6 +103,8 @@ export class AddressesService {
       if (data.city !== undefined) patch.city = data.city
       if (data.state !== undefined) patch.state = data.state
       if (data.zipCode !== undefined) patch.zipCode = data.zipCode
+      if (data.locality !== undefined) patch.locality = data.locality
+      if (data.deliveryPointCode !== undefined) patch.deliveryPointCode = data.deliveryPointCode
       if (data.isDefault !== undefined) patch.isDefault = data.isDefault
 
       if (data.isDefault) {

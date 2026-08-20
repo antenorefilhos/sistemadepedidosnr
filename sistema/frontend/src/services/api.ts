@@ -184,6 +184,8 @@ export interface CreateAddressPayload {
   state: string
   zipCode: string
   isDefault?: boolean
+  locality?: string | null
+  deliveryPointCode?: string | null
 }
 
 type RetryableConfig = {
