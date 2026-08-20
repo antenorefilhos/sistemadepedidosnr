@@ -79,10 +79,10 @@ export function normalizeMapboxContext(feature: any): DeliveryAddressSnapshot {
   }
 }
 
-export async function requestCurrentPosition() {
-  if (!('geolocation' in navigator)) throw new Error('geolocation-not-supported')
+type GeolocationResult = { lat: number; lng: number; accuracy: number | null }
 
-  return await new Promise<{ lat: number; lng: number; accuracy: number | null }>((resolve, reject) => {
+function getPosition(options: PositionOptions): Promise<GeolocationResult> {
+  return new Promise<GeolocationResult>((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (position) =>
         resolve({
@@ -91,9 +91,55 @@ export async function requestCurrentPosition() {
           accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
         }),
       (error) => reject(error),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
+      options,
     )
   })
+}
+
+export async function requestCurrentPosition() {
+  if (!('geolocation' in navigator)) throw new Error('geolocation-not-supported')
+
+  try {
+    return await getPosition({ enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 })
+  } catch (error: any) {
+    // Permissao negada e definitiva -- repetir so atrasa o aviso pro cliente.
+    if (error?.code === 1) throw error
+
+    // Desktop/Windows sem GPS real costuma estourar TIMEOUT ou responder
+    // POSITION_UNAVAILABLE no modo de alta precisao, e resolver na hora por
+    // Wi-Fi/IP. A coordenada vem menos precisa, mas
+    // GPS_ACCURACY_THRESHOLD_M ja descarta ela pra decisao de zona -- aqui
+    // ela ainda serve pra preencher o endereco em vez de nao entregar nada.
+    return await getPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 })
+  }
+}
+
+/**
+ * Traduz erro de geolocalizacao/geocode na orientacao que o cliente precisa.
+ * Sem isso, "permissao negada" (que so ele resolve, no navegador ou no
+ * Windows) e "Mapbox fora do ar" (que ele nao pode resolver) mostravam a
+ * mesma frase generica.
+ */
+export function describeGeolocationError(error: any): string {
+  switch (error?.code) {
+    case 1:
+      return 'Permissão de localização negada no navegador ou desativada no Windows. Ative nas configurações ou digite seu CEP abaixo.'
+    case 2:
+      return 'Não foi possível determinar sua localização: o serviço de localização do aparelho está indisponível. Digite seu CEP abaixo.'
+    case 3:
+      return 'A busca pela sua localização demorou demais. Tente de novo ou digite seu CEP abaixo.'
+    default:
+      break
+  }
+
+  const message = String(error?.message || '')
+  if (message.startsWith('mapbox-')) {
+    return 'Encontramos sua localização, mas não conseguimos converter em endereço agora. Digite seu CEP abaixo.'
+  }
+  if (message === 'geolocation-not-supported') {
+    return 'Este navegador não tem localização automática. Digite seu CEP abaixo.'
+  }
+  return 'Não foi possível obter sua localização. Digite seu CEP abaixo.'
 }
 
 export async function reverseGeocodeByMapbox(lat: number, lng: number): Promise<DeliveryAddressSnapshot> {

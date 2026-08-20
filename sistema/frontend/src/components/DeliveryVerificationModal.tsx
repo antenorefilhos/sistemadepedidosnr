@@ -11,6 +11,7 @@ import {
   clearDeliveryVerification,
   fetchAddressByCep,
   formatZipCode,
+  describeGeolocationError,
   GPS_ACCURACY_THRESHOLD_M,
   readDeliveryVerification,
   requestCurrentPosition,
@@ -95,7 +96,7 @@ export function DeliveryVerificationModal() {
 
   const attemptGps = useCallback(async () => {
     if (!isGeolocationAvailable) {
-      setErrorMessage('GPS nao disponivel em conexoes HTTP. Digite seu CEP abaixo.')
+      setErrorMessage('A localização automática só funciona em conexões seguras (HTTPS). Digite seu CEP abaixo.')
       return
     }
     setGeoLoading(true)
@@ -116,11 +117,7 @@ export function DeliveryVerificationModal() {
       const result = await verifyDeliveryForAddress(detectedAddress)
       goToView(detectedAddress, result)
     } catch (err: any) {
-      if (err?.code === 1) {
-        setErrorMessage('Permissao de localizacao negada. Digite seu CEP abaixo.')
-      } else {
-        setErrorMessage('Nao foi possivel obter sua localizacao. Digite seu CEP abaixo.')
-      }
+      setErrorMessage(describeGeolocationError(err))
     } finally {
       setGeoLoading(false)
     }
@@ -175,7 +172,7 @@ export function DeliveryVerificationModal() {
         state: resolved.state || prev.state,
       }))
     } catch {
-      setErrorMessage('Nao foi possivel consultar o CEP agora.')
+      setErrorMessage('Não foi possível consultar o CEP agora.')
     } finally {
       setCepLoading(false)
     }
@@ -191,7 +188,7 @@ export function DeliveryVerificationModal() {
 
   const handleVerifyCep = useCallback(() => {
     if (address.zipCode.replace(/\D/g, '').length !== 8) {
-      setErrorMessage('Digite um CEP completo com 8 digitos.')
+      setErrorMessage('Digite um CEP completo, com 8 dígitos.')
       return
     }
     handleCepBlur()
@@ -234,7 +231,7 @@ export function DeliveryVerificationModal() {
         deliveryPointCode: option.code,
       })
     } catch {
-      setErrorMessage('Nao foi possivel validar a localidade escolhida.')
+      setErrorMessage('Não foi possível validar a localidade escolhida.')
     }
   }, [address, goToView])
 
