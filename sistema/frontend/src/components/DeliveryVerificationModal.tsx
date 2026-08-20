@@ -82,6 +82,14 @@ export function DeliveryVerificationModal() {
       calc: nextCalc,
       verifiedAt: new Date().toISOString(),
     })
+    // Calc que ainda pede escolha de localidade nao tem taxa final pra
+    // mostrar no card do modo 'view' -- ir pra la deixaria o modal vazio
+    // (o painel exige showResultPanel). Fica no formulario e abre o seletor.
+    if (nextCalc.requiresLocalitySelection) {
+      setMode('edit')
+      setLocalityModalOpen(true)
+      return
+    }
     setMode('view')
   }, [])
 
@@ -230,6 +238,18 @@ export function DeliveryVerificationModal() {
     }
   }, [address, goToView])
 
+  // "Trocar endereco" nao pode ser so setMode('edit'): a ref guarda o ultimo
+  // CEP calculado e faz autoCalculateByCep sair cedo, entao redigitar o
+  // MESMO CEP nao recalculava nada. A localidade escolhida antes tambem nao
+  // vale pro endereco novo.
+  const handleChangeAddress = useCallback(() => {
+    lastAutoCalculatedCepRef.current = null
+    setAddress((prev) => ({ ...prev, locality: null, deliveryPointCode: null }))
+    setErrorMessage(null)
+    setLocalityModalOpen(false)
+    setMode('edit')
+  }, [])
+
   const handleClear = useCallback(() => {
     clearDeliveryVerification()
     setAddress(EMPTY_ADDRESS)
@@ -244,15 +264,31 @@ export function DeliveryVerificationModal() {
     if (!isOpen) return
     setErrorMessage(null)
     setLocalityModalOpen(false)
-    const hasVerified = cached?.address && cached?.calc && cached.calc.outOfArea === false
+    // Le do storage a cada abertura, nao do `cached` (useMemo congelado na
+    // montagem): o cliente pode ter salvo o endereco nesta mesma sessao, e o
+    // cache velho o mandava de volta pro formulario com o endereco ja pronto.
+    const snapshot = readDeliveryVerification()
+    // Precisa bater com showResultPanel abaixo: snapshot que ainda pede
+    // escolha de localidade (cliente fechou o modal no meio) nao tem card pra
+    // exibir, e cair em 'view' com ele deixava o modal em branco.
+    const hasVerified =
+      snapshot?.address &&
+      snapshot?.calc &&
+      snapshot.calc.outOfArea === false &&
+      !snapshot.calc.requiresLocalitySelection
     if (hasVerified) {
+      setAddress(snapshot.address)
+      setCalc(snapshot.calc)
       setMode('view')
     } else {
       setMode('edit')
     }
-  }, [isOpen, cached])
+  }, [isOpen])
 
   const showResultPanel = calc && !calc.outOfArea && !calc.requiresLocalitySelection
+  // Rede de seguranca: qualquer combinacao de mode/calc que nao renderize o
+  // card cai no formulario. Garante que o modal nunca fique sem conteudo.
+  const showViewPanel = mode === 'view' && showResultPanel
 
   return (
     <>
@@ -276,7 +312,7 @@ export function DeliveryVerificationModal() {
               </Button>
             </div>
 
-            {mode === 'view' && showResultPanel && (
+            {showViewPanel && (
               <div className="space-y-4">
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -316,7 +352,7 @@ export function DeliveryVerificationModal() {
                     Confirmar endereço e continuar
                   </Button>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button type="button" onClick={() => setMode('edit')} variant="outline" size="md">
+                    <Button type="button" onClick={handleChangeAddress} variant="outline" size="md">
                       Trocar endereço
                     </Button>
                     <Button type="button" onClick={handleClear} variant="ghost" size="md" className="text-red-700 hover:bg-red-50">
@@ -327,7 +363,7 @@ export function DeliveryVerificationModal() {
               </div>
             )}
 
-            {mode === 'edit' && (
+            {!showViewPanel && (
               <div className="space-y-4">
                 {geoLoading && (
                   <div className={surfaceClasses({ className: 'inline-flex items-center gap-2 px-3 py-2 text-sm text-[#5d4f33]' })}>
