@@ -214,6 +214,19 @@ describe('AddressesService', () => {
         data: { isDefault: true },
       })
     })
+
+    it('applies isDefault false when explicitly sent', async () => {
+      prisma.address.findFirst.mockResolvedValue({ ...mockAddress, isDefault: true })
+      prisma.address.update.mockResolvedValue({ ...mockAddress, isDefault: false })
+
+      await service.update('customer-1', 'addr-1', { isDefault: false })
+
+      expect(prisma.address.updateMany).not.toHaveBeenCalled()
+      expect(prisma.address.update).toHaveBeenCalledWith({
+        where: { id: 'addr-1' },
+        data: { isDefault: false },
+      })
+    })
   })
 
   describe('delete', () => {

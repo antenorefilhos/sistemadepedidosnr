@@ -10,6 +10,7 @@ import { useCart } from '../hooks/useCart'
 import { useBrand } from '../hooks/useBrand'
 import { addressesAPI, type CreateAddressPayload } from '../services/api'
 import { getApiErrorMessage } from '../utils/apiError'
+import toast from 'react-hot-toast'
 import type { Address, Customer, Order, OrderItem } from '../types'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { parseChangeForFromNotes } from '../utils/changeOptions'
@@ -130,7 +131,7 @@ function Account() {
   const [addressFormOpen, setAddressFormOpen] = useState(false)
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null)
   const [addressForm, setAddressForm] = useState<CreateAddressPayload>(EMPTY_ADDRESS_FORM)
-const [addressFormLoading, setAddressFormLoading] = useState(false)
+  const [addressFormLoading, setAddressFormLoading] = useState(false)
   const [addressFormError, setAddressFormError] = useState<string | null>(null)
   const [busyAddressId, setBusyAddressId] = useState<string | null>(null)
   const [addressActionError, setAddressActionError] = useState<string | null>(null)
@@ -184,8 +185,10 @@ const [addressFormLoading, setAddressFormLoading] = useState(false)
     try {
       if (editingAddressId) {
         await addressesAPI.update(customer.id, editingAddressId, addressForm)
+        toast.success('Endereço atualizado com sucesso.')
       } else {
         await addressesAPI.create(customer.id, addressForm)
+        toast.success('Endereço adicionado com sucesso.')
       }
       setAddressFormOpen(false)
       refreshAddresses()
@@ -198,12 +201,13 @@ const [addressFormLoading, setAddressFormLoading] = useState(false)
 
   const handleDeleteAddress = async (address: Address) => {
     if (!customer?.id) return
-    if (!window.confirm(`Excluir o endereco ${address.street}, ${address.number}?`)) return
+    if (!window.confirm(`Tem certeza que deseja excluir este endereço? (${address.street}, ${address.number})`)) return
 
     setBusyAddressId(address.id)
     setAddressActionError(null)
     try {
       await addressesAPI.delete(customer.id, address.id)
+      toast.success('Endereço excluído.')
       refreshAddresses()
     } catch (error) {
       setAddressActionError(getApiErrorMessage(error, 'Nao foi possivel excluir o endereco.'))
@@ -218,6 +222,7 @@ const [addressFormLoading, setAddressFormLoading] = useState(false)
     setAddressActionError(null)
     try {
       await addressesAPI.setDefault(customer.id, address.id)
+      toast.success('Endereço definido como padrão.')
       refreshAddresses()
     } catch (error) {
       setAddressActionError(getApiErrorMessage(error, 'Nao foi possivel definir o endereco padrao.'))

@@ -100,6 +100,7 @@ export class AddressesService {
       if (data.city !== undefined) patch.city = data.city
       if (data.state !== undefined) patch.state = data.state
       if (data.zipCode !== undefined) patch.zipCode = data.zipCode
+      if (data.isDefault !== undefined) patch.isDefault = data.isDefault
 
       if (data.isDefault) {
         await tx.address.updateMany({
