@@ -304,12 +304,12 @@ export function DeliveryVerificationModal() {
                 </div>
 
                 <div className="flex flex-col gap-2">
+                  {/* So fecha o modal: confirmar o endereco nao pode arrastar
+                      o cliente pro checkout no meio da navegacao -- quem quer
+                      ir pro carrinho tem o botao proprio la embaixo. */}
                   <Button
                     type="button"
-                    onClick={() => {
-                      handleCloseModal()
-                      navigate('/checkout')
-                    }}
+                    onClick={handleCloseModal}
                     className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-300"
                   >
                     <CheckCircle2 size={18} />
