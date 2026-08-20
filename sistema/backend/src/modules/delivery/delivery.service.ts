@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon'
 import { point, polygon } from '@turf/helpers'
+import * as fs from 'fs'
+import * as path from 'path'
 import { PrismaService } from '../../common/prisma.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
@@ -19,6 +21,15 @@ import {
   UpdateFulfillmentSlotDto,
 } from './dto/fulfillment.dto'
 
+export interface DeliveryLocalityOption {
+  code: string
+  name: string
+  fee: number
+  minutes: number | null
+  km: number | null
+  reference: string | null
+}
+
 export interface DeliveryCalculation {
   fee: number | null
   rawFee?: number | null
@@ -29,6 +40,13 @@ export interface DeliveryCalculation {
   zoneId: string | null
   isFree: boolean
   outOfArea: boolean
+  /** Mais de um ponto de entrega da planilha de balcao compartilha o CEP
+   * informado -- o fee acima ainda nao e definitivo, o cliente precisa
+   * escolher em `availableLocalities` (ver selectedLocality/-Code). */
+  requiresLocalitySelection?: boolean
+  availableLocalities?: DeliveryLocalityOption[]
+  selectedLocality?: string | null
+  selectedLocalityCode?: string | null
 }
 
 type DeliveryLookup = {
@@ -38,6 +56,24 @@ type DeliveryLookup = {
   lat?: number
   lng?: number
   subtotal?: number
+  /** Nome da localidade escolhida pelo cliente quando o CEP tem mais de um
+   * ponto na planilha de balcao (ver DeliveryLocalityOption.name). */
+  locality?: string
+  /** Codigo do ponto (DeliveryLocalityOption.code) -- alternativa mais
+   * precisa a `locality` pra identificar a escolha do cliente. */
+  deliveryPointCode?: string
+}
+
+interface BalcaoRateEntry {
+  sentido: string
+  codigo: string
+  localidade: string
+  taxa: number
+  minutos: number | null
+  km: number | null
+  cep: string | null
+  cepFormatado: string | null
+  referencia: string | null
 }
 
 type FulfillmentContext = Pick<TenantContext, 'tenantId' | 'storeId'>
@@ -49,10 +85,29 @@ type SlotValidationOptions = {
 
 @Injectable()
 export class DeliveryService {
+  private readonly logger = new Logger(DeliveryService.name)
+  private balcaoRatesCache: BalcaoRateEntry[] | null = null
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  /** Le e cacheia a planilha de taxas de balcao (mesma fonte do
+   * scripts/seed-delivery-zones.ts) -- process.cwd() em vez de __dirname
+   * porque o build compilado (dist/) nao preserva a estrutura de src/. */
+  private getBalcaoRates(): BalcaoRateEntry[] {
+    if (this.balcaoRatesCache) return this.balcaoRatesCache
+    try {
+      const dataPath = path.join(process.cwd(), 'src/modules/delivery/data/delivery-rates-balcao.json')
+      const raw = fs.readFileSync(dataPath, 'utf-8')
+      this.balcaoRatesCache = JSON.parse(raw) as BalcaoRateEntry[]
+    } catch (err) {
+      this.logger.warn(`Nao foi possivel carregar delivery-rates-balcao.json: ${err instanceof Error ? err.message : err}`)
+      this.balcaoRatesCache = []
+    }
+    return this.balcaoRatesCache
+  }
 
   async listZones() {
     return this.prisma.deliveryZone.findMany({
@@ -276,10 +331,99 @@ export class DeliveryService {
     await this.prisma.deliveryArea.delete({ where: { id } })
   }
 
-  async calculate({ tenantId, storeId, cep, lat, lng, subtotal }: DeliveryLookup): Promise<DeliveryCalculation> {
+  async calculate({ tenantId, storeId, cep, lat, lng, subtotal, locality, deliveryPointCode }: DeliveryLookup): Promise<DeliveryCalculation> {
     const area = await this.findMatchingArea({ tenantId, storeId, cep, lat, lng })
     if (area) return this.areaToCalculation(area, subtotal)
-    return this.calculateLegacyZone({ tenantId, storeId, cep, lat, lng, subtotal })
+    return this.calculateLegacyZone({ tenantId, storeId, cep, lat, lng, subtotal, locality, deliveryPointCode })
+  }
+
+  /** Resolve o fee pela planilha de taxas de balcao (ponto exato por CEP,
+   * com selecao de localidade quando o CEP tem mais de um ponto mapeado).
+   * Retorna null quando o CEP nao tem nenhum ponto na planilha -- nesse
+   * caso quem chama cai pro fallback de DeliveryZone (zona base regional). */
+  private resolveBalcaoLocality(
+    cep: string,
+    locality: string | undefined,
+    deliveryPointCode: string | undefined,
+    subtotal?: number,
+  ): DeliveryCalculation | null {
+    const cepDigits = this.cleanCep(cep)
+    const points = this.getBalcaoRates().filter((entry) => this.cleanCep(entry.cep) === cepDigits && cepDigits.length === 8)
+    if (!points.length) return null
+
+    const toOption = (p: BalcaoRateEntry): DeliveryLocalityOption => ({
+      code: p.codigo,
+      name: p.localidade,
+      fee: Number(p.taxa),
+      minutes: p.minutos,
+      km: p.km,
+      reference: p.referencia,
+    })
+
+    if (points.length === 1) {
+      const single = points[0]
+      return {
+        fee: Number(single.taxa),
+        rawFee: Number(single.taxa),
+        freeAbove: null,
+        minimumOrder: null,
+        minimumOrderMet: true,
+        zoneName: single.localidade,
+        zoneId: `balcao:${single.codigo}`,
+        isFree: false,
+        outOfArea: false,
+        requiresLocalitySelection: false,
+        availableLocalities: [],
+        selectedLocality: single.localidade,
+        selectedLocalityCode: single.codigo,
+      }
+    }
+
+    const availableLocalities = points.map(toOption)
+    const selected = points.find(
+      (p) =>
+        (deliveryPointCode && p.codigo === deliveryPointCode) ||
+        (locality && p.localidade.toUpperCase() === locality.toUpperCase()),
+    )
+
+    if (selected) {
+      return {
+        fee: Number(selected.taxa),
+        rawFee: Number(selected.taxa),
+        freeAbove: null,
+        minimumOrder: null,
+        minimumOrderMet: true,
+        zoneName: selected.localidade,
+        zoneId: `balcao:${selected.codigo}`,
+        isFree: false,
+        outOfArea: false,
+        requiresLocalitySelection: false,
+        availableLocalities,
+        selectedLocality: selected.localidade,
+        selectedLocalityCode: selected.codigo,
+      }
+    }
+
+    // Nenhuma localidade escolhida ainda -- devolve a lista pro cliente
+    // selecionar no modal de endereco/checkout. fee fica com a menor taxa
+    // do grupo so como estimativa visual, nunca e o valor cobrado de fato
+    // (confirmSession/create bloqueiam sem locality/deliveryPointCode).
+    const lowestFee = Math.min(...points.map((p) => Number(p.taxa)))
+    return {
+      fee: lowestFee,
+      rawFee: lowestFee,
+      freeAbove: null,
+      minimumOrder: null,
+      minimumOrderMet: true,
+      zoneName: 'Selecione sua localidade',
+      zoneId: null,
+      isFree: false,
+      outOfArea: false,
+      requiresLocalitySelection: true,
+      availableLocalities,
+      selectedLocality: null,
+      selectedLocalityCode: null,
+    }
   }
 
   async listSlots(
@@ -782,7 +926,16 @@ export class DeliveryService {
     return areas.find((area) => this.areaMatches(area, { cep, lat, lng })) || null
   }
 
-  private async calculateLegacyZone({ tenantId, storeId, cep, lat, lng, subtotal }: DeliveryLookup): Promise<DeliveryCalculation> {
+  private async calculateLegacyZone({
+    tenantId,
+    storeId,
+    cep,
+    lat,
+    lng,
+    subtotal,
+    locality,
+    deliveryPointCode,
+  }: DeliveryLookup): Promise<DeliveryCalculation> {
     const scoped = this.resolveContext({ tenantId, storeId })
     const zones = await this.prisma.deliveryZone.findMany({
       where: {
@@ -793,10 +946,8 @@ export class DeliveryService {
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     })
 
-    if (!zones.length) {
-      return this.outOfAreaCalculation()
-    }
-
+    // GPS/mapa dentro de um poligono ativo tem prioridade maxima, sempre --
+    // e a localizacao real do aparelho, mais precisa que qualquer CEP.
     if (typeof lat === 'number' && typeof lng === 'number') {
       const polygonMatched = zones.find((zone) => {
         if (zone.type !== 'GEO_POLYGON' || !zone.polygonGeoJSON) return false
@@ -812,20 +963,25 @@ export class DeliveryService {
       if (!cep) return this.outOfAreaCalculation()
     }
 
-    if (cep) {
-      const cepNum = this.cepToNumber(cep)
-      if (cepNum === null) return this.outOfAreaCalculation()
-      const matched = zones.find((zone) => {
-        if (zone.type !== 'CEP_RANGE' || !zone.cepStart || !zone.cepEnd) return false
-        const start = this.cepToNumber(zone.cepStart)
-        const end = this.cepToNumber(zone.cepEnd)
-        return start !== null && end !== null && cepNum >= start && cepNum <= end
-      })
+    if (!cep) return this.outOfAreaCalculation()
 
-      return matched ? this.zoneToCalculation(matched, subtotal) : this.outOfAreaCalculation()
-    }
+    const cepNum = this.cepToNumber(cep)
+    if (cepNum === null) return this.outOfAreaCalculation()
 
-    return this.outOfAreaCalculation()
+    // CEP digitado a mao: a planilha de balcao tem o ponto exato (e as
+    // varias localidades que dividem o mesmo CEP em bairros como Pedro do
+    // Rio) -- so cai pra zona generica do banco se o CEP nao estiver nela.
+    const balcaoResult = this.resolveBalcaoLocality(cep, locality, deliveryPointCode, subtotal)
+    if (balcaoResult) return balcaoResult
+
+    const matched = zones.find((zone) => {
+      if (zone.type !== 'CEP_RANGE' || !zone.cepStart || !zone.cepEnd) return false
+      const start = this.cepToNumber(zone.cepStart)
+      const end = this.cepToNumber(zone.cepEnd)
+      return start !== null && end !== null && cepNum >= start && cepNum <= end
+    })
+
+    return matched ? this.zoneToCalculation(matched, subtotal) : this.outOfAreaCalculation()
   }
 
   private areaMatches(area: { type: string; rule: Prisma.JsonValue }, lookup: { cep?: string; lat?: number; lng?: number }) {

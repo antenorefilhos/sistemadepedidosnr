@@ -526,7 +526,21 @@ export class CheckoutService {
     const cep = this.optionalString(delivery.cep || delivery.zipCode || address?.zipCode)
     const lat = typeof delivery.lat === 'number' && Number.isFinite(delivery.lat) ? delivery.lat : undefined
     const lng = typeof delivery.lng === 'number' && Number.isFinite(delivery.lng) ? delivery.lng : undefined
-    const calculation = await this.deliveryService.calculate({ tenantId: context.tenantId, storeId: context.storeId, cep: cep || undefined, lat, lng })
+    const locality = this.optionalString(delivery.locality)
+    const deliveryPointCode = this.optionalString(delivery.deliveryPointCode)
+    const calculation = await this.deliveryService.calculate({
+      tenantId: context.tenantId,
+      storeId: context.storeId,
+      cep: cep || undefined,
+      lat,
+      lng,
+      locality,
+      deliveryPointCode,
+    })
+
+    if (calculation.requiresLocalitySelection) {
+      throw new BadRequestException('Selecione a localidade/condominio de entrega para este CEP antes de continuar.')
+    }
 
     return {
       mode: 'DELIVERY',

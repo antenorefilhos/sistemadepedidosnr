@@ -28,6 +28,17 @@ export class CheckoutDeliveryDto {
   @IsString()
   addressId?: string
 
+  // CEP com mais de um ponto na planilha de balcao (ex.: 25750-222 cobre de
+  // Chafariz a um condominio 2km mais longe) -- localidade/codigo escolhido
+  // pelo cliente no seletor, ver DeliveryService.resolveBalcaoLocality.
+  @IsOptional()
+  @IsString()
+  locality?: string
+
+  @IsOptional()
+  @IsString()
+  deliveryPointCode?: string
+
   @IsOptional()
   @IsString()
   slotId?: string

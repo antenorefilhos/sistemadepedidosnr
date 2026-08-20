@@ -46,12 +46,16 @@ export class DeliveryController {
     @Query('lat') lat?: string,
     @Query('lng') lng?: string,
     @Query('subtotal') subtotal?: string,
+    @Query('locality') locality?: string,
+    @Query('deliveryPointCode') deliveryPointCode?: string,
   ) {
     return this.deliveryService.calculate({
       cep,
       lat: lat ? Number(lat) : undefined,
       lng: lng ? Number(lng) : undefined,
       subtotal: subtotal ? Number(subtotal) : undefined,
+      locality,
+      deliveryPointCode,
     })
   }
 

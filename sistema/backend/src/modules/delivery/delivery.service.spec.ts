@@ -113,17 +113,20 @@ describe('DeliveryService', () => {
     )
   })
 
-  it('prefers a higher-priority specific CEP zone over a wide-range base zone (seed de taxas de balcao)', async () => {
+  it('prefers a higher-priority specific CEP zone over a wide-range base zone (CEP fora da planilha de balcao, so zonas do admin)', async () => {
     mockPrisma.deliveryArea.findMany.mockResolvedValue([])
+    // CEP inventado (fora de delivery-rates-balcao.json) pra testar so a
+    // prioridade das zonas do banco, sem a planilha de balcao interferir --
+    // ela e checada antes e teria prioridade sobre qualquer zona do banco.
     // Ordem igual a query real (orderBy priority desc) -- o mock nao ordena
     // sozinho, e o service usa .find() na ordem que recebe.
     mockPrisma.deliveryZone.findMany.mockResolvedValue([
       {
         id: 'zone-specifica',
-        name: 'CHAFARIZ / 7 CASAS',
+        name: 'Zona especifica de teste',
         type: 'CEP_RANGE',
-        cepStart: '25750222',
-        cepEnd: '25750222',
+        cepStart: '25799990',
+        cepEnd: '25799990',
         fee: 22,
         freeAbove: null,
         priority: 10,
@@ -142,14 +145,140 @@ describe('DeliveryService', () => {
 
     // CEP dentro da faixa da zona base E dentro da zona especifica --
     // a especifica (priority 10) tem que ganhar da base (priority 1).
-    await expect(service.calculate({ cep: '25750-222' })).resolves.toEqual(
-      expect.objectContaining({ fee: 22, zoneName: 'CHAFARIZ / 7 CASAS', zoneId: 'zone-specifica', outOfArea: false }),
+    await expect(service.calculate({ cep: '25799-990' })).resolves.toEqual(
+      expect.objectContaining({ fee: 22, zoneName: 'Zona especifica de teste', zoneId: 'zone-specifica', outOfArea: false }),
     )
 
     // CEP dentro so da faixa da base -- cai na base.
     await expect(service.calculate({ cep: '25710-000' })).resolves.toEqual(
       expect.objectContaining({ fee: 15, zoneName: 'Pedro do Rio (base)', zoneId: 'zone-base', outOfArea: false }),
     )
+  })
+
+  describe('planilha de taxas de balcao (sistema hibrido de localidades)', () => {
+    it('CEP com multiplos pontos sem locality informada retorna availableLocalities pra escolha do cliente', async () => {
+      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([])
+
+      const result = await service.calculate({ cep: '25750-222' })
+
+      expect(result.outOfArea).toBe(false)
+      expect(result.requiresLocalitySelection).toBe(true)
+      expect(result.selectedLocality).toBeNull()
+      expect(result.availableLocalities?.length).toBeGreaterThan(1)
+      expect(result.availableLocalities).toEqual(
+        expect.arrayContaining([expect.objectContaining({ name: 'CHAFARIZ', fee: 6 })]),
+      )
+    })
+
+    it('CEP com multiplos pontos + locality CHAFARIZ aplica a taxa exata daquele ponto', async () => {
+      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([])
+
+      const result = await service.calculate({ cep: '25750-222', locality: 'CHAFARIZ' })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          fee: 6,
+          rawFee: 6,
+          zoneName: 'CHAFARIZ',
+          selectedLocality: 'CHAFARIZ',
+          requiresLocalitySelection: false,
+          outOfArea: false,
+        }),
+      )
+    })
+
+    it('CEP com multiplos pontos + locality COND. BOSQUE DAS MANGUEIRAS aplica a taxa do condominio, nao a do vizinho', async () => {
+      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([])
+
+      const result = await service.calculate({ cep: '25750-222', locality: 'COND. BOSQUE DAS MANGUEIRAS' })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          fee: 22,
+          rawFee: 22,
+          zoneName: 'COND. BOSQUE DAS MANGUEIRAS',
+          selectedLocality: 'COND. BOSQUE DAS MANGUEIRAS',
+          requiresLocalitySelection: false,
+        }),
+      )
+    })
+
+    it('CEP com um so ponto na planilha aplica a taxa direto, sem pedir selecao', async () => {
+      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([])
+
+      // 25720170 -- RIBEIRAO, unico ponto pra esse CEP na planilha.
+      const result = await service.calculate({ cep: '25720-170' })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          fee: 36,
+          zoneName: 'RIBEIRÃO',
+          requiresLocalitySelection: false,
+          availableLocalities: [],
+        }),
+      )
+    })
+
+    it('CEP sem ponto na planilha cai pro fallback de DeliveryZone (zona base regional)', async () => {
+      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([
+        {
+          id: 'zone-base',
+          name: 'Pedro do Rio (base)',
+          type: 'CEP_RANGE',
+          cepStart: '25700000',
+          cepEnd: '25849999',
+          fee: 15,
+          freeAbove: null,
+          priority: 1,
+        },
+      ])
+
+      // CEP dentro da faixa da base mas que nao existe na planilha.
+      const result = await service.calculate({ cep: '25701-000' })
+
+      expect(result).toEqual(
+        expect.objectContaining({ fee: 15, zoneName: 'Pedro do Rio (base)', outOfArea: false }),
+      )
+    })
+
+    it('GPS dentro de poligono ativo mantem prioridade espacial maxima, ignora CEP e a planilha de balcao', async () => {
+      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([
+        {
+          id: 'zone-chafariz-poligono',
+          name: 'Chafariz',
+          type: 'GEO_POLYGON',
+          polygonGeoJSON: JSON.stringify({
+            type: 'Polygon',
+            coordinates: [
+              [
+                [-43.21, -22.42],
+                [-43.19, -22.42],
+                [-43.19, -22.40],
+                [-43.21, -22.40],
+                [-43.21, -22.42],
+              ],
+            ],
+          }),
+          fee: 6,
+          freeAbove: 80,
+          priority: 100,
+        },
+      ])
+
+      // Coordenada dentro do poligono, mas CEP de um ponto caro da planilha
+      // (COND. BOSQUE DAS MANGUEIRAS, R$22) -- o poligono tem que ganhar.
+      const result = await service.calculate({ cep: '25750-222', lat: -22.41, lng: -43.2 })
+
+      expect(result).toEqual(
+        expect.objectContaining({ fee: 6, zoneName: 'Chafariz', outOfArea: false }),
+      )
+    })
   })
 
   it('uses DeliveryArea rules before legacy zones', async () => {
