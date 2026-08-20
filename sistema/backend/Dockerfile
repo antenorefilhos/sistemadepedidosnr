@@ -47,6 +47,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
+# JSON de dados lido por scripts/seed-delivery-zones.ts em runtime (nao e
+# TS compilado, "dist" nao carrega ele sozinho)
+COPY --from=builder --chown=nestjs:nodejs /app/src/modules/delivery/data ./src/modules/delivery/data
 
 # Cria pasta de uploads e define permissões
 RUN mkdir -p uploads && chown -R nestjs:nodejs uploads
