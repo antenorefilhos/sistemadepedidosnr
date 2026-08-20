@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Loader2, MapPin, Search, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, Loader2, MapPin, ShoppingBag, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
@@ -300,60 +300,76 @@ export function DeliveryVerificationModal() {
               className: 'w-full md:max-w-lg rounded-t-2xl md:rounded-lg p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain',
             })}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 id="delivery-verification-title" className="text-lg font-bold text-[#231F20]">
-                Onde você quer receber seu pedido?
-              </h3>
-              <Button type="button" onClick={handleCloseModal} variant="ghost" size="icon" aria-label="Fechar verificacao de entrega">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 id="delivery-verification-title" className="text-xl font-black leading-tight tracking-tight text-[#231F20]">
+                  Onde você quer receber seu pedido?
+                </h3>
+                <p className="mt-1 text-xs text-[#5d4f33]">
+                  Calculamos a taxa de entrega antes de você fechar o carrinho.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={handleCloseModal}
+                variant="ghost"
+                size="icon"
+                className="-mr-1 -mt-1 shrink-0"
+                aria-label="Fechar verificação de entrega"
+              >
                 <X size={18} />
               </Button>
             </div>
 
             {showViewPanel && (
               <div className="space-y-4">
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-1">Endereco de entrega</p>
-                      <p className="font-semibold text-[#231F20]">
-                        {deliveryAddressLabel || formatAddressLabel(address)}
-                      </p>
-                      {address.locality && (
-                        <p className="text-sm text-emerald-800 mt-1">
-                          Localidade: <strong>{address.locality}</strong>
-                        </p>
-                      )}
-                      <p className="text-sm text-emerald-800 mt-1">
-                        Taxa de entrega:{' '}
-                        <strong>
-                          {calc.fee == null
-                            ? 'Indisponível'
-                            : calc.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </strong>
-                      </p>
+                {/* Etiqueta de entrega: a taxa e o dado que o cliente abriu o
+                    modal pra ver, entao ela ganha peso de display em vez de
+                    ficar dentro de um paragrafo. Verde some da superficie e
+                    fica so no sinal de conferido -- a superficie e da marca. */}
+                <div className="overflow-hidden rounded-lg border border-[#D2BB8A] bg-white">
+                  <div className="flex items-center gap-2 border-b border-[#E8D7B0] bg-[#F8F4EA] px-4 py-2">
+                    <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5d4f33]">
+                      Endereço confirmado
+                    </p>
+                  </div>
+
+                  <div className="px-4 py-3.5">
+                    <p className="font-semibold leading-snug text-[#231F20]">
+                      {deliveryAddressLabel || formatAddressLabel(address)}
+                    </p>
+                    {address.locality && (
+                      <p className="mt-1 text-sm text-[#5d4f33]">{address.locality}</p>
+                    )}
+
+                    <div className="mt-3 flex items-end justify-between gap-3 border-t border-dashed border-[#E8D7B0] pt-3">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-[#5d4f33]">
+                        Taxa de entrega
+                      </span>
+                      <span className="text-2xl font-black leading-none text-[#5D082A]">
+                        {calc.fee == null
+                          ? 'Indisponível'
+                          : calc.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
                     </div>
-                    <CheckCircle2 size={22} className="shrink-0 text-emerald-600" />
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-2">
                   {/* So fecha o modal: confirmar o endereco nao pode arrastar
                       o cliente pro checkout no meio da navegacao -- quem quer
-                      ir pro carrinho tem o botao proprio la embaixo. */}
-                  <Button
-                    type="button"
-                    onClick={handleCloseModal}
-                    className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-300"
-                  >
-                    <CheckCircle2 size={18} />
-                    Confirmar endereço e continuar
+                      ir pro carrinho tem o botao proprio la embaixo. O rotulo
+                      diz exatamente isso. */}
+                  <Button type="button" onClick={handleCloseModal} size="lg" className="w-full text-base">
+                    Confirmar e continuar comprando
                   </Button>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button type="button" onClick={handleChangeAddress} variant="outline" size="md">
+                    <Button type="button" onClick={handleChangeAddress} variant="outline">
                       Trocar endereço
                     </Button>
-                    <Button type="button" onClick={handleClear} variant="ghost" size="md" className="text-red-700 hover:bg-red-50">
-                      Limpar endereço
+                    <Button type="button" onClick={handleClear} variant="ghost" className="text-[#8a2035] hover:bg-[#FFF7FA]">
+                      Limpar
                     </Button>
                   </div>
                 </div>
@@ -362,104 +378,124 @@ export function DeliveryVerificationModal() {
 
             {!showViewPanel && (
               <div className="space-y-4">
-                {geoLoading && (
-                  <div className={surfaceClasses({ className: 'inline-flex items-center gap-2 px-3 py-2 text-sm text-[#5d4f33]' })}>
-                    <Loader2 size={14} className="animate-spin" />
-                    Tentando localizar via GPS...
-                  </div>
-                )}
-
+                {/* O proprio botao comunica o progresso (rotulo + spinner), em
+                    vez de um aviso solto acima dele dizendo a mesma coisa. */}
                 <Button
                   type="button"
                   onClick={attemptGps}
                   disabled={geoLoading}
-                  className="w-full h-12 text-base"
+                  size="lg"
+                  className="w-full text-base"
                 >
-                  {geoLoading ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
-                  📍 Usar minha localização atual (GPS)
+                  {geoLoading ? <Loader2 size={17} className="animate-spin" /> : <MapPin size={17} />}
+                  {geoLoading ? 'Localizando você...' : 'Usar minha localização atual'}
                 </Button>
 
-                <div className="flex items-center gap-3 text-xs text-gray-400">
-                  <span className="h-px flex-1 bg-gray-200" />
-                  ou digite seu CEP
-                  <span className="h-px flex-1 bg-gray-200" />
+                <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wider text-[#a89878]">
+                  <span className="h-px flex-1 bg-[#E8D7B0]" />
+                  ou informe o CEP
+                  <span className="h-px flex-1 bg-[#E8D7B0]" />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">CEP</label>
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      value={address.zipCode}
-                      onChange={(e) => handleCepChange(e.target.value)}
-                      onBlur={handleCepBlur}
-                      placeholder="00000-000"
-                      maxLength={9}
-                      inputMode="numeric"
-                      className="pr-10"
-                    />
-                    {cepLoading && <Loader2 size={16} className="animate-spin absolute right-3 top-2.5 text-gray-400" />}
+                  <label htmlFor="delivery-modal-cep" className="mb-1.5 block text-xs font-semibold text-[#5d4f33]">
+                    CEP
+                  </label>
+                  {/* Campo e acao juntos: o "Buscar" solto embaixo competia em
+                      peso com o botao de GPS, que e o caminho principal. */}
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        id="delivery-modal-cep"
+                        type="text"
+                        value={address.zipCode}
+                        onChange={(e) => handleCepChange(e.target.value)}
+                        onBlur={handleCepBlur}
+                        placeholder="00000-000"
+                        maxLength={9}
+                        inputMode="numeric"
+                        className="pr-9"
+                      />
+                      {cepLoading && (
+                        <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#D2BB8A]" />
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleVerifyCep}
+                      disabled={cepLoading}
+                      variant="secondary"
+                      className="shrink-0 px-5"
+                    >
+                      Buscar
+                    </Button>
                   </div>
                 </div>
 
-                <Button
-                  type="button"
-                  onClick={handleVerifyCep}
-                  disabled={cepLoading}
-                  variant="outline"
-                  className="w-full"
-                >
-                  {cepLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-                  Verificar CEP
-                </Button>
-
                 {errorMessage && (
-                  <div className="flex items-start gap-2.5 rounded-lg border-2 border-red-300 bg-red-50 text-red-800 px-3 py-2.5 text-sm font-medium">
-                    <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-800">
+                    <AlertTriangle size={17} className="mt-0.5 shrink-0" />
                     <span>{errorMessage}</span>
                   </div>
                 )}
 
                 {calc?.outOfArea && (
-                  <div className="flex items-start gap-2.5 rounded-lg border-2 border-amber-300 bg-amber-50 text-amber-900 px-3 py-2.5 text-sm font-medium">
-                    <AlertTriangle size={18} className="shrink-0 mt-0.5" />
-                    <span>Infelizmente ainda nao entregamos nesse endereco.</span>
+                  <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-medium text-amber-900">
+                    <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+                    <span>Ainda não entregamos nesse endereço. Confira o CEP ou fale com a loja pelo WhatsApp.</span>
                   </div>
                 )}
 
                 {calc?.requiresLocalitySelection && !localityModalOpen && (
-                  <div className="flex items-start gap-2.5 rounded-lg border-2 border-amber-300 bg-amber-50 text-amber-900 px-3 py-2.5 text-sm font-medium">
-                    <AlertTriangle size={18} className="shrink-0 mt-0.5" />
-                    <span>Esse CEP atende mais de um ponto de entrega. Escolha a sua localidade.</span>
+                  <div className="rounded-lg border border-[#D2BB8A] bg-[#F8F4EA] px-3 py-2.5">
+                    <p className="text-sm font-medium text-[#5d4f33]">
+                      Esse CEP atende mais de um ponto da região.
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={() => setLocalityModalOpen(true)}
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 w-full"
+                    >
+                      Escolher minha localidade
+                    </Button>
                   </div>
                 )}
 
                 {showResultPanel && (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm">
-                    <p className="text-emerald-800">
-                      Entrega disponivel{calc.zoneName ? ` para ${calc.zoneName}` : ''}. Taxa:{' '}
-                      <strong>
+                  <div className="rounded-lg border border-[#D2BB8A] bg-white p-3.5">
+                    <div className="flex items-end justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#5d4f33]">
+                          <CheckCircle2 size={13} className="shrink-0 text-emerald-600" />
+                          Entregamos aqui
+                        </p>
+                        {calc.zoneName && (
+                          <p className="mt-1 truncate text-sm font-semibold text-[#231F20]">{calc.zoneName}</p>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-xl font-black leading-none text-[#5D082A]">
                         {calc.fee == null
                           ? 'Indisponível'
                           : calc.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </strong>
-                    </p>
+                      </span>
+                    </div>
                     <Button
                       type="button"
                       onClick={() => {
                         goToView(address, calc)
                       }}
-                      className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-300"
+                      className="mt-3 w-full"
                     >
-                      <CheckCircle2 size={16} />
-                      Confirmar endereço e continuar
+                      Confirmar endereço
                     </Button>
                   </div>
                 )}
               </div>
             )}
 
-            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
+            <div className="mt-5 flex items-center justify-between border-t border-[#E8D7B0] pt-3">
               <Button
                 type="button"
                 onClick={() => {
@@ -468,17 +504,17 @@ export function DeliveryVerificationModal() {
                 }}
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-xs"
+                className="px-2"
               >
-                <Search size={12} />
-                Abrir carrinho
+                <ShoppingBag size={13} />
+                Ir para o carrinho
               </Button>
               <Button
                 type="button"
                 onClick={handleCloseModal}
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-xs text-gray-600 hover:bg-gray-50"
+                className="px-2 text-[#5d4f33] hover:bg-[#F8F4EA]"
               >
                 Fechar
               </Button>
@@ -501,17 +537,24 @@ export function DeliveryVerificationModal() {
               className: 'w-full md:max-w-md rounded-t-2xl md:rounded-lg p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain',
             })}
           >
-            <div className="flex items-center justify-between mb-2">
-              <h3 id="locality-modal-title" className="text-lg font-bold text-[#231F20]">
+            <div className="mb-1 flex items-start justify-between gap-3">
+              <h3 id="locality-modal-title" className="text-lg font-black leading-tight tracking-tight text-[#231F20]">
                 Selecione sua localidade ou condomínio
               </h3>
-              <Button type="button" onClick={() => setLocalityModalOpen(false)} variant="ghost" size="icon" aria-label="Fechar">
+              <Button
+                type="button"
+                onClick={() => setLocalityModalOpen(false)}
+                variant="ghost"
+                size="icon"
+                className="-mr-1 -mt-1 shrink-0"
+                aria-label="Fechar seleção de localidade"
+              >
                 <X size={18} />
               </Button>
             </div>
 
-            <p className="text-xs text-gray-500 mb-4">
-              O CEP digitado atende diferentes pontos de Pedro do Rio.
+            <p className="mb-4 text-xs text-[#5d4f33]">
+              O CEP informado atende diferentes pontos da região.
             </p>
 
             <div className="space-y-2">
@@ -520,9 +563,10 @@ export function DeliveryVerificationModal() {
                   key={`${option.code}--${option.name}`}
                   type="button"
                   onClick={() => handleSelectLocality({ name: option.name, code: option.code })}
-                  className="w-full rounded-lg border border-[#E8D7B0] bg-white px-4 py-3 text-left text-sm font-semibold text-[#231F20] hover:border-[#5D082A]/60 hover:bg-[#FFF7FA] transition-colors"
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#E8D7B0] bg-white px-4 py-3.5 text-left text-sm font-semibold text-[#231F20] transition-colors hover:border-[#5D082A] hover:bg-[#FFF7FA] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A]/50"
                 >
-                  {option.name}
+                  <span className="min-w-0">{option.name}</span>
+                  <ChevronRight size={16} className="shrink-0 text-[#D2BB8A]" />
                 </button>
               ))}
             </div>
