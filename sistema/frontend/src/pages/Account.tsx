@@ -1,20 +1,40 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { LogOut, User, Clock, MapPin, RotateCcw, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Banknote, QrCode, CreditCard } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { LogOut, User, Clock, MapPin, RotateCcw, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Banknote, QrCode, CreditCard, Plus, Pencil, Trash2, Star, X, Loader2, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { useCustomerById, useOrders } from '../hooks/useOrders'
 import { useCart } from '../hooks/useCart'
 import { useBrand } from '../hooks/useBrand'
+import { addressesAPI, type CreateAddressPayload } from '../services/api'
+import { getApiErrorMessage } from '../utils/apiError'
 import type { Address, Customer, Order, OrderItem } from '../types'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { parseChangeForFromNotes } from '../utils/changeOptions'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
+import { Input } from '../components/ui/input'
 import { Select } from '../components/ui/select'
 import { surfaceClasses } from '../components/ui/surface'
 import { cn } from '../lib/cn'
+
+function formatZipCode(value: string) {
+  const clean = value.replace(/\D/g, '').slice(0, 8)
+  return clean.length > 5 ? `${clean.slice(0, 5)}-${clean.slice(5)}` : clean
+}
+
+const EMPTY_ADDRESS_FORM: CreateAddressPayload = {
+  street: '',
+  number: '',
+  complement: '',
+  neighborhood: '',
+  city: '',
+  state: '',
+  zipCode: '',
+  isDefault: false,
+}
 
 const ORDER_STATUS_LABEL: Record<string, string> = {
   PENDING: 'Pendente',
@@ -92,6 +112,7 @@ function getInitials(name?: string) {
 
 function Account() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const { user: customer, logout } = useAuth()
   const { contactWhatsapp } = useBrand()
@@ -102,9 +123,108 @@ function Account() {
     return ['ALL', 'CASH', 'PIX', 'CARD'].includes(value) ? value : 'ALL'
   })
   const { data: orders, isLoading: ordersLoading, isFetching: ordersFetching } = useOrders(customer?.id)
-  const { data: customerDetails } = useCustomerById(customer?.id)
+  const { data: customerDetails, refetch: refetchCustomer } = useCustomerById(customer?.id)
   const { addItem } = useCart()
   const profile = (customerDetails || customer) as Customer
+
+  const [addressFormOpen, setAddressFormOpen] = useState(false)
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null)
+  const [addressForm, setAddressForm] = useState<CreateAddressPayload>(EMPTY_ADDRESS_FORM)
+const [addressFormLoading, setAddressFormLoading] = useState(false)
+  const [addressFormError, setAddressFormError] = useState<string | null>(null)
+  const [busyAddressId, setBusyAddressId] = useState<string | null>(null)
+  const [addressActionError, setAddressActionError] = useState<string | null>(null)
+
+  const refreshAddresses = () => {
+    if (!customer?.id) return
+    queryClient.invalidateQueries({ queryKey: ['customer', customer.id] })
+    refetchCustomer()
+  }
+
+  const openNewAddressForm = () => {
+    setAddressForm(EMPTY_ADDRESS_FORM)
+    setEditingAddressId(null)
+    setAddressFormError(null)
+    setAddressFormOpen(true)
+  }
+
+  const openEditAddressForm = (address: Address) => {
+    setAddressForm({
+      street: address.street,
+      number: address.number,
+      complement: address.complement || '',
+      neighborhood: address.neighborhood,
+      city: address.city,
+      state: address.state,
+      zipCode: address.zipCode,
+      isDefault: address.isDefault,
+    })
+    setEditingAddressId(address.id)
+    setAddressFormError(null)
+    setAddressFormOpen(true)
+  }
+
+  const handleAddressFormChange = (field: keyof CreateAddressPayload, value: string | boolean) => {
+    setAddressForm((prev) => ({
+      ...prev,
+      [field]: field === 'zipCode' ? formatZipCode(String(value)) : value,
+    }))
+  }
+
+  const handleAddressFormSubmit = async () => {
+    if (!customer?.id) return
+    if (!addressForm.street.trim() || !addressForm.number.trim() || !addressForm.neighborhood.trim() ||
+        !addressForm.city.trim() || !addressForm.state.trim() || addressForm.zipCode.replace(/\D/g, '').length !== 8) {
+      setAddressFormError('Preencha todos os campos obrigatorios (CEP com 8 digitos).')
+      return
+    }
+
+    setAddressFormLoading(true)
+    setAddressFormError(null)
+    try {
+      if (editingAddressId) {
+        await addressesAPI.update(customer.id, editingAddressId, addressForm)
+      } else {
+        await addressesAPI.create(customer.id, addressForm)
+      }
+      setAddressFormOpen(false)
+      refreshAddresses()
+    } catch (error) {
+      setAddressFormError(getApiErrorMessage(error, 'Nao foi possivel salvar o endereco.'))
+    } finally {
+      setAddressFormLoading(false)
+    }
+  }
+
+  const handleDeleteAddress = async (address: Address) => {
+    if (!customer?.id) return
+    if (!window.confirm(`Excluir o endereco ${address.street}, ${address.number}?`)) return
+
+    setBusyAddressId(address.id)
+    setAddressActionError(null)
+    try {
+      await addressesAPI.delete(customer.id, address.id)
+      refreshAddresses()
+    } catch (error) {
+      setAddressActionError(getApiErrorMessage(error, 'Nao foi possivel excluir o endereco.'))
+    } finally {
+      setBusyAddressId(null)
+    }
+  }
+
+  const handleSetDefault = async (address: Address) => {
+    if (!customer?.id) return
+    setBusyAddressId(address.id)
+    setAddressActionError(null)
+    try {
+      await addressesAPI.setDefault(customer.id, address.id)
+      refreshAddresses()
+    } catch (error) {
+      setAddressActionError(getApiErrorMessage(error, 'Nao foi possivel definir o endereco padrao.'))
+    } finally {
+      setBusyAddressId(null)
+    }
+  }
 
   const filteredOrders = useMemo(() => {
     if (!orders) return []
@@ -439,31 +559,201 @@ function Account() {
 
             {activeTab === 'addresses' && (
               <div className="space-y-4">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-sm text-gray-600">Gerencie os endereços usados nas suas entregas.</p>
+                  <Button type="button" onClick={openNewAddressForm} variant="primary" size="md">
+                    <Plus size={16} />
+                    Novo Endereço
+                  </Button>
+                </div>
+
+                {addressActionError && (
+                  <div className="flex items-start gap-2.5 rounded-lg border-2 border-red-300 bg-red-50 text-red-800 px-3 py-2.5 text-sm font-medium">
+                    <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                    <span>{addressActionError}</span>
+                  </div>
+                )}
+
                 {profile.addresses && profile.addresses.length > 0 ? (
                   profile.addresses.map((address: Address) => (
                     <div
                       key={address.id}
-                      className="rounded-lg border border-[#E8D7B0] p-4 bg-[#FBFAF7] flex justify-between items-start gap-3"
+                      className="rounded-lg border border-[#E8D7B0] p-4 bg-[#FBFAF7]"
                     >
-                      <div>
-                        <p className="font-semibold text-[#231F20]">
-                          {address.street}, {address.number}
-                        </p>
-                        {address.complement && <p className="text-sm text-gray-600">{address.complement}</p>}
-                        <p className="text-sm text-gray-600">
-                          {address.neighborhood}, {address.city} - {address.state}
-                        </p>
-                        <p className="text-sm text-gray-600 font-mono">{address.zipCode}</p>
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-[#231F20]">
+                              {address.street}, {address.number}
+                            </p>
+                            {address.isDefault && (
+                              <Badge tone="burgundy" className="h-6 px-2.5">
+                                <Star size={11} className="mr-1" />
+                                Padrão
+                              </Badge>
+                            )}
+                          </div>
+                          {address.complement && <p className="text-sm text-gray-600">{address.complement}</p>}
+                          <p className="text-sm text-gray-600">
+                            {address.neighborhood}, {address.city} - {address.state}
+                          </p>
+                          <p className="text-sm text-gray-600 font-mono">{address.zipCode}</p>
+                        </div>
                       </div>
-                      {address.isDefault && (
-                        <Badge tone="burgundy" className="h-7 px-3">
-                          Padrão
-                        </Badge>
-                      )}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {!address.isDefault && (
+                          <Button
+                            type="button"
+                            onClick={() => handleSetDefault(address)}
+                            disabled={busyAddressId === address.id}
+                            variant="subtle"
+                            size="sm"
+                          >
+                            {busyAddressId === address.id ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />}
+                            Definir como padrão
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          onClick={() => openEditAddressForm(address)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Pencil size={14} />
+                          Editar
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => handleDeleteAddress(address)}
+                          disabled={busyAddressId === address.id}
+                          variant="outline"
+                          size="sm"
+                          className="border-red-200 text-red-700 hover:bg-red-50"
+                        >
+                          {busyAddressId === address.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          Excluir
+                        </Button>
+                      </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-gray-600 text-center py-8">Seu endereço vai aparecer aqui no seu primeiro pedido.</p>
+                  <div>
+                    <p className="text-gray-600 text-center py-6">
+                      Você ainda não tem endereços salvos. Adicione um para agilizar suas próximas entregas.
+                    </p>
+                    <Button type="button" onClick={openNewAddressForm} variant="primary" size="md" className="w-full">
+                      <Plus size={16} />
+                      Adicionar meu primeiro endereço
+                    </Button>
+                  </div>
+                )}
+
+                {addressFormOpen && (
+                  <div className="fixed inset-0 z-[110] bg-black/40 flex items-end md:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="address-form-title">
+                    <div className={surfaceClasses({ tone: 'warm', className: 'w-full md:max-w-lg rounded-t-2xl md:rounded-lg p-5 md:p-6 shadow-2xl max-h-[92vh] overflow-auto' })}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 id="address-form-title" className="text-lg font-bold text-[#231F20]">
+                          {editingAddressId ? 'Editar endereço' : 'Novo endereço'}
+                        </h3>
+                        <Button type="button" onClick={() => setAddressFormOpen(false)} variant="ghost" size="icon" aria-label="Fechar">
+                          <X size={18} />
+                        </Button>
+                      </div>
+
+                      {addressFormError && (
+                        <div className="mb-3 flex items-start gap-2.5 rounded-lg border-2 border-red-300 bg-red-50 text-red-800 px-3 py-2.5 text-sm font-medium">
+                          <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                          <span>{addressFormError}</span>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">CEP *</label>
+                          <Input
+                            type="text"
+                            value={addressForm.zipCode}
+                            onChange={(e) => handleAddressFormChange('zipCode', e.target.value)}
+                            placeholder="00000-000"
+                            maxLength={9}
+                            inputMode="numeric"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Rua *</label>
+                          <Input
+                            type="text"
+                            value={addressForm.street}
+                            onChange={(e) => handleAddressFormChange('street', e.target.value)}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Número *</label>
+                            <Input
+                              type="text"
+                              value={addressForm.number}
+                              onChange={(e) => handleAddressFormChange('number', e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Complemento</label>
+                            <Input
+                              type="text"
+                              value={addressForm.complement || ''}
+                              onChange={(e) => handleAddressFormChange('complement', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Bairro *</label>
+                          <Input
+                            type="text"
+                            value={addressForm.neighborhood}
+                            onChange={(e) => handleAddressFormChange('neighborhood', e.target.value)}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Cidade *</label>
+                            <Input
+                              type="text"
+                              value={addressForm.city}
+                              onChange={(e) => handleAddressFormChange('city', e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Estado *</label>
+                            <Input
+                              type="text"
+                              value={addressForm.state}
+                              onChange={(e) => handleAddressFormChange('state', e.target.value.slice(0, 2).toUpperCase())}
+                              maxLength={2}
+                            />
+                          </div>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(addressForm.isDefault)}
+                            onChange={(e) => handleAddressFormChange('isDefault', e.target.checked)}
+                            className="accent-[#5D082A]"
+                          />
+                          Definir como endereço padrão
+                        </label>
+                      </div>
+
+                      <div className="mt-5 flex gap-2 justify-end">
+                        <Button type="button" onClick={() => setAddressFormOpen(false)} variant="ghost" size="md">
+                          Cancelar
+                        </Button>
+                        <Button type="button" onClick={handleAddressFormSubmit} disabled={addressFormLoading} variant="primary" size="md">
+                          {addressFormLoading && <Loader2 size={16} className="animate-spin" />}
+                          {editingAddressId ? 'Salvar alterações' : 'Adicionar endereço'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

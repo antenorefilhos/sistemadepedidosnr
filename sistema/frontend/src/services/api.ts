@@ -359,6 +359,10 @@ export const addressesAPI = {
   searchCEP: (cep: string) => api.get(`/addresses/search/${cep}`),
   list: (customerId: string) => api.get(`/addresses/${customerId}`),
   create: (customerId: string, data: CreateAddressPayload) => api.post(`/addresses/${customerId}`, data),
+  update: (customerId: string, addressId: string, data: Partial<CreateAddressPayload>) =>
+    api.put(`/addresses/${customerId}/${addressId}`, data),
+  delete: (customerId: string, addressId: string) => api.delete(`/addresses/${customerId}/${addressId}`),
+  setDefault: (customerId: string, addressId: string) => api.patch(`/addresses/${customerId}/${addressId}/default`),
 }
 
 // Delivery

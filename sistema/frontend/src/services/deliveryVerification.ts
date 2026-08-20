@@ -2,6 +2,7 @@ import { addressesAPI, deliveryAPI, type DeliveryLocalityOption } from './api'
 import {
   readDeliveryAddress,
   saveDeliveryAddress,
+  clearDeliveryAddress,
   type DeliveryAddressSnapshot,
 } from '../utils/deliveryAddress'
 
@@ -222,6 +223,14 @@ export function saveDeliveryVerification(snapshot: DeliveryVerificationSnapshot)
   if (typeof window === 'undefined') return
   saveDeliveryAddress(snapshot.address)
   localStorage.setItem(DELIVERY_VERIFICATION_STORAGE_KEY, JSON.stringify(snapshot))
+  window.dispatchEvent(new Event(DELIVERY_VERIFICATION_UPDATED_EVENT))
+}
+
+/** Remove o endereco verificado e o endereco salvo do localStorage. */
+export function clearDeliveryVerification() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(DELIVERY_VERIFICATION_STORAGE_KEY)
+  clearDeliveryAddress()
   window.dispatchEvent(new Event(DELIVERY_VERIFICATION_UPDATED_EVENT))
 }
 

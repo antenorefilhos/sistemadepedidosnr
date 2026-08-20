@@ -1,7 +1,6 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Req } from '@nestjs/common'
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, UseGuards, Req } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger'
-import { AddressesService } from './addresses.service'
-import { CreateAddressPayload } from './addresses.service'
+import { AddressesService, CreateAddressPayload } from './addresses.service'
 import { ViaCEPService } from '../../common/services/via-cep.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { assertCustomerOwnership } from '../../common/security/customer-ownership'
@@ -86,5 +85,60 @@ export class AddressesController {
   ) {
     assertCustomerOwnership(req.user, customerId)
     return this.addressesService.create(customerId, data)
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put(':customerId/:addressId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Atualizar endereço do cliente',
+    description: 'Atualiza os campos de um endereço do cliente. Se isDefault: true, desmarca os demais.',
+  })
+  @ApiParam({ name: 'customerId', type: String, description: 'ID do cliente' })
+  @ApiParam({ name: 'addressId', type: String, description: 'ID do endereço' })
+  async updateAddress(
+    @Param('customerId') customerId: string,
+    @Param('addressId') addressId: string,
+    @Body() data: Partial<CreateAddressPayload>,
+    @Req() req: { user?: { id?: string; role?: string } },
+  ) {
+    assertCustomerOwnership(req.user, customerId)
+    return this.addressesService.update(customerId, addressId, data)
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':customerId/:addressId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Excluir endereço do cliente',
+    description: 'Exclui o endereço. Se era o padrão, promove o mais recente restante.',
+  })
+  @ApiParam({ name: 'customerId', type: String, description: 'ID do cliente' })
+  @ApiParam({ name: 'addressId', type: String, description: 'ID do endereço' })
+  async deleteAddress(
+    @Param('customerId') customerId: string,
+    @Param('addressId') addressId: string,
+    @Req() req: { user?: { id?: string; role?: string } },
+  ) {
+    assertCustomerOwnership(req.user, customerId)
+    return this.addressesService.delete(customerId, addressId)
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':customerId/:addressId/default')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Definir endereço padrão do cliente',
+    description: 'Marca o endereço como padrão e desmarca os demais.',
+  })
+  @ApiParam({ name: 'customerId', type: String, description: 'ID do cliente' })
+  @ApiParam({ name: 'addressId', type: String, description: 'ID do endereço' })
+  async setDefaultAddress(
+    @Param('customerId') customerId: string,
+    @Param('addressId') addressId: string,
+    @Req() req: { user?: { id?: string; role?: string } },
+  ) {
+    assertCustomerOwnership(req.user, customerId)
+    return this.addressesService.setDefault(customerId, addressId)
   }
 }

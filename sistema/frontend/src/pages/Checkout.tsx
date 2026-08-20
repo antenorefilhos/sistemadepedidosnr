@@ -1020,9 +1020,9 @@ export default function Checkout() {
                 {deliveryCalc?.requiresLocalitySelection && deliveryCalc.availableLocalities && deliveryCalc.availableLocalities.length > 0 && (
                   <div className={surfaceClasses({ tone: 'warm', className: 'p-3' })}>
                     <p className="text-sm font-semibold text-[#231F20] mb-1">
-                      Esse CEP tem {deliveryCalc.availableLocalities.length} pontos de entrega
+                      Selecione sua localidade ou condomínio
                     </p>
-                    <p className="text-xs text-gray-500 mb-3">Escolha o mais proximo do seu endereco para calcular a taxa certa.</p>
+                    <p className="text-xs text-gray-500 mb-3">O CEP informado atende diferentes pontos da região.</p>
                     <div className="space-y-2" role="radiogroup" aria-label="Selecione sua localidade">
                       {deliveryCalc.availableLocalities.map((option) => (
                         <button
@@ -1031,21 +1031,13 @@ export default function Checkout() {
                           role="radio"
                           aria-checked={formData.deliveryPointCode === option.code}
                           onClick={() => handleSelectLocality(option)}
-                          className={`w-full flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
+                          className={`w-full rounded-lg border px-4 py-3 text-left text-sm font-semibold transition-colors ${
                             formData.deliveryPointCode === option.code
                               ? 'border-[#5D082A] bg-[#FFF7FA]'
                               : 'border-[#E8D7B0] bg-white hover:border-[#5D082A]/60 hover:bg-[#FFF7FA]'
                           }`}
                         >
-                          <span className="min-w-0">
-                            <span className="block font-semibold text-[#231F20] truncate">{option.name}</span>
-                            {option.reference && (
-                              <span className="block text-xs text-gray-500 truncate">{option.reference}</span>
-                            )}
-                          </span>
-                          <span className="shrink-0 font-bold text-[#5D082A]">
-                            {option.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                          </span>
+                          <span className="block text-[#231F20]">{option.name}</span>
                         </button>
                       ))}
                     </div>

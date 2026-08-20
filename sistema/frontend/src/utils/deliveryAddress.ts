@@ -85,6 +85,12 @@ export const saveDeliveryAddress = (address: DeliveryAddressSnapshot) => {
   window.dispatchEvent(new Event(DELIVERY_ADDRESS_UPDATED_EVENT))
 }
 
+export const clearDeliveryAddress = () => {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(DELIVERY_ADDRESS_STORAGE_KEY)
+  window.dispatchEvent(new Event(DELIVERY_ADDRESS_UPDATED_EVENT))
+}
+
 export const readDeliveryAddress = (): DeliveryAddressSnapshot | null => {
   if (typeof window === 'undefined') return null
 
