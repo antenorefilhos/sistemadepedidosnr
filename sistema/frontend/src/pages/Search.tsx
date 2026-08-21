@@ -912,7 +912,7 @@ export default function MercadoPage() {
         )}
       </main>
       {count > 0 && (
-        <div className="fixed inset-x-0 bottom-16 z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur md:hidden">
+        <div className="fixed inset-x-0 bottom-[var(--mobile-nav-height,4rem)] z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur md:hidden">
           <Link
             to="/cart"
             className={buttonVariants({ className: 'flex min-h-14 w-full justify-between px-4 text-white shadow-lg' })}

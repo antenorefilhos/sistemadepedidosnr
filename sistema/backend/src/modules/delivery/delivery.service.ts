@@ -33,7 +33,10 @@ export interface DeliveryLocalityOption {
 export interface DeliveryCalculation {
   fee: number | null
   rawFee?: number | null
-  freeAbove: number | null
+  /** null = zona conhecida SEM regra por valor (decisao deliberada, ver
+   * DeliveryZone.freeAbove). undefined = fonte de dado nao tem esse conceito
+   * (ex.: planilha de balcao) -- useFreeShipping cai pro global nesse caso. */
+  freeAbove: number | null | undefined
   minimumOrder?: number | null
   minimumOrderMet?: boolean
   zoneName: string | null
@@ -405,7 +408,7 @@ export class DeliveryService {
     return {
       fee,
       rawFee: fee,
-      freeAbove: null,
+      freeAbove: undefined,
       minimumOrder: null,
       minimumOrderMet: true,
       zoneName: point?.localidade ?? 'Selecione sua localidade',

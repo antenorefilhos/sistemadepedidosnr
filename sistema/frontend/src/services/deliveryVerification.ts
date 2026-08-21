@@ -21,7 +21,9 @@ const DELIVERY_VERIFICATION_UPDATED_EVENT = 'delivery-verification-updated'
 
 export interface DeliveryCalcSnapshot {
   fee: number | null
-  freeAbove: number | null
+  /** null = zona sem regra por valor (deliberado). undefined = fonte sem esse
+   * conceito (balcao/CEP) -- useFreeShipping cai pro global. */
+  freeAbove: number | null | undefined
   zoneName: string | null
   zoneId?: string | null
   isFree: boolean
@@ -63,7 +65,7 @@ export function formatZipCode(value: string) {
 export function mapDeliveryCalcResponse(
   data: {
     fee: number | null
-    freeAbove: number | null
+    freeAbove: number | null | undefined
     zoneName: string | null
     zoneId: string | null
     isFree: boolean

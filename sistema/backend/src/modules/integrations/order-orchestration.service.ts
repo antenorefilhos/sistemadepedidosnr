@@ -478,6 +478,7 @@ export class OrderOrchestrationService {
       CASH: 'Dinheiro',
       PIX: 'PIX',
       CARD: 'Cartao na entrega',
+      VOUCHER: 'Vale/Ticket Alimentacao',
     }
     const payment = paymentLabels[payload.paymentMethod] || payload.paymentMethod
 

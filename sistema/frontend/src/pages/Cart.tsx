@@ -333,13 +333,19 @@ export default function Cart() {
                   </div>
                   <div className="flex items-center justify-between text-gray-600">
                     <span>Subtotal</span>
-                    <span>{formatPrice(subtotal)}</span>
+                    <span>{formatPrice(subtotal + promoSavings)}</span>
                   </div>
                   {totalDiscount > 0 && (
-                    <div className="flex items-center justify-between text-gray-600">
-                      <span>Desconto</span>
-                      <span className="text-emerald-700">-{formatPrice(totalDiscount)}</span>
-                    </div>
+                    <>
+                      <div className="flex items-center justify-between text-gray-600">
+                        <span>Desconto</span>
+                        <span className="text-emerald-700">-{formatPrice(totalDiscount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-gray-600">
+                        <span>Subtotal com desconto</span>
+                        <span>{formatPrice(total)}</span>
+                      </div>
+                    </>
                   )}
                   <div className="flex items-center justify-between text-gray-600">
                     <span>Entrega</span>
@@ -408,9 +414,11 @@ export default function Cart() {
               </section>
             )}
 
-            {/* Fica acima do menu inferior (h-16), que so aparece abaixo de md.
-                Sem isso os dois disputam bottom-0 e o menu cobre o botao. */}
-            <div className="fixed inset-x-0 bottom-16 md:bottom-0 z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur lg:hidden">
+            {/* Fica acima do menu inferior, que so aparece abaixo de md. Usa a
+                altura real do nav (--mobile-nav-height, publicada por
+                MobileBottomNav) em vez de bottom-16 fixo -- senao a tira de
+                frete gratis, que cresce o nav, fica coberta por este botao. */}
+            <div className="fixed inset-x-0 bottom-[var(--mobile-nav-height,4rem)] md:bottom-0 z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur lg:hidden">
               <Link
                 to="/checkout"
                 className={buttonVariants({

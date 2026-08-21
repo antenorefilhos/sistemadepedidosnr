@@ -14,7 +14,7 @@ import {
 import { formatPrice } from '../utils/format'
 import { getApiErrorMessage } from '../utils/apiError'
 import { authAPI, deliveryAPI, type CheckoutQuoteResponse, type FulfillmentSlot, type WhatsAppDispatch } from '../services/api'
-import { Loader2, User, Banknote, QrCode, CreditCard, AlertTriangle, CheckCircle2, MapPin, ArrowLeft, ShoppingBag } from 'lucide-react'
+import { Loader2, User, Banknote, QrCode, CreditCard, Ticket, AlertTriangle, CheckCircle2, MapPin, ArrowLeft, ShoppingBag } from 'lucide-react'
 import { LoadingButton } from '../components/LoadingButton'
 import { getDeviceId } from '../utils/device'
 import { trackEvent } from '../utils/analytics'
@@ -1141,6 +1141,7 @@ export default function Checkout() {
                     { id: 'CASH', label: 'Dinheiro', icon: <Banknote className="w-5 h-5 text-[#5D082A]" /> },
                     { id: 'PIX', label: 'PIX', icon: <QrCode className="w-5 h-5 text-[#5D082A]" /> },
                     { id: 'CARD', label: 'Cartão na Entrega', icon: <CreditCard className="w-5 h-5 text-[#5D082A]" /> },
+                    { id: 'VOUCHER', label: 'Vale/Ticket Alimentação', icon: <Ticket className="w-5 h-5 text-[#5D082A]" /> },
                   ].map((method) => (
                     <label
                       key={method.id}
@@ -1160,6 +1161,7 @@ export default function Checkout() {
                             {method.id === 'CASH' && 'Você paga quando receber'}
                             {method.id === 'PIX' && 'Por chave PIX ou QR na maquininha do entregador'}
                             {method.id === 'CARD' && 'Cartão na entrega com maquininha'}
+                            {method.id === 'VOUCHER' && 'Vale ou ticket alimentação na maquininha do entregador'}
                           </p>
                         </div>
                       </div>

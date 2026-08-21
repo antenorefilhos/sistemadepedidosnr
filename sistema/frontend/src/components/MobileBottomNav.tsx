@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Home as HomeIcon, Search, ShoppingCart, User } from 'lucide-react'
 import { useCart } from '../hooks/useCart'
@@ -26,9 +27,24 @@ export function MobileBottomNav() {
   // quando ja conquistou -- o ponto verde no icone do carrinho ja avisa isso.
   const showFreeShippingHint = count > 0 && freeShipping.enabled && !freeShipping.achieved
 
+  // Altura real do nav (varia com a tira de frete gratis) publicada como CSS
+  // var -- outras barras fixas na tela (ex.: "Fechar pedido" no Cart/Search)
+  // usam essa var em vez de um bottom-16 fixo, senao ficam sobrepostas pela
+  // tira quando ela aparece (nav cresce, mas a barra hardcoded nao sabe).
+  const navRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const publish = () => document.documentElement.style.setProperty('--mobile-nav-height', `${el.offsetHeight}px`)
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [showFreeShippingHint])
+
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-100 shadow-xl">
+      <nav ref={navRef} className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-100 shadow-xl">
         {showFreeShippingHint && (
           <div className="border-b border-[#E8D7B0] bg-[#FDF8F0] px-3 py-1.5">
             <div className="flex items-center justify-between gap-2">
@@ -85,8 +101,9 @@ export function MobileBottomNav() {
       </nav>
 
       {/* Espaco reservado mobile para o conteudo nao ficar tapado pelo nav fixo
-          -- cresce quando a tira de frete gratis esta visivel. */}
-      <div className={`md:hidden ${showFreeShippingHint ? 'h-[4.75rem]' : 'h-16'}`} />
+          -- altura real medida via ref, nao um chute em rem (que desalinhava
+          quando a tira de frete gratis quebrava linha em telas estreitas). */}
+      <div className="md:hidden" style={{ height: 'var(--mobile-nav-height, 4rem)' }} />
     </>
   )
 }

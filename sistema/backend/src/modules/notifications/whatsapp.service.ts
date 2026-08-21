@@ -35,6 +35,7 @@ export class WhatsAppService {
       CASH: 'Dinheiro',
       PIX: 'PIX',
       CARD: 'Cartão na Entrega',
+      VOUCHER: 'Vale/Ticket Alimentação',
     }
 
     const paymentLabel = methodLabels[orderData.paymentMethod || 'CASH'] || orderData.paymentMethod

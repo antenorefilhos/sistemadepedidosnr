@@ -6,6 +6,7 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CARD: 'Cartão na entrega',
   CREDIT_CARD: 'Cartão de crédito',
   DEBIT_CARD: 'Cartão de débito',
+  VOUCHER: 'Vale/Ticket Alimentação',
 }
 
 /** Chave idempotente por tentativa de checkout (evita pedido duplicado). */

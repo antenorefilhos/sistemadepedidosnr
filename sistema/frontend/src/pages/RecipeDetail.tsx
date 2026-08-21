@@ -345,7 +345,7 @@ export default function RecipeDetail() {
 
       {/* Carrinho flutuante — visível em mobile quando há itens */}
       {cartCount > 0 && cartOpen && (
-        <div className="fixed bottom-16 left-0 right-0 z-50 bg-white border-t border-[#D2BB8A] p-4 shadow-xl md:hidden">
+        <div className="fixed bottom-[var(--mobile-nav-height,4rem)] left-0 right-0 z-50 bg-white border-t border-[#D2BB8A] p-4 shadow-xl md:hidden">
           <div className="flex items-center justify-between mb-3">
             <span className="font-bold text-[#231F20]">
               {cartCount} {cartCount === 1 ? 'item' : 'itens'} no carrinho
