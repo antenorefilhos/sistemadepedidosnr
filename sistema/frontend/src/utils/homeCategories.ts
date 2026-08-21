@@ -3,8 +3,11 @@ import {
   Beef,
   Beer,
   Candy,
+  Cigarette,
   Croissant,
+  Dog,
   Milk,
+  Package,
   Pizza,
   ShoppingBag,
   Smile,
@@ -37,9 +40,10 @@ export const toCategoryUrlParam = (value: string) =>
   normalizeCategoryCode(value).toLowerCase().replace(/_/g, '-')
 
 /**
- * Taxonomia oficial de 12 macro-categorias N1 (ver
- * TASK_DEV_CATEGORIAS_TAXONOMIA.md). `id` e a chave interna curta usada por
+ * Taxonomia oficial de 15 macro-categorias N1 (ver
+ * TASK_DEV_CATEGORIAS_MAPPING.md). `id` e a chave interna curta usada por
  * useHomeShelves; o codigo real do CMS entra via CMS_CATEGORY_TO_RULE_ID.
+ * Tabacaria fica deliberadamente por ultimo.
  */
 export const HOME_COMMERCIAL_PRIORITY: Record<string, number> = {
   acougue: 1,
@@ -54,6 +58,9 @@ export const HOME_COMMERCIAL_PRIORITY: Record<string, number> = {
   doces: 10,
   limpeza: 11,
   higiene: 12,
+  pet: 13,
+  bazar: 14,
+  tabacaria: 15,
 }
 
 export const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
@@ -68,7 +75,10 @@ export const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
   { id: 'congelados', label: 'Congelados & Práticos', shortLabel: 'Congelados', query: 'congelados' },
   { id: 'doces', label: 'Doces, Chocolates & Snacks', shortLabel: 'Doces & Snacks', query: 'doces' },
   { id: 'limpeza', label: 'Limpeza & Cuidados da Casa', shortLabel: 'Limpeza', query: 'limpeza' },
-  { id: 'higiene', label: 'Higiene, Beleza & Pet', shortLabel: 'Higiene & Pet', query: 'higiene' },
+  { id: 'higiene', label: 'Higiene & Perfumaria', shortLabel: 'Higiene', query: 'higiene' },
+  { id: 'pet', label: 'Pet Shop', shortLabel: 'Pet Shop', query: 'pet' },
+  { id: 'bazar', label: 'Bazar & Utilidades', shortLabel: 'Utilidades', query: 'bazar' },
+  { id: 'tabacaria', label: 'Tabacaria', shortLabel: 'Tabacaria', query: 'tabacaria' },
 ]
 
 /**
@@ -94,8 +104,12 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
   CONGELADOS_E_PRATICOS: 'congelados',
   DOCES_E_SNACKS: 'doces',
   LIMPEZA_E_CASA: 'limpeza',
-  HIGIENE_E_PET: 'higiene',
+  HIGIENE_E_PERFUMARIA: 'higiene',
+  PET_SHOP: 'pet',
+  BAZAR_E_UTILIDADES: 'bazar',
+  TABACARIA: 'tabacaria',
   // Legado — inativos no CMS, mantidos para nao quebrar links antigos
+  HIGIENE_E_PET: 'higiene',
   CARNES: 'acougue',
   CHURRASCO: 'acougue',
   CARNES_DIA_A_DIA: 'acougue',
@@ -135,6 +149,9 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   doces: Candy,
   limpeza: Trash2,
   higiene: Smile,
+  pet: Dog,
+  bazar: Package,
+  tabacaria: Cigarette,
   default: ShoppingBag,
 }
 

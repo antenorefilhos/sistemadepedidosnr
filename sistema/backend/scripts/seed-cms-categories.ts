@@ -2,7 +2,12 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-/** As 12 macro-categorias N1 oficiais (ver TASK_DEV_CATEGORIAS_TAXONOMIA.md). */
+/**
+ * As 15 macro-categorias N1 oficiais (ver TASK_DEV_CATEGORIAS_MAPPING.md).
+ * `Higiene, Beleza & Pet` foi extinta e dividida em `Higiene & Perfumaria` e
+ * `Pet Shop`; `Bazar & Utilidades` e `Tabacaria` sao novas. Tabacaria fica
+ * deliberadamente por ultimo (priority 15).
+ */
 const CATEGORIES: { name: string; shortName: string; priority: number }[] = [
   { name: 'Açougue & Churrasco', shortName: 'Açougue', priority: 1 },
   { name: 'Adega & Destilados', shortName: 'Adega & Vinhos', priority: 2 },
@@ -15,7 +20,10 @@ const CATEGORIES: { name: string; shortName: string; priority: number }[] = [
   { name: 'Congelados & Práticos', shortName: 'Congelados', priority: 9 },
   { name: 'Doces, Chocolates & Snacks', shortName: 'Doces & Snacks', priority: 10 },
   { name: 'Limpeza & Cuidados da Casa', shortName: 'Limpeza', priority: 11 },
-  { name: 'Higiene, Beleza & Pet', shortName: 'Higiene & Pet', priority: 12 },
+  { name: 'Higiene & Perfumaria', shortName: 'Higiene', priority: 12 },
+  { name: 'Pet Shop', shortName: 'Pet Shop', priority: 13 },
+  { name: 'Bazar & Utilidades', shortName: 'Utilidades', priority: 14 },
+  { name: 'Tabacaria', shortName: 'Tabacaria', priority: 15 },
 ]
 
 async function main() {
