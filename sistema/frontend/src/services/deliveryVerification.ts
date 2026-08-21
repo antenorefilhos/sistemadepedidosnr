@@ -57,6 +57,38 @@ export function formatZipCode(value: string) {
   return clean.length > 5 ? `${clean.slice(0, 5)}-${clean.slice(5)}` : clean
 }
 
+/** Normaliza a resposta crua de deliveryAPI.calculate() num DeliveryCalcSnapshot
+ * -- repetido em 3 pontos de captura de CEP/localidade (modal de entrega e
+ * checkout) antes de virar essa funcao unica. */
+export function mapDeliveryCalcResponse(
+  data: {
+    fee: number | null
+    freeAbove: number | null
+    zoneName: string | null
+    zoneId: string | null
+    isFree: boolean
+    outOfArea?: boolean
+    requiresLocalitySelection?: boolean
+    availableLocalities?: DeliveryLocalityOption[]
+  },
+  overrides?: { locality?: string | null; deliveryPointCode?: string | null },
+): DeliveryCalcSnapshot {
+  return {
+    fee: data.fee,
+    freeAbove: data.freeAbove,
+    zoneName: data.zoneName,
+    zoneId: data.zoneId,
+    isFree: data.isFree,
+    outOfArea: Boolean(data.outOfArea || data.fee == null),
+    lat: null,
+    lng: null,
+    requiresLocalitySelection: Boolean(data.requiresLocalitySelection),
+    availableLocalities: data.availableLocalities || [],
+    locality: overrides?.locality ?? null,
+    deliveryPointCode: overrides?.deliveryPointCode ?? null,
+  }
+}
+
 function getMapboxContext(feature: any, prefix: string) {
   const context = Array.isArray(feature?.context) ? feature.context : []
   return context.find((c: any) => String(c?.id || '').startsWith(prefix))
@@ -167,7 +199,11 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Delivery
   return reverseGeocodeByMapbox(lat, lng)
 }
 
-export async function reverseGeocodeByMapbox(lat: number, lng: number): Promise<DeliveryAddressSnapshot> {
+/** Fallback do Mapbox, usado internamente por reverseGeocode() quando a base
+ * local do IBGE nao acha nada no raio (cliente fora de Petropolis, ou GPS
+ * impreciso). Nao exportada -- desde a integracao do IBGE, nenhuma chamada
+ * de GPS no app chama isso direto, sempre via reverseGeocode(). */
+async function reverseGeocodeByMapbox(lat: number, lng: number): Promise<DeliveryAddressSnapshot> {
   if (!MAPBOX_TOKEN) throw new Error('mapbox-token-missing')
 
   // Mapbox usa [longitude, latitude]

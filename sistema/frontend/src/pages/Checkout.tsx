@@ -40,6 +40,7 @@ import { useBrand } from '../hooks/useBrand'
 import { getScheduleOptionsWithConfig } from '../utils/deliveryOperation'
 import {
   formatZipCode,
+  mapDeliveryCalcResponse,
   readDeliveryVerification,
   subscribeDeliveryVerification,
   verifyDeliveryForAddress,
@@ -219,21 +220,7 @@ export default function Checkout() {
 
     try {
       const res = await deliveryAPI.calculate(zipCode)
-      const data = res.data
-      setDeliveryCalc({
-        fee: data.fee,
-        freeAbove: data.freeAbove,
-        zoneName: data.zoneName,
-        zoneId: data.zoneId,
-        isFree: data.isFree,
-        outOfArea: Boolean(data.outOfArea || data.fee == null),
-        lat: null,
-        lng: null,
-        requiresLocalitySelection: Boolean(data.requiresLocalitySelection),
-        availableLocalities: data.availableLocalities || [],
-        locality: null,
-        deliveryPointCode: null,
-      })
+      setDeliveryCalc(mapDeliveryCalcResponse(res.data))
     } catch {
       // Preview silencioso -- a submissao da etapa de endereco e a fonte de
       // verdade e ja mostra erro se falhar de novo la.

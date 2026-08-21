@@ -13,6 +13,7 @@ import {
   formatZipCode,
   describeGeolocationError,
   GPS_ACCURACY_THRESHOLD_M,
+  mapDeliveryCalcResponse,
   readDeliveryVerification,
   requestCurrentPosition,
   reverseGeocode,
@@ -142,21 +143,7 @@ export function DeliveryVerificationModal() {
 
     try {
       const res = await deliveryAPI.calculate(zipCode)
-      const data = res.data
-      setCalc({
-        fee: data.fee,
-        freeAbove: data.freeAbove,
-        zoneName: data.zoneName,
-        zoneId: data.zoneId,
-        isFree: data.isFree,
-        outOfArea: Boolean(data.outOfArea || data.fee == null),
-        lat: null,
-        lng: null,
-        requiresLocalitySelection: Boolean(data.requiresLocalitySelection),
-        availableLocalities: data.availableLocalities || [],
-        locality: null,
-        deliveryPointCode: null,
-      })
+      setCalc(mapDeliveryCalcResponse(res.data))
     } catch {
       // Preview silencioso -- o fechamento do endereco e a fonte de verdade.
     }
@@ -222,21 +209,7 @@ export function DeliveryVerificationModal() {
 
     try {
       const res = await deliveryAPI.calculate(target.zipCode, undefined, undefined, undefined, option.name, option.code)
-      const data = res.data
-      goToView(target, {
-        fee: data.fee,
-        freeAbove: data.freeAbove,
-        zoneName: data.zoneName,
-        zoneId: data.zoneId,
-        isFree: data.isFree,
-        outOfArea: Boolean(data.outOfArea || data.fee == null),
-        lat: null,
-        lng: null,
-        requiresLocalitySelection: false,
-        availableLocalities: data.availableLocalities || [],
-        locality: option.name,
-        deliveryPointCode: option.code,
-      })
+      goToView(target, mapDeliveryCalcResponse(res.data, { locality: option.name, deliveryPointCode: option.code }))
     } catch {
       setErrorMessage('Não foi possível validar a localidade escolhida.')
     }

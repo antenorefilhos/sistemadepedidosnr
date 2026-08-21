@@ -372,22 +372,7 @@ export class DeliveryService {
     })
 
     if (points.length === 1) {
-      const single = points[0]
-      return {
-        fee: Number(single.taxa),
-        rawFee: Number(single.taxa),
-        freeAbove: null,
-        minimumOrder: null,
-        minimumOrderMet: true,
-        zoneName: single.localidade,
-        zoneId: `balcao:${single.codigo}`,
-        isFree: false,
-        outOfArea: false,
-        requiresLocalitySelection: false,
-        availableLocalities: [],
-        selectedLocality: single.localidade,
-        selectedLocalityCode: single.codigo,
-      }
+      return this.toBalcaoCalculation(points[0], { availableLocalities: [] })
     }
 
     const availableLocalities = points.map(toOption)
@@ -398,21 +383,7 @@ export class DeliveryService {
     )
 
     if (selected) {
-      return {
-        fee: Number(selected.taxa),
-        rawFee: Number(selected.taxa),
-        freeAbove: null,
-        minimumOrder: null,
-        minimumOrderMet: true,
-        zoneName: selected.localidade,
-        zoneId: `balcao:${selected.codigo}`,
-        isFree: false,
-        outOfArea: false,
-        requiresLocalitySelection: false,
-        availableLocalities,
-        selectedLocality: selected.localidade,
-        selectedLocalityCode: selected.codigo,
-      }
+      return this.toBalcaoCalculation(selected, { availableLocalities })
     }
 
     // Nenhuma localidade escolhida ainda -- devolve a lista pro cliente
@@ -420,20 +391,31 @@ export class DeliveryService {
     // do grupo so como estimativa visual, nunca e o valor cobrado de fato
     // (confirmSession/create bloqueiam sem locality/deliveryPointCode).
     const lowestFee = Math.min(...points.map((p) => Number(p.taxa)))
+    return this.toBalcaoCalculation(null, { availableLocalities, fallbackFee: lowestFee })
+  }
+
+  /** Monta o DeliveryCalculation comum aos 3 desfechos de resolveBalcaoLocality
+   * (ponto unico, localidade escolhida, ou pendente de escolha) -- so muda o
+   * ponto resolvido (ou null, se ainda pendente) e a lista de opcoes. */
+  private toBalcaoCalculation(
+    point: BalcaoRateEntry | null,
+    options: { availableLocalities: DeliveryLocalityOption[]; fallbackFee?: number },
+  ): DeliveryCalculation {
+    const fee = point ? Number(point.taxa) : (options.fallbackFee ?? 0)
     return {
-      fee: lowestFee,
-      rawFee: lowestFee,
+      fee,
+      rawFee: fee,
       freeAbove: null,
       minimumOrder: null,
       minimumOrderMet: true,
-      zoneName: 'Selecione sua localidade',
-      zoneId: null,
+      zoneName: point?.localidade ?? 'Selecione sua localidade',
+      zoneId: point ? `balcao:${point.codigo}` : null,
       isFree: false,
       outOfArea: false,
-      requiresLocalitySelection: true,
-      availableLocalities,
-      selectedLocality: null,
-      selectedLocalityCode: null,
+      requiresLocalitySelection: !point,
+      availableLocalities: options.availableLocalities,
+      selectedLocality: point?.localidade ?? null,
+      selectedLocalityCode: point?.codigo ?? null,
     }
   }
 

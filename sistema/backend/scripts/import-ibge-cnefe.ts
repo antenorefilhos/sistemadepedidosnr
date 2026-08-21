@@ -42,7 +42,19 @@ async function downloadAndExtract(workDir: string): Promise<string> {
   return csvPath
 }
 
-function parseRow(line: string) {
+interface ImportRow {
+  codUnico: string
+  bairro: string
+  tipoLogradouro: string
+  nomeLogradouro: string
+  logradouro: string
+  numero: string | null
+  cep: string
+  latitude: number
+  longitude: number
+}
+
+function parseRow(line: string): ImportRow | null {
   const cols = line.split(';')
   if (cols.length < 27) return null
 
@@ -81,15 +93,21 @@ async function main() {
 
   const rl = readline.createInterface({ input: fs.createReadStream(csvPath, { encoding: 'utf-8' }), crlfDelay: Infinity })
 
-  let batch: ReturnType<typeof parseRow>[] = []
+  let batch: ImportRow[] = []
   let total = 0
+  let duplicates = 0
   let skipped = 0
   let isHeader = true
 
   const flush = async () => {
     if (!batch.length) return
-    const result = await prisma.ibgeAddress.createMany({ data: batch as any, skipDuplicates: true })
+    const result = await prisma.ibgeAddress.createMany({ data: batch, skipDuplicates: true })
     total += result.count
+    // skipDuplicates absorve cod_unico repetido no dado oficial do IBGE em
+    // silencio -- sem contar a diferenca aqui, o log final mentia "0
+    // ignoradas" quando na real centenas de linhas validas nunca foram
+    // gravadas por colidir com uma ja existente.
+    duplicates += batch.length - result.count
     batch = []
   }
 
@@ -112,7 +130,10 @@ async function main() {
 
   if (!localCsvArg) fs.rmSync(workDir, { recursive: true, force: true })
 
-  console.log(`Importacao concluida: ${total} enderecos gravados, ${skipped} linha(s) ignorada(s) (sem CEP/coordenada valida).`)
+  console.log(
+    `Importacao concluida: ${total} enderecos gravados, ${duplicates} duplicata(s) de cod_unico ignorada(s), ` +
+      `${skipped} linha(s) descartada(s) (sem CEP/coordenada valida).`,
+  )
 }
 
 main()

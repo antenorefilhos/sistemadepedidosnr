@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common'
 import { DeliveryService } from './delivery.service'
 import { IbgeAddressService } from './ibge-address.service'
+import { IbgeReverseGeocodeDto } from './dto/ibge-address.dto'
 import { CreateDeliveryZoneDto, UpdateDeliveryZoneDto } from './dto/delivery-zone.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -46,11 +47,8 @@ export class DeliveryController {
   // consulta por CEP e autocomplete de logradouro sem depender de API paga. ──
   @Post('ibge/reverse')
   @ApiOperation({ summary: 'Geocodificacao reversa local via CNEFE (IBGE) -- endereco mais proximo da coordenada' })
-  async ibgeReverse(@Body() body: { latitude?: number; longitude?: number; radiusMeters?: number }) {
-    const lat = Number(body?.latitude)
-    const lng = Number(body?.longitude)
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-    return this.ibgeAddressService.findNearest(lat, lng, body?.radiusMeters ? Number(body.radiusMeters) : undefined)
+  async ibgeReverse(@Body() dto: IbgeReverseGeocodeDto) {
+    return this.ibgeAddressService.findNearest(dto.latitude, dto.longitude, dto.radiusMeters)
   }
 
   @Get('ibge/by-cep/:cep')
