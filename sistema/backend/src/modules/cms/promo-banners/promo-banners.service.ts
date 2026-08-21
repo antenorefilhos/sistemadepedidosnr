@@ -183,7 +183,19 @@ export class PromoBannersService {
       order?: number;
     },
   ) {
-    const { subtitle, link, highlightedProductId, ...rest } = data;
+    // O admin manda o objeto "editing" inteiro (spread do que foi buscado da API),
+    // que inclui id/tenantId/storeId/createdAt/updatedAt/highlightedProduct aninhado --
+    // nenhum desses e um campo direto do Prisma, so passam pelo TS sem checagem porque
+    // o body nao e validado por DTO. Filtra so o que a coluna realmente aceita.
+    const {
+      subtitle, link, highlightedProductId,
+      id: _id, tenantId: _tenantId, storeId: _storeId,
+      createdAt: _createdAt, updatedAt: _updatedAt, highlightedProduct: _highlightedProduct,
+      ...rest
+    } = data as typeof data & {
+      id?: string; tenantId?: string; storeId?: string;
+      createdAt?: string; updatedAt?: string; highlightedProduct?: unknown;
+    };
     return this.prisma.promoBanner.update({
       where: { id },
       data: {
