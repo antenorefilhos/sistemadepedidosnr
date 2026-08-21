@@ -31,6 +31,8 @@ const NotFound = lazy(() => import('./pages/NotFound'))
 const RecipeList = lazy(() => import('./pages/RecipeList'))
 const RecipeDetail = lazy(() => import('./pages/RecipeDetail'))
 const Promocoes = lazy(() => import('./pages/Promocoes'))
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const TermsOfUse = lazy(() => import('./pages/TermsOfUse'))
 
 function LegacySearchRedirect() {
   const location = useLocation()
@@ -115,6 +117,8 @@ function AppRoutes() {
           <Route path="/receitas" element={<PageTransition><RecipeList /></PageTransition>} />
           <Route path="/receitas/:slug" element={<PageTransition><RecipeDetail /></PageTransition>} />
           <Route path="/promocoes" element={<PageTransition><Promocoes /></PageTransition>} />
+          <Route path="/privacidade" element={<PageTransition><PrivacyPolicy /></PageTransition>} />
+          <Route path="/termos" element={<PageTransition><TermsOfUse /></PageTransition>} />
 
           <Route path="/" element={<PageTransition><Home /></PageTransition>} />
           <Route path="/cart" element={<PageTransition><Cart /></PageTransition>} />

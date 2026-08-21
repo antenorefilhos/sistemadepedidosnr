@@ -13,6 +13,7 @@ export interface BrandConfig {
   openMessage: string | null
   closedMessage: string | null
   countdownLabel: string | null
+  cnpj: string | null
 }
 
 const DEFAULTS: BrandConfig = {
@@ -27,6 +28,7 @@ const DEFAULTS: BrandConfig = {
   openMessage: null,
   closedMessage: null,
   countdownLabel: null,
+  cnpj: null,
 }
 
 export function useBrand() {
@@ -51,5 +53,6 @@ export function useBrand() {
     openMessage: (data as BrandConfig | undefined)?.openMessage ?? null,
     closedMessage: (data as BrandConfig | undefined)?.closedMessage ?? null,
     countdownLabel: (data as BrandConfig | undefined)?.countdownLabel ?? null,
+    cnpj: (data as BrandConfig | undefined)?.cnpj ?? null,
   }
 }

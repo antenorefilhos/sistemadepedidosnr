@@ -39,7 +39,12 @@ export class BrandService {
     const record = await this.prisma.brandConfig.findUnique({
       where: { id: SINGLETON_ID },
     });
-    return record ?? { id: SINGLETON_ID, ...DEFAULTS, createdAt: new Date(), updatedAt: new Date() };
+    const base = record ?? { id: SINGLETON_ID, ...DEFAULTS, createdAt: new Date(), updatedAt: new Date() };
+    // CNPJ emitente ja e configuracao real usada para emissao de NF-e (ver
+    // integrations.service.ts) -- reaproveitado aqui so pra exibicao no
+    // rodape, sem duplicar a fonte de verdade.
+    const cnpj = process.env.NFE_CNPJ_EMITENTE || process.env.SOLIDCOM_CNPJ || null;
+    return { ...base, cnpj };
   }
 
   async upsert(dto: BrandConfigDto) {
