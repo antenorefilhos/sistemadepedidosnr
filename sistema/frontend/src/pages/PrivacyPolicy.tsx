@@ -4,12 +4,27 @@ import { SEO } from '../components/SEO'
 import { Footer } from '../components/Footer'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 
+const SECTIONS = [
+  { id: 'identificacao', label: 'Identificação da empresa' },
+  { id: 'dados-coletados', label: 'Dados pessoais coletados' },
+  { id: 'finalidades', label: 'Finalidades do tratamento' },
+  { id: 'bases-legais', label: 'Bases legais' },
+  { id: 'notificacoes', label: 'Notificações e comunicações' },
+  { id: 'compartilhamento', label: 'Compartilhamento de dados' },
+  { id: 'seguranca', label: 'Segurança das informações' },
+  { id: 'retencao', label: 'Retenção dos dados' },
+  { id: 'direitos', label: 'Direitos dos titulares' },
+  { id: 'exclusao', label: 'Exclusão de conta' },
+  { id: 'cookies', label: 'Cookies e tecnologias semelhantes' },
+  { id: 'alteracoes', label: 'Alterações desta política' },
+]
+
 export default function PrivacyPolicy() {
   return (
     <div className="min-h-screen bg-white">
       <SEO
         title="Política de Privacidade"
-        description="Como o Antenor & Filhos coleta, usa e protege seus dados, em conformidade com a LGPD (Lei 13.709/2018)."
+        description="Como o Antenor & Filhos coleta, usa e protege seus dados pessoais, em conformidade com a LGPD (Lei 13.709/2018)."
       />
 
       <header className="sticky top-0 z-40 flex items-center gap-3 bg-[#5D082A] px-4 py-4 text-white">
@@ -23,75 +38,172 @@ export default function PrivacyPolicy() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-8 text-sm leading-relaxed text-[#231F20]">
-        <p className="mb-6 text-xs font-semibold uppercase tracking-[0.08em] text-[#8A6A3A]">
-          Última atualização: agosto de 2026
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#8A6A3A]">
+          Aplicativo e site Antenor & Filhos · Última atualização: junho de 2026
+        </p>
+        <p className="mt-3">
+          Este documento estabelece a Política de Privacidade aplicável à utilização do aplicativo e site
+          Antenor & Filhos, bem como as regras relativas ao tratamento de dados pessoais dos usuários, em
+          conformidade com a Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 – LGPD). Ao
+          realizar seu cadastro, acessar ou utilizar a plataforma, o usuário declara ter lido, compreendido
+          e concordado com todas as disposições deste documento.
         </p>
 
-        <h2 className="mb-2 mt-6 text-lg font-bold">1. Quem somos</h2>
-        <p>
-          O Antenor & Filhos é um supermercado e adega em funcionamento desde 1979, localizado na Estrada
-          União e Indústria, Pedro do Rio, Petrópolis - RJ. Esta política explica como coletamos, usamos,
-          armazenamos e protegemos os dados pessoais de clientes que utilizam nosso site e aplicativo de
-          pedidos, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD).
+        <nav className="my-6 rounded-xl border border-[#E8D7B0]/60 bg-[#FBF7F0] p-4">
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#8A6A3A]">Sumário</p>
+          <ol className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
+            {SECTIONS.map((s, i) => (
+              <li key={s.id}>
+                <a href={`#${s.id}`} className="text-[#5D082A] hover:underline">
+                  {i + 1}. {s.label}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+
+        <h2 id="identificacao" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">1. Identificação da empresa</h2>
+        <p><strong>Razão Social:</strong> Nova Real Comércio de Produtos Alimentícios LTDA</p>
+        <p><strong>Nome Fantasia:</strong> Antenor & Filhos</p>
+        <p><strong>CNPJ:</strong> 05.147.995/0001-31</p>
+        <p><strong>Inscrição Estadual:</strong> 77.403.31-0</p>
+        <p><strong>Endereço:</strong> Estrada União e Indústria, nº 22.099, Pedro do Rio, Petrópolis/RJ, CEP 25750-222</p>
+        <p><strong>Telefone:</strong> (24) 2237-7205</p>
+        <p><strong>E-mail de atendimento e privacidade:</strong> marketing@antenorefilhos.com.br</p>
+
+        <h2 id="dados-coletados" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">2. Dados pessoais coletados</h2>
+        <p>Poderão ser coletados:</p>
+        <p className="mt-3 font-semibold">Dados cadastrais</p>
+        <ul className="ml-5 list-disc space-y-1"><li>Nome</li><li>CPF</li><li>Data de nascimento</li><li>Telefone</li><li>E-mail</li><li>Endereço</li></ul>
+        <p className="mt-3 font-semibold">Dados de compra</p>
+        <ul className="ml-5 list-disc space-y-1"><li>Histórico de pedidos</li><li>Produtos adquiridos</li><li>Valores pagos</li><li>Frequência de compras</li></ul>
+        <p className="mt-3 font-semibold">Dados de localização</p>
+        <ul className="ml-5 list-disc space-y-1"><li>Localização geográfica</li><li>Área de atendimento</li><li>Informações necessárias para cálculo de frete e entrega</li></ul>
+        <p className="mt-3 font-semibold">Dados de utilização</p>
+        <ul className="ml-5 list-disc space-y-1"><li>Páginas acessadas</li><li>Produtos visualizados</li><li>Interações com o aplicativo</li><li>Informações técnicas do dispositivo</li></ul>
+        <p className="mt-3">
+          Você concorda que a Antenor & Filhos pode coletar e usar dados técnicos de seu dispositivo, tais
+          como especificações, configurações, versões de sistema operacional, tipo de conexão à internet e
+          afins.
         </p>
 
-        <h2 className="mb-2 mt-6 text-lg font-bold">2. Quais dados coletamos</h2>
-        <p>Coletamos os dados necessários para viabilizar sua compra e entrega, entre eles:</p>
+        <h2 id="finalidades" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">3. Finalidades do tratamento</h2>
+        <p>Os dados poderão ser utilizados para:</p>
         <ul className="ml-5 mt-2 list-disc space-y-1">
-          <li>Nome, CPF, e-mail e telefone/WhatsApp para identificação e contato sobre o pedido;</li>
-          <li>Endereço de entrega, para que o pedido chegue corretamente até você;</li>
-          <li>Histórico de pedidos e preferências de compra, para melhorar sua experiência;</li>
-          <li>Dados de pagamento, processados diretamente pelo gateway de pagamento parceiro — não armazenamos número completo de cartão em nossos servidores;</li>
-          <li>Dados técnicos de navegação (IP, dispositivo, cookies), para segurança e prevenção de fraude.</li>
+          <li>processamento de pedidos;</li>
+          <li>realização de entregas;</li>
+          <li>retirada de produtos;</li>
+          <li>atendimento ao cliente;</li>
+          <li>emissão de documentos fiscais;</li>
+          <li>prevenção de fraudes;</li>
+          <li>cumprimento de obrigações legais;</li>
+          <li>melhoria dos serviços;</li>
+          <li>personalização da experiência;</li>
+          <li>envio de notificações;</li>
+          <li>campanhas promocionais;</li>
+          <li>comunicações operacionais.</li>
         </ul>
 
-        <h2 className="mb-2 mt-6 text-lg font-bold">3. Para que usamos seus dados</h2>
-        <ul className="ml-5 list-disc space-y-1">
-          <li>Processar e entregar seu pedido corretamente;</li>
-          <li>Emitir nota fiscal e cumprir obrigações fiscais/legais;</li>
-          <li>Comunicar atualizações sobre o status do pedido (WhatsApp, e-mail, notificação push);</li>
-          <li>Prevenir fraudes e proteger a segurança da plataforma;</li>
-          <li>Melhorar nossos produtos, ofertas e experiência de compra, com sua autorização.</li>
+        <h2 id="bases-legais" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">4. Bases legais</h2>
+        <p>O tratamento dos dados poderá ocorrer com fundamento em:</p>
+        <ul className="ml-5 mt-2 list-disc space-y-1">
+          <li>execução de contrato;</li>
+          <li>cumprimento de obrigação legal;</li>
+          <li>exercício regular de direitos;</li>
+          <li>legítimo interesse;</li>
+          <li>consentimento do titular, quando aplicável.</li>
         </ul>
 
-        <h2 className="mb-2 mt-6 text-lg font-bold">4. Segurança dos pagamentos</h2>
-        <p>
-          As transações de pagamento são processadas por um gateway de pagamento especializado, com
-          conexão criptografada (SSL/HTTPS) e conformidade com os padrões de segurança do setor. O
-          Antenor & Filhos não tem acesso ao número completo do seu cartão de crédito.
-        </p>
-
-        <h2 className="mb-2 mt-6 text-lg font-bold">5. Compartilhamento de dados</h2>
-        <p>
-          Compartilhamos dados somente com parceiros estritamente necessários para a operação do serviço:
-          gateway de pagamento, equipe de entrega e sistemas de emissão fiscal. Não vendemos nem alugamos
-          seus dados pessoais a terceiros para fins de marketing.
-        </p>
-
-        <h2 className="mb-2 mt-6 text-lg font-bold">6. Seus direitos como titular dos dados</h2>
-        <p>Conforme a LGPD, você tem direito a:</p>
+        <h2 id="notificacoes" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">5. Notificações e comunicações</h2>
+        <p>O aplicativo poderá enviar notificações relacionadas a:</p>
         <ul className="ml-5 mt-2 list-disc space-y-1">
-          <li>Confirmar a existência de tratamento dos seus dados;</li>
-          <li>Acessar, corrigir ou atualizar seus dados cadastrais a qualquer momento pela sua conta;</li>
-          <li>Solicitar a exclusão dos seus dados, respeitadas obrigações legais de guarda fiscal;</li>
-          <li>Revogar consentimentos dados anteriormente, como o recebimento de notificações promocionais;</li>
-          <li>Solicitar a portabilidade dos seus dados a outro fornecedor.</li>
+          <li>pedidos;</li><li>entregas;</li><li>atualizações de cadastro;</li><li>promoções;</li>
+          <li>campanhas comerciais;</li><li>novidades e ofertas.</li>
         </ul>
         <p className="mt-2">
-          Para exercer qualquer um desses direitos, entre em contato pelo WhatsApp de atendimento indicado
-          no rodapé do site.
+          O usuário poderá desativar notificações diretamente nas configurações do dispositivo quando
+          disponível.
         </p>
 
-        <h2 className="mb-2 mt-6 text-lg font-bold">7. Retenção de dados</h2>
-        <p>
-          Mantemos seus dados pelo tempo necessário para cumprir a finalidade para a qual foram coletados,
-          incluindo prazos de guarda fiscal exigidos por lei, mesmo após o encerramento da conta.
+        <h2 id="compartilhamento" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">6. Compartilhamento de dados</h2>
+        <p>Os dados poderão ser compartilhados com:</p>
+        <ul className="ml-5 mt-2 list-disc space-y-1">
+          <li>processadores de pagamento;</li>
+          <li>prestadores de tecnologia;</li>
+          <li>empresas de logística;</li>
+          <li>fornecedores de hospedagem e armazenamento;</li>
+          <li>autoridades públicas quando exigido por lei.</li>
+        </ul>
+        <p className="mt-2">
+          O compartilhamento ocorrerá apenas quando necessário para as finalidades previstas neste
+          documento. Em hipótese alguma informações a seu respeito serão repassadas a terceiros para fins
+          diversos dos aqui previstos.
         </p>
 
-        <h2 className="mb-2 mt-6 text-lg font-bold">8. Alterações nesta política</h2>
+        <h2 id="seguranca" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">7. Segurança das informações</h2>
+        <p>A empresa adota medidas técnicas e administrativas destinadas à proteção dos dados pessoais contra:</p>
+        <ul className="ml-5 mt-2 list-disc space-y-1">
+          <li>acesso não autorizado;</li><li>vazamento;</li><li>destruição;</li><li>alteração;</li><li>divulgação indevida.</li>
+        </ul>
+        <p className="mt-2">Apesar dos esforços empregados, nenhum sistema é completamente imune a riscos.</p>
+
+        <h2 id="retencao" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">8. Retenção dos dados</h2>
+        <p>Os dados serão mantidos pelo período necessário para:</p>
+        <ul className="ml-5 mt-2 list-disc space-y-1">
+          <li>execução dos serviços;</li>
+          <li>cumprimento de obrigações legais;</li>
+          <li>atendimento a exigências regulatórias;</li>
+          <li>exercício regular de direitos da empresa.</li>
+        </ul>
+        <p className="mt-2">
+          Após esse período, os dados poderão ser eliminados ou anonimizados conforme a legislação
+          aplicável.
+        </p>
+
+        <h2 id="direitos" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">9. Direitos dos titulares</h2>
+        <p>Nos termos da LGPD, o titular poderá solicitar:</p>
+        <ul className="ml-5 mt-2 list-disc space-y-1">
+          <li>confirmação da existência de tratamento;</li>
+          <li>acesso aos dados;</li>
+          <li>correção de dados incompletos ou incorretos;</li>
+          <li>anonimização;</li>
+          <li>bloqueio ou eliminação de dados;</li>
+          <li>portabilidade;</li>
+          <li>informações sobre compartilhamentos;</li>
+          <li>revogação de consentimento quando aplicável.</li>
+        </ul>
+        <p className="mt-2">
+          Solicitações poderão ser encaminhadas para{' '}
+          <a href="mailto:marketing@antenorefilhos.com.br" className="font-semibold text-[#5D082A] hover:underline">
+            marketing@antenorefilhos.com.br
+          </a>
+          .
+        </p>
+
+        <h2 id="exclusao" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">10. Exclusão de conta</h2>
         <p>
-          Esta política pode ser atualizada periodicamente. Recomendamos revisá-la de tempos em tempos.
-          Mudanças relevantes serão comunicadas pelos nossos canais oficiais.
+          O usuário poderá solicitar a exclusão de sua conta por meio dos canais oficiais de atendimento. A
+          exclusão poderá não abranger informações cuja manutenção seja exigida por obrigação legal,
+          regulatória ou para exercício regular de direitos.
+        </p>
+
+        <h2 id="cookies" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">11. Cookies e tecnologias semelhantes</h2>
+        <p>O aplicativo poderá utilizar cookies, identificadores e tecnologias similares para:</p>
+        <ul className="ml-5 mt-2 list-disc space-y-1">
+          <li>funcionamento da plataforma;</li><li>autenticação;</li><li>segurança;</li>
+          <li>análise de uso;</li><li>melhoria da experiência do usuário.</li>
+        </ul>
+
+        <h2 id="alteracoes" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">12. Alterações desta política</h2>
+        <p>
+          A empresa poderá alterar este documento a qualquer momento para adequação legal, operacional ou
+          tecnológica. As alterações passarão a produzir efeitos após sua publicação no aplicativo/site.
+        </p>
+        <p className="mt-2">
+          Este documento é regido pelas leis da República Federativa do Brasil, ficando eleito o Foro da
+          Comarca de Petrópolis/RJ para dirimir controvérsias, ressalvadas as hipóteses previstas na
+          legislação de proteção ao consumidor. Ver também nossos{' '}
+          <Link to="/termos" className="font-semibold text-[#5D082A] hover:underline">Termos de Uso</Link>.
         </p>
       </main>
 

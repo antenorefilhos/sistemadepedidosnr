@@ -14,6 +14,17 @@ export interface BrandConfig {
   closedMessage: string | null
   countdownLabel: string | null
   cnpj: string | null
+  legalName: string | null
+  stateRegistration: string | null
+  addressNumber: string | null
+  addressCep: string | null
+  phoneFixed: string | null
+  whatsappSecondary: string | null
+  emailCommercial: string | null
+  emailDpo: string | null
+  traditionText: string | null
+  storeHoursText: string | null
+  deliveryHoursText: string | null
 }
 
 const DEFAULTS: BrandConfig = {
@@ -29,6 +40,17 @@ const DEFAULTS: BrandConfig = {
   closedMessage: null,
   countdownLabel: null,
   cnpj: null,
+  legalName: null,
+  stateRegistration: null,
+  addressNumber: null,
+  addressCep: null,
+  phoneFixed: null,
+  whatsappSecondary: null,
+  emailCommercial: null,
+  emailDpo: null,
+  traditionText: null,
+  storeHoursText: null,
+  deliveryHoursText: null,
 }
 
 export function useBrand() {
@@ -48,11 +70,22 @@ export function useBrand() {
     primaryColor: data?.primaryColor ?? DEFAULTS.primaryColor,
     secondaryColor: data?.secondaryColor ?? DEFAULTS.secondaryColor,
     contactWhatsapp: data?.contactWhatsapp ?? DEFAULTS.contactWhatsapp,
-    freeShippingThreshold: (data as BrandConfig | undefined)?.freeShippingThreshold ?? null,
-    businessHours: (data as BrandConfig | undefined)?.businessHours ?? null,
-    openMessage: (data as BrandConfig | undefined)?.openMessage ?? null,
-    closedMessage: (data as BrandConfig | undefined)?.closedMessage ?? null,
-    countdownLabel: (data as BrandConfig | undefined)?.countdownLabel ?? null,
-    cnpj: (data as BrandConfig | undefined)?.cnpj ?? null,
+    freeShippingThreshold: data?.freeShippingThreshold ?? null,
+    businessHours: data?.businessHours ?? null,
+    openMessage: data?.openMessage ?? null,
+    closedMessage: data?.closedMessage ?? null,
+    countdownLabel: data?.countdownLabel ?? null,
+    cnpj: data?.cnpj ?? null,
+    legalName: data?.legalName ?? null,
+    stateRegistration: data?.stateRegistration ?? null,
+    addressNumber: data?.addressNumber ?? null,
+    addressCep: data?.addressCep ?? null,
+    phoneFixed: data?.phoneFixed ?? null,
+    whatsappSecondary: data?.whatsappSecondary ?? null,
+    emailCommercial: data?.emailCommercial ?? null,
+    emailDpo: data?.emailDpo ?? null,
+    traditionText: data?.traditionText ?? null,
+    storeHoursText: data?.storeHoursText ?? null,
+    deliveryHoursText: data?.deliveryHoursText ?? null,
   }
 }
