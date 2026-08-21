@@ -22,6 +22,39 @@ function formatCnpj(raw: string) {
   return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
 }
 
+const WEEKDAY_SHORT_PT: Record<number, string> = { 0: 'Dom', 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb' }
+
+/** businessHours vem como JSON { [weekday]: { enabled, windows: [{start,end}] } } --
+ * agrupa dias consecutivos com o mesmo horario numa linha compacta pro rodape. */
+function formatBusinessHours(raw: string): string | null {
+  try {
+    const weekly = JSON.parse(raw) as Record<string, { enabled: boolean; windows: { start: string; end: string }[] }>
+    const days = Array.from({ length: 7 }, (_, i) => weekly[String(i)] ?? { enabled: false, windows: [] })
+    const signature = (d: typeof days[number]) =>
+      d.enabled ? d.windows.map((w) => `${w.start}-${w.end}`).join(',') : ''
+
+    const groups: { start: number; end: number; sig: string }[] = []
+    days.forEach((day, i) => {
+      const sig = signature(day)
+      const last = groups[groups.length - 1]
+      if (last && last.sig === sig) last.end = i
+      else groups.push({ start: i, end: i, sig })
+    })
+
+    const parts = groups
+      .filter((g) => g.sig)
+      .map((g) => {
+        const label = g.start === g.end ? WEEKDAY_SHORT_PT[g.start] : `${WEEKDAY_SHORT_PT[g.start]} a ${WEEKDAY_SHORT_PT[g.end]}`
+        const hours = g.sig.split(',').map((w) => w.replace('-', 'h às ').replace(/:/g, 'h')).join(' e ')
+        return `${label}: ${hours}`
+      })
+
+    return parts.length > 0 ? parts.join(' · ') : null
+  } catch {
+    return null
+  }
+}
+
 /** Rodape institucional do storefront -- identidade, links, redes, pagamento e horario. */
 export function Footer() {
   const brand = useBrand()
@@ -96,10 +129,10 @@ export function Footer() {
                 @antenorefilhos.pedrodorio
               </a>
             </div>
-            {brand.businessHours && (
+            {formatBusinessHours(brand.businessHours || '') && (
               <p className="mt-4 flex items-start gap-2 text-sm leading-relaxed">
                 <Clock size={16} className="mt-0.5 shrink-0 text-[#5D082A]" />
-                {brand.businessHours}
+                {formatBusinessHours(brand.businessHours || '')}
               </p>
             )}
           </div>
