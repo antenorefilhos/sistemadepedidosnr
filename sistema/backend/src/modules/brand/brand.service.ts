@@ -43,7 +43,7 @@ export class BrandService {
     // CNPJ emitente ja e configuracao real usada para emissao de NF-e (ver
     // integrations.service.ts) -- reaproveitado aqui so pra exibicao no
     // rodape, sem duplicar a fonte de verdade.
-    const cnpj = process.env.NFE_CNPJ_EMITENTE || process.env.SOLIDCOM_CNPJ || null;
+    const cnpj = process.env.NFE_CNPJ_EMITENTE || process.env.SOLIDCOM_CNPJ || '5147995000131';
     return { ...base, cnpj };
   }
 
