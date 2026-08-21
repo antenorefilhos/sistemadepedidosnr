@@ -173,6 +173,7 @@ export default function Checkout() {
     cepAutoFilled,
     geoLoading,
     locationStatus,
+    isGpsAvailable,
     handleCepBlur,
     handleUseMyLocation,
   } = useAddressAutofill({
@@ -975,13 +976,17 @@ export default function Checkout() {
 
                 {!isPickup && (
                 <>
+                {/* GPS so no aparelho que o cliente carrega consigo -- no
+                    desktop nem mostra o banner, direto pro CEP abaixo. */}
+                {isGpsAvailable && (
                 <div className="rounded-lg border border-[#D2BB8A]/40 bg-[#FBFAF7] px-3 py-2 text-xs text-[#5d4f33]">
                   {geoLoading && 'Tentando localizar via GPS...'}
                   {!geoLoading && locationStatus === 'gps-success' && 'Endereco inicial preenchido via GPS. Confira e confirme os dados.'}
-                  {!geoLoading && locationStatus === 'gps-imprecise' && 'Localizacao aproximada (comum em desktop). Confira o endereco preenchido antes de continuar.'}
+                  {!geoLoading && locationStatus === 'gps-imprecise' && 'Localizacao aproximada. Confira o endereco preenchido antes de continuar.'}
                   {!geoLoading && locationStatus === 'gps-fallback' && 'GPS indisponivel. Continue pelo CEP para preencher automaticamente.'}
                   {!geoLoading && locationStatus === 'idle' && 'Ao abrir o cadastro tentamos localizar via GPS automaticamente.'}
                 </div>
+                )}
 
                 <div>
                   <label htmlFor="zipCode" className="block text-sm font-medium mb-1">
@@ -1015,6 +1020,7 @@ export default function Checkout() {
                       <Loader2 className="absolute right-3 top-2.5 animate-spin text-gray-400" size={20} />
                     )}
                   </div>
+                  {isGpsAvailable && (
                   <Button
                     type="button"
                     onClick={handleUseMyLocation}
@@ -1026,6 +1032,7 @@ export default function Checkout() {
                     {geoLoading ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} className="text-[#5D082A]" />}
                     {geoLoading ? 'Obtendo localizacao...' : 'Tentar GPS novamente'}
                   </Button>
+                  )}
                 </div>
 
                 {deliveryCalc?.requiresLocalitySelection && deliveryCalc.availableLocalities && deliveryCalc.availableLocalities.length > 0 && (

@@ -5,6 +5,7 @@ import {
   requestCurrentPosition,
   reverseGeocode,
 } from '../services/deliveryVerification'
+import { isMobileDevice } from '../utils/device'
 
 export type AddressFields = {
   zipCode: string
@@ -50,6 +51,10 @@ export function useAddressAutofill<T extends AddressFields>({
   const [geoLoading, setGeoLoading] = useState(false)
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
   const gpsAttemptedRef = useRef(false)
+  // GPS so no aparelho que o cliente carrega consigo -- desktop resolve por
+  // Wi-Fi/IP e erra por quilometros mesmo "com sucesso" (ver
+  // GPS_ACCURACY_THRESHOLD_M). No desktop o cliente digita CEP direto.
+  const isGpsAvailable = isMobileDevice()
 
   const handleCepBlur = useCallback(
     async (cep: string) => {
@@ -104,6 +109,10 @@ export function useAddressAutofill<T extends AddressFields>({
   )
 
   const attemptAddressByGps = useCallback(async () => {
+    if (!isGpsAvailable) {
+      setLocationStatus('gps-fallback')
+      return
+    }
     try {
       setGeoLoading(true)
       const position = await requestCurrentPosition()
@@ -120,7 +129,11 @@ export function useAddressAutofill<T extends AddressFields>({
         ...prev,
         zipCode: normalized.zipCode || prev.zipCode,
         street: normalized.street || prev.street,
-        number: normalized.number || prev.number,
+        // Numero nunca vem de GPS/reverse-geocode, nem quando a base do IBGE
+        // devolve um numero predial real -- preserva o que o cliente ja
+        // digitou (ou deixa vazio) de proposito, pra ele sempre confirmar o
+        // numero dele mesmo em vez de aceitar um "proximo" errado calado.
+        number: prev.number,
         neighborhood: normalized.neighborhood || prev.neighborhood,
         city: normalized.city || prev.city,
         state: normalized.state || prev.state,
@@ -142,7 +155,7 @@ export function useAddressAutofill<T extends AddressFields>({
 
   // Uma unica tentativa automatica por sessao de checkout.
   useEffect(() => {
-    if (!autoGpsEnabled) return
+    if (!autoGpsEnabled || !isGpsAvailable) return
     if (gpsAttemptedRef.current) return
 
     gpsAttemptedRef.current = true
@@ -154,6 +167,7 @@ export function useAddressAutofill<T extends AddressFields>({
     cepAutoFilled,
     geoLoading,
     locationStatus,
+    isGpsAvailable,
     handleCepBlur,
     handleUseMyLocation,
   }

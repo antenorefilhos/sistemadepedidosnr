@@ -21,6 +21,7 @@ import {
   type DeliveryCalcSnapshot,
 } from '../services/deliveryVerification'
 import { dropStaleCoords, type DeliveryAddressSnapshot } from '../utils/deliveryAddress'
+import { isMobileDevice } from '../utils/device'
 
 const EMPTY_ADDRESS: DeliveryAddressSnapshot = {
   street: '',
@@ -70,9 +71,15 @@ export function DeliveryVerificationModal() {
     closeModal()
   }, [closeModal])
 
+  const isSecureContext = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+  // GPS so no aparelho que o cliente carrega consigo -- no desktop a
+  // geolocalizacao resolve por Wi-Fi/IP e erra por quilometros mesmo "com
+  // sucesso" (ver GPS_ACCURACY_THRESHOLD_M). No desktop o cliente digita CEP.
+  const isMobile = isMobileDevice()
   const isGeolocationAvailable = typeof navigator !== 'undefined' &&
     'geolocation' in navigator &&
-    (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    isMobile &&
+    isSecureContext
 
   const goToView = useCallback((nextAddress: DeliveryAddressSnapshot, nextCalc: DeliveryCalcSnapshot) => {
     setAddress(nextAddress)
@@ -378,24 +385,30 @@ export function DeliveryVerificationModal() {
 
             {!showViewPanel && (
               <div className="space-y-4">
-                {/* O proprio botao comunica o progresso (rotulo + spinner), em
-                    vez de um aviso solto acima dele dizendo a mesma coisa. */}
-                <Button
-                  type="button"
-                  onClick={attemptGps}
-                  disabled={geoLoading}
-                  size="lg"
-                  className="w-full text-base"
-                >
-                  {geoLoading ? <Loader2 size={17} className="animate-spin" /> : <MapPin size={17} />}
-                  {geoLoading ? 'Localizando você...' : 'Usar minha localização atual'}
-                </Button>
+                {/* So no aparelho que o cliente carrega consigo -- no desktop
+                    nem mostra o botao, direto pro CEP (ver isMobile acima). */}
+                {isMobile && (
+                  <>
+                    {/* O proprio botao comunica o progresso (rotulo + spinner),
+                        em vez de um aviso solto acima dele dizendo a mesma coisa. */}
+                    <Button
+                      type="button"
+                      onClick={attemptGps}
+                      disabled={geoLoading}
+                      size="lg"
+                      className="w-full text-base"
+                    >
+                      {geoLoading ? <Loader2 size={17} className="animate-spin" /> : <MapPin size={17} />}
+                      {geoLoading ? 'Localizando você...' : 'Usar minha localização atual'}
+                    </Button>
 
-                <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wider text-[#a89878]">
-                  <span className="h-px flex-1 bg-[#E8D7B0]" />
-                  ou informe o CEP
-                  <span className="h-px flex-1 bg-[#E8D7B0]" />
-                </div>
+                    <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wider text-[#a89878]">
+                      <span className="h-px flex-1 bg-[#E8D7B0]" />
+                      ou informe o CEP
+                      <span className="h-px flex-1 bg-[#E8D7B0]" />
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label htmlFor="delivery-modal-cep" className="mb-1.5 block text-xs font-semibold text-[#5d4f33]">
@@ -484,7 +497,7 @@ export function DeliveryVerificationModal() {
                     <Button
                       type="button"
                       onClick={() => {
-                        goToView(address, calc)
+                        if (calc) goToView(address, calc)
                       }}
                       className="mt-3 w-full"
                     >
