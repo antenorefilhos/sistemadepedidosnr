@@ -117,19 +117,29 @@ export function DeliveryVerificationModal() {
       // a precisao e digna de GPS de celular. Fora disso, handleVerify cai no
       // geocode do endereco completo (mais preciso nesse caso).
       const isPreciseEnough = coords.accuracy == null || coords.accuracy <= GPS_ACCURACY_THRESHOLD_M
+      // Numero nunca vem de GPS/IBGE, nem quando a base local devolve um
+      // numero predial real -- e so o ponto mais proximo, pode ser a casa
+      // vizinha. O cliente confirma o dele no campo abaixo antes de fechar.
       const detectedAddress = {
         ...detected,
+        number: '',
         lat: isPreciseEnough ? coords.lat : null,
         lng: isPreciseEnough ? coords.lng : null,
       }
       const result = await verifyDeliveryForAddress(detectedAddress)
-      goToView(detectedAddress, result)
+      setErrorMessage(null)
+      setAddress(detectedAddress)
+      setCalc(result)
+      // Nao salva ainda (so goToView salva) -- sem numero confirmado pelo
+      // cliente, nao ha endereco de verdade pra persistir. Fica no
+      // formulario; se o CEP tiver varios pontos, o aviso de localidade
+      // aparece normalmente (calc.requiresLocalitySelection).
     } catch (err: any) {
       setErrorMessage(describeGeolocationError(err))
     } finally {
       setGeoLoading(false)
     }
-  }, [isGeolocationAvailable, goToView])
+  }, [isGeolocationAvailable])
 
   const lastAutoCalculatedCepRef = useRef<string | null>(null)
 
@@ -194,12 +204,18 @@ export function DeliveryVerificationModal() {
   useEffect(() => {
     const digits = address.zipCode.replace(/\D/g, '')
     if (digits.length === 8) {
-      autoCalculateByCep(address.zipCode)
+      // Endereco com lat/lng ja veio de attemptGps, que chamou
+      // verifyDeliveryForAddress com a coordenada (prioridade de poligono,
+      // mais precisa que CEP puro) -- recalcular so por CEP aqui
+      // sobrescreveria esse resultado com um pior.
+      if (address.lat == null || address.lng == null) {
+        autoCalculateByCep(address.zipCode)
+      }
       if (calc?.requiresLocalitySelection && !address.deliveryPointCode) {
         setLocalityModalOpen(true)
       }
     }
-  }, [address.zipCode, address.deliveryPointCode, autoCalculateByCep, calc?.requiresLocalitySelection])
+  }, [address.zipCode, address.lat, address.lng, address.deliveryPointCode, autoCalculateByCep, calc?.requiresLocalitySelection])
 
   const handleSelectLocality = useCallback(async (option: { name: string; code: string }) => {
     setLocalityModalOpen(false)
@@ -209,11 +225,14 @@ export function DeliveryVerificationModal() {
 
     try {
       const res = await deliveryAPI.calculate(target.zipCode, undefined, undefined, undefined, option.name, option.code)
-      goToView(target, mapDeliveryCalcResponse(res.data, { locality: option.name, deliveryPointCode: option.code }))
+      setAddress(target)
+      setCalc(mapDeliveryCalcResponse(res.data, { locality: option.name, deliveryPointCode: option.code }))
+      // Fica no formulario, nao confirma sozinho -- falta o numero (ver
+      // showResultPanel abaixo, que agora exige ele antes de "Confirmar").
     } catch {
       setErrorMessage('Não foi possível validar a localidade escolhida.')
     }
-  }, [address, goToView])
+  }, [address])
 
   // "Trocar endereco" nao pode ser so setMode('edit'): a ref guarda o ultimo
   // CEP calculado e faz autoCalculateByCep sair cedo, entao redigitar o
@@ -467,11 +486,35 @@ export function DeliveryVerificationModal() {
                           : calc.fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </span>
                     </div>
+
+                    {/* Numero nunca vem automatico (GPS/IBGE so acham o ponto
+                        mais proximo, pode ser a casa vizinha) -- o cliente
+                        digita o dele aqui antes de fechar o endereco. */}
+                    <div className="mt-3 border-t border-dashed border-[#E8D7B0] pt-3">
+                      <label htmlFor="delivery-modal-number" className="mb-1.5 block text-xs font-semibold text-[#5d4f33]">
+                        Número
+                      </label>
+                      <Input
+                        id="delivery-modal-number"
+                        type="text"
+                        inputMode="numeric"
+                        value={address.number}
+                        onChange={(e) => setAddress((prev) => ({ ...prev, number: e.target.value }))}
+                        placeholder="Ex: 123"
+                        autoFocus
+                      />
+                    </div>
+
                     <Button
                       type="button"
                       onClick={() => {
+                        if (!address.number.trim()) {
+                          setErrorMessage('Informe o número do imóvel para confirmar o endereço.')
+                          return
+                        }
                         if (calc) goToView(address, calc)
                       }}
+                      disabled={!address.number.trim()}
                       className="mt-3 w-full"
                     >
                       Confirmar endereço

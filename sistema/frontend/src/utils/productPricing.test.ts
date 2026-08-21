@@ -8,6 +8,7 @@ import {
   getProductUnitPrice,
   getProductDisplayPrice,
   getProductLineTotal,
+  getProductPromoSavings,
   formatProductQuantity,
   getProductPricePresentation,
   hasConfiguredFractionStep,
@@ -227,6 +228,24 @@ describe('getProductLineTotal', () => {
   it('total zero para quantidade zero', () => {
     const p = makeProduct({ price: 10 })
     expect(getProductLineTotal(p, 0)).toBe(0)
+  })
+})
+
+describe('getProductPromoSavings', () => {
+  it('zero quando o produto nao tem preco promocional', () => {
+    const p = makeProduct({ price: 10 })
+    expect(getProductPromoSavings(p, 3)).toBe(0)
+  })
+
+  it('diferenca entre preco cheio e promocional, multiplicada pela quantidade', () => {
+    const p = makeProduct({ price: 10, promotionalPrice: 8 })
+    expect(getProductPromoSavings(p, 3)).toBeCloseTo(6)
+  })
+
+  it('considera o passo fracionado no calculo da economia', () => {
+    const p = makeProduct({ price: 20, promotionalPrice: 16, isFractional: true, unit: 'kg', fractionStep: 0.5 })
+    // 2 passos de 0.5kg = 1kg -- economia de R$4/kg * 1kg = R$4
+    expect(getProductPromoSavings(p, 2)).toBeCloseTo(4)
   })
 })
 

@@ -97,6 +97,16 @@ export function getProductLineTotal(product: Product, quantity: number) {
   return roundCurrency(getProductDisplayPrice(product) * quantity)
 }
 
+/** Quanto o item economiza por estar em promocao (preco cheio - preco de
+ * exibicao, ja aplicado no subtotal). So existe pra dar visibilidade ao
+ * cliente -- subtotal/total do carrinho ja usam o preco promocional, entao
+ * isso NUNCA e subtraido de novo do total, e so exibido como "Desconto". */
+export function getProductPromoSavings(product: Product, quantity: number) {
+  if (!hasPromotionalPrice(product)) return 0
+  const regularLineTotal = roundCurrency(product.price * getProductStep(product) * quantity)
+  return Math.max(0, regularLineTotal - getProductLineTotal(product, quantity))
+}
+
 export function formatProductQuantity(product: Product, quantity: number) {
   if (!product.isFractional) return `${quantity}`
 

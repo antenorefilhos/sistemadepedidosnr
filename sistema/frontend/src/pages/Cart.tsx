@@ -10,10 +10,12 @@ import { useTopSellingProducts } from '../hooks/useCMS'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
-import { getProductLineTotal, getProductPricePresentation, formatProductQuantity } from '../utils/productPricing'
-import { Trash2, Plus, Minus, ArrowLeft, ShoppingCart } from 'lucide-react'
+import { getProductLineTotal, getProductPricePresentation, getProductPromoSavings, formatProductQuantity } from '../utils/productPricing'
+import { Trash2, Plus, Minus, ArrowLeft, MapPin, ShoppingCart } from 'lucide-react'
 import { FreeShippingBar } from '../components/FreeShippingBar'
 import { useKnownZoneFreeAbove } from '../hooks/useKnownZoneFreeAbove'
+import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
+import { readDeliveryVerification, subscribeDeliveryVerification } from '../services/deliveryVerification'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
@@ -40,7 +42,26 @@ function getAvailabilityLabel(product?: Product) {
 export default function Cart() {
   const { user } = useAuth()
   const zoneFreeAbove = useKnownZoneFreeAbove()
+  const { openModal: openDeliveryModal } = useDeliveryVerificationModal()
   const { cart, removeItem, updateQuantity, updateAllowSubstitution, clear, total, subtotal, discount, couponCode, applyCoupon, removeCoupon } = useCart()
+
+  // O endereco/taxa verificado no storefront (modal de entrega) fica salvo
+  // no localStorage -- sem ler aqui, o carrinho sempre mostrava "A calcular"
+  // e passava a impressao de que a configuracao tinha se perdido, mesmo
+  // sem ter sumido de verdade.
+  const [deliveryVerification, setDeliveryVerification] = useState(() => readDeliveryVerification())
+  useEffect(() => subscribeDeliveryVerification(() => setDeliveryVerification(readDeliveryVerification())), [])
+  const verifiedDeliveryFee =
+    deliveryVerification?.calc && !deliveryVerification.calc.outOfArea && !deliveryVerification.calc.requiresLocalitySelection
+      ? deliveryVerification.calc.fee
+      : null
+
+  // Preco de exibicao ja usa o promocional (subtotal/total nunca mudam
+  // aqui) -- isso e so a economia pra mostrar ao cliente "Desconto",
+  // somada ao desconto de cupom.
+  const promoSavings = cart.reduce((sum, item) => sum + getProductPromoSavings(item.product, item.quantity), 0)
+  const totalDiscount = discount + promoSavings
+  const totalWithDelivery = total + (verifiedDeliveryFee ?? 0)
   const [couponInput, setCouponInput] = useState(couponCode || '')
   const [couponFeedback, setCouponFeedback] = useState<string | null>(null)
   const [unitModeByItem, setUnitModeByItem] = useState<Record<string, 'unit' | 'weight'>>({})
@@ -314,20 +335,38 @@ export default function Cart() {
                     <span>Subtotal</span>
                     <span>{formatPrice(subtotal)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-gray-600">
-                    <span>Desconto</span>
-                    <span className="text-emerald-700">-{formatPrice(discount)}</span>
-                  </div>
+                  {totalDiscount > 0 && (
+                    <div className="flex items-center justify-between text-gray-600">
+                      <span>Desconto</span>
+                      <span className="text-emerald-700">-{formatPrice(totalDiscount)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between text-gray-600">
                     <span>Entrega</span>
-                    <span>A calcular</span>
+                    {verifiedDeliveryFee != null ? (
+                      <span className={verifiedDeliveryFee === 0 ? 'font-semibold text-emerald-700' : ''}>
+                        {verifiedDeliveryFee === 0 ? 'Grátis' : formatPrice(verifiedDeliveryFee)}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={openDeliveryModal}
+                        className="inline-flex items-center gap-1 font-semibold text-[#5D082A] hover:underline"
+                      >
+                        <MapPin size={13} />
+                        Informar endereço
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 <div className="border-t border-[#E8D7B0] pt-4 mb-4 flex items-center justify-between">
                   <span className="text-base font-semibold text-[#231F20]">Total</span>
-                  <span className="text-3xl font-black text-[#5D082A]">{formatPrice(total)}</span>
+                  <span className="text-3xl font-black text-[#5D082A]">{formatPrice(totalWithDelivery)}</span>
                 </div>
+                {verifiedDeliveryFee == null && (
+                  <p className="-mt-3 mb-4 text-xs text-gray-500">Frete ainda não incluso -- informe seu endereço para ver o total real.</p>
+                )}
 
                 <div className="space-y-2.5">
                   <Link
