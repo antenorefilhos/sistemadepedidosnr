@@ -293,6 +293,32 @@ export class CategoryHierarchyService {
   }
 
   /**
+   * Contagem de produtos mapeados por categoria N1 (para os Passos 2 e 3
+   * do fluxo guiado de categorização no admin). Uma query groupBy, sem
+   * subcategoria — o wizard só precisa do total por N1.
+   */
+  async getMappingCountsByCategory() {
+    const [n1Categories, grouped] = await Promise.all([
+      this.prisma.category.findMany({
+        where: { parentId: null },
+        select: { id: true, name: true, active: true, priority: true },
+        orderBy: { priority: 'desc' },
+      }),
+      this.prisma.productCategoryMapping.groupBy({
+        by: ['categoryId'],
+        _count: { _all: true },
+      }),
+    ])
+
+    const countByCategoryId = new Map(grouped.map((row) => [row.categoryId, row._count._all]))
+
+    return n1Categories.map((category) => ({
+      ...category,
+      productCount: countByCategoryId.get(category.id) || 0,
+    }))
+  }
+
+  /**
    * Busca produtos completos mapeados para uma categoria
    * Retorna detalhes do produto (nome, pre�o, estoque, etc)
    */

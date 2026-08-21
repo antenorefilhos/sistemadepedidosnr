@@ -1346,6 +1346,10 @@ export const cmsAPI = {
   categories: {
     getAll: () => api.get('/cms/categories'),
     getMappingStats: () => api.get('/api/categories/stats/mapping'),
+    getMappingCountsByCategory: () =>
+      api.get<{ success: boolean; data: Array<{ id: string; name: string; active: boolean; priority: number; productCount: number }> }>(
+        '/api/categories/stats/by-category',
+      ),
     getPendingMappings: (params?: { limit?: number; offset?: number }) =>
       api.get<{ success: boolean; data: PendingCategoryMappingItem[]; pagination: { limit: number; offset: number; total: number } }>(
         '/api/categories/pending/list',

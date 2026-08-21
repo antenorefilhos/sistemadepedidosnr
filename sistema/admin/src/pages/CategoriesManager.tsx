@@ -614,6 +614,8 @@ const PENDING_REASON_LABELS: Record<string, string> = {
 }
 const pendingReasonLabel = (reason: string) => PENDING_REASON_LABELS[reason] || reason
 
+type CategoryMappingCount = { id: string; name: string; active: boolean; priority: number; productCount: number }
+
 function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }) {
   const [stats, setStats] = useState<MappingStats | null>(null)
   const [suggestions, setSuggestions] = useState<EanMappingSuggestion[]>([])
@@ -621,6 +623,7 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
   const [pendingTotal, setPendingTotal] = useState(0)
   const [pendingOffset, setPendingOffset] = useState(0)
   const [categories, setCategories] = useState<Category[]>([])
+  const [categoryCounts, setCategoryCounts] = useState<CategoryMappingCount[]>([])
   const [selectedCategoryByItem, setSelectedCategoryByItem] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -631,6 +634,11 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
   const loadStats = async () => {
     const res = await cmsAPI.categories.getMappingStats()
     setStats(res.data?.data || null)
+  }
+
+  const loadCategoryCounts = async () => {
+    const res = await cmsAPI.categories.getMappingCountsByCategory()
+    setCategoryCounts(res.data?.data || [])
   }
 
   const loadCategories = async () => {
@@ -649,7 +657,7 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
     setLoading(true)
     setError('')
     try {
-      await Promise.all([loadStats(), loadSuggestions(), loadPending(0), loadCategories()])
+      await Promise.all([loadStats(), loadSuggestions(), loadPending(0), loadCategories(), loadCategoryCounts()])
     } catch {
       setError('Falha ao carregar dados.')
     } finally {
@@ -710,7 +718,7 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
     try {
       const res = await cmsAPI.categories.applyMappingSuggestions({ dryRun, limit: 200 })
       setWorkflowResult(res.data)
-      await Promise.all([loadStats(), loadSuggestions()])
+      await Promise.all([loadStats(), loadSuggestions(), loadCategoryCounts()])
     } catch {
       setError(dryRun ? 'Falha ao simular.' : 'Falha ao aplicar mapeamentos.')
     } finally {
@@ -795,10 +803,60 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
           </div>
         </div>
 
+        {(mode === 'all' || mode === 'automation') && (
+          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Regras por categoria oficial</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Cada categoria N1 recebe produtos do ERP por classificação mercadológica automática. Confira quantos produtos já caíram em cada uma antes de reaplicar.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => runMappingWorkflow(false)}
+                disabled={workflowLoading}
+                size="sm"
+                className="rounded bg-[#5d082a] text-xs text-white hover:bg-[#7a1038]"
+              >
+                {workflowLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                Re-aplicar regras
+              </Button>
+            </div>
+            <div className="max-h-96 overflow-auto">
+              <Table className="w-full text-left text-xs">
+                <TableHeader className="border-b border-gray-100 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="px-4 py-2">Categoria oficial</TableHead>
+                    <TableHead className="px-4 py-2 text-center">Publicada</TableHead>
+                    <TableHead className="px-4 py-2 text-right">Produtos classificados</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-gray-100">
+                  {categoryCounts.map((cat) => (
+                    <TableRow key={cat.id} className="hover:bg-gray-50/50">
+                      <TableCell className="px-4 py-2 font-medium text-gray-800">{cat.name}</TableCell>
+                      <TableCell className="px-4 py-2 text-center">
+                        <Badge className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${cat.active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
+                          {cat.active ? 'Sim' : 'Não'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-4 py-2 text-right font-semibold text-gray-800">{cat.productCount}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {categoryCounts.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">Nenhuma categoria oficial cadastrada ainda.</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {(mode === 'all' || mode === 'automation') && suggestions.length > 0 && (
           <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Sugestões de mapeamento</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Prévia das próximas sugestões (EANs ainda não mapeados)</p>
               <Badge variant="outline" className="rounded-full border-gray-200 bg-gray-50 text-xs text-gray-500">{suggestions.length} itens</Badge>
             </div>
             <div className="max-h-72 overflow-auto divide-y divide-gray-100">
@@ -812,6 +870,49 @@ function MappingTab({ mode = 'all' }: { mode?: 'all' | 'automation' | 'review' }
                   <Badge className="shrink-0 rounded bg-[#5d082a]/10 px-2 py-1 font-semibold text-[#5d082a]">{s.categoryName}</Badge>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {(mode === 'all' || mode === 'review') && (
+          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Resumo das categorias oficiais</p>
+              <p className="text-[11px] text-gray-400 mt-1">
+                {categoryCounts.filter((c) => c.active).length} de {categoryCounts.length} categorias publicadas na Home • {stats?.unmapped ?? 0} produto(s) sem categoria.
+              </p>
+            </div>
+            <div className="max-h-72 overflow-auto">
+              <Table className="w-full text-left text-xs">
+                <TableHeader className="border-b border-gray-100 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="px-4 py-2">Categoria oficial</TableHead>
+                    <TableHead className="px-4 py-2 text-center">Visível na Home</TableHead>
+                    <TableHead className="px-4 py-2 text-right">Total de produtos</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-gray-100">
+                  {categoryCounts.map((cat) => (
+                    <TableRow key={cat.id} className="hover:bg-gray-50/50">
+                      <TableCell className="px-4 py-2 font-medium text-gray-800">{cat.name}</TableCell>
+                      <TableCell className="px-4 py-2 text-center">
+                        <Badge className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${cat.active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
+                          {cat.active ? 'Visível' : 'Oculta'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-4 py-2 text-right font-semibold text-gray-800">{cat.productCount}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-amber-50/60 hover:bg-amber-50/60">
+                    <TableCell className="px-4 py-2 font-medium text-amber-900">Sem categoria</TableCell>
+                    <TableCell className="px-4 py-2 text-center text-amber-700">—</TableCell>
+                    <TableCell className="px-4 py-2 text-right font-semibold text-amber-900">{stats?.unmapped ?? 0}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+              {categoryCounts.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">Nenhuma categoria oficial cadastrada ainda.</p>
+              )}
             </div>
           </div>
         )}

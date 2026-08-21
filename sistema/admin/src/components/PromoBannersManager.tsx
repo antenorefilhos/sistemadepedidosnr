@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  GripVertical,
   Image as ImageIcon,
   Link2,
   Loader2,
@@ -83,6 +84,7 @@ export default function PromoBannersManager() {
   const [editing, setEditing] = useState<Partial<PromoBanner> | null>(null);
   const [errors, setErrors] = useState<PromoFormErrors>({});
   const [pendingDelete, setPendingDelete] = useState<PromoBanner | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
   const [productOptions, setProductOptions] = useState<AdminProduct[]>([]);
   const [productSearchLoading, setProductSearchLoading] = useState(false);
@@ -275,6 +277,21 @@ export default function PromoBannersManager() {
     await persistOrder(nextItems);
   };
 
+  const handleDropItem = async (targetId: string) => {
+    if (!draggingId || draggingId === targetId) return;
+
+    const currentIndex = items.findIndex(item => item.id === draggingId);
+    const targetIndex = items.findIndex(item => item.id === targetId);
+    if (currentIndex < 0 || targetIndex < 0) return;
+
+    const nextItems = [...items];
+    const [dragged] = nextItems.splice(currentIndex, 1);
+    nextItems.splice(targetIndex, 0, dragged);
+    setItems(nextItems.map((item, itemOrder) => ({ ...item, order: itemOrder })));
+    setDraggingId(null);
+    await persistOrder(nextItems);
+  };
+
   const handleToggle = async (item: PromoBanner) => {
     try {
       setBusyId(item.id);
@@ -378,10 +395,23 @@ export default function PromoBannersManager() {
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {items.map(item => (
-              <div key={item.id} className="overflow-hidden rounded-lg border border-[#ead7df] bg-white shadow-[0_12px_30px_rgba(93,8,42,0.08)]">
+              <div
+                key={item.id}
+                draggable
+                onDragStart={() => setDraggingId(item.id)}
+                onDragOver={e => e.preventDefault()}
+                onDrop={() => handleDropItem(item.id)}
+                onDragEnd={() => setDraggingId(null)}
+                className={`overflow-hidden rounded-lg border bg-white transition ${
+                  draggingId === item.id
+                    ? 'border-[#5d082a] shadow-[0_20px_50px_rgba(93,8,42,0.18)]'
+                    : 'border-[#ead7df] shadow-[0_12px_30px_rgba(93,8,42,0.08)]'
+                }`}
+              >
                 <div className="relative aspect-[16/7] bg-[#f7edf1]">
                   <img src={resolveApiUrl(item.imageUrl)} alt={item.title} className="h-full w-full object-cover" />
-                  <Badge variant="outline" className="absolute left-3 top-3 border-white/70 bg-white/95 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5d082a]">
+                  <Badge variant="outline" className="absolute left-3 top-3 flex items-center gap-1 border-white/70 bg-white/95 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5d082a] cursor-grab active:cursor-grabbing">
+                    <GripVertical size={12} />
                     ordem {item.order}
                   </Badge>
                   <Badge variant="outline" className="absolute right-3 top-3 border-white/70 bg-white/95 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-gray-700">

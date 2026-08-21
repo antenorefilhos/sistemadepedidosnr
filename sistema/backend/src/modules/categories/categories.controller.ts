@@ -95,6 +95,17 @@ export class CategoriesController {
   }
 
   /**
+   * GET /api/categories/stats/by-category
+   * Contagem de produtos mapeados por categoria N1 — usado no Passo 2
+   * (sugestões automáticas) e Passo 3 (revisão final) do wizard do admin.
+   */
+  @Get('stats/by-category')
+  async getMappingCountsByCategory() {
+    const data = await this.categoryHierarchy.getMappingCountsByCategory()
+    return { success: true, data }
+  }
+
+  /**
    * GET /api/categories/pending/list
    * Retorna produtos com classificação pendente
    */
