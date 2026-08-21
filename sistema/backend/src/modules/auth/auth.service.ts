@@ -141,6 +141,14 @@ export class AuthService {
       })
     }
 
+    if (customer.blocked) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: customer.blockedReason || 'Sua conta foi suspensa. Entre em contato com a loja para mais informacoes.',
+        error: 'Conta suspensa',
+      })
+    }
+
     const tenantId = customer.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
     const access_token = this.jwtService.sign({
@@ -495,7 +503,17 @@ export class AuthService {
     cpf: string
     whatsapp: string
     tenantId?: string
+    blocked?: boolean
+    blockedReason?: string | null
   }) {
+    if (customer.blocked) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: customer.blockedReason || 'Sua conta foi suspensa. Entre em contato com a loja para mais informacoes.',
+        error: 'Conta suspensa',
+      })
+    }
+
     const tenantId = customer.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
     const access_token = this.jwtService.sign({

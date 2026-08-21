@@ -1,11 +1,11 @@
-import { Columns, Eye, LayoutList, RefreshCw, Search, X, Filter } from 'lucide-react'
+import { Columns, Copy, Eye, KeyRound, LayoutList, Mail, MessageCircle, Pencil, RefreshCw, Search, ShieldAlert, ShieldCheck, X, Filter } from 'lucide-react'
 import { useState, useEffect, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import type { AdminCustomer } from '../../services/api'
+import { customersAPI, getApiErrorMessage, type AdminCustomer } from '../../services/api'
 import { SectionEmptyState, SectionMetric, SectionPanel, SectionToolbar } from './SectionChrome'
 
 type Props = {
@@ -54,6 +54,82 @@ export default function CustomersSection({
   renderWhatsAppBadge,
 }: Props) {
   const [showFilterBar, setShowFilterBar] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({ name: '', email: '', whatsapp: '', cpf: '' })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [resetLink, setResetLink] = useState<{ resetUrl: string; expiresAt: string } | null>(null)
+  const [generatingReset, setGeneratingReset] = useState(false)
+  const [togglingBlock, setTogglingBlock] = useState(false)
+  const [actionError, setActionError] = useState('')
+
+  useEffect(() => {
+    setIsEditing(false)
+    setResetLink(null)
+    setEditError('')
+    setActionError('')
+    if (selectedCustomer) {
+      setEditForm({
+        name: selectedCustomer.name || '',
+        email: selectedCustomer.email || '',
+        whatsapp: selectedCustomer.whatsapp || '',
+        cpf: selectedCustomer.cpf || '',
+      })
+    }
+  }, [selectedCustomer])
+
+  const handleSaveEdit = async () => {
+    if (!selectedCustomer) return
+    setSavingEdit(true)
+    setEditError('')
+    try {
+      const res = await customersAPI.update(selectedCustomer.id, editForm)
+      onSelectCustomer(res.data)
+      setIsEditing(false)
+      onReloadCustomers()
+    } catch (err) {
+      setEditError(getApiErrorMessage(err, 'Não foi possível salvar as alterações.'))
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleGenerateResetLink = async () => {
+    if (!selectedCustomer) return
+    setGeneratingReset(true)
+    setActionError('')
+    try {
+      const res = await customersAPI.generateResetLink(selectedCustomer.id)
+      setResetLink(res.data)
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, 'Não foi possível gerar o link.'))
+    } finally {
+      setGeneratingReset(false)
+    }
+  }
+
+  const handleToggleBlock = async () => {
+    if (!selectedCustomer) return
+    const willBlock = !selectedCustomer.blocked
+    if (willBlock && !window.confirm(`Bloquear ${selectedCustomer.name}? O cliente não conseguirá mais fazer login.`)) return
+
+    let reason: string | undefined
+    if (willBlock) {
+      reason = window.prompt('Motivo do bloqueio (opcional, fica registrado internamente):') || undefined
+    }
+
+    setTogglingBlock(true)
+    setActionError('')
+    try {
+      const res = await customersAPI.setBlocked(selectedCustomer.id, willBlock, reason)
+      onSelectCustomer({ ...selectedCustomer, blocked: res.data.blocked, blockedReason: res.data.blockedReason })
+      onReloadCustomers()
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, 'Não foi possível atualizar o bloqueio.'))
+    } finally {
+      setTogglingBlock(false)
+    }
+  }
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -357,7 +433,14 @@ export default function CustomersSection({
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[#f1dbe3] bg-[linear-gradient(135deg,#fff7fa_0%,#fff_100%)] px-6 py-5 rounded-t-2xl">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">{selectedCustomer.name}</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">{selectedCustomer.name}</h2>
+                  {selectedCustomer.blocked && (
+                    <Badge variant="outline" className="rounded-md border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                      Suspenso
+                    </Badge>
+                  )}
+                </div>
                 <p className="mt-0.5 text-xs text-gray-400">Perfil do Cliente</p>
               </div>
               <Button
@@ -376,45 +459,142 @@ export default function CustomersSection({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Coluna Esquerda: Dados do Perfil */}
                 <div className="bg-white border border-[#ead7df] rounded-2xl p-5 space-y-4 shadow-sm">
-                  <div className="flex items-center gap-2 pb-2 border-b border-[#f1dbe3]/60">
+                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#f1dbe3]/60">
                     <span className="text-xs font-bold uppercase tracking-wider text-[#5d082a]">Dados do Perfil</span>
+                    {!isEditing && (
+                      <Button type="button" onClick={() => setIsEditing(true)} variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs text-[#5d082a] hover:bg-[#fff7fa]">
+                        <Pencil size={12} /> Editar
+                      </Button>
+                    )}
                   </div>
-                  
-                  <div className="space-y-3.5 text-sm">
-                    <div>
-                      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">CPF</p>
-                      {selectedCustomer.cpf ? (
-                        <p className="font-mono text-gray-700 mt-0.5">
-                          {selectedCustomer.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
-                        </p>
-                      ) : (
-                        <p className="text-gray-400 mt-0.5">—</p>
+
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      {editError && (
+                        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{editError}</p>
                       )}
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">WhatsApp</p>
-                      <div className="mt-1">
-                        {renderWhatsAppBadge(selectedCustomer.whatsapp)}
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Nome</label>
+                        <Input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} className="mt-1 h-10 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Email</label>
+                        <Input value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} className="mt-1 h-10 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">WhatsApp</label>
+                        <Input value={editForm.whatsapp} onChange={(e) => setEditForm((f) => ({ ...f, whatsapp: e.target.value }))} className="mt-1 h-10 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">CPF</label>
+                        <Input value={editForm.cpf} onChange={(e) => setEditForm((f) => ({ ...f, cpf: e.target.value }))} className="mt-1 h-10 text-sm font-mono" />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <Button type="button" onClick={handleSaveEdit} disabled={savingEdit} size="sm" className="h-9 flex-1 bg-[#5d082a] text-xs text-white hover:bg-[#4a0622]">
+                          {savingEdit ? 'Salvando...' : 'Salvar alterações'}
+                        </Button>
+                        <Button type="button" onClick={() => setIsEditing(false)} variant="outline" size="sm" className="h-9 text-xs">
+                          Cancelar
+                        </Button>
                       </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Email</p>
-                      <p className="text-gray-700 mt-0.5 truncate" title={selectedCustomer.email || undefined}>
-                        {selectedCustomer.email ?? '—'}
-                      </p>
+                  ) : (
+                    <div className="space-y-3.5 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">CPF</p>
+                        {selectedCustomer.cpf ? (
+                          <p className="font-mono text-gray-700 mt-0.5">
+                            {selectedCustomer.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
+                          </p>
+                        ) : (
+                          <p className="text-gray-400 mt-0.5">—</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">WhatsApp</p>
+                        <div className="mt-1">
+                          {renderWhatsAppBadge(selectedCustomer.whatsapp)}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Email</p>
+                        <p className="text-gray-700 mt-0.5 truncate" title={selectedCustomer.email || undefined}>
+                          {selectedCustomer.email ?? '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Data de Cadastro</p>
+                        <p className="text-gray-700 mt-0.5">
+                          {selectedCustomer.createdAt ? new Date(selectedCustomer.createdAt).toLocaleDateString('pt-BR') : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Total de Pedidos</p>
+                        <p className="text-gray-900 mt-0.5 font-bold text-base">
+                          {customerOrderCountMap[selectedCustomer.id] || 0}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Data de Cadastro</p>
-                      <p className="text-gray-700 mt-0.5">
-                        {selectedCustomer.createdAt ? new Date(selectedCustomer.createdAt).toLocaleDateString('pt-BR') : '—'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Total de Pedidos</p>
-                      <p className="text-gray-900 mt-0.5 font-bold text-base">
-                        {customerOrderCountMap[selectedCustomer.id] || 0}
-                      </p>
-                    </div>
+                  )}
+
+                  {/* Reset de senha + bloqueio */}
+                  <div className="space-y-2 border-t border-[#f1dbe3]/60 pt-4">
+                    {actionError && (
+                      <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{actionError}</p>
+                    )}
+
+                    {resetLink ? (
+                      <div className="space-y-2 rounded-xl border border-[#f1dbe3] bg-[#fff7fa] p-3">
+                        <p className="text-xs font-semibold text-gray-600">Link gerado (expira em 1h):</p>
+                        <p className="break-all rounded-lg bg-white px-2 py-1.5 font-mono text-[11px] text-gray-700 border border-[#f1dbe3]">{resetLink.resetUrl}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => navigator.clipboard.writeText(resetLink.resetUrl)}>
+                            <Copy size={12} /> Copiar
+                          </Button>
+                          <Button
+                            type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs"
+                            onClick={() => {
+                              const digits = (selectedCustomer.whatsapp || '').replace(/\D/g, '')
+                              const text = encodeURIComponent(`Olá ${selectedCustomer.name}, aqui está o link para redefinir sua senha na Antenor & Filhos: ${resetLink.resetUrl}`)
+                              window.open(digits ? `https://wa.me/55${digits}?text=${text}` : `https://wa.me/?text=${text}`, '_blank')
+                            }}
+                          >
+                            <MessageCircle size={12} /> WhatsApp
+                          </Button>
+                          {selectedCustomer.email && (
+                            <Button
+                              type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs"
+                              onClick={() => {
+                                const subject = encodeURIComponent('Redefinição de senha — Antenor & Filhos')
+                                const body = encodeURIComponent(`Olá ${selectedCustomer.name},\n\nUse o link abaixo para redefinir sua senha:\n${resetLink.resetUrl}\n\nO link expira em 1 hora.`)
+                                window.location.href = `mailto:${selectedCustomer.email}?subject=${subject}&body=${body}`
+                              }}
+                            >
+                              <Mail size={12} /> E-mail
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <Button type="button" onClick={handleGenerateResetLink} disabled={generatingReset} variant="outline" size="sm" className="h-9 w-full gap-2 text-xs">
+                        <KeyRound size={14} /> {generatingReset ? 'Gerando...' : 'Resetar Senha'}
+                      </Button>
+                    )}
+
+                    <Button
+                      type="button"
+                      onClick={handleToggleBlock}
+                      disabled={togglingBlock}
+                      variant="outline"
+                      size="sm"
+                      className={`h-9 w-full gap-2 text-xs ${selectedCustomer.blocked ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' : 'border-red-200 text-red-700 hover:bg-red-50'}`}
+                    >
+                      {selectedCustomer.blocked ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
+                      {togglingBlock ? 'Atualizando...' : selectedCustomer.blocked ? 'Desbloquear Cliente' : 'Bloquear / Suspender Cliente'}
+                    </Button>
+                    {selectedCustomer.blocked && selectedCustomer.blockedReason && (
+                      <p className="text-xs text-gray-500">Motivo: {selectedCustomer.blockedReason}</p>
+                    )}
                   </div>
                 </div>
 

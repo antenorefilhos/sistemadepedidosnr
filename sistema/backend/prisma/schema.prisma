@@ -140,6 +140,8 @@ model Customer {
   // token enviado por e-mail, nunca o valor em si.
   resetTokenHash      String?
   resetTokenExpiresAt DateTime?
+  blocked       Boolean  @default(false)
+  blockedReason String?
   addresses Address[]
   orders    Order[]
   profile   CustomerProfile?

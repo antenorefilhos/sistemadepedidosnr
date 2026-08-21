@@ -324,12 +324,15 @@ export class ProductsService {
     }
 
     if (uncategorized) {
-      andFilters.push({
-        OR: [
-          { category: 'GERAL' },
-          { category: '' },
-        ],
-      })
+      // "Sem categoria" precisa refletir a fonte de verdade da taxonomia --
+      // product_category_mappings (ean -> categoria N1 oficial) -- nao o
+      // campo legado `category`, que fica "GERAL" em ~99,8% do catalogo
+      // independente de o produto ja estar mapeado ou nao (ver
+      // CategoriesService.findCommercialTaxonomy). Filtrar por `category`
+      // marcava quase o catalogo inteiro como sem categoria, mesmo produto
+      // ja mapeado nas 17 categorias oficiais.
+      const mappedEans = await this.prisma.productCategoryMapping.findMany({ select: { ean: true } })
+      andFilters.push({ ean: { notIn: mappedEans.map((m) => m.ean) } })
     }
 
     if (andFilters.length > 0) {
@@ -953,6 +956,7 @@ export class ProductsService {
   }
 
   async getAvailabilityMetrics(): Promise<ProductAvailabilityMetrics> {
+    const mappedEans = await this.prisma.productCategoryMapping.findMany({ select: { ean: true } })
     const [totalActive, outOfStock, lowStockProducts, alwaysEnabledWithZeroStock, inactiveWithStock, uncategorizedProducts] =
       await Promise.all([
         this.prisma.product.count({
@@ -985,13 +989,7 @@ export class ProductsService {
           },
         }),
         this.prisma.product.count({
-          where: {
-            active: true,
-            OR: [
-              { classification01: null },
-              { classification01: '' },
-            ],
-          },
+          where: { active: true, ean: { notIn: mappedEans.map((m) => m.ean) } },
         }),
       ])
 

@@ -18,11 +18,12 @@ type MenuGroup = {
   items: MenuItem[]
 }
 
+const DASHBOARD_ITEM: MenuItem = { key: 'dashboard', label: 'Dashboard', icon: BarChart3 }
+
 const MENU_GROUPS: MenuGroup[] = [
   {
     label: 'Operações',
     items: [
-      { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
       { key: 'orders', label: 'Pedidos', icon: ShoppingCart },
       { key: 'picking', label: 'Separação', icon: ClipboardCheck },
       { key: 'staff', label: 'Equipe', icon: Users },
@@ -67,7 +68,7 @@ const MENU_GROUPS: MenuGroup[] = [
 ]
 
 const SECTION_LABELS: Record<Section, string> = Object.fromEntries(
-  MENU_GROUPS.flatMap((g) => g.items.map((i) => [i.key, i.label]))
+  [DASHBOARD_ITEM, ...MENU_GROUPS.flatMap((g) => g.items)].map((i) => [i.key, i.label])
 ) as Record<Section, string>
 
 export { SECTION_LABELS }
@@ -172,6 +173,18 @@ export function TopMenuBar({ activeSection, onSectionChange, adminName, onLogout
         role="menubar"
         aria-label="Menu principal"
       >
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => handleSelect(DASHBOARD_ITEM.key)}
+          className={`flex items-center gap-1.5 px-3 h-10 text-[13px] font-medium tracking-wide transition-colors
+            ${activeSection === DASHBOARD_ITEM.key ? 'text-white bg-[#5d082a]' : 'text-[#dbb0c4] hover:text-white hover:bg-[#5d082a]/60'}
+          `}
+        >
+          <DASHBOARD_ITEM.icon size={14} />
+          {DASHBOARD_ITEM.label}
+        </button>
+        <div className="mx-1 h-5 w-px bg-[#5d082a]" aria-hidden="true" />
         {MENU_GROUPS.map((group) => {
           const isActive = group === activeGroup
           const isOpen = openMenu === group.label
@@ -264,6 +277,19 @@ export function TopMenuBar({ activeSection, onSectionChange, adminName, onLogout
             </div>
 
             <div className="py-2">
+              <button
+                type="button"
+                onClick={() => handleSelect(DASHBOARD_ITEM.key)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors
+                  ${activeSection === DASHBOARD_ITEM.key
+                    ? 'bg-[#5d082a] text-white border-l-3 border-[#d2bb8a]'
+                    : 'text-[#e8c0cf] hover:bg-[#5d082a] hover:text-white'
+                  }
+                `}
+              >
+                <DASHBOARD_ITEM.icon size={16} />
+                {DASHBOARD_ITEM.label}
+              </button>
               {MENU_GROUPS.map((group) => {
                 const isExpanded = mobileExpanded === group.label
 

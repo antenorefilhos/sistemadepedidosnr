@@ -36,13 +36,19 @@ function isStandalone() {
 
 export function useNotifications() {
   const [pushStatus, setPushStatus] = useState<
-    'idle' | 'enabled' | 'denied' | 'unsupported' | 'ios-needs-install' | 'ios-outdated' | 'missing-key' | 'error'
+    'idle' | 'enabled' | 'denied' | 'unsupported' | 'insecure-context' | 'ios-needs-install' | 'ios-outdated' | 'missing-key' | 'error'
   >('idle')
+  // PushManager/serviceWorker exigem contexto seguro (HTTPS ou localhost) --
+  // navegador Windows/desktop reporta as APIs como presentes mesmo assim,
+  // entao sem esse check o app so descobre que nao da pra ativar quando o
+  // subscribe() falha silenciosamente depois do usuario ja ter concedido a
+  // permissao do SO. Detectar antes evita esse "clicou, nao aconteceu nada".
   const canUsePush = useMemo(() => (
     typeof window !== 'undefined'
     && 'serviceWorker' in navigator
     && 'Notification' in window
     && 'PushManager' in window
+    && window.isSecureContext
   ), [])
 
   const { data: notifications = [], refetch, isLoading } = useQuery({
@@ -91,6 +97,8 @@ export function useNotifications() {
     if (!canUsePush) {
       if (isIOS()) {
         setPushStatus(isStandalone() ? 'ios-outdated' : 'ios-needs-install')
+      } else if (typeof window !== 'undefined' && !window.isSecureContext) {
+        setPushStatus('insecure-context')
       } else {
         setPushStatus('unsupported')
       }

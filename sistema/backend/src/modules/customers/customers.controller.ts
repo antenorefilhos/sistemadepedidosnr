@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query, UseGuards, Req, ForbiddenException } from '@nestjs/common'
+import { Controller, Get, Post, Body, Param, Put, Patch, Delete, Query, UseGuards, Req, ForbiddenException } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger'
 import { CustomersService } from './customers.service'
 import { CreateCustomerDto } from './dto/create-customer.dto'
@@ -113,6 +113,28 @@ export class CustomersController {
   })
   async update(@Param('id') id: string, @Body() data: UpdateCustomerDto) {
     return this.customersService.update(id, data)
+  }
+
+  @Roles('admin')
+  @Patch(':id/block')
+  @ApiOperation({
+    summary: 'Bloquear/desbloquear cliente',
+    description: 'Suspende ou reativa o login do cliente (antifraude).',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'ID do cliente' })
+  async setBlocked(@Param('id') id: string, @Body() data: { blocked: boolean; reason?: string }) {
+    return this.customersService.setBlocked(id, Boolean(data.blocked), data.reason)
+  }
+
+  @Roles('admin')
+  @Post(':id/reset-link')
+  @ApiOperation({
+    summary: 'Gerar link de redefinicao de senha',
+    description: 'Gera um link seguro de redefinicao de senha para o admin copiar/enviar ao cliente.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'ID do cliente' })
+  async generateResetLink(@Param('id') id: string) {
+    return this.customersService.generateResetLink(id)
   }
 
   @Roles('admin')

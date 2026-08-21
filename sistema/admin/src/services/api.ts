@@ -881,6 +881,8 @@ export interface AdminCustomer {
   whatsapp: string
   email?: string
   createdAt: string
+  blocked?: boolean
+  blockedReason?: string | null
   addresses?: Array<{
     id: string
     street: string
@@ -1204,6 +1206,12 @@ export const pickingAPI = {
 export const customersAPI = {
   getAll: (search?: string) => api.get<AdminCustomer[]>('/customers', { params: search ? { search } : undefined }),
   getOne: (id: string) => api.get<AdminCustomer>(`/customers/${id}`),
+  update: (id: string, data: Partial<Pick<AdminCustomer, 'name' | 'email' | 'whatsapp' | 'cpf'>>) =>
+    api.put<AdminCustomer>(`/customers/${id}`, data),
+  setBlocked: (id: string, blocked: boolean, reason?: string) =>
+    api.patch<{ id: string; name: string; blocked: boolean; blockedReason: string | null }>(`/customers/${id}/block`, { blocked, reason }),
+  generateResetLink: (id: string) =>
+    api.post<{ resetUrl: string; expiresAt: string }>(`/customers/${id}/reset-link`),
   // Phase 17
   getOriginAnalytics: () => api.get<CustomerOriginItem[]>('/customers/analytics/origin'),
 }

@@ -40,10 +40,11 @@ export default function NotificationBell() {
   const pushMessage = (() => {
     if (pushEnabled) return 'Notificações ativas neste navegador.'
     if (pushGranted) return 'Permissão concedida; conclua a ativação.'
-    if (pushDenied) return 'Permissão bloqueada no navegador.'
+    if (pushDenied) return 'Permissão bloqueada no navegador. Para reativar: clique no cadeado/ícone ao lado do endereço do site e mude "Notificações" para Permitir.'
     if (pushStatus === 'ios-needs-install') return 'No iPhone/iPad, toque em Compartilhar e depois em "Adicionar à Tela de Início" para poder ativar notificações — o Safari não permite isso numa aba comum.'
     if (pushStatus === 'ios-outdated') return 'Atualize o iOS para a versão 16.4 ou mais recente para ativar notificações.'
-    if (pushStatus === 'unsupported') return 'Navegador sem suporte a push.'
+    if (pushStatus === 'insecure-context') return 'Notificações só funcionam em conexão segura (https). Acesse o site pelo endereço oficial para ativar.'
+    if (pushStatus === 'unsupported') return 'Este navegador não tem suporte a notificações push. Tente pelo Chrome, Edge ou Firefox atualizados.'
     if (pushStatus === 'missing-key') return 'Notificações indisponíveis neste ambiente.'
     if (pushStatus === 'error') return 'Não foi possível ativar agora.'
     return 'Receba avisos de pedido e campanhas.'
@@ -90,7 +91,7 @@ export default function NotificationBell() {
                 <p className="text-sm font-semibold text-[#231F20]">Avisos no navegador</p>
                 <p className={cn(
                   'mt-0.5 text-xs',
-                  pushDenied || pushStatus === 'error' || pushStatus === 'unsupported' || pushStatus === 'ios-outdated'
+                  pushDenied || pushStatus === 'error' || pushStatus === 'unsupported' || pushStatus === 'ios-outdated' || pushStatus === 'insecure-context'
                     ? 'font-semibold text-red-600'
                     : pushStatus === 'ios-needs-install'
                       ? 'text-gray-600'
