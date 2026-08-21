@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, type LucideIcon } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react'
 import type { Product } from '../types'
 import { StoreProductCard } from './StoreProductCard'
 import { useAutoScroll } from '../hooks/useAutoScroll'
@@ -54,6 +54,9 @@ export function ProductShelf({
   if (products.length === 0) return null
 
   const isCarousel = layout === 'carousel'
+  const scrollByCard = (direction: 'left' | 'right') => {
+    scrollRef.current?.scrollBy({ left: direction === 'left' ? -460 : 460, behavior: 'smooth' })
+  }
 
   return (
     <section className={cn('fade-in-section min-w-0', className)}>
@@ -82,14 +85,34 @@ export function ProductShelf({
       </div>
 
       {isCarousel ? (
-        <div
-          ref={scrollRef}
-          className="no-scrollbar flex snap-x gap-3 overflow-x-auto pb-3"
-          {...dragScroll.dragProps}
-        >
-          {products.map((product) => (
-            <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-          ))}
+        <div className="group/shelf relative">
+          <div
+            ref={scrollRef}
+            className="no-scrollbar flex snap-x gap-3 overflow-x-auto pb-3"
+            {...dragScroll.dragProps}
+          >
+            {products.map((product) => (
+              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
+            ))}
+          </div>
+
+          {/* Setas de navegacao -- so desktop, aparecem no hover da vitrine */}
+          <button
+            type="button"
+            onClick={() => scrollByCard('left')}
+            aria-label="Produtos anteriores"
+            className="absolute left-0 top-[calc(50%-0.75rem)] z-10 hidden h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-[#5D082A] opacity-0 shadow-md transition-opacity hover:bg-[#FBF7F0] group-hover/shelf:opacity-100 md:flex"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollByCard('right')}
+            aria-label="Próximos produtos"
+            className="absolute right-0 top-[calc(50%-0.75rem)] z-10 hidden h-9 w-9 translate-x-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-[#5D082A] opacity-0 shadow-md transition-opacity hover:bg-[#FBF7F0] group-hover/shelf:opacity-100 md:flex"
+          >
+            <ChevronRight size={18} />
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">

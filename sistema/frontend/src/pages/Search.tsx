@@ -112,7 +112,6 @@ export default function MercadoPage() {
   const { user } = useAuth()
   const categoriesScroll = useDragScroll<HTMLDivElement>()
   const subcategoriesScroll = useDragScroll<HTMLDivElement>()
-  const filterChipsScroll = useDragScroll<HTMLDivElement>()
   const { data: categoriesCMS } = useCategoriesCMS()
   const navigate = useNavigate()
 
@@ -452,16 +451,9 @@ export default function MercadoPage() {
     selectedSubcategories.find((c) => c.key === cat)?.label ||
     ''
   const selectedPriceFilter = PRICE_FILTERS.find((filter) => filter.minPrice === minPrice && filter.maxPrice === maxPrice)
-  const selectedPriceLabel = selectedPriceFilter?.label || ''
-  const activeFilterLabels = [
-    q ? `Busca: ${q}` : '',
-    categoryLabel ? `Seção: ${categoryLabel}` : '',
-    selectedPriceLabel,
-    classification01,
-    classification02,
-    classification03,
-    classification04,
-  ].filter(Boolean)
+  // "Qualquer preço" e o estado neutro (sem filtro) -- mostrar esse texto no
+  // resumo de resultados era o "preço duplicado" que a task pediu pra tirar.
+  const selectedPriceLabel = selectedPriceFilter && selectedPriceFilter.key !== 'all' ? selectedPriceFilter.label : ''
   const hasActiveFilters = Boolean(
     q ||
       cat ||
@@ -820,20 +812,12 @@ export default function MercadoPage() {
           </p>
         )}
 
-        {hasActiveFilters && activeFilterLabels.length > 0 && (
-          <div
-            ref={filterChipsScroll.ref}
-            className="mb-5 flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar"
-            {...filterChipsScroll.dragProps}
-          >
-            {activeFilterLabels.map((label) => (
-              <span
-                key={label}
-                className="shrink-0 rounded-md border border-[#D2BB8A]/50 bg-[#FBFAF7] px-3 py-2 text-xs font-semibold text-[#5D082A]"
-              >
-                {label}
-              </span>
-            ))}
+        {/* Categoria/preço/classificação ja aparecem destacados nas pilulas e no
+            resumo de resultados acima -- repeti-los aqui como chips era o
+            container duplicado que a task pediu pra tirar. So sobra o atalho
+            de limpar, quando ha algo pra limpar. */}
+        {hasActiveFilters && (
+          <div className="mb-5 flex items-center justify-end">
             <Button
               type="button"
               onClick={clearAllFilters}
@@ -841,7 +825,7 @@ export default function MercadoPage() {
               size="sm"
               className="h-auto shrink-0 px-3 py-2 text-xs font-bold"
             >
-              Limpar
+              Limpar filtros
             </Button>
           </div>
         )}

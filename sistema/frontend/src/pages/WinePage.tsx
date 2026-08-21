@@ -85,15 +85,17 @@ export default function WinePage() {
         description="Vinhos escolhidos para presentear, comemorar e surpreender. Descubra rótulos que valem a pena levar para casa."
       />
       <StructuredData data={breadcrumbSchema} />
-      {/* Header Specialized */}
-      <header className="fixed top-0 w-full z-50 glass-dark border-b border-[#D2BB8A]/30">
+      {/* Header Specialized -- glassmorphism escuro com acabamento dourado */}
+      <header className="fixed top-0 w-full z-50 border-b border-[#D2BB8A]/20 bg-[#120e0e]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="text-[#D2BB8A] hover:scale-110 transition-transform" aria-label="Voltar para Home">
             <ArrowLeft size={24} />
           </Link>
           <div className="text-center flex-1">
-             <h1 className="luxury-text text-xl text-[#D2BB8A] tracking-[0.2em] uppercase">Adega Antenor</h1>
-             <p className="text-label text-[#D2BB8A]/60 -mt-1 tracking-widest uppercase">Since 2026</p>
+             <h1 className="luxury-text text-xl font-extrabold tracking-[0.2em] uppercase bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">
+               Adega Antenor & Filhos
+             </h1>
+             <p className="text-label font-normal text-[#D2BB8A]/60 -mt-1 tracking-widest uppercase">Since 1979</p>
           </div>
           <div className="flex items-center gap-1">
             <Link to="/cart" className="relative p-2 text-[#D2BB8A]" aria-label={`Carrinho com ${count} itens`}>
@@ -127,7 +129,7 @@ export default function WinePage() {
               <span className="flex items-center gap-2 text-[#D2BB8A] text-xs font-bold tracking-widest uppercase mb-4">
                  <Sparkles size={14} /> Seleção Especial
               </span>
-              <h2 className="text-4xl md:text-6xl font-medium tracking-tight leading-tight luxury-text mb-8">Cada taça conta <br/>uma história</h2>
+              <h2 className="text-4xl md:text-6xl font-medium tracking-tight leading-tight luxury-text mb-8 bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">Cada taça conta <br/>uma história</h2>
               <p className="max-w-lg text-white/70 text-sm italic leading-relaxed">
                 Não é só vinho. É escolha, cuidado e sabor de verdade. Aqui você encontra rótulos para presentear bem ou aproveitar um momento especial.
               </p>
@@ -144,9 +146,21 @@ export default function WinePage() {
         </section>
       </main>
 
-      {/* Footer Branding */}
-      <footer className="py-20 text-center border-t border-[#D2BB8A]/10 opacity-30">
-         <p className="luxury-text text-2xl text-[#D2BB8A]">Antenor & Filhos</p>
+      {/* Footer exclusivo da Adega -- paleta mais escura que o resto da pagina, acabamento dourado nobre */}
+      <footer className="border-t border-[#D2BB8A]/20 bg-[#1C1917]">
+        <div className="mx-auto max-w-7xl px-6 py-16 text-center">
+          <p className="luxury-text text-3xl font-extrabold tracking-[0.15em] uppercase bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">
+            Adega Antenor & Filhos
+          </p>
+          <p className="mt-2 text-label uppercase tracking-widest text-[#D2BB8A]/50">Desde 1979</p>
+          <div className="mx-auto mt-6 h-px w-16 bg-[#D2BB8A]/30" />
+          <p className="mt-6 text-sm text-white/40">
+            Estrada União e Indústria, Pedro do Rio, Petrópolis - RJ
+          </p>
+          <Link to="/" className="mt-6 inline-block text-xs font-semibold uppercase tracking-widest text-[#D2BB8A] hover:underline">
+            Voltar ao mercado
+          </Link>
+        </div>
       </footer>
       <MobileBottomNav />
     </div>
@@ -195,7 +209,7 @@ function WineCard({ product }: { product: Product }) {
   return (
     <div className="group flex flex-col fade-in-section h-full">
        {/* 1:1 Photo Container */}
-       <div className={surfaceClasses({ tone: 'dark', className: 'relative aspect-square overflow-hidden mb-4 shadow-2xl bg-black/40 border-white/5' })}>
+       <div className={surfaceClasses({ tone: 'dark', className: 'relative aspect-square overflow-hidden mb-4 shadow-2xl bg-[#1F1D1D] border-white/5 transition-colors duration-300 hover:border-[#D2BB8A]' })}>
          <Link
             to={`/produto/${product.id}`}
             state={{ from: '/adega' }}

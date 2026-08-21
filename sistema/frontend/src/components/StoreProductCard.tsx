@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Minus, Plus, Info } from 'lucide-react'
+import { Minus, Plus, Info, Flame } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ProductImagePlaceholder } from './ProductImagePlaceholder'
 import { useCart } from '../hooks/useCart'
@@ -96,7 +96,7 @@ export function StoreProductCard({
   }
 
   const badgeColorClass = ({
-    urgent: 'border-red-600 bg-red-600 text-white',
+    urgent: 'border-[#E53E3E] bg-[#E53E3E] text-white font-black',
     promo: 'border-[#5D082A] bg-[#5D082A] text-white',
     frozen: 'border-sky-500 bg-sky-500 text-white',
     pet: 'border-violet-600 bg-violet-600 text-white',
@@ -156,13 +156,14 @@ export function StoreProductCard({
           </div>
         )}
 
-        {/* Badge top-left */}
+        {/* Badge top-left -- mobile +20% (text-xs/px-2 py-0.5), desktop +30% (md:text-sm md:px-2.5 md:py-1) */}
         {!viewModel.outOfStock && viewModel.badgeText && (
           <div className="absolute left-2 top-2 flex flex-col gap-1 pointer-events-none">
-            <Badge className={cn('h-4 w-fit gap-0.5 whitespace-nowrap px-1.5 text-[8px] leading-none tracking-[0.04em]', badgeColorClass)}>
+            <Badge className={cn('h-auto w-fit gap-1 whitespace-nowrap px-2 py-0.5 text-xs leading-none tracking-[0.04em] md:px-2.5 md:py-1 md:text-sm md:font-bold', badgeColorClass)}>
               {viewModel.badgeVariant === 'promo' && (
-                <img src="/icons/icon-promo-menu.gif" alt="" width={10} height={10} className="h-2.5 w-2.5 object-contain" />
+                <img src="/icons/icon-promo-menu.gif" alt="" width={12} height={12} className="h-3 w-3 object-contain" />
               )}
+              {viewModel.badgeVariant === 'urgent' && <Flame className="h-3 w-3 md:h-3.5 md:w-3.5" strokeWidth={2.5} aria-hidden="true" />}
               {viewModel.badgeText}
             </Badge>
           </div>

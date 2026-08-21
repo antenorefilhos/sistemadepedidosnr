@@ -31,6 +31,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
+import { Footer } from '../components/Footer'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
 import { surfaceClasses } from '../components/ui/surface'
@@ -711,6 +712,12 @@ export default function Home() {
         </section>
       )}
 
+      {promoBanners.length > 0 && (
+        <section className="md:hidden mx-4 mb-4">
+          <DuoBannerCarousel banners={promoBanners} />
+        </section>
+      )}
+
       {/* Mobile — Mais seções de produto */}
       <ProductShelf
         className="md:hidden px-4 pb-2"
@@ -769,6 +776,26 @@ export default function Home() {
               </div>
             </div>
           </section>
+        )}
+
+        {promoBanners.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-7xl mx-auto">
+            {promoBanners.slice(0, 2).map((banner, index) => (
+              <PromoBanner
+                key={index}
+                image={banner.image}
+                alt={banner.title}
+                badge={banner.badge}
+                highlightNote={banner.highlightNote}
+                highlightedProduct={banner.highlightedProduct}
+                title={banner.title}
+                description={banner.description}
+                ctaLabel={banner.ctaLabel}
+                ctaTo={banner.ctaTo}
+                align={banner.align}
+              />
+            ))}
+          </div>
         )}
 
         {intentShelves.length > 0 && (
@@ -979,6 +1006,8 @@ export default function Home() {
         </div>
       </section>
 
+      <Footer />
+
       {/* ── MOBILE Bottom Navigation ── */}
       {!isDesktop && (
       <>
@@ -1049,5 +1078,58 @@ function PromoBanner({
         </div>
       </div>
     </section>
+  )
+}
+
+/** Carrossel touch de banners com indicadores (dots) -- versao mobile do grid duplo desktop. */
+function DuoBannerCarousel({ banners }: { banners: PromoBannerView[] }) {
+  const [index, setIndex] = useState(0)
+  const touchStartX = useRef(0)
+
+  const go = (next: number) => setIndex(((next % banners.length) + banners.length) % banners.length)
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-lg"
+      onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
+      onTouchEnd={(e) => {
+        const diff = touchStartX.current - e.changedTouches[0].clientX
+        if (diff > 50) go(index + 1)
+        else if (diff < -50) go(index - 1)
+      }}
+    >
+      <div className="flex transition-transform duration-500 ease-out" style={{ transform: `translateX(-${index * 100}%)` }}>
+        {banners.map((banner, i) => (
+          <div key={i} className="w-full shrink-0">
+            <PromoBanner
+              image={banner.image}
+              alt={banner.title}
+              badge={banner.badge}
+              highlightNote={banner.highlightNote}
+              highlightedProduct={banner.highlightedProduct}
+              title={banner.title}
+              description={banner.description}
+              ctaLabel={banner.ctaLabel}
+              ctaTo={banner.ctaTo}
+              align={banner.align}
+            />
+          </div>
+        ))}
+      </div>
+
+      {banners.length > 1 && (
+        <div className="mt-2 flex items-center justify-center gap-2">
+          {banners.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Ir para banner ${i + 1}`}
+              onClick={() => go(i)}
+              className={`h-1.5 rounded-full transition-all ${i === index ? 'w-6 bg-[#5D082A]' : 'w-1.5 bg-[#D2BB8A]/50 hover:bg-[#D2BB8A]'}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

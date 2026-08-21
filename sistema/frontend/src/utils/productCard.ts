@@ -113,7 +113,7 @@ export function getProductCardViewModel(product: Product): ProductCardViewModel 
   let badgeVariant: ProductCardViewModel['badgeVariant'] = 'default'
 
   if (isLowStockByIntegration) {
-    badgeText = hasPromotionalPrice ? '🚨 Oferta acabando' : '🚨 Ta acabando'
+    badgeText = hasPromotionalPrice ? 'Oferta acabando' : 'Tá acabando'
     badgeVariant = 'urgent'
   } else if (hasPromotionalPrice) {
     badgeText = 'Promoção'
