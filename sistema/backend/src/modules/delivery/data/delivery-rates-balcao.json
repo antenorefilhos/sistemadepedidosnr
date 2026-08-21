@@ -2,7 +2,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4207",
-    "localidade": "CHAFARIZ",
+    "localidade": "Chafariz",
     "taxa": 6,
     "minutos": 1,
     "km": 0.5,
@@ -13,7 +13,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4208",
-    "localidade": "7 CASAS",
+    "localidade": "7 Casas",
     "taxa": 10,
     "minutos": 2,
     "km": 1.2,
@@ -24,7 +24,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4201",
-    "localidade": "COVA DA ONÇA",
+    "localidade": "Cova da Onça",
     "taxa": 15,
     "minutos": 4,
     "km": 2.2,
@@ -35,7 +35,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4201",
-    "localidade": "COVA DA ONÇA",
+    "localidade": "Cova da Onça",
     "taxa": 15,
     "minutos": 13,
     "km": 5,
@@ -46,7 +46,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4201",
-    "localidade": "CAMINHO DO CENTRO",
+    "localidade": "Caminho do Centro",
     "taxa": 15,
     "minutos": 8,
     "km": 3,
@@ -57,7 +57,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4202",
-    "localidade": "PAIOLINHO",
+    "localidade": "Paiolinho",
     "taxa": 22,
     "minutos": 12,
     "km": 6,
@@ -68,7 +68,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4201",
-    "localidade": "R. OSWALDO GUIMARÃES (DEPOIS DO CENTRO DE PDR A ESQUERDA)",
+    "localidade": "Rua Oswaldo Guimarães",
     "taxa": 15,
     "minutos": 7,
     "km": 4,
@@ -79,7 +79,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4201",
-    "localidade": "PEDRO DO RIO (ATÉ O VIADUTO)",
+    "localidade": "Pedro do Rio (Centro)",
     "taxa": 15,
     "minutos": 5,
     "km": 2.5,
@@ -90,7 +90,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4209",
-    "localidade": "RETIRO DAS PEDRAS (DEPOIS DO VIADUTO)",
+    "localidade": "Retiro das Pedras",
     "taxa": 18,
     "minutos": 14,
     "km": 7,
@@ -101,7 +101,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4209",
-    "localidade": "ALTO PEGADO",
+    "localidade": "Alto Pegado",
     "taxa": 18,
     "minutos": 15,
     "km": 9,
@@ -112,7 +112,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "1305",
-    "localidade": "COND. QUINTA DO LAGO",
+    "localidade": "Condomínio Quinta do Lago",
     "taxa": 48,
     "minutos": 21,
     "km": 19.8,
@@ -123,7 +123,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4205",
-    "localidade": "COND. SANTA JULIA (PROX AO CASTELO)",
+    "localidade": "Condomínio Santa Júlia",
     "taxa": 36,
     "minutos": 15,
     "km": 9,
@@ -134,7 +134,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4205",
-    "localidade": "ITAIPAVA (CENTRO)",
+    "localidade": "Itaipava (Centro)",
     "taxa": 36,
     "minutos": 30,
     "km": 10,
@@ -145,7 +145,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4204",
-    "localidade": "SECRETÁRIO (CENTRO)",
+    "localidade": "Secretário (Centro)",
     "taxa": 30,
     "minutos": 20,
     "km": 10,
@@ -156,7 +156,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4203",
-    "localidade": "VILA RICA",
+    "localidade": "Vila Rica",
     "taxa": 25,
     "minutos": 15,
     "km": 6,
@@ -167,7 +167,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "147",
-    "localidade": "COND. MONTES ALPHA",
+    "localidade": "Condomínio Montes Alpha",
     "taxa": 40,
     "minutos": 17,
     "km": 6.6,
@@ -178,7 +178,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "1305",
-    "localidade": "QUINTA DO JADE",
+    "localidade": "Quinta do Jade",
     "taxa": 45,
     "minutos": 21,
     "km": 8,
@@ -189,7 +189,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4205",
-    "localidade": "RIBEIRÃO",
+    "localidade": "Ribeirão",
     "taxa": 36,
     "minutos": 11,
     "km": 9,
@@ -200,7 +200,7 @@
   {
     "sentido": "SENTIDO ITAIPAVA",
     "codigo": "4209",
-    "localidade": "SUMIDOURO",
+    "localidade": "Sumidouro",
     "taxa": 18,
     "minutos": 11,
     "km": 6,
@@ -209,20 +209,9 @@
     "referencia": null
   },
   {
-    "sentido": "SENTIDO ITAIPAVA",
-    "codigo": "1305",
-    "localidade": "ALESSANDRA GASPAR",
-    "taxa": 45,
-    "minutos": null,
-    "km": null,
-    "cep": null,
-    "cepFormatado": null,
-    "referencia": "Estr.philuvio Cerq.Rodrigues, 6800 Terras Boa Esperança, Gleba 08"
-  },
-  {
     "sentido": "SENTIDO POSSE",
     "codigo": "4207",
-    "localidade": "CHAFARIZ",
+    "localidade": "Chafariz",
     "taxa": 6,
     "minutos": 1,
     "km": 0.5,
@@ -233,7 +222,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4207",
-    "localidade": "SITIO DO LEO",
+    "localidade": "Sítio do Leo",
     "taxa": 6,
     "minutos": 2,
     "km": 0.2,
@@ -244,7 +233,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4206",
-    "localidade": "COND. BOSQUE DAS MANGUEIRAS ATÉ A IGREJA",
+    "localidade": "Condomínio Bosque das Mangueiras (até a Igreja)",
     "taxa": 12,
     "minutos": null,
     "km": null,
@@ -255,7 +244,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "COND. BOSQUE DAS MANGUEIRAS",
+    "localidade": "Condomínio Bosque das Mangueiras",
     "taxa": 22,
     "minutos": 10,
     "km": 6,
@@ -266,7 +255,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4207",
-    "localidade": "3 PINHEIROS / MACCO",
+    "localidade": "3 Pinheiros / Macco",
     "taxa": 6,
     "minutos": 2,
     "km": 6,
@@ -277,7 +266,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4206",
-    "localidade": "LOT. SANTA RITA",
+    "localidade": "Loteamento Santa Rita",
     "taxa": 12,
     "minutos": 3,
     "km": 1.6,
@@ -288,7 +277,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4200",
-    "localidade": "LOT. SERRA MORENA",
+    "localidade": "Loteamento Serra Morena",
     "taxa": 16,
     "minutos": 3,
     "km": 1.7,
@@ -299,7 +288,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4200",
-    "localidade": "RUA MANOEL PEREIRA BARBOSA (PONTE BARRA MANSA A ESQUERDA)",
+    "localidade": "Rua Manoel Pereira Barbosa",
     "taxa": 16,
     "minutos": 3,
     "km": 1.7,
@@ -310,7 +299,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4201",
-    "localidade": "POSTO DESATIVADO / REI DO FENO",
+    "localidade": "Rei do Feno",
     "taxa": 15,
     "minutos": 2,
     "km": 1.5,
@@ -321,7 +310,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4200",
-    "localidade": "BARRA MANSA (DEPOIS DA PONTE SENTIDO BR-040)",
+    "localidade": "Barra Mansa",
     "taxa": 16,
     "minutos": 3,
     "km": 2,
@@ -332,7 +321,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "VILLA BAMBUZAL (BR-040)",
+    "localidade": "Villa Bambuzal (BR-040)",
     "taxa": 22,
     "minutos": 3,
     "km": 2,
@@ -343,7 +332,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4200",
-    "localidade": "BOMBA DE AREIA",
+    "localidade": "Bomba de Areia",
     "taxa": 16,
     "minutos": 3,
     "km": 2,
@@ -354,7 +343,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4200",
-    "localidade": "POUSADA BORGO SAN FELICE",
+    "localidade": "Pousada Borgo San Felice",
     "taxa": 16,
     "minutos": 3,
     "km": 2,
@@ -365,7 +354,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4200",
-    "localidade": "COND. CAMPOS DO CONDE",
+    "localidade": "Condomínio Campos do Conde",
     "taxa": 16,
     "minutos": 5,
     "km": 3.5,
@@ -376,7 +365,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4200",
-    "localidade": "ARCELINO CORREA MACHADO (BR-040) (PROX. AO PEDÁGIO)",
+    "localidade": "Rua Arcelino Corrêa Machado",
     "taxa": 16,
     "minutos": 7,
     "km": 3.9,
@@ -387,7 +376,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "RUA BARBOSA LIMA SOBRINHO (SENT. CONTRARIO AO HIGHLAND)",
+    "localidade": "Rua Barbosa Lima Sobrinho",
     "taxa": 22,
     "minutos": 8,
     "km": 5,
@@ -398,7 +387,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "SITIO CALDAS",
+    "localidade": "Sítio Caldas",
     "taxa": 22,
     "minutos": 8,
     "km": 5,
@@ -409,7 +398,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "SITIO ASA BRANCA",
+    "localidade": "Sítio Asa Branca",
     "taxa": 22,
     "minutos": 8,
     "km": 5,
@@ -420,7 +409,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "CANTINHO DO GALVÃO",
+    "localidade": "Cantinho do Galvão",
     "taxa": 22,
     "minutos": 10,
     "km": 8,
@@ -431,7 +420,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "COND. PADDOCK",
+    "localidade": "Condomínio Paddock",
     "taxa": 22,
     "minutos": 10,
     "km": 5,
@@ -442,7 +431,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "COND. HIGHLAND PLACES",
+    "localidade": "Condomínio Highland Places",
     "taxa": 22,
     "minutos": 10,
     "km": 6,
@@ -453,7 +442,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4203",
-    "localidade": "COND. TERRAS ALTAS",
+    "localidade": "Condomínio Terras Altas",
     "taxa": 25,
     "minutos": 12,
     "km": 7.5,
@@ -464,7 +453,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "COND. CONDADO DA SERRA",
+    "localidade": "Condado da Serra",
     "taxa": 22,
     "minutos": 6,
     "km": 4.5,
@@ -475,7 +464,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "MAANAIM",
+    "localidade": "Maanaim",
     "taxa": 22,
     "minutos": 12,
     "km": 5.7,
@@ -486,7 +475,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4203",
-    "localidade": "JACUBA",
+    "localidade": "Jacuba",
     "taxa": 25,
     "minutos": 10,
     "km": 7,
@@ -497,7 +486,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4203",
-    "localidade": "FAZENDA DA MATTA",
+    "localidade": "Fazenda da Matta",
     "taxa": 25,
     "minutos": null,
     "km": 15,
@@ -508,7 +497,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4204",
-    "localidade": "COND. VALE DO BARÃO",
+    "localidade": "Condomínio Vale do Barão",
     "taxa": 30,
     "minutos": 15,
     "km": 15,
@@ -519,7 +508,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "1447",
-    "localidade": "QUINTAS DO BARÃO (DENTRO DO COND. VALE DO BARÃO)",
+    "localidade": "Quintas do Barão",
     "taxa": 50,
     "minutos": 20,
     "km": 18,
@@ -530,7 +519,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4202",
-    "localidade": "BAR DO MUCIO - ANTES DA ENTRADA DA MONDESIR",
+    "localidade": "Bar do Múcio",
     "taxa": 22,
     "minutos": 8,
     "km": 5.5,
@@ -541,7 +530,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4205",
-    "localidade": "MONDESIR GOLF CLUB",
+    "localidade": "Mondesir Golf Club",
     "taxa": 36,
     "minutos": 25,
     "km": 12.5,
@@ -552,7 +541,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "4205",
-    "localidade": "COND. FAZENDA DAS ROSEIRAS",
+    "localidade": "Condomínio Fazenda das Roseiras",
     "taxa": 36,
     "minutos": 25,
     "km": 13.5,
@@ -563,7 +552,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "147",
-    "localidade": "FAZENDA DO CEDRO",
+    "localidade": "Fazenda do Cedro",
     "taxa": 42,
     "minutos": 25,
     "km": 18.5,
@@ -574,7 +563,7 @@
   {
     "sentido": "SENTIDO POSSE",
     "codigo": "147",
-    "localidade": "POSSE",
+    "localidade": "Posse",
     "taxa": 40,
     "minutos": 18,
     "km": 12,

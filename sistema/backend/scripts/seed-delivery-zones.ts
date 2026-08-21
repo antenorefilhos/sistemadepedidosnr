@@ -69,8 +69,13 @@ async function main() {
       )
     }
     const fee = Math.max(...group.map((e) => e.taxa))
-    const names = [...new Set(group.map((e) => e.localidade))].join(' / ')
-    zones.push({ name: names.slice(0, 190), cep, fee })
+    // Nome da zona = so a localidade principal do CEP (primeira da planilha),
+    // nao a concatenacao de todas as que compartilham o CEP -- isso e o que
+    // gerava os nomes gigantes tipo "CHAFARIZ / 7 CASAS / COND. BOSQUE DAS
+    // MANGUEIRAS / ...". A selecao fina por localidade continua vindo do
+    // JSON de balcao (resolveBalcaoLocality), essa zona e so o fallback de
+    // taxa no admin/CEP_RANGE.
+    zones.push({ name: group[0].localidade, cep, fee })
   }
 
   console.log(`Preparando ${zones.length} zona(s) especifica(s) por CEP + 1 zona base de fallback (Pedro do Rio).`)

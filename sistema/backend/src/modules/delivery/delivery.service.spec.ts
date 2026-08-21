@@ -167,7 +167,7 @@ describe('DeliveryService', () => {
       expect(result.selectedLocality).toBeNull()
       expect(result.availableLocalities?.length).toBeGreaterThan(1)
       expect(result.availableLocalities).toEqual(
-        expect.arrayContaining([expect.objectContaining({ name: 'CHAFARIZ', fee: 6 })]),
+        expect.arrayContaining([expect.objectContaining({ name: 'Chafariz', fee: 6 })]),
       )
     })
 
@@ -175,32 +175,32 @@ describe('DeliveryService', () => {
       mockPrisma.deliveryArea.findMany.mockResolvedValue([])
       mockPrisma.deliveryZone.findMany.mockResolvedValue([])
 
-      const result = await service.calculate({ cep: '25750-222', locality: 'CHAFARIZ' })
+      const result = await service.calculate({ cep: '25750-222', locality: 'Chafariz' })
 
       expect(result).toEqual(
         expect.objectContaining({
           fee: 6,
           rawFee: 6,
-          zoneName: 'CHAFARIZ',
-          selectedLocality: 'CHAFARIZ',
+          zoneName: 'Chafariz',
+          selectedLocality: 'Chafariz',
           requiresLocalitySelection: false,
           outOfArea: false,
         }),
       )
     })
 
-    it('CEP com multiplos pontos + locality COND. BOSQUE DAS MANGUEIRAS aplica a taxa do condominio, nao a do vizinho', async () => {
+    it('CEP com multiplos pontos + locality Condominio Bosque das Mangueiras aplica a taxa do condominio, nao a do vizinho', async () => {
       mockPrisma.deliveryArea.findMany.mockResolvedValue([])
       mockPrisma.deliveryZone.findMany.mockResolvedValue([])
 
-      const result = await service.calculate({ cep: '25750-222', locality: 'COND. BOSQUE DAS MANGUEIRAS' })
+      const result = await service.calculate({ cep: '25750-222', locality: 'Condomínio Bosque das Mangueiras' })
 
       expect(result).toEqual(
         expect.objectContaining({
           fee: 22,
           rawFee: 22,
-          zoneName: 'COND. BOSQUE DAS MANGUEIRAS',
-          selectedLocality: 'COND. BOSQUE DAS MANGUEIRAS',
+          zoneName: 'Condomínio Bosque das Mangueiras',
+          selectedLocality: 'Condomínio Bosque das Mangueiras',
           requiresLocalitySelection: false,
         }),
       )
@@ -216,7 +216,7 @@ describe('DeliveryService', () => {
       expect(result).toEqual(
         expect.objectContaining({
           fee: 36,
-          zoneName: 'RIBEIRÃO',
+          zoneName: 'Ribeirão',
           requiresLocalitySelection: false,
           availableLocalities: [],
         }),
