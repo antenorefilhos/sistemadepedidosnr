@@ -45,7 +45,13 @@ function formatBusinessHours(raw: string): string | null {
       .filter((g) => g.sig)
       .map((g) => {
         const label = g.start === g.end ? WEEKDAY_SHORT_PT[g.start] : `${WEEKDAY_SHORT_PT[g.start]} a ${WEEKDAY_SHORT_PT[g.end]}`
-        const hours = g.sig.split(',').map((w) => w.replace('-', 'h às ').replace(/:/g, 'h')).join(' e ')
+        const hours = g.sig
+          .split(',')
+          .map((w) => {
+            const [start, end] = w.split('-')
+            return `${start.replace(':', 'h')} às ${end.replace(':', 'h')}`
+          })
+          .join(' e ')
         return `${label}: ${hours}`
       })
 
