@@ -38,6 +38,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "seed:qa": "ts-node scripts/seed-qa.ts",
     "seed:delivery-zones": "node -r ts-node/register -e \"require('./scripts/seed-delivery-zones.ts')\"",
+    "seed:cms-categories": "node -r ts-node/register -e \"require('./scripts/seed-cms-categories.ts')\"",
     "import:ibge-cnefe": "node -r ts-node/register -e \"require('./scripts/import-ibge-cnefe.ts')\"",
     "photos:match": "ts-node scripts/match-photos.ts",
     "seed:staging-recipes": "node scripts/seed-staging-recipes.js",

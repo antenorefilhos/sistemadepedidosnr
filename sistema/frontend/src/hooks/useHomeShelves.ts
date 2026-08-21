@@ -169,10 +169,13 @@ export function useHomeShelves({
     }
 
     return {
-      consumoRapido: take('praticos', 6),
+      consumoRapido: take('congelados', 6),
       guloseimas: take('doces', 6),
-      churrasco: take('churrasco', 6),
-      carnesDiaADia: take('carnes', 6),
+      // Acougue & Churrasco virou uma unica macro-categoria: as duas vitrines
+      // abaixo dividem o mesmo pool via `usedKeys` (cada uma pega os produtos
+      // que a outra ainda nao consumiu).
+      churrasco: take('acougue', 6),
+      carnesDiaADia: take('acougue', 6),
       feira: take('hortifruti', 8),
       padaria: take('padaria', 6),
       bebidas: take('bebidas', 6),
@@ -193,6 +196,7 @@ export function useHomeShelves({
           id: config.rule.id,
           code: config.code,
           label: config.rule.label,
+          shortLabel: config.rule.shortLabel,
           query: config.rule.query,
           count:
             (config.curatedProducts?.length || 0) > 0
@@ -210,14 +214,14 @@ export function useHomeShelves({
       (config.curatedProducts?.length || 0) > 0 || config.productCount > 0
 
     const selected =
-      enabledHomeRules.find((config) => config.rule.id === 'vinhos' && hasProducts(config)) ||
+      enabledHomeRules.find((config) => config.rule.id === 'adega' && hasProducts(config)) ||
       enabledHomeRules.find(hasProducts)
 
     if (!selected) return null
 
-    const cleanLabel = selected.rule.label.replace(/^\S+\s*/, '').trim()
+    const cleanLabel = selected.rule.label
     const cmsCode = selected.code || selected.rule.id.toUpperCase()
-    const isWine = selected.rule.id === 'vinhos'
+    const isWine = selected.rule.id === 'adega'
 
     return {
       badge: isWine ? 'Adega Exclusiva' : 'Selecao Especial',

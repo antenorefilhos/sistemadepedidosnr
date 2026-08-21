@@ -369,7 +369,6 @@ export default function Home() {
             >
               {homeCategories.map((category) => {
                 const IconComponent = CATEGORY_ICONS[category.id] || CATEGORY_ICONS.default
-                const name = category.label.replace(/^\S+\s*/, '')
                 return (
                   <Link
                     key={category.id}
@@ -380,7 +379,7 @@ export default function Home() {
                     <div className="w-14 h-14 rounded-full bg-[#F3ECE0] flex items-center justify-center border border-[#E8D7B0]/60 text-[#5D082A] group-active:scale-95 transition-transform duration-150">
                       <IconComponent size={24} strokeWidth={1.8} />
                     </div>
-                    <span className="text-label font-semibold text-[#231F20] leading-tight line-clamp-2">{name}</span>
+                    <span className="text-label font-semibold text-[#231F20] leading-tight line-clamp-2">{category.shortLabel}</span>
                   </Link>
                 )
               })}
@@ -579,7 +578,6 @@ export default function Home() {
             <div ref={categoryScrollRef} className="flex overflow-x-auto no-scrollbar py-3 px-1 gap-3 snap-x scroll-smooth">
               {homeCategories.map((category) => {
                 const IconComponent = CATEGORY_ICONS[category.id] || CATEGORY_ICONS.default
-                const name = category.label.replace(/^\S+\s*/, '')
                 return (
                   <Link
                     key={category.id}
@@ -588,7 +586,7 @@ export default function Home() {
                   >
                     <IconComponent size={20} className="text-[#5D082A] group-hover:scale-110 transition-transform duration-200" strokeWidth={1.8} />
                     <span className="text-caption font-semibold text-[#5d4f33] group-hover:text-[#5D082A] transition-colors leading-tight line-clamp-2 whitespace-pre-wrap">
-                      {name}
+                      {category.shortLabel}
                     </span>
                   </Link>
                 )

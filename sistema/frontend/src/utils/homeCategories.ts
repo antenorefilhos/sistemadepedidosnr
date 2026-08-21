@@ -1,11 +1,10 @@
 import {
   Apple,
-  Beer,
   Beef,
+  Beer,
   Candy,
   Croissant,
-  CupSoda,
-  Flame,
+  Milk,
   Pizza,
   ShoppingBag,
   Smile,
@@ -17,7 +16,10 @@ import {
 
 export type HomeCategoryRule = {
   id: string
+  /** Nome completo — menu gaveta, titulos de vitrine e cabecalhos. */
   label: string
+  /** Nome curto — circulos de atalho mobile e pilulas de filtro (1-2 palavras, nunca trunca). */
+  shortLabel: string
   query: string
 }
 
@@ -34,65 +36,85 @@ export const normalizeCategoryCode = (value: string) =>
 export const toCategoryUrlParam = (value: string) =>
   normalizeCategoryCode(value).toLowerCase().replace(/_/g, '-')
 
-/** Ordem comercial de exibicao quando o CMS nao define prioridade. */
+/**
+ * Taxonomia oficial de 12 macro-categorias N1 (ver
+ * TASK_DEV_CATEGORIAS_TAXONOMIA.md). `id` e a chave interna curta usada por
+ * useHomeShelves; o codigo real do CMS entra via CMS_CATEGORY_TO_RULE_ID.
+ */
 export const HOME_COMMERCIAL_PRIORITY: Record<string, number> = {
-  carnes: 1,
-  churrasco: 2,
-  hortifruti: 3,
-  padaria: 4,
-  bebidas: 5,
-  cervejas: 6,
-  vinhos: 7,
-  praticos: 8,
-  doces: 9,
-  limpeza: 10,
-  higiene: 11,
-  perfumaria: 12,
+  acougue: 1,
+  adega: 2,
+  bebidas: 3,
+  hortifruti: 4,
+  queijos: 5,
+  padaria: 6,
+  mercearia: 7,
+  gourmet: 8,
+  congelados: 9,
+  doces: 10,
+  limpeza: 11,
+  higiene: 12,
 }
 
 export const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
-  { id: 'hortifruti', label: '🥬 Hortifruti Fresquinho', query: 'hortifruti' },
-  { id: 'limpeza', label: '🧼 Limpeza da Casa', query: 'limpeza' },
-  { id: 'higiene', label: '🧴 Higiene Pessoal', query: 'higiene pessoal' },
-  { id: 'perfumaria', label: '✨ Perfumaria & Beleza', query: 'perfumaria' },
-  { id: 'cervejas', label: '🍺 Cervejas Geladas', query: 'cerveja' },
-  { id: 'bebidas', label: '🥤 Bebidas em Geral', query: 'bebidas' },
-  { id: 'padaria', label: '🥖 Padaria & Forno', query: 'padaria' },
-  { id: 'carnes', label: '🥩 Carnes Frescas', query: 'carnes' },
-  { id: 'churrasco', label: '🔥 Para Churrasquear', query: 'churrasco' },
-  { id: 'vinhos', label: '🍷 Adega & Vinhos', query: 'vinhos' },
-  { id: 'doces', label: '🍫 Doces & Guloseimas', query: 'guloseimas' },
-  { id: 'praticos', label: '🧊 Congelados Práticos', query: 'congelados' },
+  { id: 'acougue', label: 'Açougue & Churrasco', shortLabel: 'Açougue', query: 'carnes' },
+  { id: 'adega', label: 'Adega & Destilados', shortLabel: 'Adega & Vinhos', query: 'vinhos' },
+  { id: 'bebidas', label: 'Cervejas & Bebidas Geladas', shortLabel: 'Bebidas', query: 'bebidas' },
+  { id: 'hortifruti', label: 'Hortifruti & Orgânicos', shortLabel: 'Hortifruti', query: 'hortifruti' },
+  { id: 'queijos', label: 'Queijos, Frios & Laticínios', shortLabel: 'Frios & Queijos', query: 'queijos' },
+  { id: 'padaria', label: 'Padaria, Confeitaria & Café', shortLabel: 'Padaria', query: 'padaria' },
+  { id: 'mercearia', label: 'Mercearia & Despensa', shortLabel: 'Mercearia', query: 'mercearia' },
+  { id: 'gourmet', label: 'Espaço Gourmet & Importados', shortLabel: 'Gourmet', query: 'gourmet' },
+  { id: 'congelados', label: 'Congelados & Práticos', shortLabel: 'Congelados', query: 'congelados' },
+  { id: 'doces', label: 'Doces, Chocolates & Snacks', shortLabel: 'Doces & Snacks', query: 'doces' },
+  { id: 'limpeza', label: 'Limpeza & Cuidados da Casa', shortLabel: 'Limpeza', query: 'limpeza' },
+  { id: 'higiene', label: 'Higiene, Beleza & Pet', shortLabel: 'Higiene & Pet', query: 'higiene' },
 ]
 
 /**
  * Codigo de categoria do CMS -> id da regra local.
  *
- * A taxonomia do CMS foi reescrita e cinco codigos antigos ficaram inativos
- * (`CARNES_DIA_A_DIA`, `BEBIDAS`, `VINHOS`, `GULOSEIMAS`, `CONSUMO_RAPIDO`).
- * Os antigos seguem aqui so por compatibilidade: vem do backend como
- * `active: false`, entao sao descartados antes de virar vitrine.
+ * A taxonomia foi consolidada em 12 macro-categorias N1 (antes carnes e
+ * churrasco, cervejas e bebidas, higiene e perfumaria eram categorias
+ * separadas). Codigos antigos seguem mapeados por compatibilidade: vem do
+ * backend como `active: false` (seed-cms-categories.ts desativa o que nao
+ * esta na taxonomia oficial), entao sao descartados antes de virar vitrine,
+ * mas um link ja compartilhado com `?cat=CARNES` continua resolvendo.
  */
 export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
-  // Codigos vigentes no CMS
-  CARNES: 'carnes',
-  CHURRASCO: 'churrasco',
+  // Codigos oficiais (ver TASK_DEV_CATEGORIAS_TAXONOMIA.md)
+  ACOUQUE_E_CHURRASCO: 'acougue',
+  ADEGA_E_DESTILADOS: 'adega',
+  CERVEJAS_E_BEBIDAS: 'bebidas',
+  HORTIFRUTI_E_ORGANICOS: 'hortifruti',
+  QUEIJOS_E_LATICINIOS: 'queijos',
+  PADARIA_E_CONFEITARIA: 'padaria',
+  MERCEARIA_E_DESPENSA: 'mercearia',
+  ESPACO_GOURMET: 'gourmet',
+  CONGELADOS_E_PRATICOS: 'congelados',
+  DOCES_E_SNACKS: 'doces',
+  LIMPEZA_E_CASA: 'limpeza',
+  HIGIENE_E_PET: 'higiene',
+  // Legado — inativos no CMS, mantidos para nao quebrar links antigos
+  CARNES: 'acougue',
+  CHURRASCO: 'acougue',
+  CARNES_DIA_A_DIA: 'acougue',
+  ADEGA: 'adega',
+  VINHOS: 'adega',
+  BEBIDAS: 'bebidas',
+  BEBIDAS_SEM_ALCOOL: 'bebidas',
+  CERVEJAS: 'bebidas',
   HORTIFRUTI: 'hortifruti',
   PADARIA: 'padaria',
-  BEBIDAS_SEM_ALCOOL: 'bebidas',
-  CERVEJAS: 'cervejas',
-  ADEGA: 'vinhos',
+  MERCEARIA: 'mercearia',
+  CONGELADOS: 'congelados',
+  CONSUMO_RAPIDO: 'congelados',
   CHOCOLATES_BALAS_E_SNACKS: 'doces',
+  GULOSEIMAS: 'doces',
   LIMPEZA: 'limpeza',
   HIGIENE_PESSOAL: 'higiene',
-  PERFUMARIA_E_BELEZA: 'perfumaria',
-  CONGELADOS: 'praticos',
-  // Legado — inativos no CMS, mantidos para nao quebrar links antigos
-  CARNES_DIA_A_DIA: 'carnes',
-  BEBIDAS: 'bebidas',
-  VINHOS: 'vinhos',
-  GULOSEIMAS: 'doces',
-  CONSUMO_RAPIDO: 'praticos',
+  PERFUMARIA_E_BELEZA: 'higiene',
+  PERFUMARIA: 'higiene',
 }
 
 // Nao ha mais mapa inverso rule.id -> codigo do CMS: cada vitrine/atalho usa o
@@ -101,18 +123,18 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
 // taxonomia mudava — foi o que deixou a Adega e "Pronto pra Comer" vazias.
 
 export const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  acougue: Beef,
+  adega: Wine,
+  bebidas: Beer,
   hortifruti: Apple,
+  queijos: Milk,
+  padaria: Croissant,
+  mercearia: ShoppingBag,
+  gourmet: Sparkles,
+  congelados: Pizza,
+  doces: Candy,
   limpeza: Trash2,
   higiene: Smile,
-  perfumaria: Sparkles,
-  cervejas: Beer,
-  bebidas: CupSoda,
-  padaria: Croissant,
-  carnes: Beef,
-  churrasco: Flame,
-  vinhos: Wine,
-  doces: Candy,
-  praticos: Pizza,
   default: ShoppingBag,
 }
 

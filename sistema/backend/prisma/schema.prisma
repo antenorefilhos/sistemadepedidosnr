@@ -1265,6 +1265,7 @@ model Category {
   id        String   @id @default(cuid())
   tenantId  String   @default("tenant_default")
   name      String   @unique
+  shortName String?
   bannerUrl String?
   parentId  String?  // Para hierarquia N1 (nulo) -> N2 (preenchido)
   parent    Category? @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)

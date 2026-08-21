@@ -46,14 +46,14 @@ export class CategoriesController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  create(@Body() data: { name: string; bannerUrl?: string; priority?: number; limit?: number; curatedProductIds?: string[] }) {
+  create(@Body() data: { name: string; shortName?: string; bannerUrl?: string; priority?: number; limit?: number; curatedProductIds?: string[] }) {
     return this.categoriesService.create(data);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  update(@Param('id') id: string, @Body() data: { name?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
+  update(@Param('id') id: string, @Body() data: { name?: string; shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
     return this.categoriesService.update(id, data);
   }
 

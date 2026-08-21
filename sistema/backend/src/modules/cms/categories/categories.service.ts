@@ -329,6 +329,7 @@ export class CategoriesService {
       id?: string;
       code: string;
       name: string;
+      shortName?: string | null;
       active: boolean;
       priority: number;
       limit: number;
@@ -376,6 +377,7 @@ export class CategoriesService {
         id: category.id,
         code,
         name: category.name,
+        shortName: category.shortName,
         active: category.active,
         priority: category.priority,
         limit: category.limit,
@@ -393,6 +395,7 @@ export class CategoriesService {
       byCode.set(code, {
         code,
         name: toDisplayLabel(code),
+        shortName: null,
         active: false,
         priority: 999,
         limit: 6,
@@ -414,7 +417,7 @@ export class CategoriesService {
     });
   }
 
-  async create(data: { name: string; bannerUrl?: string; priority?: number; limit?: number; curatedProductIds?: string[] }) {
+  async create(data: { name: string; shortName?: string; bannerUrl?: string; priority?: number; limit?: number; curatedProductIds?: string[] }) {
     const { curatedProductIds, ...categoryData } = data;
 
     const created = await this.prisma.category.create({
@@ -434,7 +437,7 @@ export class CategoriesService {
     });
   }
 
-  async update(id: string, data: { name?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
+  async update(id: string, data: { name?: string; shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
     const { curatedProductIds, ...categoryData } = data;
 
     await this.prisma.category.update({
