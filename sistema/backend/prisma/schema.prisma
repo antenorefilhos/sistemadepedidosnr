@@ -2214,5 +2214,33 @@ model CategoryMappingPending {
   @@map("category_mapping_pending")
 }
 
+// Microdados do CNEFE (IBGE, Censo 2022) pra Petropolis -- 159.371 enderecos
+// reais coletados porta a porta, com coordenada GPS e numero predial oficial.
+// Cobre servidoes e estradas vicinais que o CEP dos Correios agrupa num
+// unico CEP generico (25750-222 cobre Chafariz a Cond. Bosque das
+// Mangueiras, 2km de distancia). Fonte publica, sem custo, sem limite de
+// requisicao -- ver scripts/import-ibge-cnefe.ts.
+model IbgeAddress {
+  id             String   @id @default(uuid())
+  codUnico       String   @unique @map("cod_unico")
+  municipio      String   @default("Petrópolis")
+  bairro         String
+  tipoLogradouro String   @map("tipo_logradouro")
+  nomeLogradouro String   @map("nome_logradouro")
+  logradouro     String
+  numero         String?
+  complemento    String?
+  cep            String
+  latitude       Float
+  longitude      Float
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([cep])
+  @@index([bairro])
+  @@index([nomeLogradouro])
+  @@index([latitude, longitude])
+  @@map("ibge_addresses")
+}
+
 
 

@@ -3,7 +3,7 @@ import {
   fetchAddressByCep,
   GPS_ACCURACY_THRESHOLD_M,
   requestCurrentPosition,
-  reverseGeocodeByMapbox,
+  reverseGeocode,
 } from '../services/deliveryVerification'
 
 export type AddressFields = {
@@ -107,7 +107,7 @@ export function useAddressAutofill<T extends AddressFields>({
     try {
       setGeoLoading(true)
       const position = await requestCurrentPosition()
-      const normalized = await reverseGeocodeByMapbox(position.lat, position.lng)
+      const normalized = await reverseGeocode(position.lat, position.lng)
       // Desktop resolve geolocalizacao por Wi-Fi/IP e pode errar por
       // quilometros mesmo "com sucesso" -- so confia na coordenada bruta pra
       // decidir zona quando a precisao reportada e digna de GPS de celular.

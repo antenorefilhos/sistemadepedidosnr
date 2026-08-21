@@ -13,6 +13,7 @@ import {
   Req,
 } from '@nestjs/common'
 import { DeliveryService } from './delivery.service'
+import { IbgeAddressService } from './ibge-address.service'
 import { CreateDeliveryZoneDto, UpdateDeliveryZoneDto } from './dto/delivery-zone.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -36,7 +37,33 @@ import {
 @RelaxedThrottle()
 @Controller('delivery')
 export class DeliveryController {
-  constructor(private readonly deliveryService: DeliveryService) {}
+  constructor(
+    private readonly deliveryService: DeliveryService,
+    private readonly ibgeAddressService: IbgeAddressService,
+  ) {}
+
+  // ── Público: base local do IBGE (CNEFE 2022) -- geocodificacao reversa,
+  // consulta por CEP e autocomplete de logradouro sem depender de API paga. ──
+  @Post('ibge/reverse')
+  @ApiOperation({ summary: 'Geocodificacao reversa local via CNEFE (IBGE) -- endereco mais proximo da coordenada' })
+  async ibgeReverse(@Body() body: { latitude?: number; longitude?: number; radiusMeters?: number }) {
+    const lat = Number(body?.latitude)
+    const lng = Number(body?.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+    return this.ibgeAddressService.findNearest(lat, lng, body?.radiusMeters ? Number(body.radiusMeters) : undefined)
+  }
+
+  @Get('ibge/by-cep/:cep')
+  @ApiOperation({ summary: 'Logradouros/servidoes cadastrados no CNEFE (IBGE) pra um CEP' })
+  async ibgeByCep(@Param('cep') cep: string) {
+    return this.ibgeAddressService.findByCep(cep)
+  }
+
+  @Get('ibge/search')
+  @ApiOperation({ summary: 'Autocomplete de logradouro via CNEFE (IBGE)' })
+  async ibgeSearch(@Query('q') q?: string, @Query('bairro') bairro?: string) {
+    return this.ibgeAddressService.searchLogradouros(q || '', bairro)
+  }
 
   // ── Público: calcular frete por CEP ──────────────────────────────────
   @Get('calculate')

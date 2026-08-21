@@ -35,7 +35,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Prisma em Alpine requer OpenSSL disponível no runtime
-RUN apk add --no-cache libc6-compat openssl
+RUN apk add --no-cache libc6-compat openssl unzip
 
 # Cria usuário não-root para segurança
 RUN addgroup --system --gid 1001 nodejs

@@ -142,6 +142,31 @@ export function describeGeolocationError(error: any): string {
   return 'Não foi possível obter sua localização. Digite seu CEP abaixo.'
 }
 
+/** Geocodificacao reversa: tenta a base local do IBGE primeiro (instantanea,
+ * gratuita, com numero predial real -- so cobre Petropolis) e cai pro
+ * Mapbox se nao achar nada num raio de 100m (cliente fora da area, ou GPS
+ * impreciso o suficiente pra nao bater com nenhum ponto do CNEFE). */
+export async function reverseGeocode(lat: number, lng: number): Promise<DeliveryAddressSnapshot> {
+  try {
+    const res = await deliveryAPI.ibgeReverse(lat, lng)
+    const match = res.data
+    if (match) {
+      return {
+        street: match.logradouro,
+        number: match.numero || '',
+        complement: null,
+        neighborhood: match.bairro,
+        city: 'Petrópolis',
+        state: 'RJ',
+        zipCode: formatZipCode(match.cep),
+      }
+    }
+  } catch {
+    // Base local fora do ar ou sem match -- segue pro Mapbox normalmente.
+  }
+  return reverseGeocodeByMapbox(lat, lng)
+}
+
 export async function reverseGeocodeByMapbox(lat: number, lng: number): Promise<DeliveryAddressSnapshot> {
   if (!MAPBOX_TOKEN) throw new Error('mapbox-token-missing')
 

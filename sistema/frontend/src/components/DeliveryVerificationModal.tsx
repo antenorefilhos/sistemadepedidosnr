@@ -15,7 +15,7 @@ import {
   GPS_ACCURACY_THRESHOLD_M,
   readDeliveryVerification,
   requestCurrentPosition,
-  reverseGeocodeByMapbox,
+  reverseGeocode,
   saveDeliveryVerification,
   verifyDeliveryForAddress,
   type DeliveryCalcSnapshot,
@@ -103,7 +103,7 @@ export function DeliveryVerificationModal() {
     setErrorMessage(null)
     try {
       const coords = await requestCurrentPosition()
-      const detected = await reverseGeocodeByMapbox(coords.lat, coords.lng)
+      const detected = await reverseGeocode(coords.lat, coords.lng)
       // Desktop resolve por Wi-Fi/IP e pode errar por quilometros mesmo
       // "com sucesso" -- so guarda a coordenada bruta pra decidir zona quando
       // a precisao e digna de GPS de celular. Fora disso, handleVerify cai no
