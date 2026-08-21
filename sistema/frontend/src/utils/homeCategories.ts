@@ -5,7 +5,9 @@ import {
   Candy,
   Cigarette,
   Croissant,
+  CupSoda,
   Dog,
+  GlassWater,
   Milk,
   Package,
   Pizza,
@@ -40,33 +42,49 @@ export const toCategoryUrlParam = (value: string) =>
   normalizeCategoryCode(value).toLowerCase().replace(/_/g, '-')
 
 /**
- * Taxonomia oficial de 15 macro-categorias N1 (ver
- * TASK_DEV_CATEGORIAS_MAPPING.md). `id` e a chave interna curta usada por
+ * Link de destino de uma categoria nos circulos/pilulas de atalho. Adega vai
+ * direto pra `/adega` (pagina dedicada da Adega Antenor) em vez do filtro
+ * generico `/mercado?cat=`, em qualquer clique de categoria no storefront.
+ */
+export const getCategoryHref = (category: { id: string; code?: string }) =>
+  category.id === 'adega'
+    ? '/adega'
+    : `/mercado?cat=${toCategoryUrlParam(category.code || category.id.toUpperCase())}`
+
+/**
+ * Taxonomia oficial de 17 macro-categorias N1 (ver
+ * TASK_DEV_BEBIDAS_TAXONOMIA.md). `id` e a chave interna curta usada por
  * useHomeShelves; o codigo real do CMS entra via CMS_CATEGORY_TO_RULE_ID.
- * Tabacaria fica deliberadamente por ultimo.
+ * Bebidas foi dividida em 4 categorias puras (adega/cervejas/destilados/
+ * sucos) pra nao misturar destilado com carta de vinho nem cerveja com
+ * refresco em po. Tabacaria fica deliberadamente por ultimo.
  */
 export const HOME_COMMERCIAL_PRIORITY: Record<string, number> = {
   acougue: 1,
   adega: 2,
-  bebidas: 3,
-  hortifruti: 4,
-  queijos: 5,
-  padaria: 6,
-  mercearia: 7,
-  gourmet: 8,
-  congelados: 9,
-  doces: 10,
-  limpeza: 11,
-  higiene: 12,
-  pet: 13,
-  bazar: 14,
-  tabacaria: 15,
+  cervejas: 3,
+  destilados: 4,
+  sucos: 5,
+  hortifruti: 6,
+  queijos: 7,
+  padaria: 8,
+  mercearia: 9,
+  gourmet: 10,
+  congelados: 11,
+  doces: 12,
+  limpeza: 13,
+  higiene: 14,
+  pet: 15,
+  bazar: 16,
+  tabacaria: 17,
 }
 
 export const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
   { id: 'acougue', label: 'Açougue & Churrasco', shortLabel: 'Açougue', query: 'carnes' },
-  { id: 'adega', label: 'Adega & Destilados', shortLabel: 'Adega & Vinhos', query: 'vinhos' },
-  { id: 'bebidas', label: 'Cervejas & Bebidas Geladas', shortLabel: 'Bebidas', query: 'bebidas' },
+  { id: 'adega', label: 'Adega, Vinhos & Espumantes', shortLabel: 'Adega & Vinhos', query: 'vinhos' },
+  { id: 'cervejas', label: 'Cervejas & Chopp', shortLabel: 'Cervejas', query: 'cervejas' },
+  { id: 'destilados', label: 'Destilados & Coquetéis', shortLabel: 'Destilados', query: 'destilados' },
+  { id: 'sucos', label: 'Sucos & Refrigerantes', shortLabel: 'Sucos & Refrescos', query: 'sucos' },
   { id: 'hortifruti', label: 'Hortifruti & Orgânicos', shortLabel: 'Hortifruti', query: 'hortifruti' },
   { id: 'queijos', label: 'Queijos, Frios & Laticínios', shortLabel: 'Frios & Queijos', query: 'queijos' },
   { id: 'padaria', label: 'Padaria, Confeitaria & Café', shortLabel: 'Padaria', query: 'padaria' },
@@ -95,10 +113,13 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
   // Codigos oficiais (nomes normalizados vindos do CMS)
   ACOUGUE_CHURRASCO: 'acougue',
   ACOUQUE_E_CHURRASCO: 'acougue',
-  ADEGA_DESTILADOS: 'adega',
-  ADEGA_E_DESTILADOS: 'adega',
-  CERVEJAS_BEBIDAS_GELADAS: 'bebidas',
-  CERVEJAS_E_BEBIDAS: 'bebidas',
+  ADEGA_VINHOS_ESPUMANTES: 'adega',
+  CERVEJAS_CHOPP: 'cervejas',
+  CERVEJAS_E_CHOPP: 'cervejas',
+  DESTILADOS_COQUETEIS: 'destilados',
+  DESTILADOS_E_COQUETEIS: 'destilados',
+  SUCOS_REFRIGERANTES: 'sucos',
+  SUCOS_E_REFRIGERANTES: 'sucos',
   HORTIFRUTI_ORGANICOS: 'hortifruti',
   HORTIFRUTI_E_ORGANICOS: 'hortifruti',
   QUEIJOS_FRIOS_LATICINIOS: 'queijos',
@@ -127,11 +148,15 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
   CARNES: 'acougue',
   CHURRASCO: 'acougue',
   CARNES_DIA_A_DIA: 'acougue',
+  ADEGA_DESTILADOS: 'adega',
+  ADEGA_E_DESTILADOS: 'adega',
   ADEGA: 'adega',
   VINHOS: 'adega',
-  BEBIDAS: 'bebidas',
-  BEBIDAS_SEM_ALCOOL: 'bebidas',
-  CERVEJAS: 'bebidas',
+  CERVEJAS_BEBIDAS_GELADAS: 'cervejas',
+  CERVEJAS_E_BEBIDAS: 'cervejas',
+  BEBIDAS: 'sucos',
+  BEBIDAS_SEM_ALCOOL: 'sucos',
+  CERVEJAS: 'cervejas',
   HORTIFRUTI: 'hortifruti',
   PADARIA: 'padaria',
   MERCEARIA: 'mercearia',
@@ -153,7 +178,9 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
 export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   acougue: Beef,
   adega: Wine,
-  bebidas: Beer,
+  cervejas: Beer,
+  destilados: GlassWater,
+  sucos: CupSoda,
   hortifruti: Apple,
   queijos: Milk,
   padaria: Croissant,

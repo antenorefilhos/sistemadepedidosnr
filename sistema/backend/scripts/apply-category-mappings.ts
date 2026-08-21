@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 /**
- * De-Para ERP Solidcom -> categoria N1 oficial (TASK_DEV_CATEGORIAS_MAPPING.md, secao 2).
+ * De-Para ERP Solidcom -> categoria N1 oficial (TASK_DEV_BEBIDAS_TAXONOMIA.md, secao 2).
  *
  * O ERP concatena "N1 | N2" dentro de um UNICO campo `classificationNN` de
  * forma inconsistente -- as vezes classification01 ja vem "04-HPLU | 02-LIMPEZA"
@@ -17,10 +17,20 @@ const prisma = new PrismaClient()
  */
 const RULES: { categoryName: string; prefixes: string[] }[] = [
   { categoryName: 'Açougue & Churrasco', prefixes: ['05-ACOUGUE', '06-PERECIVEIS | 03-PEIXARIA'] },
-  { categoryName: 'Adega & Destilados', prefixes: ['03-BEBIDAS | 01-ADEGA', '03-BEBIDAS | 02-ALCOOLICAS'] },
+  { categoryName: 'Adega, Vinhos & Espumantes', prefixes: ['03-BEBIDAS | 01-ADEGA'] },
   {
-    categoryName: 'Cervejas & Bebidas Geladas',
-    prefixes: ['03-BEBIDAS | 03-NAO ALCOOLICAS', '03-BEBIDAS | 02-ALCOOLICAS | 01-CERVEJA'],
+    categoryName: 'Cervejas & Chopp',
+    prefixes: ['03-BEBIDAS | 02-ALCOOLICAS | 01-CERVEJA'],
+  },
+  {
+    // Prefixo geral de ALCOOLICAS -- perde pra "01-CERVEJA" acima porque o
+    // matching ordena por prefixo mais longo primeiro (ver SORTED_RULES).
+    categoryName: 'Destilados & Coquetéis',
+    prefixes: ['03-BEBIDAS | 02-ALCOOLICAS'],
+  },
+  {
+    categoryName: 'Sucos & Refrigerantes',
+    prefixes: ['03-BEBIDAS | 03-NAO ALCOOLICAS'],
   },
   { categoryName: 'Hortifruti & Orgânicos', prefixes: ['08-FLV'] },
   {

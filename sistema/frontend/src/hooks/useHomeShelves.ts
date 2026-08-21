@@ -178,7 +178,9 @@ export function useHomeShelves({
       carnesDiaADia: take('acougue', 6),
       feira: take('hortifruti', 8),
       padaria: take('padaria', 6),
-      bebidas: take('bebidas', 6),
+      // Bebidas virou 4 categorias puras (adega/cervejas/destilados/sucos) --
+      // a vitrine de churrasco combina com cerveja, nao com refrigerante.
+      bebidas: take('cervejas', 6),
       // Alem de excluir o que ja foi para uma categoria, deduplica dentro de si:
       // "Tudo do Mercado" e onde os SKUs repetidos do ERP mais aparecem juntos.
       outros: productsList.filter((product) => {
