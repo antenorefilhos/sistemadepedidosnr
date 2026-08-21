@@ -42,6 +42,7 @@ interface PromoBanner {
   ctaLabel?: string;
   ctaTo?: string;
   align: 'left' | 'right';
+  overlayColor?: string;
   active: boolean;
   order: number;
 }
@@ -60,6 +61,14 @@ interface PromoFormErrors {
 }
 
 const MAX_IMAGE_SIZE_MB = 5;
+
+const OVERLAY_COLOR_PRESETS = [
+  { label: 'Escuro (padrao)', value: '#231F20' },
+  { label: 'Vinho', value: '#5D082A' },
+  { label: 'Dourado', value: '#8A6A3A' },
+  { label: 'Verde', value: '#1E3D2F' },
+  { label: 'Azul', value: '#1B2A4A' },
+];
 
 const isValidLink = (value: string) => {
   if (!value.trim()) return true;
@@ -157,6 +166,7 @@ export default function PromoBannersManager() {
       ctaLabel: '',
       link: '',
       align: 'left',
+      overlayColor: '',
       active: true,
       order: items.length,
     });
@@ -716,6 +726,34 @@ export default function PromoBannersManager() {
                     <option value="left">Esquerda</option>
                     <option value="right">Direita</option>
                   </Select>
+                </div>
+              </div>
+
+              <div>
+                <Label className="mb-1 block text-xs font-bold uppercase text-gray-500">Mascara sobre a foto</Label>
+                <p className="mb-2 text-xs text-gray-400">
+                  Degrade escuro que da fundo pro texto. Escolha uma cor pra tematizar o banner de acordo com a foto.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {OVERLAY_COLOR_PRESETS.map(preset => (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      title={preset.label}
+                      onClick={() => setEditing(prev => ({ ...prev, overlayColor: preset.value }))}
+                      className={`h-8 w-8 rounded-full border-2 transition ${
+                        (editing.overlayColor || '#231F20') === preset.value ? 'border-[#5d082a] scale-110' : 'border-white shadow'
+                      }`}
+                      style={{ backgroundColor: preset.value }}
+                    />
+                  ))}
+                  <Input
+                    type="text"
+                    value={editing.overlayColor || ''}
+                    onChange={event => setEditing(prev => ({ ...prev, overlayColor: event.target.value }))}
+                    placeholder="#231F20"
+                    className="w-28 rounded-lg px-3 text-sm focus-visible:ring-[#5d082a]"
+                  />
                 </div>
               </div>
 

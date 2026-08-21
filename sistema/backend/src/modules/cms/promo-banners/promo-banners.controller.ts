@@ -39,6 +39,7 @@ export class PromoBannersController {
       ctaLabel?: string;
       ctaTo?: string;
       align?: string;
+      overlayColor?: string;
       order?: number;
     },
   ) {
@@ -63,6 +64,7 @@ export class PromoBannersController {
       ctaLabel?: string;
       ctaTo?: string;
       align?: string;
+      overlayColor?: string;
       active?: boolean;
       order?: number;
     },

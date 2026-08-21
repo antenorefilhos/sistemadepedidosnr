@@ -46,6 +46,7 @@ type PromoBannerView = {
   ctaLabel?: string
   ctaTo?: string
   align?: 'left' | 'right'
+  overlayColor?: string
 }
 
 export default function Home() {
@@ -227,6 +228,7 @@ export default function Home() {
         ctaLabel: item.ctaLabel || 'Aproveitar',
         ctaTo: item.ctaTo || item.link || '/mercado',
         align: (item.align as 'left' | 'right') || 'left',
+        overlayColor: item.overlayColor || undefined,
       }))
   }, [promoBannersRaw])
 
@@ -783,6 +785,7 @@ export default function Home() {
                 ctaLabel={banner.ctaLabel}
                 ctaTo={banner.ctaTo}
                 align={banner.align}
+                overlayColor={banner.overlayColor}
               />
             ))}
           </div>
@@ -859,6 +862,7 @@ export default function Home() {
             ctaLabel={promoBanner1.ctaLabel}
             ctaTo={promoBanner1.ctaTo}
             align={promoBanner1.align}
+            overlayColor={promoBanner1.overlayColor}
           />
         )}
 
@@ -928,6 +932,7 @@ export default function Home() {
             ctaLabel={promoBanner2.ctaLabel}
             ctaTo={promoBanner2.ctaTo}
             align={promoBanner2.align}
+            overlayColor={promoBanner2.overlayColor}
           />
         )}
 
@@ -961,6 +966,7 @@ export default function Home() {
             ctaLabel={promoBanner3.ctaLabel}
             ctaTo={promoBanner3.ctaTo}
             align={promoBanner3.align}
+            overlayColor={promoBanner3.overlayColor}
           />
         )}
 
@@ -976,6 +982,7 @@ export default function Home() {
             ctaLabel={promoBanner4.ctaLabel}
             ctaTo={promoBanner4.ctaTo}
             align={promoBanner4.align}
+            overlayColor={promoBanner4.overlayColor}
           />
         )}
 
@@ -991,6 +998,7 @@ export default function Home() {
             ctaLabel={promoBanner5.ctaLabel}
             ctaTo={promoBanner5.ctaTo}
             align={promoBanner5.align}
+            overlayColor={promoBanner5.overlayColor}
           />
         )}
 
@@ -1006,6 +1014,7 @@ export default function Home() {
             ctaLabel={promoBanner6.ctaLabel}
             ctaTo={promoBanner6.ctaTo}
             align={promoBanner6.align}
+            overlayColor={promoBanner6.overlayColor}
           />
         )}
 
@@ -1064,6 +1073,7 @@ function PromoBanner({
   ctaLabel,
   ctaTo,
   align = 'left',
+  overlayColor,
 }: {
   image: string
   alt: string
@@ -1075,12 +1085,17 @@ function PromoBanner({
   ctaLabel?: string
   ctaTo?: string
   align?: 'left' | 'right'
+  overlayColor?: string
 }) {
+  const tone = overlayColor || '#231F20'
   return (
     <section className="fade-in-section">
       <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[260px] overflow-hidden bg-[#F7F0E4] md:min-h-[320px]' })}>
         <img src={image} alt={alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#231F20]/82 via-[#231F20]/45 to-transparent" />
+        <div
+          className="absolute inset-0"
+          style={{ background: `linear-gradient(to right, ${tone}D1 0%, ${tone}73 45%, transparent 100%)` }}
+        />
         <div className={`relative z-10 flex h-full items-end p-6 md:p-8 ${align === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
           <div className="max-w-lg space-y-3">
             {badge && (
@@ -1147,6 +1162,7 @@ function DuoBannerCarousel({ banners }: { banners: PromoBannerView[] }) {
               ctaLabel={banner.ctaLabel}
               ctaTo={banner.ctaTo}
               align={banner.align}
+              overlayColor={banner.overlayColor}
             />
           </div>
         ))}

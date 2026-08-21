@@ -150,6 +150,7 @@ export class PromoBannersService {
     ctaLabel?: string;
     ctaTo?: string;
     align?: string;
+    overlayColor?: string;
     order?: number;
   }) {
     return this.prisma.promoBanner.create({
@@ -177,6 +178,7 @@ export class PromoBannersService {
       ctaLabel?: string;
       ctaTo?: string;
       align?: string;
+      overlayColor?: string;
       active?: boolean;
       order?: number;
     },

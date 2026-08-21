@@ -1374,6 +1374,7 @@ model PromoBanner {
   highlightedProductId String?
   highlightedProduct Product? @relation("PromoBannerHighlightedProduct", fields: [highlightedProductId], references: [id], onDelete: SetNull)
   align       String   @default("left")
+  overlayColor String?
   active      Boolean  @default(true)
   order       Int      @default(0)
   createdAt   DateTime @default(now())
