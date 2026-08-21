@@ -39,14 +39,15 @@ async function main() {
   }
   console.log(`${CATEGORIES.length} categoria(s) N1 sincronizada(s).`)
 
-  // Categorias antigas fora das 12 oficiais ficam inativas, nao deletadas --
-  // preserva curadoria/mapeamentos e nao quebra link antigo que aponte pro id.
-  const deactivated = await prisma.category.updateMany({
-    where: { name: { notIn: CATEGORIES.map((c) => c.name) }, active: true },
-    data: { active: false },
+  // Purga definitiva: categorias fora das 17 oficiais nao ficam so inativas,
+  // sao excluidas de vez -- as 78 zumbis com priority=0 estavam empurrando
+  // as 17 oficiais pro fim da tabela em /admin/categories. onDelete Cascade
+  // no schema remove junto qualquer curadoria/mapeamento preso a elas.
+  const deleted = await prisma.category.deleteMany({
+    where: { name: { notIn: CATEGORIES.map((c) => c.name) } },
   })
-  if (deactivated.count) {
-    console.log(`${deactivated.count} categoria(s) antiga(s) desativada(s) (fora da taxonomia oficial).`)
+  if (deleted.count) {
+    console.log(`${deleted.count} categoria(s) zumbi excluida(s) com sucesso.`)
   }
 }
 

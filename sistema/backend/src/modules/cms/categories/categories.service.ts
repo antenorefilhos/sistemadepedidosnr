@@ -176,6 +176,7 @@ export class CategoriesService {
 
   async findAll() {
     const categories = await this.prisma.category.findMany({
+      orderBy: { priority: 'asc' },
       include: {
         curatedProducts: {
           orderBy: { order: 'asc' },
@@ -206,25 +207,16 @@ export class CategoriesService {
       },
     });
 
-    const mapped = categories.map((category) => ({
+    // Ordenacao estrita por priority ASC ja vem do banco (orderBy acima) --
+    // fazia sentido reordenar em JS quando havia dezenas de categorias
+    // zumbi com priority=0 misturadas; agora seed-cms-categories.ts purga
+    // (deleteMany) o que nao esta na taxonomia oficial, entao a tabela so
+    // tem as N categorias com priority unica e sequencial.
+    return categories.map((category) => ({
       ...category,
       curatedProductIds: category.curatedProducts.map((item) => item.productId),
       curatedProducts: category.curatedProducts.map((item) => item.product),
     }));
-
-    return mapped.sort((a, b) => {
-      // Sort by priority (ascending, 0 is highest)
-      if (a.priority !== b.priority) return a.priority - b.priority;
-
-      // Then by active status (active first)
-      if (a.active !== b.active) return a.active ? -1 : 1;
-
-      // Finally by commercial priority and name
-      const priorityDiff = categoryPriorityIndex(a.name) - categoryPriorityIndex(b.name);
-      if (priorityDiff !== 0) return priorityDiff;
-
-      return a.name.localeCompare(b.name, 'pt-BR');
-    });
   }
 
   async findCommercialTaxonomy() {
