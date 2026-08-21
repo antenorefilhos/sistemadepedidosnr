@@ -8,7 +8,7 @@ import {
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
-import { useCommercialTaxonomy, useStoreBanners, useHeroSlides, useTopSellingProducts, type StoreBannerCMS } from '../hooks/useCMS'
+import { useCommercialTaxonomy, useStoreBanners, useHeroSlides, usePromoBanners, useTopSellingProducts, type StoreBannerCMS } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
@@ -64,6 +64,7 @@ export default function Home() {
 
   const { data: products, isLoading: productsLoading } = useProducts()
   const { data: storeBanners } = useStoreBanners()
+  const { data: promoBannersRaw } = usePromoBanners()
   const { data: cmsCategories } = useCommercialTaxonomy()
   const { data: topSellingProducts } = useTopSellingProducts(8)
   const { count, subtotal } = useCart()
@@ -211,31 +212,36 @@ export default function Home() {
   }, [storeBanners])
 
   const promoBanners = useMemo<PromoBannerView[]>(() => {
-    if (!storeBanners || storeBanners.length === 0) return []
+    if (!Array.isArray(promoBannersRaw) || promoBannersRaw.length === 0) return []
 
-    return storeBanners
-      .filter((item: StoreBannerCMS) => item.active !== false && item.type !== 'full' && item.imageUrl)
-      .sort((a: StoreBannerCMS, b: StoreBannerCMS) => (a.order || 0) - (b.order || 0))
-      .map((item: StoreBannerCMS) => ({
-        title: item.title || item.name || 'Destaque',
-        badge: 'Destaque',
-        description: 'Ofertas e destaques da semana para facilitar sua compra.',
+    return promoBannersRaw
+      .filter((item: any) => item.active !== false && item.imageUrl)
+      .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+      .map((item: any) => ({
+        title: item.title || 'Destaque',
+        badge: item.badge || item.subtitle || undefined,
+        highlightNote: item.highlightNote || undefined,
+        highlightedProduct: item.highlightedProduct || undefined,
+        description: item.description || undefined,
         image: resolveApiUrl(item.imageUrl),
-        ctaLabel: 'Aproveitar',
-        ctaTo: item.link || '/mercado',
-        align: 'left' as const,
+        ctaLabel: item.ctaLabel || 'Aproveitar',
+        ctaTo: item.ctaTo || item.link || '/mercado',
+        align: (item.align as 'left' | 'right') || 'left',
       }))
-  }, [storeBanners])
+  }, [promoBannersRaw])
 
-  // Grid duplo do topo (Task 3) usa os 2 primeiros; vitrines patrocinadas
-  // espalhadas entre as prateleiras (4-6 slots) usam o restante -- sem repetir
-  // o mesmo banner duas vezes na pagina.
+  // Grid duplo do topo (Task 3) usa os 2 primeiros, geridos pelo admin em
+  // Loja > Banners Intercalados (PromoBannersManager). Vitrines patrocinadas
+  // espalhadas entre as prateleiras (ate 6 slots) usam o restante -- sem
+  // repetir o mesmo banner duas vezes na pagina.
   const topGridBanners = promoBanners.slice(0, 2)
   const getPromoBanner = (index: number) => promoBanners[index + 2] || null
   const promoBanner1 = getPromoBanner(0)
   const promoBanner2 = getPromoBanner(1)
   const promoBanner3 = getPromoBanner(2)
   const promoBanner4 = getPromoBanner(3)
+  const promoBanner5 = getPromoBanner(4)
+  const promoBanner6 = getPromoBanner(5)
 
   // Ponto de ajuda/contato da Home (heuristica "ajuda e documentacao": a Home nao
   // tinha nenhum contato). Reaproveita o mesmo padrao ja usado em Account.tsx:
@@ -970,6 +976,36 @@ export default function Home() {
             ctaLabel={promoBanner4.ctaLabel}
             ctaTo={promoBanner4.ctaTo}
             align={promoBanner4.align}
+          />
+        )}
+
+        {promoBanner5 && (
+          <PromoBanner
+            image={promoBanner5.image}
+            alt={promoBanner5.title}
+            badge={promoBanner5.badge}
+            highlightNote={promoBanner5.highlightNote}
+            highlightedProduct={promoBanner5.highlightedProduct}
+            title={promoBanner5.title}
+            description={promoBanner5.description}
+            ctaLabel={promoBanner5.ctaLabel}
+            ctaTo={promoBanner5.ctaTo}
+            align={promoBanner5.align}
+          />
+        )}
+
+        {promoBanner6 && (
+          <PromoBanner
+            image={promoBanner6.image}
+            alt={promoBanner6.title}
+            badge={promoBanner6.badge}
+            highlightNote={promoBanner6.highlightNote}
+            highlightedProduct={promoBanner6.highlightedProduct}
+            title={promoBanner6.title}
+            description={promoBanner6.description}
+            ctaLabel={promoBanner6.ctaLabel}
+            ctaTo={promoBanner6.ctaTo}
+            align={promoBanner6.align}
           />
         )}
 
