@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { customersAPI, getApiErrorMessage, type AdminCustomer } from '../../services/api'
+import { addressesAPI, customersAPI, getApiErrorMessage, type AdminCustomer } from '../../services/api'
 import { SectionEmptyState, SectionMetric, SectionPanel, SectionToolbar } from './SectionChrome'
 
 type Props = {
@@ -62,6 +62,10 @@ export default function CustomersSection({
   const [generatingReset, setGeneratingReset] = useState(false)
   const [togglingBlock, setTogglingBlock] = useState(false)
   const [actionError, setActionError] = useState('')
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null)
+  const [addressForm, setAddressForm] = useState({ street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '' })
+  const [savingAddress, setSavingAddress] = useState(false)
+  const [addressError, setAddressError] = useState('')
 
   useEffect(() => {
     setIsEditing(false)
@@ -105,6 +109,37 @@ export default function CustomersSection({
       setActionError(getApiErrorMessage(err, 'Não foi possível gerar o link.'))
     } finally {
       setGeneratingReset(false)
+    }
+  }
+
+  const handleStartEditAddress = (addr: NonNullable<AdminCustomer['addresses']>[number]) => {
+    setEditingAddressId(addr.id)
+    setAddressError('')
+    setAddressForm({
+      street: addr.street || '',
+      number: addr.number || '',
+      complement: addr.complement || '',
+      neighborhood: addr.neighborhood || '',
+      city: addr.city || '',
+      state: addr.state || '',
+      zipCode: addr.zipCode || '',
+    })
+  }
+
+  const handleSaveAddress = async () => {
+    if (!selectedCustomer || !editingAddressId) return
+    setSavingAddress(true)
+    setAddressError('')
+    try {
+      await addressesAPI.update(selectedCustomer.id, editingAddressId, addressForm)
+      const updated = await customersAPI.getOne(selectedCustomer.id)
+      onSelectCustomer(updated.data)
+      setEditingAddressId(null)
+      onReloadCustomers()
+    } catch (err) {
+      setAddressError(getApiErrorMessage(err, 'Não foi possível salvar o endereço.'))
+    } finally {
+      setSavingAddress(false)
     }
   }
 
@@ -605,17 +640,51 @@ export default function CustomersSection({
                   </div>
 
                   <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                    {addressError && (
+                      <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{addressError}</p>
+                    )}
                     {selectedCustomer.addresses && selectedCustomer.addresses.length > 0 ? (
                       selectedCustomer.addresses.map((addr) => (
                         <div key={addr.id} className="text-sm border border-slate-100 bg-slate-50/50 rounded-xl p-4 space-y-1 hover:border-[#f1dbe3] transition">
-                          <p className="font-semibold text-gray-800">
-                            {addr.street}, {addr.number}
-                            {addr.complement ? ` — ${addr.complement}` : ''}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {addr.neighborhood}, {addr.city} - {addr.state}
-                          </p>
-                          <p className="text-xs text-gray-450 font-mono mt-1">CEP {addr.zipCode}</p>
+                          {editingAddressId === addr.id ? (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input placeholder="Rua" value={addressForm.street} onChange={(e) => setAddressForm((f) => ({ ...f, street: e.target.value }))} className="h-9 text-xs" />
+                                <Input placeholder="Número" value={addressForm.number} onChange={(e) => setAddressForm((f) => ({ ...f, number: e.target.value }))} className="h-9 text-xs" />
+                              </div>
+                              <Input placeholder="Complemento" value={addressForm.complement} onChange={(e) => setAddressForm((f) => ({ ...f, complement: e.target.value }))} className="h-9 text-xs" />
+                              <Input placeholder="Bairro" value={addressForm.neighborhood} onChange={(e) => setAddressForm((f) => ({ ...f, neighborhood: e.target.value }))} className="h-9 text-xs" />
+                              <div className="grid grid-cols-3 gap-2">
+                                <Input placeholder="Cidade" value={addressForm.city} onChange={(e) => setAddressForm((f) => ({ ...f, city: e.target.value }))} className="col-span-2 h-9 text-xs" />
+                                <Input placeholder="UF" value={addressForm.state} onChange={(e) => setAddressForm((f) => ({ ...f, state: e.target.value }))} className="h-9 text-xs" />
+                              </div>
+                              <Input placeholder="CEP" value={addressForm.zipCode} onChange={(e) => setAddressForm((f) => ({ ...f, zipCode: e.target.value }))} className="h-9 text-xs font-mono" />
+                              <div className="flex gap-2 pt-1">
+                                <Button type="button" onClick={handleSaveAddress} disabled={savingAddress} size="sm" className="h-8 flex-1 bg-[#5d082a] text-xs text-white hover:bg-[#4a0622]">
+                                  {savingAddress ? 'Salvando...' : 'Salvar'}
+                                </Button>
+                                <Button type="button" onClick={() => setEditingAddressId(null)} variant="outline" size="sm" className="h-8 text-xs">
+                                  Cancelar
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-semibold text-gray-800">
+                                  {addr.street}, {addr.number}
+                                  {addr.complement ? ` — ${addr.complement}` : ''}
+                                </p>
+                                <Button type="button" onClick={() => handleStartEditAddress(addr)} variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-gray-400 hover:text-[#5d082a]" title="Editar endereço">
+                                  <Pencil size={12} />
+                                </Button>
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {addr.neighborhood}, {addr.city} - {addr.state}
+                              </p>
+                              <p className="text-xs text-gray-450 font-mono mt-1">CEP {addr.zipCode}</p>
+                            </>
+                          )}
                         </div>
                       ))
                     ) : (

@@ -220,10 +220,10 @@ function WineCard({ product }: { product: Product }) {
              🍷
           </div>
           {!imgError && (
-            <img 
+            <img
               src={imageUrl}
               alt={product.name}
-              className="absolute inset-0 w-full h-full object-cover opacity-100"
+              className="absolute inset-0 w-full h-full object-contain p-6 mix-blend-multiply bg-[#1F1D1D]"
               loading="lazy"
               decoding="async"
               onError={() => {

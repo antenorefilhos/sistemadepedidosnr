@@ -1216,6 +1216,13 @@ export const customersAPI = {
   getOriginAnalytics: () => api.get<CustomerOriginItem[]>('/customers/analytics/origin'),
 }
 
+type AdminCustomerAddress = NonNullable<AdminCustomer['addresses']>[number]
+
+export const addressesAPI = {
+  update: (customerId: string, addressId: string, data: Partial<Omit<AdminCustomerAddress, 'id' | 'isDefault'>>) =>
+    api.put<AdminCustomerAddress>(`/addresses/${customerId}/${addressId}`, data),
+}
+
 export const businessAccountsAPI = {
   list: () => api.get<BusinessAccount[]>('/admin/business-accounts'),
   create: (data: CreateBusinessAccountPayload) => api.post<BusinessAccount>('/admin/business-accounts', data),

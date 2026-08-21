@@ -10,6 +10,7 @@ import { trackEvent } from '../utils/analytics'
 import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X } from 'lucide-react'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
+import { Footer } from '../components/Footer'
 import { useDragScroll } from '../hooks/useDragScroll'
 import { SEO } from '../components/SEO'
 import { SkeletonCard } from '../components/Skeleton'
@@ -143,6 +144,7 @@ export default function MercadoPage() {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
+  const filterPanelRef = useRef<HTMLDivElement>(null)
   const trackedSearchRef = useRef('')
   const prevFiltersRef = useRef<string>('')
 
@@ -208,6 +210,18 @@ export default function MercadoPage() {
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!showFilters) return
+    const onClickOutside = (event: MouseEvent) => {
+      if (!filterPanelRef.current) return
+      if (!filterPanelRef.current.contains(event.target as Node)) {
+        setShowFilters(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [showFilters])
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteProducts(
     q || undefined,
@@ -609,7 +623,7 @@ export default function MercadoPage() {
           <div className="flex items-center gap-2">
             <div
               ref={categoriesScroll.ref}
-              className="flex-1 flex gap-2 overflow-x-auto no-scrollbar"
+              className="flex-1 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth"
               {...categoriesScroll.dragProps}
             >
               {categories.map((c) => (
@@ -620,7 +634,7 @@ export default function MercadoPage() {
                   variant={cat === c.key ? 'primary' : 'subtle'}
                   size="sm"
                   className={cn(
-                    'h-auto min-h-10 shrink-0 px-3 py-2 text-xs',
+                    'h-auto min-h-9 shrink-0 rounded-full px-4 py-2 text-xs font-semibold',
                     cat !== c.key && 'bg-[#f0f0f0] text-[#231F20] hover:bg-[#D2BB8A]/30',
                   )}
                 >
@@ -628,26 +642,133 @@ export default function MercadoPage() {
                 </Button>
               ))}
             </div>
-            <Button
-              type="button"
-              onClick={() => setShowFilters((v) => !v)}
-              variant={showFilters || activeFilterCount > 0 ? 'primary' : 'outline'}
-              size="sm"
-              className={cn(
-                'h-auto min-h-10 shrink-0 px-3 py-2 text-xs',
-                !(showFilters || activeFilterCount > 0) && 'text-[#231F20]',
+            <div ref={filterPanelRef} className="relative shrink-0">
+              <Button
+                type="button"
+                onClick={() => setShowFilters((v) => !v)}
+                variant={showFilters || activeFilterCount > 0 ? 'primary' : 'outline'}
+                size="sm"
+                className={cn(
+                  'h-auto min-h-9 rounded-full px-3 py-2 text-xs',
+                  !(showFilters || activeFilterCount > 0) && 'text-[#231F20]',
+                )}
+                aria-label="Filtros"
+                aria-expanded={showFilters}
+                aria-controls="filter-panel"
+              >
+                <SlidersHorizontal size={13} />
+                {activeFilterCount > 0 ? (
+                  <span>{activeFilterCount}</span>
+                ) : (
+                  <span>Filtros</span>
+                )}
+              </Button>
+
+              {/* Painel de filtros (expansível) — ancorado no botão, não mais um bloco full-width */}
+              {showFilters && (
+                <div
+                  id="filter-panel"
+                  role="region"
+                  aria-label="Painel de filtros"
+                  className={surfaceClasses({
+                    className: 'absolute right-0 top-[calc(100%+8px)] z-40 flex w-[min(90vw,340px)] flex-col gap-3 bg-white px-4 py-4 shadow-xl',
+                  })}
+                >
+                  {/* Preço */}
+                  <div>
+                    <p className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Preço</p>
+                    <div className="flex flex-wrap gap-2">
+                      {PRICE_FILTERS.map((filter) => {
+                        const isActive = filter.minPrice === minPrice && filter.maxPrice === maxPrice
+                        return (
+                          <Button
+                            key={filter.key}
+                            type="button"
+                            onClick={() => setPriceFilter(filter.minPrice, filter.maxPrice)}
+                            variant={isActive ? 'primary' : 'outline'}
+                            size="sm"
+                            className="h-auto min-h-9 rounded-full px-3 py-1.5 text-xs"
+                          >
+                            {filter.label}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Classificação mercadológica (progressiva) */}
+                  {level1Options.length > 0 && (
+                    <div>
+                      <p className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Classificação</p>
+                      <div className="flex flex-col gap-2">
+                        <Select
+                          value={classification01}
+                          onChange={(e) => setMercadologicalFilter(1, e.target.value)}
+                          className="text-xs font-semibold"
+                        >
+                          <option value="">Nível 1</option>
+                          {level1Options.map((item) => (
+                            <option key={item.value} value={item.value}>{item.value}</option>
+                          ))}
+                        </Select>
+
+                        {classification01 && level2Options.length > 0 && (
+                          <Select
+                            value={classification02}
+                            onChange={(e) => setMercadologicalFilter(2, e.target.value)}
+                            className="text-xs font-semibold"
+                          >
+                            <option value="">Nível 2</option>
+                            {level2Options.map((item) => (
+                              <option key={item.value} value={item.value}>{item.value}</option>
+                            ))}
+                          </Select>
+                        )}
+
+                        {classification02 && level3Options.length > 0 && (
+                          <Select
+                            value={classification03}
+                            onChange={(e) => setMercadologicalFilter(3, e.target.value)}
+                            className="text-xs font-semibold"
+                          >
+                            <option value="">Nível 3</option>
+                            {level3Options.map((item) => (
+                              <option key={item.value} value={item.value}>{item.value}</option>
+                            ))}
+                          </Select>
+                        )}
+
+                        {classification03 && level4Options.length > 0 && (
+                          <Select
+                            value={classification04}
+                            onChange={(e) => setMercadologicalFilter(4, e.target.value)}
+                            className="text-xs font-semibold"
+                          >
+                            <option value="">Nível 4</option>
+                            {level4Options.map((item) => (
+                              <option key={item.value} value={item.value}>{item.value}</option>
+                            ))}
+                          </Select>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Limpar filtros */}
+                  {hasActiveFilters && (
+                    <Button
+                      type="button"
+                      onClick={clearAllFilters}
+                      variant="ghost"
+                      size="sm"
+                      className="self-start text-xs underline underline-offset-2"
+                    >
+                      Limpar tudo
+                    </Button>
+                  )}
+                </div>
               )}
-              aria-label="Filtros"
-              aria-expanded={showFilters}
-              aria-controls="filter-panel"
-            >
-              <SlidersHorizontal size={13} />
-              {activeFilterCount > 0 ? (
-                <span>{activeFilterCount}</span>
-              ) : (
-                <span>Filtros</span>
-              )}
-            </Button>
+            </div>
           </div>
 
           {selectedRoot && selectedSubcategories.length > 0 && (
@@ -686,109 +807,6 @@ export default function MercadoPage() {
             </div>
           )}
         </div>
-
-        {/* Painel de filtros (expansível) */}
-        {showFilters && (
-          <div
-            id="filter-panel"
-            role="region"
-            aria-label="Painel de filtros"
-            className={surfaceClasses({ className: 'mx-4 mb-3 flex flex-col gap-3 bg-white px-4 py-4' })}
-          >
-            {/* Preço */}
-            <div>
-              <p className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Preço</p>
-              <div className="flex flex-wrap gap-2">
-                {PRICE_FILTERS.map((filter) => {
-                  const isActive = filter.minPrice === minPrice && filter.maxPrice === maxPrice
-                  return (
-                    <Button
-                      key={filter.key}
-                      type="button"
-                      onClick={() => setPriceFilter(filter.minPrice, filter.maxPrice)}
-                      variant={isActive ? 'primary' : 'outline'}
-                      size="sm"
-                      className="h-auto min-h-10 px-3 py-2 text-xs"
-                    >
-                      {filter.label}
-                    </Button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Classificação mercadológica (progressiva) */}
-            {level1Options.length > 0 && (
-              <div>
-                <p className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Classificação</p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Select
-                    value={classification01}
-                    onChange={(e) => setMercadologicalFilter(1, e.target.value)}
-                    className="flex-1 text-xs font-semibold"
-                  >
-                    <option value="">Nível 1</option>
-                    {level1Options.map((item) => (
-                      <option key={item.value} value={item.value}>{item.value}</option>
-                    ))}
-                  </Select>
-
-                  {classification01 && level2Options.length > 0 && (
-                    <Select
-                      value={classification02}
-                      onChange={(e) => setMercadologicalFilter(2, e.target.value)}
-                      className="flex-1 text-xs font-semibold"
-                    >
-                      <option value="">Nível 2</option>
-                      {level2Options.map((item) => (
-                        <option key={item.value} value={item.value}>{item.value}</option>
-                      ))}
-                    </Select>
-                  )}
-
-                  {classification02 && level3Options.length > 0 && (
-                    <Select
-                      value={classification03}
-                      onChange={(e) => setMercadologicalFilter(3, e.target.value)}
-                      className="flex-1 text-xs font-semibold"
-                    >
-                      <option value="">Nível 3</option>
-                      {level3Options.map((item) => (
-                        <option key={item.value} value={item.value}>{item.value}</option>
-                      ))}
-                    </Select>
-                  )}
-
-                  {classification03 && level4Options.length > 0 && (
-                    <Select
-                      value={classification04}
-                      onChange={(e) => setMercadologicalFilter(4, e.target.value)}
-                      className="flex-1 text-xs font-semibold"
-                    >
-                      <option value="">Nível 4</option>
-                      {level4Options.map((item) => (
-                        <option key={item.value} value={item.value}>{item.value}</option>
-                      ))}
-                    </Select>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Limpar filtros */}
-            {hasActiveFilters && (
-              <Button
-                type="button"
-                onClick={clearAllFilters}
-                variant="ghost"
-                size="sm"
-                className="self-start text-xs underline underline-offset-2"
-              >
-                Limpar tudo
-              </Button>
-            )}
-          </div>
-        )}
       </header>
 
       <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
@@ -895,6 +913,7 @@ export default function MercadoPage() {
           </>
         )}
       </main>
+      <Footer />
       {count > 0 && (
         <div className="fixed inset-x-0 bottom-[var(--mobile-nav-height,4rem)] z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur md:hidden">
           <Link

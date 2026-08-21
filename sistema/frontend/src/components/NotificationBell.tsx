@@ -45,7 +45,7 @@ export default function NotificationBell() {
     if (pushStatus === 'ios-outdated') return 'Atualize o iOS para a versão 16.4 ou mais recente para ativar notificações.'
     if (pushStatus === 'insecure-context') return 'Notificações só funcionam em conexão segura (https). Acesse o site pelo endereço oficial para ativar.'
     if (pushStatus === 'unsupported') return 'Este navegador não tem suporte a notificações push. Tente pelo Chrome, Edge ou Firefox atualizados.'
-    if (pushStatus === 'missing-key') return 'Notificações indisponíveis neste ambiente.'
+    if (pushStatus === 'missing-key') return 'Notificações push estão temporariamente desativadas neste site (configuração pendente). Não é um problema do seu navegador — tente novamente mais tarde.'
     if (pushStatus === 'error') return 'Não foi possível ativar agora.'
     return 'Receba avisos de pedido e campanhas.'
   })()

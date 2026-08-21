@@ -227,10 +227,15 @@ export default function Home() {
       }))
   }, [storeBanners])
 
-  const getPromoBanner = (index: number) => promoBanners[index] || null
+  // Grid duplo do topo (Task 3) usa os 2 primeiros; vitrines patrocinadas
+  // espalhadas entre as prateleiras (4-6 slots) usam o restante -- sem repetir
+  // o mesmo banner duas vezes na pagina.
+  const topGridBanners = promoBanners.slice(0, 2)
+  const getPromoBanner = (index: number) => promoBanners[index + 2] || null
   const promoBanner1 = getPromoBanner(0)
   const promoBanner2 = getPromoBanner(1)
   const promoBanner3 = getPromoBanner(2)
+  const promoBanner4 = getPromoBanner(3)
 
   // Ponto de ajuda/contato da Home (heuristica "ajuda e documentacao": a Home nao
   // tinha nenhum contato). Reaproveita o mesmo padrao ja usado em Account.tsx:
@@ -668,27 +673,6 @@ export default function Home() {
         linkLabel="Ver todos"
       />
 
-      {/* Mobile Promo Banner */}
-      {promoBanner1 && (
-        <section className="md:hidden mx-4 mb-4">
-          <div className="relative overflow-hidden rounded-2xl min-h-[140px]">
-            <img src={promoBanner1.image} alt={promoBanner1.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#231F20]/80 to-transparent" />
-            <div className="relative z-10 p-5 flex flex-col justify-end h-full min-h-[140px]">
-              {promoBanner1.badge && (
-                <span className="text-label font-black uppercase tracking-widest text-[#D2BB8A] mb-1">{promoBanner1.badge}</span>
-              )}
-              <p className="text-white font-bold text-base leading-tight mb-3">{promoBanner1.title}</p>
-              {promoBanner1.ctaTo && (
-                <Link to={promoBanner1.ctaTo} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'self-start border-white bg-white text-xs font-bold text-[#5D082A] hover:bg-[#F3E7C9]' })}>
-                  {promoBanner1.ctaLabel ?? 'Ver mais'}
-                </Link>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
-
       {activeHeroSlides.length > 0 ? (
         <section className="md:hidden mx-4 mb-4">
           <HeroSlider slides={activeHeroSlides} />
@@ -778,9 +762,9 @@ export default function Home() {
           </section>
         )}
 
-        {promoBanners.length > 0 && (
+        {topGridBanners.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-7xl mx-auto">
-            {promoBanners.slice(0, 2).map((banner, index) => (
+            {topGridBanners.map((banner, index) => (
               <PromoBanner
                 key={index}
                 image={banner.image}
@@ -971,6 +955,21 @@ export default function Home() {
             ctaLabel={promoBanner3.ctaLabel}
             ctaTo={promoBanner3.ctaTo}
             align={promoBanner3.align}
+          />
+        )}
+
+        {promoBanner4 && (
+          <PromoBanner
+            image={promoBanner4.image}
+            alt={promoBanner4.title}
+            badge={promoBanner4.badge}
+            highlightNote={promoBanner4.highlightNote}
+            highlightedProduct={promoBanner4.highlightedProduct}
+            title={promoBanner4.title}
+            description={promoBanner4.description}
+            ctaLabel={promoBanner4.ctaLabel}
+            ctaTo={promoBanner4.ctaTo}
+            align={promoBanner4.align}
           />
         )}
 
