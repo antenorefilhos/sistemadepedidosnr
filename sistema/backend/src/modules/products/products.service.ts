@@ -1362,11 +1362,19 @@ export class ProductsService {
         // Produto ja existente do mesmo id_produto (mesmo se o ean principal
         // mudou de nome no ERP) tem prioridade sobre o lookup por ean, senao
         // um re-sync com EAN principal diferente criaria um produto duplicado.
-        const existing = erpProductId != null
-          ? await this.prisma.product.findFirst({
-              where: { tenantId: DEFAULT_TENANT_ID, erpProductId },
-            })
-          : await this.prisma.product.findUnique({ where: { ean: mainEan } })
+        // Fallback por EAN (qualquer um do grupo) e obrigatorio: produtos
+        // sincronizados antes deste fix ainda tem erpProductId=null no banco,
+        // entao o lookup por erpProductId nao acha nada e cairia no create()
+        // -- que quebra com EAN unique constraint, porque o produto ja existe.
+        const existing =
+          (erpProductId != null
+            ? await this.prisma.product.findFirst({
+                where: { tenantId: DEFAULT_TENANT_ID, erpProductId },
+              })
+            : null) ??
+          (await this.prisma.product.findFirst({
+            where: { tenantId: DEFAULT_TENANT_ID, ean: { in: groupEans } },
+          }))
 
         const product = existing
           ? await this.prisma.product.update({

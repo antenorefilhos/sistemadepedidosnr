@@ -12,6 +12,7 @@ const mockPrismaService: any = {
     findMany: jest.fn(),
     count: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     upsert: jest.fn(),
@@ -118,6 +119,9 @@ describe('ProductsService', () => {
       name: 'Product',
       status: 'ACTIVE',
     });
+    mockPrismaService.product.findFirst.mockResolvedValue(null);
+    mockPrismaService.product.create.mockResolvedValue({ id: '1' });
+    mockPrismaService.product.update.mockResolvedValue({ id: '1' });
     mockPrismaService.productMedia.updateMany.mockResolvedValue({ count: 0 });
     mockPrismaService.productMedia.create.mockResolvedValue({ id: 'media-1', productId: 'pm-1', type: 'IMAGE' });
     mockPrismaService.productSubstitution.upsert.mockResolvedValue({ productId: 'pm-1', substituteId: 'pm-2' });
@@ -336,7 +340,7 @@ describe('ProductsService', () => {
         status: 'success',
         data: [{ ean: '123', name: 'Updated', price: 20 }],
       });
-      mockPrismaService.product.findUnique.mockResolvedValue({ id: '1', ean: '123' });
+      mockPrismaService.product.findFirst.mockResolvedValue({ id: '1', ean: '123' });
       mockPrismaService.product.update.mockResolvedValue({ id: '1', name: 'Updated' });
 
       const result = await service.syncFromERP();
