@@ -39,7 +39,7 @@ const formatWineDescription = (value?: string | null) => {
 const formatWineTitle = (value?: string | null) => normalizeUppercaseDisplayText(value)
 
 export default function WinePage() {
-  const { data: products, isLoading } = useProducts(undefined, 'Adega')
+  const { data: products, isLoading } = useProducts(undefined, 'ADEGA_VINHOS_ESPUMANTES')
   const { count } = useCart()
   const { user } = useAuth()
 

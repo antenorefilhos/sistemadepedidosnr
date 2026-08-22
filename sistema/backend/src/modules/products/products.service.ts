@@ -1953,11 +1953,14 @@ export class ProductsService {
     if (!normalized) return undefined
 
     const aliasMap: Record<string, string> = {
-      // A categoria cadastrada chama-se "Adega"; apontar para VINHOS nao casa
-      // com nenhuma categoria e derruba a listagem para o filtro legado.
-      ADEGA: 'ADEGA',
-      VINHO: 'ADEGA',
-      VINHOS: 'ADEGA',
+      // A categoria comercial oficial no CMS chama-se "Adega, Vinhos &
+      // Espumantes" (normaliza para ADEGA_VINHOS_ESPUMANTES). Produtos ja sao
+      // gravados com esse codigo (apply-category-mappings.ts); sem este
+      // alias, filtrar por "Adega"/"ADEGA" (ex.: WinePage.tsx) nao casava
+      // com nenhum produto e a pagina da Adega ficava vazia.
+      ADEGA: 'ADEGA_VINHOS_ESPUMANTES',
+      VINHO: 'ADEGA_VINHOS_ESPUMANTES',
+      VINHOS: 'ADEGA_VINHOS_ESPUMANTES',
       GERAL: 'NAO_CLASSIFICADO',
       CERVEJA: 'CERVEJAS',
       CERVEJAS: 'CERVEJAS',
