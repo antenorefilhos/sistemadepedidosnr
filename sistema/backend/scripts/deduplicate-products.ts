@@ -13,7 +13,7 @@ const prisma = new PrismaClient()
  * erpProductId gravado (sync anterior ao fix nao guardava esse campo).
  */
 
-const DRY_RUN = process.argv.includes('--dry-run')
+const DRY_RUN = process.argv.includes('--dry-run') || process.env.DRY_RUN === '1'
 
 function normalize(value: string | null | undefined): string {
   return String(value || '').trim().toUpperCase()
