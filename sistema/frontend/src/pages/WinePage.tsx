@@ -11,7 +11,6 @@ import { useMemo, useEffect, useState } from 'react'
 import { SEO, StructuredData } from '../components/SEO'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
-import { surfaceClasses } from '../components/ui/surface'
 
 const normalizeUppercaseDisplayText = (value?: string | null) => {
   const text = String(value || '').trim()
@@ -209,7 +208,7 @@ function WineCard({ product }: { product: Product }) {
   return (
     <div className="group flex flex-col fade-in-section h-full">
        {/* 1:1 Photo Container */}
-       <div className={surfaceClasses({ tone: 'dark', className: 'relative aspect-square overflow-hidden mb-4 shadow-2xl bg-[#1F1D1D] border-white/5 transition-colors duration-300 hover:border-[#D2BB8A]' })}>
+       <div className="relative aspect-square overflow-hidden mb-4 shadow-2xl rounded-xl bg-gradient-to-b from-[#FAF7F2] to-[#F2EDE4] border border-[#D2BB8A]/30 transition-colors duration-300 hover:border-[#D2BB8A]">
          <Link
             to={`/produto/${product.id}`}
             state={{ from: '/adega' }}
@@ -223,7 +222,7 @@ function WineCard({ product }: { product: Product }) {
             <img
               src={imageUrl}
               alt={product.name}
-              className="absolute inset-0 w-full h-full object-contain p-6 mix-blend-multiply bg-[#1F1D1D]"
+              className="absolute inset-0 w-full h-full object-contain p-2.5 group-hover:scale-105 transition-transform duration-300"
               loading="lazy"
               decoding="async"
               onError={() => {
