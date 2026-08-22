@@ -141,6 +141,7 @@ export class ProductSearchService implements OnModuleInit {
         'titleMaskShort',
         'alternativeDescription',
         'ean',
+        'secondaryEans',
         'category',
       ])
       await index.updateFilterableAttributes([
@@ -351,6 +352,7 @@ export class ProductSearchService implements OnModuleInit {
     tenantId: string
     storeId: string
     ean: string
+    secondaryEans?: string[]
     name: string
     alternativeDescription: string | null
     isFractional: boolean
@@ -378,6 +380,7 @@ export class ProductSearchService implements OnModuleInit {
       tenantId: product.tenantId,
       storeId: product.storeId,
       ean: product.ean,
+      secondaryEans: product.secondaryEans || [],
       name: product.name,
       normalizedName: this.normalizeCatalogName(product.name),
       alternativeDescription: product.alternativeDescription,
