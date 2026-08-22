@@ -530,6 +530,16 @@ export class ProductsService {
       productsRecategorized += updateResult.count
     }
 
+    // ATENCAO: syncTaxonomyFromProducts() NUNCA deve criar/atualizar linhas em
+    // categories_cms (model `Category`). As 17 categorias comerciais oficiais
+    // sao geridas exclusivamente por seed-cms-categories.ts + CRUD do admin.
+    // Ate 22/08/2026 este metodo tambem fazia upsert de uma `Category` pra
+    // CADA classificacao bruta do ERP encontrada em `product.category`
+    // (~70 codigos como "Bazar", "Bebe", "Carnes Dia a Dia") com
+    // priority=0 -- eram as categorias zumbi que lotavam a barra de pilulas
+    // do /mercado e empurravam as 17 oficiais pro fim da lista no admin.
+    // seed-cms-categories.ts ja purga essas zumbis quando rodado, mas a
+    // proxima sync (roda sozinha, ver ERP_SYNC_CRON) as recriava na hora.
     const groupedCategories = await this.prisma.product.groupBy({
       by: ['category'],
       where: {
@@ -539,66 +549,8 @@ export class ProductsService {
       orderBy: { category: 'asc' },
     })
 
-    const actualCategoryCodes = groupedCategories
-      .map((row) => this.normalizeCategory(row.category || ''))
-      .filter((code): code is string => Boolean(code))
-
-    const existingCmsCategories = await this.prisma.category.findMany({
-      select: { id: true, name: true, active: true },
-    })
-
-    const cmsByKey = new Map<string, { id: string; name: string; active: boolean }>()
-    for (const category of existingCmsCategories) {
-      cmsByKey.set(this.normalizeCategoryKey(category.name), category)
-    }
-
-    let categoriesCreated = 0
-    let categoriesUpdated = 0
-
-    const desiredCodes = new Set<string>([...actualCategoryCodes, ...CATEGORY_SEED_CODES])
-
-    for (const code of desiredCodes) {
-      const normalizedCode = this.normalizeCategory(code) || 'GERAL'
-      const key = this.normalizeCategoryKey(normalizedCode)
-      const desiredName = this.toCmsCategoryName(normalizedCode)
-      const existing = cmsByKey.get(key)
-
-      if (!existing) {
-        const created = await this.prisma.category.create({
-          data: {
-            name: desiredName,
-            active: true,
-          },
-          select: { id: true, name: true, active: true },
-        })
-
-        cmsByKey.set(key, created)
-        categoriesCreated += 1
-        continue
-      }
-
-      if (existing.name !== desiredName || existing.active !== true) {
-        await this.prisma.category.update({
-          where: { id: existing.id },
-          data: {
-            name: desiredName,
-            active: true,
-          },
-        })
-        categoriesUpdated += 1
-      }
-    }
-
-    for (const category of existingCmsCategories) {
-      if (this.normalizeCategoryKey(category.name) !== 'GERAL') continue
-      if (!category.active) continue
-
-      await this.prisma.category.update({
-        where: { id: category.id },
-        data: { active: false },
-      })
-      categoriesUpdated += 1
-    }
+    const categoriesCreated = 0
+    const categoriesUpdated = 0
 
     const tree = await this.getMercadologicalTree()
 
@@ -611,7 +563,7 @@ export class ProductsService {
       categoriesDetected: groupedCategories.length,
       categoriesCreated,
       categoriesUpdated,
-      categoriesSeededForFuture: Math.max(0, desiredCodes.size - actualCategoryCodes.length),
+      categoriesSeededForFuture: 0,
       mercadologicalRoots: tree.data.length,
     }
   }

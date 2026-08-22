@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useInfiniteProducts, useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
-import { useCategoriesCMS } from '../hooks/useCMS'
+import { useCommercialTaxonomy } from '../hooks/useCMS'
+import { CMS_CATEGORY_TO_RULE_ID, HOME_CATEGORY_RULES, HOME_COMMERCIAL_PRIORITY, getCategoryHref } from '../utils/homeCategories'
 import { productsAPI } from '../services/api'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { trackEvent } from '../utils/analytics'
@@ -113,7 +114,7 @@ export default function MercadoPage() {
   const { user } = useAuth()
   const categoriesScroll = useDragScroll<HTMLDivElement>()
   const subcategoriesScroll = useDragScroll<HTMLDivElement>()
-  const { data: categoriesCMS } = useCategoriesCMS()
+  const { data: categoriesCMS } = useCommercialTaxonomy()
   const navigate = useNavigate()
 
   const q = searchParams.get('q') || ''
@@ -361,55 +362,42 @@ export default function MercadoPage() {
     inputRef.current?.blur()
   }
 
+  // Barra de pilulas do /mercado: exclusivamente as 17 categorias comerciais
+  // oficiais (mesma fonte/filtro que a Home usa em useHomeShelves), nunca as
+  // classificacoes brutas do ERP que syncTaxonomyFromProducts reinsere em
+  // categories_cms com priority=0.
   const categoryTree = useMemo(() => {
     const raw = Array.isArray(categoriesCMS) ? categoriesCMS : []
-    if (raw.length === 0) {
-      return {
-        roots: FALLBACK_CATEGORIES.filter((item) => item.key),
-        childrenByRootCode: new Map<string, Array<{ key: string; label: string }>>(),
-      }
-    }
-
-    const active = raw.filter((item: any) => item?.active !== false)
-    const roots = active
-      .filter((item: any) => !item.parentId)
-      .sort((a: any, b: any) => {
-        if ((a.priority ?? 0) !== (b.priority ?? 0)) return (a.priority ?? 0) - (b.priority ?? 0)
-        return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR')
-      })
+    const seenRuleIds = new Set<string>()
+    const roots = raw
+      .filter((item: any) => item?.active !== false)
       .map((item: any) => {
-        const code = normalizeCategoryCode(String(item.name || ''))
+        const code = normalizeCategoryCode(String(item?.code || item?.name || ''))
+        const ruleId = CMS_CATEGORY_TO_RULE_ID[code]
+        const rule = ruleId ? HOME_CATEGORY_RULES.find((r) => r.id === ruleId) : undefined
+        if (!rule) return null
         return {
-          id: String(item.id),
+          id: rule.id,
           key: code,
-          label: `${item.name || code}`,
+          label: rule.shortLabel,
+          priority: item?.priority ?? HOME_COMMERCIAL_PRIORITY[rule.id] ?? 999,
         }
       })
+      .filter((item): item is { id: string; key: string; label: string; priority: number } => Boolean(item))
+      .filter((item) => {
+        if (seenRuleIds.has(item.id)) return false
+        seenRuleIds.add(item.id)
+        return true
+      })
+      .sort((a, b) => a.priority - b.priority)
 
-    const childrenByRootCode = new Map<string, Array<{ key: string; label: string }>>()
-    for (const root of roots) {
-      const children = active
-        .filter((item: any) => String(item.parentId || '') === root.id)
-        .sort((a: any, b: any) => {
-          if ((a.priority ?? 0) !== (b.priority ?? 0)) return (a.priority ?? 0) - (b.priority ?? 0)
-          return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR')
-        })
-        .map((item: any) => ({
-          key: normalizeCategoryCode(String(item.name || '')),
-          label: String(item.name || ''),
-        }))
-
-      childrenByRootCode.set(root.key, children)
-    }
-
-    const fallbackRoots = FALLBACK_CATEGORIES.filter((item) => item.key)
     return {
-      roots: roots.length > 0 ? roots.map((item) => ({ key: item.key, label: item.label })) : fallbackRoots,
-      childrenByRootCode,
+      roots: roots.length > 0 ? roots : FALLBACK_CATEGORIES.filter((item) => item.key).map((item) => ({ ...item, id: '' })),
+      childrenByRootCode: new Map<string, Array<{ key: string; label: string }>>(),
     }
   }, [categoriesCMS])
 
-  const categories = useMemo(() => [{ key: '', label: 'Todos' }, ...categoryTree.roots], [categoryTree.roots])
+  const categories = useMemo(() => [{ id: '', key: '', label: 'Todos' }, ...categoryTree.roots], [categoryTree.roots])
 
   const selectedRoot = useMemo(() => {
     if (!cat) return ''
@@ -630,7 +618,16 @@ export default function MercadoPage() {
                 <Button
                   key={c.key}
                   type="button"
-                  onClick={() => setCategory(c.key)}
+                  onClick={() => {
+                    if (c.id) {
+                      const href = getCategoryHref({ id: c.id, code: c.key })
+                      if (href.startsWith('/adega')) {
+                        navigate(href)
+                        return
+                      }
+                    }
+                    setCategory(c.key)
+                  }}
                   variant={cat === c.key ? 'primary' : 'subtle'}
                   size="sm"
                   className={cn(
