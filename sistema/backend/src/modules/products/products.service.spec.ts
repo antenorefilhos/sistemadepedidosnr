@@ -336,11 +336,12 @@ describe('ProductsService', () => {
         status: 'success',
         data: [{ ean: '123', name: 'Updated', price: 20 }],
       });
-      mockPrismaService.product.upsert.mockResolvedValue({ id: '1', name: 'Updated' });
+      mockPrismaService.product.findUnique.mockResolvedValue({ id: '1', ean: '123' });
+      mockPrismaService.product.update.mockResolvedValue({ id: '1', name: 'Updated' });
 
       const result = await service.syncFromERP();
 
-      expect(mockPrismaService.product.upsert).toHaveBeenCalled();
+      expect(mockPrismaService.product.update).toHaveBeenCalled();
     });
 
     it('should persist fractionStep when syncing fractional products', async () => {
@@ -356,7 +357,8 @@ describe('ProductsService', () => {
           unit: 'kg',
         }],
       });
-      mockPrismaService.product.upsert.mockResolvedValue({
+      mockPrismaService.product.findUnique.mockResolvedValue(null);
+      mockPrismaService.product.create.mockResolvedValue({
         id: 'fractional-1',
         ean: '789',
         name: 'Aipim kg',
@@ -368,13 +370,9 @@ describe('ProductsService', () => {
 
       await service.syncFromERP();
 
-      expect(mockPrismaService.product.upsert).toHaveBeenCalledWith(
+      expect(mockPrismaService.product.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          create: expect.objectContaining({
-            isFractional: true,
-            fractionStep: 0.25,
-          }),
-          update: expect.objectContaining({
+          data: expect.objectContaining({
             isFractional: true,
             fractionStep: 0.25,
           }),

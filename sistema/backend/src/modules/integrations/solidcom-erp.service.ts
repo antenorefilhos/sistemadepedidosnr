@@ -5,6 +5,9 @@ import { RetryService } from '../../common/services/retry.service'
 
 export interface ERPProduct {
   ean: string
+  // id_produto do ERP Solidcom -- varias linhas (varios EANs) podem
+  // compartilhar o mesmo id_produto; usado pra agrupar em applyErpProducts.
+  erpProductId?: number
   name: string
   active: boolean
   alternativeDescription?: string
@@ -155,6 +158,9 @@ export class SolidcomERPService {
     
     const nameRaw = row['produto'] || row['descricaoecommerce'] || row['nome'] || row['name']
     const name = nameRaw ? String(nameRaw).trim() : ''
+
+    const erpProductIdRaw = this.readNumber(row, ['id_produto', 'idProduto', 'idproduto'], NaN)
+    const erpProductId = Number.isFinite(erpProductIdRaw) ? Math.trunc(erpProductIdRaw) : undefined
     
     const commercialPrices = this.resolveCommercialPrices(row)
     const price = commercialPrices.price
@@ -181,6 +187,7 @@ export class SolidcomERPService {
 
     const normalized: ERPProduct = {
       ean,
+      erpProductId,
       name: name.substring(0, 100), // Proteção
       active: active !== false,
       price,

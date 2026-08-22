@@ -446,6 +446,15 @@ model Product {
   tenantId  String   @default("tenant_default")
   storeId   String   @default("store_default")
   ean       String   @unique
+  // ID do produto no ERP Solidcom -- um produto pode ter varios EANs
+  // cadastrados (embalagem antiga, nova, PLU balanca) todos com o mesmo
+  // id_produto. Usado para agrupar essas linhas num unico Product em vez de
+  // duplicar. Nao e @unique porque o ERP pode nao mandar id_produto em toda
+  // integracao (fallback: agrupa por ean quando ausente).
+  erpProductId Int?
+  // Outros codigos de barras/PLUs do mesmo produto (alem do `ean` principal).
+  // Usado na busca/bipagem pra reconhecer qualquer um dos codigos fisicos.
+  secondaryEans String[] @default([])
   name      String
   alternativeDescription String?
   classification01 String?
@@ -485,6 +494,7 @@ model Product {
 
   @@index([tenantId, storeId, active])
   @@index([tenantId, storeId, category])
+  @@index([tenantId, erpProductId])
   @@map("products")
 }
 

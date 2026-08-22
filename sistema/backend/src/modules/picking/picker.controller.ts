@@ -209,6 +209,7 @@ export class PickerController {
         OR: [
           { name: { contains: term, mode: 'insensitive' } },
           { ean: { contains: term } },
+          { secondaryEans: { has: term } },
         ],
       },
       select,

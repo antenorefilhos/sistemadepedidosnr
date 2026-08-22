@@ -302,6 +302,7 @@ export class ProductsService {
           { name: { contains: search, mode: 'insensitive' } },
           { alternativeDescription: { contains: search, mode: 'insensitive' } },
           { ean: { contains: search, mode: 'insensitive' } },
+          { secondaryEans: { has: search } },
         ],
       })
     }
@@ -1262,14 +1263,47 @@ export class ProductsService {
    * (`syncRecentFromERP`) — os dois aplicam exatamente as mesmas regras de
    * categoria, upsert e indexacao; so muda de onde a lista veio.
    */
-  private async applyErpProducts(items: ERPProduct[], options: { clearMissingPromotion?: boolean } = {}) {
-    const incomingEans = items
-      .map((item) => String(item.ean || '').trim())
-      .filter((ean) => Boolean(ean))
+  /**
+   * Escolhe o EAN principal de um grupo (mesmo id_produto): preferencia pro
+   * primeiro EAN padrao de 13 digitos; se nenhum tiver 13, o mais longo/
+   * especifico (PLU de balanca costuma ser curto, tipo "2650").
+   */
+  private pickMainEan(eans: string[]): string {
+    const thirteenDigit = eans.find((e) => e.length === 13)
+    if (thirteenDigit) return thirteenDigit
+    return [...eans].sort((a, b) => b.length - a.length)[0]
+  }
 
-    const mappings = incomingEans.length
+  /** Agrupa as linhas do ERP por id_produto (fallback: por ean quando ausente). */
+  private groupErpItemsByProduct(items: ERPProduct[]): ERPProduct[][] {
+    const groups = new Map<string, ERPProduct[]>()
+    for (const item of items) {
+      const key = item.erpProductId != null ? `erp:${item.erpProductId}` : `ean:${item.ean}`
+      const bucket = groups.get(key)
+      if (bucket) bucket.push(item)
+      else groups.set(key, [item])
+    }
+    return Array.from(groups.values())
+  }
+
+  private async applyErpProducts(items: ERPProduct[], options: { clearMissingPromotion?: boolean } = {}) {
+    const groups = this.groupErpItemsByProduct(items)
+
+    // Uma linha "representante" por grupo com o ean principal escolhido e os
+    // demais EANs do mesmo id_produto em secondaryEans -- e o que vira 1
+    // produto so no catalogo em vez de 1 por EAN cadastrado no ERP.
+    const resolved = groups.map((group) => {
+      const eans = Array.from(new Set(group.map((g) => String(g.ean || '').trim()).filter(Boolean)))
+      const mainEan = this.pickMainEan(eans)
+      const secondaryEans = eans.filter((e) => e !== mainEan)
+      const representative = group.find((g) => g.ean === mainEan) ?? group[0]
+      return { item: representative, mainEan, secondaryEans, erpProductId: representative.erpProductId ?? null, allEans: eans }
+    })
+
+    const allEans = resolved.flatMap((r) => r.allEans)
+    const mappings = allEans.length
       ? await this.prisma.productCategoryMapping.findMany({
-          where: { ean: { in: incomingEans } },
+          where: { ean: { in: allEans } },
           select: {
             ean: true,
             category: {
@@ -1288,10 +1322,9 @@ export class ProductsService {
     const indexedIds: string[] = []
     const unmappedSyncedEans = new Set<string>()
 
-    for (const item of items) {
+    for (const { item, mainEan, secondaryEans, erpProductId, allEans: groupEans } of resolved) {
       try {
-        const ean = String(item.ean || '').trim()
-        const mapped = mappingByEan.get(ean)
+        const mapped = groupEans.map((e) => mappingByEan.get(e)).find(Boolean)
         const mappedCategoryCode = mapped?.category?.name
           ? this.normalizeCategory(mapped.category.name)
           : undefined
@@ -1306,53 +1339,48 @@ export class ProductsService {
           ? (item.promotionalPrice ?? null)
           : item.promotionalPrice
 
-        const product = await this.prisma.product.upsert({
-          where: { ean },
-          create: {
-            ean,
-            name: item.name,
-            alternativeDescription: item.alternativeDescription,
-            classification01: item.classification01,
-            classification02: item.classification02,
-            classification03: item.classification03,
-            classification04: item.classification04,
-            price: item.price,
-            promotionalPrice,
-            stock: item.stock,
-            isFractional: item.isFractional || false,
-            fractionStep: item.fractionStep ?? null,
-            unit: item.unit || 'un',
-            category: categoryCode,
-            syncOption: item.syncOption || 'ESTOQUE',
-            badges: item.badges,
-            origin: item.origin,
-            active: true,
-          },
-          update: {
-            name: item.name,
-            alternativeDescription: item.alternativeDescription,
-            classification01: item.classification01,
-            classification02: item.classification02,
-            classification03: item.classification03,
-            classification04: item.classification04,
-            price: item.price,
-            promotionalPrice,
-            stock: item.stock,
-            isFractional: item.isFractional || false,
-            fractionStep: item.fractionStep ?? null,
-            unit: item.unit || 'un',
-            category: categoryCode,
-            syncOption: item.syncOption || 'ESTOQUE',
-            badges: item.badges,
-            origin: item.origin,
-            active: true,
-          },
-        })
+        const fields = {
+          name: item.name,
+          alternativeDescription: item.alternativeDescription,
+          classification01: item.classification01,
+          classification02: item.classification02,
+          classification03: item.classification03,
+          classification04: item.classification04,
+          price: item.price,
+          promotionalPrice,
+          stock: item.stock,
+          isFractional: item.isFractional || false,
+          fractionStep: item.fractionStep ?? null,
+          unit: item.unit || 'un',
+          category: categoryCode,
+          syncOption: item.syncOption || 'ESTOQUE',
+          badges: item.badges,
+          origin: item.origin,
+          active: true,
+        }
+
+        // Produto ja existente do mesmo id_produto (mesmo se o ean principal
+        // mudou de nome no ERP) tem prioridade sobre o lookup por ean, senao
+        // um re-sync com EAN principal diferente criaria um produto duplicado.
+        const existing = erpProductId != null
+          ? await this.prisma.product.findFirst({
+              where: { tenantId: DEFAULT_TENANT_ID, erpProductId },
+            })
+          : await this.prisma.product.findUnique({ where: { ean: mainEan } })
+
+        const product = existing
+          ? await this.prisma.product.update({
+              where: { id: existing.id },
+              data: { ...fields, ean: mainEan, erpProductId, secondaryEans },
+            })
+          : await this.prisma.product.create({
+              data: { ...fields, ean: mainEan, erpProductId, secondaryEans },
+            })
 
         await this.ensureProductMasterFromLegacyProduct(product)
 
         if (!mapped) {
-          unmappedSyncedEans.add(ean)
+          unmappedSyncedEans.add(mainEan)
         }
 
         indexedIds.push(product.id)
