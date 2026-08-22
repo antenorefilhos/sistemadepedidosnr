@@ -46,9 +46,33 @@ async function main() {
     orderBy: { createdAt: 'asc' },
   })
 
+  // Agrupa em duas passadas. A 1a agrupa por erpProductId (fonte confiavel).
+  // A 2a pega quem ficou sem erpProductId (produto ainda nao resincronizado
+  // apos o backfill, ou duplicata orfa que sobrou de um sync incompleto) e
+  // tenta encaixar num grupo ja existente casando por qualquer EAN em comum
+  // -- sem isso, uma duplicata que so tem erpProductId de um lado dos dois
+  // registros nunca se funde, mesmo sendo claramente o mesmo produto.
   const groups = new Map<string, typeof products>()
   for (const p of products) {
-    const key = p.erpProductId != null ? `erp:${p.erpProductId}` : `name:${fallbackKey(p)}`
+    if (p.erpProductId == null) continue
+    const key = `erp:${p.erpProductId}`
+    const bucket = groups.get(key)
+    if (bucket) bucket.push(p)
+    else groups.set(key, [p])
+  }
+
+  const eanToKey = new Map<string, string>()
+  for (const [key, bucket] of groups) {
+    for (const p of bucket) {
+      eanToKey.set(p.ean, key)
+      for (const e of p.secondaryEans) eanToKey.set(e, key)
+    }
+  }
+
+  for (const p of products) {
+    if (p.erpProductId != null) continue
+    const matchedKey = eanToKey.get(p.ean) ?? p.secondaryEans.map((e) => eanToKey.get(e)).find(Boolean)
+    const key = matchedKey ?? `name:${fallbackKey(p)}`
     const bucket = groups.get(key)
     if (bucket) bucket.push(p)
     else groups.set(key, [p])
