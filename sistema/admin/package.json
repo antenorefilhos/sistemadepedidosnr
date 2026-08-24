@@ -1,7 +1,7 @@
 {
   "name": "mercado-antenor-admin",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.2.5",
   "type": "module",
   "scripts": {
     "dev": "vite",

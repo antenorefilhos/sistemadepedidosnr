@@ -488,7 +488,7 @@ export default function MercadoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-28 md:pb-24">
+    <div className="min-h-screen bg-white">
       <SEO
         title={q ? `${q} — Mercado` : cat ? `${categoryLabel} — Mercado` : 'Mercado'}
         description={

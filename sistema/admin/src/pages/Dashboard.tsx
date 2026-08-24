@@ -19,8 +19,9 @@ import {
   type MercadologicalTreeLevel1,
   type ProductAvailabilityMetricsResponse,
 } from '../services/api'
-import { MessageCircle } from 'lucide-react'
+import { MessageCircle, Sparkles } from 'lucide-react'
 import { TopMenuBar, SECTION_LABELS } from '@/components/TopMenuBar'
+import { ChangelogModal } from '@/components/ChangelogModal'
 import type { DashboardAnalytics } from './types'
 
 export type Section =
@@ -276,6 +277,7 @@ export default function AdminDashboard() {
   const [activeSection, setActiveSectionState] = useState<Section>(
     sectionParam && VALID_SECTIONS.includes(sectionParam) ? sectionParam : 'dashboard'
   )
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false)
   // Mantem a secao ativa na URL (?section=) pra um F5/recarregar nao voltar
   // sempre pra dashboard -- activeSection era so estado em memoria antes.
   const setActiveSection = useCallback(
@@ -1079,11 +1081,22 @@ export default function AdminDashboard() {
         onLogout={handleLogout}
       />
 
-      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 shadow-sm">
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 shadow-sm flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-gray-800">
           {SECTION_LABELS[activeSection] || activeSection}
         </h1>
+        <button
+          type="button"
+          onClick={() => setIsChangelogOpen(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#D2BB8A]/15 text-[#5D082A] border border-[#D2BB8A]/40 hover:bg-[#D2BB8A]/30 transition-all cursor-pointer shrink-0"
+          title="Ver histórico de versões e novidades"
+        >
+          <Sparkles size={13} className="text-[#8A6A3A]" />
+          <span>v{__APP_VERSION__} · Novidades</span>
+        </button>
       </div>
+
+      <ChangelogModal open={isChangelogOpen} onClose={() => setIsChangelogOpen(false)} />
 
       <main className="flex-1 overflow-auto p-4 sm:p-6" role="main">
           {activeSection === 'dashboard' && (

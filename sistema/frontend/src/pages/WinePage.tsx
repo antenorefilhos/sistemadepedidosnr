@@ -37,10 +37,51 @@ const formatWineDescription = (value?: string | null) => {
 
 const formatWineTitle = (value?: string | null) => normalizeUppercaseDisplayText(value)
 
+type WineSubcategory = 'all' | 'tinto' | 'branco' | 'rose' | 'suave' | 'espumante' | 'champagne'
+
+const WINE_CATEGORIES: Array<{ key: WineSubcategory; label: string }> = [
+  { key: 'all', label: 'Todos' },
+  { key: 'tinto', label: 'Tintos' },
+  { key: 'branco', label: 'Brancos' },
+  { key: 'rose', label: 'Rosés' },
+  { key: 'suave', label: 'Suaves' },
+  { key: 'espumante', label: 'Espumantes' },
+  { key: 'champagne', label: 'Champagne' },
+]
+
+const normalizeWineText = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase()
+
+const filterWineByCategory = (wine: Product, subcat: WineSubcategory): boolean => {
+  if (subcat === 'all') return true
+  const normalized = normalizeWineText(`${wine.name} ${wine.alternativeDescription || ''}`)
+
+  switch (subcat) {
+    case 'tinto':
+      return normalized.includes('TINTO')
+    case 'branco':
+      return normalized.includes('BRANCO') || normalized.includes('CHARDONNAY') || normalized.includes('SAUVIGNON BLANC')
+    case 'rose':
+      return normalized.includes('ROSE') || normalized.includes('ROSADO')
+    case 'suave':
+      return normalized.includes('SUAVE')
+    case 'espumante':
+      return normalized.includes('ESPUMANTE') || normalized.includes('PROSECCO') || normalized.includes('BRUT') || normalized.includes('MOSCATEL')
+    case 'champagne':
+      return normalized.includes('CHAMPAGNE') || normalized.includes('CHAMPANHE') || normalized.includes('CHANDON')
+    default:
+      return true
+  }
+}
+
 export default function WinePage() {
   const { data: products, isLoading } = useProducts(undefined, 'ADEGA_VINHOS_ESPUMANTES')
   const { count } = useCart()
   const { user } = useAuth()
+  const [selectedSubcat, setSelectedSubcat] = useState<WineSubcategory>('all')
 
   useEffect(() => {
     trackEvent('VIEW_CATEGORY', 'CATEGORY', 'VINHOS')
@@ -49,6 +90,20 @@ export default function WinePage() {
   const vinhos = useMemo(() => {
     return (products || []) as Product[]
   }, [products])
+
+  const subcatCounts = useMemo(() => {
+    const counts = new Map<WineSubcategory, number>()
+    for (const cat of WINE_CATEGORIES) {
+      counts.set(cat.key, cat.key === 'all' ? vinhos.length : vinhos.filter((w) => filterWineByCategory(w, cat.key)).length)
+    }
+    return counts
+  }, [vinhos])
+
+  const filteredVinhos = useMemo(
+    () => vinhos.filter((wine) => filterWineByCategory(wine, selectedSubcat)),
+    [vinhos, selectedSubcat],
+  )
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#231F20]">
@@ -135,13 +190,57 @@ export default function WinePage() {
            </div>
         </section>
 
+        {/* Wine Subcategory Filter */}
+        <section className="max-w-7xl mx-auto px-4">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2" role="group" aria-label="Filtrar por tipo de vinho">
+            {WINE_CATEGORIES.map((cat) => {
+              const isActive = selectedSubcat === cat.key
+              const count = subcatCounts.get(cat.key) || 0
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setSelectedSubcat(cat.key)}
+                  disabled={count === 0}
+                  aria-pressed={isActive}
+                  className={`shrink-0 flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${
+                    isActive
+                      ? 'border-[#D2BB8A] bg-[#D2BB8A] text-[#231F20]'
+                      : count === 0
+                        ? 'border-white/10 text-white/20 cursor-not-allowed'
+                        : 'border-[#D2BB8A]/30 bg-[#1C1917] text-[#F3E7C9] hover:border-[#D2BB8A] hover:bg-[#D2BB8A]/10'
+                  }`}
+                >
+                  {cat.label}
+                  <span className={isActive ? 'text-[#231F20]/60' : 'text-[#D2BB8A]/50'}>({count})</span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
         {/* Wine Grid */}
         <section className="max-w-7xl mx-auto px-4 py-16">
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
-            {vinhos.map((vinho) => (
-              <WineCard key={vinho.id} product={vinho} />
-            ))}
-          </div>
+          {filteredVinhos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+              <span className="text-4xl grayscale opacity-40">🍷</span>
+              <p className="luxury-text text-lg text-[#D2BB8A]">Nenhum rótulo encontrado nesta categoria</p>
+              <p className="text-sm text-white/40">Explore outra seleção ou volte para "Todos".</p>
+              <Button
+                onClick={() => setSelectedSubcat('all')}
+                variant="ghost"
+                className="mt-2 rounded-full border border-[#D2BB8A]/40 px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#D2BB8A] hover:bg-[#D2BB8A]/10"
+              >
+                Ver todos os vinhos
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+              {filteredVinhos.map((vinho) => (
+                <WineCard key={vinho.id} product={vinho} />
+              ))}
+            </div>
+          )}
         </section>
       </main>
 
