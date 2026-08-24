@@ -40,6 +40,7 @@
     "seed:delivery-zones": "node -r ts-node/register -e \"require('./scripts/seed-delivery-zones.ts')\"",
     "seed:cms-categories": "node -r ts-node/register -e \"require('./scripts/seed-cms-categories.ts')\"",
     "apply:category-mappings": "node -r ts-node/register -e \"require('./scripts/apply-category-mappings.ts')\"",
+    "migrate:legacy-banners": "node -r ts-node/register -e \"require('./scripts/migrate-legacy-banners-to-storebanner.ts')\"",
     "dedupe:products": "node -r ts-node/register -e \"require('./scripts/deduplicate-products.ts')\"",
     "import:ibge-cnefe": "node -r ts-node/register -e \"require('./scripts/import-ibge-cnefe.ts')\"",
     "photos:match": "ts-node scripts/match-photos.ts",

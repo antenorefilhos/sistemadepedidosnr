@@ -45,8 +45,10 @@ interface StoreBanner {
   title?: string | null;
   description?: string | null;
   badgeText?: string | null;
+  highlightNote?: string | null;
   ctaLabel?: string | null;
   overlayColor?: string | null;
+  align?: 'left' | 'right';
   sponsorName?: string | null;
   desktopImageUrl: string;
   mobileImageUrl?: string | null;
@@ -69,8 +71,10 @@ interface FormState {
   title: string;
   description: string;
   badgeText: string;
+  highlightNote: string;
   ctaLabel: string;
   overlayColor: string;
+  align: 'left' | 'right';
   sponsorName: string;
   desktopImageUrl: string;
   mobileImageUrl: string;
@@ -161,8 +165,10 @@ const emptyForm = (): FormState => ({
   title: '',
   description: '',
   badgeText: '',
+  highlightNote: '',
   ctaLabel: '',
   overlayColor: '',
+  align: 'left',
   sponsorName: '',
   desktopImageUrl: '',
   mobileImageUrl: '',
@@ -334,8 +340,10 @@ export default function StoreBannersManager() {
       title: item.title ?? '',
       description: item.description ?? '',
       badgeText: item.badgeText ?? '',
+      highlightNote: item.highlightNote ?? '',
       ctaLabel: item.ctaLabel ?? '',
       overlayColor: item.overlayColor ?? '',
+      align: item.align ?? 'left',
       sponsorName: item.sponsorName ?? '',
       desktopImageUrl: item.desktopImageUrl,
       mobileImageUrl: item.mobileImageUrl ?? '',
@@ -417,8 +425,10 @@ export default function StoreBannersManager() {
         title: form.title.trim() || null,
         description: form.description.trim() || null,
         badgeText: form.badgeText.trim() || null,
+        highlightNote: form.slot === 'intercalado' ? (form.highlightNote.trim() || null) : null,
         ctaLabel: form.ctaLabel.trim() || null,
         overlayColor: form.overlayColor.trim() || null,
+        align: form.slot === 'intercalado' ? form.align : 'left',
         sponsorName: form.sponsorName.trim() || null,
         desktopImageUrl: form.desktopImageUrl,
         mobileImageUrl: form.mobileImageUrl.trim() || null,
@@ -961,6 +971,45 @@ export default function StoreBannersManager() {
                     placeholder="rgba(0,0,0,0.4)"
                   />
                 </div>
+
+                {/* Highlight note + align — so relevante pra banners intercalados em par (duo) */}
+                {form.slot === 'intercalado' && (
+                  <>
+                    <div>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">
+                        Nota do produto exaltado
+                        <span className="ml-1 font-normal text-gray-400">(opcional — usada quando o link é um produto)</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={form.highlightNote}
+                        onChange={(e) => set('highlightNote', e.target.value)}
+                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        placeholder="Ex: Direto da nossa boutique"
+                      />
+                    </div>
+                    <div>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do texto</Label>
+                      <div className="flex gap-2">
+                        {[
+                          { value: 'left', label: 'Esquerda' },
+                          { value: 'right', label: 'Direita' },
+                        ].map((opt) => (
+                          <Button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => set('align', opt.value as 'left' | 'right')}
+                            variant={form.align === opt.value ? 'default' : 'outline'}
+                            size="sm"
+                            className={`flex-1 rounded-lg text-xs ${form.align === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+                          >
+                            {opt.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </section>
 
               {/* ── Imagens ── */}

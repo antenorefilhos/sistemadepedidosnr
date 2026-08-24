@@ -19,8 +19,11 @@ export interface StoreBannerCMS {
   title?: string
   description?: string | null
   badgeText?: string | null
+  highlightNote?: string | null
+  highlightedProduct?: Product | null
   ctaLabel?: string | null
   overlayColor?: string | null
+  align?: 'left' | 'right'
   sponsorName?: string | null
   desktopImageUrl: string
   mobileImageUrl?: string
@@ -34,17 +37,6 @@ export function useStoreBanners() {
     return response.data as StoreBannerCMS[]
   }, {
     staleTime: 1000 * 60 * 10,
-    cacheTime: 1000 * 60 * 15,
-    keepPreviousData: true,
-  })
-}
-
-export function useHeroSlides() {
-  return useQuery(['hero-slides'], async () => {
-    const response = await cmsAPI.heroSlides.getAll()
-    return response.data
-  }, {
-    staleTime: 1000 * 60 * 10, // 10 minutes
     cacheTime: 1000 * 60 * 15,
     keepPreviousData: true,
   })
@@ -96,17 +88,6 @@ export function usePromotionCampaigns() {
   }, {
     staleTime: 1000 * 60 * 5,
     cacheTime: 1000 * 60 * 10,
-    keepPreviousData: true,
-  })
-}
-
-export function usePromoBanners() {
-  return useQuery(['promo-banners-cms'], async () => {
-    const response = await cmsAPI.promoBanners.getAll()
-    return response.data
-  }, {
-    staleTime: 1000 * 60 * 10, // 10 minutes
-    cacheTime: 1000 * 60 * 15,
     keepPreviousData: true,
   })
 }

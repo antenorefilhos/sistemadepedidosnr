@@ -14,8 +14,10 @@ export interface StoreBannerPayload {
   title?: string;
   description?: string | null;
   badgeText?: string | null;
+  highlightNote?: string | null;
   ctaLabel?: string | null;
   overlayColor?: string | null;
+  align?: string;
   sponsorName?: string | null;
   desktopImageUrl: string;
   mobileImageUrl?: string | null;
@@ -47,9 +49,9 @@ export class StoreBannersService {
     }
   }
 
-  findActive(filters: { slot?: string; category?: string; page?: string } = {}) {
+  async findActive(filters: { slot?: string; category?: string; page?: string } = {}) {
     const now = new Date();
-    return this.prisma.storeBanner.findMany({
+    const banners = await this.prisma.storeBanner.findMany({
       where: {
         active: true,
         ...(filters.slot ? { slot: filters.slot } : {}),
@@ -70,6 +72,20 @@ export class StoreBannersService {
       },
       orderBy: { order: 'asc' },
     });
+
+    // Resolve o produto exaltado (linkType=product) pra quem consome o
+    // banner nao precisar de uma segunda chamada -- equivalente ao
+    // PromoBanner.highlightedProduct legado.
+    const productIds = banners.filter((b) => b.linkType === 'product' && b.linkValue).map((b) => b.linkValue as string);
+    const products = productIds.length
+      ? await this.prisma.product.findMany({ where: { id: { in: productIds } } })
+      : [];
+    const productById = new Map(products.map((p) => [p.id, p]));
+
+    return banners.map((banner) => ({
+      ...banner,
+      highlightedProduct: banner.linkType === 'product' && banner.linkValue ? productById.get(banner.linkValue) || null : null,
+    }));
   }
 
   findAll() {
@@ -89,8 +105,10 @@ export class StoreBannersService {
         title: data.title ?? null,
         description: data.description ?? null,
         badgeText: data.badgeText ?? null,
+        highlightNote: data.highlightNote ?? null,
         ctaLabel: data.ctaLabel ?? null,
         overlayColor: data.overlayColor ?? null,
+        align: data.align ?? 'left',
         sponsorName: data.sponsorName ?? null,
         desktopImageUrl: data.desktopImageUrl,
         mobileImageUrl: data.mobileImageUrl ?? null,
@@ -131,8 +149,10 @@ export class StoreBannersService {
         ...(data.title !== undefined && { title: data.title || null }),
         ...(data.description !== undefined && { description: data.description || null }),
         ...(data.badgeText !== undefined && { badgeText: data.badgeText || null }),
+        ...(data.highlightNote !== undefined && { highlightNote: data.highlightNote || null }),
         ...(data.ctaLabel !== undefined && { ctaLabel: data.ctaLabel || null }),
         ...(data.overlayColor !== undefined && { overlayColor: data.overlayColor || null }),
+        ...(data.align !== undefined && { align: data.align }),
         ...(data.sponsorName !== undefined && { sponsorName: data.sponsorName || null }),
         ...(data.desktopImageUrl !== undefined && { desktopImageUrl: data.desktopImageUrl }),
         ...(data.mobileImageUrl !== undefined && { mobileImageUrl: data.mobileImageUrl || null }),

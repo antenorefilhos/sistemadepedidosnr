@@ -8,7 +8,7 @@ import {
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
-import { useCommercialTaxonomy, useStoreBanners, useHeroSlides, usePromoBanners, useTopSellingProducts, usePromotionCampaigns, type StoreBannerCMS } from '../hooks/useCMS'
+import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns, type StoreBannerCMS } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
@@ -70,7 +70,6 @@ export default function Home() {
     () => (promotionCampaigns || []).find((c) => c.highlightInHome && c.items.length > 0),
     [promotionCampaigns],
   )
-  const { data: promoBannersRaw } = usePromoBanners()
   const { data: cmsCategories } = useCommercialTaxonomy()
   const { data: topSellingProducts } = useTopSellingProducts(8)
   const { count, subtotal } = useCart()
@@ -82,7 +81,6 @@ export default function Home() {
   const { openModal: openDeliveryVerificationModal } = useDeliveryVerificationModal()
   const { data: rebuyProducts = [] } = useRebuyRecommendations(user?.id, 10)
   const { data: marginShowcase = [] } = useRecommendationShowcase(undefined, 12)
-  const { data: heroSlidesRaw = [] } = useHeroSlides()
   // Endpoint dedicado (nao pagina em 80 como o catalogo geral) -- sem isso a
   // vitrine "Ofertas para hoje" so via as promocoes que por acaso caissem na
   // primeira pagina alfabetica de ~2500 produtos, quase nunca acontecia com
@@ -96,12 +94,25 @@ export default function Home() {
 
   const productsList = (products || []) as Product[]
 
-  const activeHeroSlides = useMemo(
+  // Fonte unica pro carrossel hero: StoreBanner slot=hero (unifica o que
+  // antes vinha de HeroSlide -- ver TASK_DEV_SPRINT_ADMIN_SEARCH_BANNERS_SOLIDCOM_ENCARTES.md).
+  const activeHeroSlides = useMemo<HeroSlideCMS[]>(
     () =>
-      ((heroSlidesRaw || []) as HeroSlideCMS[])
-        .filter((slide) => slide.active !== false)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-    [heroSlidesRaw],
+      (storeBanners || [])
+        .filter((item) => item.active !== false && item.slot === 'hero' && item.desktopImageUrl)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map((item) => ({
+          id: item.id,
+          title: item.title || item.name || 'Destaque',
+          tag: item.badgeText || undefined,
+          description: item.description || undefined,
+          ctaLabel: item.ctaLabel || undefined,
+          imageUrl: resolveApiUrl(item.desktopImageUrl),
+          link: item.linkValue || undefined,
+          active: item.active,
+          order: item.order,
+        })),
+    [storeBanners],
   )
 
   const handleHeaderAddressClick = useCallback(() => {
@@ -218,25 +229,27 @@ export default function Home() {
     }))
   }, [storeBanners])
 
+  // Fonte unica pros banners intercalados: StoreBanner slot=intercalado
+  // (unifica o que antes vinha de PromoBanner).
   const promoBanners = useMemo<PromoBannerView[]>(() => {
-    if (!Array.isArray(promoBannersRaw) || promoBannersRaw.length === 0) return []
+    if (!Array.isArray(storeBanners) || storeBanners.length === 0) return []
 
-    return promoBannersRaw
-      .filter((item: any) => item.active !== false && item.imageUrl)
-      .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-      .map((item: any) => ({
-        title: item.title || 'Destaque',
-        badge: item.badge || item.subtitle || undefined,
+    return storeBanners
+      .filter((item) => item.active !== false && item.slot === 'intercalado' && item.desktopImageUrl)
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .map((item) => ({
+        title: item.title || item.name || 'Destaque',
+        badge: item.badgeText || undefined,
         highlightNote: item.highlightNote || undefined,
         highlightedProduct: item.highlightedProduct || undefined,
         description: item.description || undefined,
-        image: resolveApiUrl(item.imageUrl),
+        image: resolveApiUrl(item.desktopImageUrl),
         ctaLabel: item.ctaLabel || 'Aproveitar',
-        ctaTo: item.ctaTo || item.link || '/mercado',
-        align: (item.align as 'left' | 'right') || 'left',
+        ctaTo: item.linkValue || '/mercado',
+        align: item.align || 'left',
         overlayColor: item.overlayColor || undefined,
       }))
-  }, [promoBannersRaw])
+  }, [storeBanners])
 
   // Grid duplo do topo (Task 3) usa os 2 primeiros, geridos pelo admin em
   // Loja > Banners Intercalados (PromoBannersManager). Vitrines patrocinadas
@@ -769,11 +782,9 @@ export default function Home() {
       {isDesktop && (
       <main className="hidden md:block max-w-7xl mx-auto px-4 py-8 space-y-12 pb-24">
         
-        {activeHeroSlides.length > 0 ? (
-          <section className="fade-in-section">
-            <HeroSlider slides={activeHeroSlides} />
-          </section>
-        ) : featuredCommercialSection && (
+        {/* Hero principal ja aparece na tira do topo (StoreBanner slot=hero,
+            logo abaixo do header) -- este bloco so cobre a ausencia dele. */}
+        {slides.length === 0 && featuredCommercialSection && (
           <section className="fade-in-section">
             <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-[#D2BB8A]/40 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-6 shadow-xl md:p-8' })}>
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">

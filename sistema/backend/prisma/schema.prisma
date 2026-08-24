@@ -1415,8 +1415,14 @@ model StoreBanner {
   title           String?
   description     String?
   badgeText       String?
+  // Nota curta exibida junto do produto exaltado (slot=intercalado com
+  // linkType=product) -- equivalente ao PromoBanner.highlightNote legado.
+  highlightNote   String?
   ctaLabel        String?
   overlayColor    String?   // Ex.: rgba(0,0,0,0.4) ou hex
+  // Alinhamento do texto/CTA sobre a imagem -- so relevante pros banners
+  // intercalados de par (duo), equivalente ao PromoBanner.align legado.
+  align           String    @default("left") // left | right
 
   // Acoes de link
   linkType        String    @default("url") // url | category | product | search
