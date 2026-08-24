@@ -37,6 +37,7 @@ import { Button, buttonVariants } from '../components/ui/button'
 import { surfaceClasses } from '../components/ui/surface'
 
 type PromoBannerView = {
+  id?: string
   title: string
   badge?: string
   highlightNote?: string
@@ -47,6 +48,14 @@ type PromoBannerView = {
   ctaTo?: string
   align?: 'left' | 'right'
   overlayColor?: string
+  validUntil?: string
+}
+
+// dd/mm -- o ano so importa se a vigencia passar de 1 ano, o que nao e o
+// caso de encarte (dura dias/semanas), entao fica fora pra nao poluir o badge.
+const formatValidUntil = (isoDate: string) => {
+  const date = new Date(isoDate)
+  return `Válido até ${date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`
 }
 
 export default function Home() {
@@ -238,6 +247,7 @@ export default function Home() {
       .filter((item) => item.active !== false && item.slot === 'intercalado' && item.desktopImageUrl)
       .sort((a, b) => (a.order || 0) - (b.order || 0))
       .map((item) => ({
+        id: item.id,
         title: item.title || item.name || 'Destaque',
         badge: item.badgeText || undefined,
         highlightNote: item.highlightNote || undefined,
@@ -248,13 +258,14 @@ export default function Home() {
         ctaTo: item.linkValue || '/mercado',
         align: item.align || 'left',
         overlayColor: item.overlayColor || undefined,
+        validUntil: item.campaignEndDate ? formatValidUntil(item.campaignEndDate) : undefined,
       }))
   }, [storeBanners])
 
-  // Grid duplo do topo (Task 3) usa os 2 primeiros, geridos pelo admin em
-  // Loja > Banners Intercalados (PromoBannersManager). Vitrines patrocinadas
-  // espalhadas entre as prateleiras (ate 6 slots) usam o restante -- sem
-  // repetir o mesmo banner duas vezes na pagina.
+  // Grid duplo do topo (desktop) usa os 2 primeiros, geridos pelo admin em
+  // Loja > Banners (slot=intercalado). Vitrines patrocinadas espalhadas
+  // entre as prateleiras (ate 6 slots) usam o restante -- sem repetir o
+  // mesmo banner duas vezes na pagina.
   const topGridBanners = promoBanners.slice(0, 2)
   const getPromoBanner = (index: number) => promoBanners[index + 2] || null
   const promoBanner1 = getPromoBanner(0)
@@ -263,6 +274,17 @@ export default function Home() {
   const promoBanner4 = getPromoBanner(3)
   const promoBanner5 = getPromoBanner(4)
   const promoBanner6 = getPromoBanner(5)
+
+  // Mobile: os mesmos banners intercalados, em pares, espalhados entre as
+  // vitrines de produto (em vez de um carrossel unico bunched num so lugar)
+  // -- da o respiro visual que quebra o scroll de cards e chama atencao.
+  const mobilePromoPairs = useMemo(() => {
+    const pairs: PromoBannerView[][] = []
+    for (let i = 0; i < promoBanners.length; i += 2) {
+      pairs.push(promoBanners.slice(i, i + 2))
+    }
+    return pairs
+  }, [promoBanners])
 
   // Ponto de ajuda/contato da Home (heuristica "ajuda e documentacao": a Home nao
   // tinha nenhum contato). Reaproveita o mesmo padrao ja usado em Account.tsx:
@@ -644,6 +666,31 @@ export default function Home() {
       {/* ── MOBILE MAIN — vitrines de intencao ── */}
       {!isDesktop && (
       <>
+      {/* Hero primeiro: e a vitrine de entrada, nao faz sentido enterrada
+          depois de 7 prateleiras de produto. */}
+      {activeHeroSlides.length > 0 ? (
+        <section className="md:hidden mx-4 mt-4 mb-4">
+          <HeroSlider slides={activeHeroSlides} />
+        </section>
+      ) : featuredCommercialSection && (
+        <section className="md:hidden mx-4 mt-4 mb-4">
+          <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-[#D2BB8A]/40 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-5 shadow-xl' })}>
+            <div className="flex flex-col gap-4">
+              <div>
+                <Badge tone="gold" className="mb-3 h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
+                  {featuredCommercialSection.badge}
+                </Badge>
+                <h3 className="text-xl font-bold text-white luxury-text mb-2">{featuredCommercialSection.title}</h3>
+                <p className="text-white/80 text-sm">{featuredCommercialSection.description}</p>
+              </div>
+              <Link to={featuredCommercialSection.ctaTo} className={buttonVariants({ variant: 'secondary', size: 'lg', className: 'w-full text-sm' })}>
+                {featuredCommercialSection.ctaLabel} <ArrowRight size={16} />
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
         title={user ? 'Recomprar rapidinho' : 'Atalhos para repetir'}
@@ -666,6 +713,31 @@ export default function Home() {
         />
       )}
 
+      {/* Banners intercalados: espalhados em pares entre as vitrines em vez
+          de bunched num carrossel unico -- da o respiro visual que chama
+          atencao enquanto o cliente rola a pagina. */}
+      {mobilePromoPairs[0]?.length > 0 && (
+        <div className="md:hidden mx-4 mb-4 space-y-4">
+          {mobilePromoPairs[0].map((banner) => (
+            <PromoBanner
+              key={banner.id}
+              image={banner.image}
+              alt={banner.title}
+              badge={banner.badge}
+              highlightNote={banner.highlightNote}
+              highlightedProduct={banner.highlightedProduct}
+              title={banner.title}
+              description={banner.description}
+              ctaLabel={banner.ctaLabel}
+              ctaTo={banner.ctaTo}
+              align={banner.align}
+              overlayColor={banner.overlayColor}
+              validUntil={banner.validUntil}
+            />
+          ))}
+        </div>
+      )}
+
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
         title="Ofertas para hoje"
@@ -685,6 +757,28 @@ export default function Home() {
         to="/mercado?cat=hortifruti"
         linkLabel="Ver frescos"
       />
+
+      {mobilePromoPairs[1]?.length > 0 && (
+        <div className="md:hidden mx-4 mb-4 space-y-4">
+          {mobilePromoPairs[1].map((banner) => (
+            <PromoBanner
+              key={banner.id}
+              image={banner.image}
+              alt={banner.title}
+              badge={banner.badge}
+              highlightNote={banner.highlightNote}
+              highlightedProduct={banner.highlightedProduct}
+              title={banner.title}
+              description={banner.description}
+              ctaLabel={banner.ctaLabel}
+              ctaTo={banner.ctaTo}
+              align={banner.align}
+              overlayColor={banner.overlayColor}
+              validUntil={banner.validUntil}
+            />
+          ))}
+        </div>
+      )}
 
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
@@ -706,6 +800,28 @@ export default function Home() {
         linkLabel="Ver itens"
       />
 
+      {mobilePromoPairs[2]?.length > 0 && (
+        <div className="md:hidden mx-4 mb-4 space-y-4">
+          {mobilePromoPairs[2].map((banner) => (
+            <PromoBanner
+              key={banner.id}
+              image={banner.image}
+              alt={banner.title}
+              badge={banner.badge}
+              highlightNote={banner.highlightNote}
+              highlightedProduct={banner.highlightedProduct}
+              title={banner.title}
+              description={banner.description}
+              ctaLabel={banner.ctaLabel}
+              ctaTo={banner.ctaTo}
+              align={banner.align}
+              overlayColor={banner.overlayColor}
+              validUntil={banner.validUntil}
+            />
+          ))}
+        </div>
+      )}
+
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
         title="Mais Pedidos"
@@ -715,35 +831,6 @@ export default function Home() {
         to="/mercado"
         linkLabel="Ver todos"
       />
-
-      {activeHeroSlides.length > 0 ? (
-        <section className="md:hidden mx-4 mb-4">
-          <HeroSlider slides={activeHeroSlides} />
-        </section>
-      ) : featuredCommercialSection && (
-        <section className="md:hidden mx-4 mb-4">
-          <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-[#D2BB8A]/40 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-5 shadow-xl' })}>
-            <div className="flex flex-col gap-4">
-              <div>
-                <Badge tone="gold" className="mb-3 h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
-                  {featuredCommercialSection.badge}
-                </Badge>
-                <h3 className="text-xl font-bold text-white luxury-text mb-2">{featuredCommercialSection.title}</h3>
-                <p className="text-white/80 text-sm">{featuredCommercialSection.description}</p>
-              </div>
-              <Link to={featuredCommercialSection.ctaTo} className={buttonVariants({ variant: 'secondary', size: 'lg', className: 'w-full text-sm' })}>
-                {featuredCommercialSection.ctaLabel} <ArrowRight size={16} />
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {promoBanners.length > 0 && (
-        <section className="md:hidden mx-4 mb-4">
-          <DuoBannerCarousel banners={promoBanners} />
-        </section>
-      )}
 
       {/* Mobile — Mais seções de produto */}
       <ProductShelf
@@ -819,6 +906,7 @@ export default function Home() {
                 ctaTo={banner.ctaTo}
                 align={banner.align}
                 overlayColor={banner.overlayColor}
+                validUntil={banner.validUntil}
               />
             ))}
           </div>
@@ -896,6 +984,7 @@ export default function Home() {
             ctaTo={promoBanner1.ctaTo}
             align={promoBanner1.align}
             overlayColor={promoBanner1.overlayColor}
+            validUntil={promoBanner1.validUntil}
           />
         )}
 
@@ -966,6 +1055,7 @@ export default function Home() {
             ctaTo={promoBanner2.ctaTo}
             align={promoBanner2.align}
             overlayColor={promoBanner2.overlayColor}
+            validUntil={promoBanner2.validUntil}
           />
         )}
 
@@ -1000,6 +1090,7 @@ export default function Home() {
             ctaTo={promoBanner3.ctaTo}
             align={promoBanner3.align}
             overlayColor={promoBanner3.overlayColor}
+            validUntil={promoBanner3.validUntil}
           />
         )}
 
@@ -1016,6 +1107,7 @@ export default function Home() {
             ctaTo={promoBanner4.ctaTo}
             align={promoBanner4.align}
             overlayColor={promoBanner4.overlayColor}
+            validUntil={promoBanner4.validUntil}
           />
         )}
 
@@ -1032,6 +1124,7 @@ export default function Home() {
             ctaTo={promoBanner5.ctaTo}
             align={promoBanner5.align}
             overlayColor={promoBanner5.overlayColor}
+            validUntil={promoBanner5.validUntil}
           />
         )}
 
@@ -1048,6 +1141,7 @@ export default function Home() {
             ctaTo={promoBanner6.ctaTo}
             align={promoBanner6.align}
             overlayColor={promoBanner6.overlayColor}
+            validUntil={promoBanner6.validUntil}
           />
         )}
 
@@ -1107,6 +1201,7 @@ function PromoBanner({
   ctaTo,
   align = 'left',
   overlayColor,
+  validUntil,
 }: {
   image: string
   alt: string
@@ -1119,6 +1214,7 @@ function PromoBanner({
   ctaTo?: string
   align?: 'left' | 'right'
   overlayColor?: string
+  validUntil?: string
 }) {
   const tone = overlayColor || '#231F20'
   return (
@@ -1131,10 +1227,19 @@ function PromoBanner({
         />
         <div className={`relative z-10 flex h-full items-end p-6 md:p-8 ${align === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
           <div className="max-w-lg space-y-3">
-            {badge && (
-              <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
-                {badge}
-              </Badge>
+            {(badge || validUntil) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {badge && (
+                  <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
+                    {badge}
+                  </Badge>
+                )}
+                {validUntil && (
+                  <Badge className="h-auto border-white/40 bg-black/30 px-3 py-1 text-white backdrop-blur-sm">
+                    {validUntil}
+                  </Badge>
+                )}
+              </div>
             )}
             <h3 className="text-2xl font-bold text-white md:text-4xl luxury-text">{title}</h3>
             {description && <p className="text-sm leading-relaxed text-white/85 md:text-base">{description}</p>}
@@ -1164,56 +1269,3 @@ function PromoBanner({
   )
 }
 
-/** Carrossel touch de banners com indicadores (dots) -- versao mobile do grid duplo desktop. */
-function DuoBannerCarousel({ banners }: { banners: PromoBannerView[] }) {
-  const [index, setIndex] = useState(0)
-  const touchStartX = useRef(0)
-
-  const go = (next: number) => setIndex(((next % banners.length) + banners.length) % banners.length)
-
-  return (
-    <div
-      className="relative overflow-hidden rounded-lg"
-      onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
-      onTouchEnd={(e) => {
-        const diff = touchStartX.current - e.changedTouches[0].clientX
-        if (diff > 50) go(index + 1)
-        else if (diff < -50) go(index - 1)
-      }}
-    >
-      <div className="flex transition-transform duration-500 ease-out" style={{ transform: `translateX(-${index * 100}%)` }}>
-        {banners.map((banner, i) => (
-          <div key={i} className="w-full shrink-0">
-            <PromoBanner
-              image={banner.image}
-              alt={banner.title}
-              badge={banner.badge}
-              highlightNote={banner.highlightNote}
-              highlightedProduct={banner.highlightedProduct}
-              title={banner.title}
-              description={banner.description}
-              ctaLabel={banner.ctaLabel}
-              ctaTo={banner.ctaTo}
-              align={banner.align}
-              overlayColor={banner.overlayColor}
-            />
-          </div>
-        ))}
-      </div>
-
-      {banners.length > 1 && (
-        <div className="mt-2 flex items-center justify-center gap-2">
-          {banners.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              aria-label={`Ir para banner ${i + 1}`}
-              onClick={() => go(i)}
-              className={`h-1.5 rounded-full transition-all ${i === index ? 'w-6 bg-[#5D082A]' : 'w-1.5 bg-[#D2BB8A]/50 hover:bg-[#D2BB8A]'}`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}

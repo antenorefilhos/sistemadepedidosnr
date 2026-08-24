@@ -28,6 +28,9 @@ export interface StoreBannerCMS {
   desktopImageUrl: string
   mobileImageUrl?: string
   pages?: 'home' | 'all' | 'category' | 'product'
+  campaignErpId?: number | null
+  campaignName?: string | null
+  campaignEndDate?: string | null
   order?: number
 }
 

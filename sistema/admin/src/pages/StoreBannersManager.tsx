@@ -55,6 +55,10 @@ interface StoreBanner {
   pages: BannerPages;
   startDate?: string | null;
   endDate?: string | null;
+  campaignErpId?: number | null;
+  campaignName?: string | null;
+  campaignEndDate?: string | null;
+  campaignFound?: boolean | null;
   order: number;
   impressionsCount: number;
   clicksCount: number;
@@ -81,6 +85,7 @@ interface FormState {
   pages: BannerPages;
   startDate: string;
   endDate: string;
+  campaignErpId: string;
 }
 
 interface FormErrors {
@@ -175,6 +180,7 @@ const emptyForm = (): FormState => ({
   pages: 'home',
   startDate: '',
   endDate: '',
+  campaignErpId: '',
 });
 
 const isValidUrl = (v: string) => {
@@ -188,9 +194,12 @@ const isValidUrl = (v: string) => {
   }
 };
 
-type ScheduleStatus = 'scheduled' | 'live' | 'expired' | 'always';
+type ScheduleStatus = 'scheduled' | 'live' | 'expired' | 'always' | 'campaign-live' | 'campaign-missing';
 
 function getScheduleStatus(item: StoreBanner): ScheduleStatus {
+  if (item.campaignErpId != null) {
+    return item.campaignFound ? 'campaign-live' : 'campaign-missing';
+  }
   const now = Date.now();
   const start = item.startDate ? new Date(item.startDate).getTime() : null;
   const end = item.endDate ? new Date(item.endDate).getTime() : null;
@@ -205,6 +214,8 @@ const SCHEDULE_STATUS_LABEL: Record<ScheduleStatus, string> = {
   live: 'No ar',
   expired: 'Expirado',
   always: 'Sempre ativo',
+  'campaign-live': 'Segue encarte',
+  'campaign-missing': 'Encarte não sincronizado',
 };
 
 const SCHEDULE_STATUS_COLOR: Record<ScheduleStatus, string> = {
@@ -212,6 +223,8 @@ const SCHEDULE_STATUS_COLOR: Record<ScheduleStatus, string> = {
   live: 'text-emerald-600',
   expired: 'text-gray-400',
   always: 'text-gray-400',
+  'campaign-live': 'text-emerald-600',
+  'campaign-missing': 'text-amber-600',
 };
 
 /* ─── Preview layout blocks ─────────────────────────── */
@@ -350,6 +363,7 @@ export default function StoreBannersManager() {
       pages: item.pages,
       startDate: item.startDate ? item.startDate.slice(0, 16) : '',
       endDate: item.endDate ? item.endDate.slice(0, 16) : '',
+      campaignErpId: item.campaignErpId != null ? String(item.campaignErpId) : '',
     });
     setErrors({});
     setIsModalOpen(true);
@@ -435,6 +449,7 @@ export default function StoreBannersManager() {
         pages: form.pages,
         startDate: form.startDate || null,
         endDate: form.endDate || null,
+        campaignErpId: form.campaignErpId.trim() ? Number(form.campaignErpId.trim()) : null,
         order: editing?.order ?? items.length,
       };
       if (editing) {
@@ -650,8 +665,10 @@ export default function StoreBannersManager() {
                     <p className={`text-xs flex items-center gap-1 ${SCHEDULE_STATUS_COLOR[status]}`}>
                       <Calendar size={11} />
                       {SCHEDULE_STATUS_LABEL[status]}
-                      {item.startDate && ` · ${new Date(item.startDate).toLocaleDateString('pt-BR')}`}
-                      {item.endDate && ` → ${new Date(item.endDate).toLocaleDateString('pt-BR')}`}
+                      {item.campaignErpId != null && item.campaignFound && item.campaignName && ` · ${item.campaignName}`}
+                      {item.campaignErpId != null && item.campaignFound && item.campaignEndDate && ` até ${new Date(item.campaignEndDate).toLocaleDateString('pt-BR')}`}
+                      {item.campaignErpId == null && item.startDate && ` · ${new Date(item.startDate).toLocaleDateString('pt-BR')}`}
+                      {item.campaignErpId == null && item.endDate && ` → ${new Date(item.endDate).toLocaleDateString('pt-BR')}`}
                     </p>
                     <p className="text-xs text-gray-400 flex items-center gap-1">
                       <MousePointerClick size={11} />
@@ -1115,11 +1132,48 @@ export default function StoreBannersManager() {
                 </div>
               </section>
 
-              {/* ── Agendamento ── */}
+              {/* ── Encarte / campanha ── */}
               <section className="space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Agendamento automático</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Vincular a um encarte</p>
                 <p className="text-[11px] text-gray-400 -mt-1">
-                  Opcional. Intervalo mínimo de 1h entre início e fim. Pode haver pequeno delay por cache.
+                  Opcional. Informe o código do encarte no Solidcom e o banner fica ativo automaticamente
+                  enquanto o encarte estiver vigente lá — sem precisar mexer em datas aqui.
+                </p>
+                <div>
+                  <Label className="block text-xs font-medium text-gray-600 mb-1">Código do encarte (Solidcom)</Label>
+                  <Input
+                    type="number"
+                    value={form.campaignErpId}
+                    onChange={(e) => set('campaignErpId', e.target.value)}
+                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                    placeholder="Ex: 375"
+                  />
+                  {form.campaignErpId.trim() && (
+                    editing?.campaignErpId === Number(form.campaignErpId) ? (
+                      editing.campaignFound ? (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          Vinculado a "{editing.campaignName}"
+                          {editing.campaignEndDate && ` · vigente até ${new Date(editing.campaignEndDate).toLocaleDateString('pt-BR')}`}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-amber-600 mt-1">
+                          Encarte {form.campaignErpId} ainda não sincronizado — o banner fica oculto até ele existir no catálogo.
+                        </p>
+                      )
+                    ) : (
+                      <p className="text-[11px] text-gray-400 mt-1">Salve para conferir se o código já existe.</p>
+                    )
+                  )}
+                </div>
+              </section>
+
+              {/* ── Agendamento ── */}
+              <section className={`space-y-3 ${form.campaignErpId.trim() ? 'opacity-40 pointer-events-none' : ''}`}>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Agendamento manual</p>
+                <p className="text-[11px] text-gray-400 -mt-1">
+                  {form.campaignErpId.trim()
+                    ? 'Ignorado enquanto o banner estiver vinculado a um encarte acima.'
+                    : 'Opcional. Intervalo mínimo de 1h entre início e fim. Pode haver pequeno delay por cache.'}
                 </p>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1132,6 +1186,7 @@ export default function StoreBannersManager() {
                       type="datetime-local"
                       value={form.startDate}
                       onChange={(e) => set('startDate', e.target.value)}
+                      disabled={Boolean(form.campaignErpId.trim())}
                       className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
                     />
                   </div>
@@ -1144,6 +1199,7 @@ export default function StoreBannersManager() {
                       type="datetime-local"
                       value={form.endDate}
                       onChange={(e) => set('endDate', e.target.value)}
+                      disabled={Boolean(form.campaignErpId.trim())}
                       className={`rounded-lg text-sm focus-visible:ring-gray-900 ${errors.endDate ? 'border-red-400' : 'border-gray-200'}`}
                     />
                     {errors.endDate && (

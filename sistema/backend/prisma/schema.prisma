@@ -1433,8 +1433,16 @@ model StoreBanner {
 
   // Gestao comercial e agendamento
   sponsorName     String?   // Ex.: Ambev, Seara, Friboi
-  startDate       DateTime? // Inicio da exibicao
-  endDate         DateTime? // Fim da exibicao
+  startDate       DateTime? // Inicio da exibicao (ignorado quando campaignErpId esta setado)
+  endDate         DateTime? // Fim da exibicao (ignorado quando campaignErpId esta setado)
+  // Vincula o banner a um encarte/campanha do Solidcom pelo codigo
+  // (PromotionCampaign.erpCampaignId) -- sem FK de proposito: o lojista pode
+  // configurar o banner ANTES do encarte existir no catalogo (a sync ainda
+  // nao rodou), o codigo so passa a "casar" quando a campanha aparecer.
+  // Quando setado, a vigencia do banner (ativo/inativo) segue inteiramente
+  // a campanha (active + startDate/endDate dela), nao os campos acima --
+  // resolvido em StoreBannersService.findActive().
+  campaignErpId   Int?
   active          Boolean   @default(true)
   order           Int       @default(0)
 

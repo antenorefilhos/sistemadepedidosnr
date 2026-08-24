@@ -24,6 +24,7 @@ export interface StoreBannerPayload {
   pages?: string;
   startDate?: string | null;
   endDate?: string | null;
+  campaignErpId?: number | null;
   order?: number;
 }
 
@@ -49,6 +50,17 @@ export class StoreBannersService {
     }
   }
 
+  // Junta os banners vinculados a encarte (campaignErpId) com a campanha
+  // correspondente -- sem FK (ver comentario no schema), entao resolve na
+  // mao igual ja fazemos pro produto exaltado. Devolve so os campos uteis
+  // pro consumidor do banner (nome, vigencia) e um mapa por erpCampaignId.
+  private async resolveCampaigns(banners: { campaignErpId: number | null }[]) {
+    const ids = [...new Set(banners.filter((b) => b.campaignErpId != null).map((b) => b.campaignErpId as number))];
+    if (ids.length === 0) return new Map<number, { name: string; active: boolean; startDate: Date; endDate: Date }>();
+    const campaigns = await this.prisma.promotionCampaign.findMany({ where: { erpCampaignId: { in: ids } } });
+    return new Map(campaigns.map((c) => [c.erpCampaignId as number, c]));
+  }
+
   async findActive(filters: { slot?: string; category?: string; page?: string } = {}) {
     const now = new Date();
     const banners = await this.prisma.storeBanner.findMany({
@@ -57,39 +69,58 @@ export class StoreBannersService {
         ...(filters.slot ? { slot: filters.slot } : {}),
         ...(filters.category ? { targetCategory: filters.category } : {}),
         ...(filters.page ? { pages: { in: [filters.page, 'all'] } } : {}),
-        OR: [
-          { startDate: null },
-          { startDate: { lte: now } },
-        ],
-        AND: [
-          {
-            OR: [
-              { endDate: null },
-              { endDate: { gte: now } },
-            ],
-          },
-        ],
       },
       orderBy: { order: 'asc' },
+    });
+
+    const campaignByErpId = await this.resolveCampaigns(banners);
+
+    // Vigencia: banner vinculado a encarte (campaignErpId) segue 100% a
+    // campanha -- ignora startDate/endDate proprios. Codigo configurado mas
+    // encarte ainda nao sincronizado = banner fica invisivel ate existir.
+    const visible = banners.filter((banner) => {
+      if (banner.campaignErpId == null) {
+        if (banner.startDate && banner.startDate > now) return false;
+        if (banner.endDate && banner.endDate < now) return false;
+        return true;
+      }
+      const campaign = campaignByErpId.get(banner.campaignErpId);
+      if (!campaign) return false;
+      return campaign.active && campaign.startDate <= now && campaign.endDate >= now;
     });
 
     // Resolve o produto exaltado (linkType=product) pra quem consome o
     // banner nao precisar de uma segunda chamada -- equivalente ao
     // PromoBanner.highlightedProduct legado.
-    const productIds = banners.filter((b) => b.linkType === 'product' && b.linkValue).map((b) => b.linkValue as string);
+    const productIds = visible.filter((b) => b.linkType === 'product' && b.linkValue).map((b) => b.linkValue as string);
     const products = productIds.length
       ? await this.prisma.product.findMany({ where: { id: { in: productIds } } })
       : [];
     const productById = new Map(products.map((p) => [p.id, p]));
 
-    return banners.map((banner) => ({
-      ...banner,
-      highlightedProduct: banner.linkType === 'product' && banner.linkValue ? productById.get(banner.linkValue) || null : null,
-    }));
+    return visible.map((banner) => {
+      const campaign = banner.campaignErpId != null ? campaignByErpId.get(banner.campaignErpId) : undefined;
+      return {
+        ...banner,
+        highlightedProduct: banner.linkType === 'product' && banner.linkValue ? productById.get(banner.linkValue) || null : null,
+        campaignName: campaign?.name ?? null,
+        campaignEndDate: campaign?.endDate ?? null,
+      };
+    });
   }
 
-  findAll() {
-    return this.prisma.storeBanner.findMany({ orderBy: { order: 'asc' } });
+  async findAll() {
+    const banners = await this.prisma.storeBanner.findMany({ orderBy: { order: 'asc' } });
+    const campaignByErpId = await this.resolveCampaigns(banners);
+    return banners.map((banner) => {
+      const campaign = banner.campaignErpId != null ? campaignByErpId.get(banner.campaignErpId) : undefined;
+      return {
+        ...banner,
+        campaignName: banner.campaignErpId != null ? (campaign?.name ?? null) : null,
+        campaignEndDate: banner.campaignErpId != null ? (campaign?.endDate ?? null) : null,
+        campaignFound: banner.campaignErpId != null ? Boolean(campaign) : null,
+      };
+    });
   }
 
   create(data: StoreBannerPayload) {
@@ -115,6 +146,7 @@ export class StoreBannersService {
         pages: data.pages ?? 'home',
         startDate: data.startDate ? new Date(data.startDate) : null,
         endDate: data.endDate ? new Date(data.endDate) : null,
+        campaignErpId: data.campaignErpId ?? null,
         order: data.order ?? 0,
       },
     });
@@ -159,6 +191,7 @@ export class StoreBannersService {
         ...(data.pages !== undefined && { pages: data.pages }),
         ...(data.startDate !== undefined && { startDate: data.startDate ? new Date(data.startDate) : null }),
         ...(data.endDate !== undefined && { endDate: data.endDate ? new Date(data.endDate) : null }),
+        ...(data.campaignErpId !== undefined && { campaignErpId: data.campaignErpId ?? null }),
         ...(data.order !== undefined && { order: data.order }),
       },
     });
