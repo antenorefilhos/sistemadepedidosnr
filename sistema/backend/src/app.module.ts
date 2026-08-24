@@ -36,6 +36,7 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { DataPrivacyModule } from './modules/data-privacy/data-privacy.module';
 import { BusinessModule } from './modules/business/business.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
 
 @Controller()
 class AppController {
@@ -121,6 +122,7 @@ class AppController {
     RecommendationsModule,
     DataPrivacyModule,
     BusinessModule,
+    PromotionsModule,
   ],
   controllers: [AppController],
   providers: [

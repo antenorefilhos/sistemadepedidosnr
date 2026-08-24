@@ -27,6 +27,20 @@ export interface ERPProduct {
   syncOption?: 'ESTOQUE' | 'SEMPRE' | 'NUNCA'
 }
 
+export interface ERPCampaignItem {
+  ean: string
+  regularPrice: number
+  promotionalPrice: number
+}
+
+export interface ERPCampaign {
+  erpCampaignId: number
+  name: string
+  startDate: string
+  endDate: string
+  items: ERPCampaignItem[]
+}
+
 @Injectable()
 export class SolidcomERPService {
   private readonly logger = new Logger(SolidcomERPService.name)
@@ -125,6 +139,35 @@ export class SolidcomERPService {
       return product ?? null
     } catch {
       return null
+    }
+  }
+
+  /**
+   * Encartes/campanhas promocionais do ERP (ex.: "SEGUNDA DA CARNE NV",
+   * codigo 375, filial Nova Real com flag ecommerce=true).
+   *
+   * NAO CONFIRMADO: o Solidcom ainda nao nos passou o contrato real desse
+   * endpoint (rota, formato do payload, autenticacao). Segue o mesmo padrao
+   * de stub ja usado em getProductStock/updateProductPrice acima -- devolve
+   * lista vazia (no-op seguro) ate alguem confirmar com o suporte deles e
+   * preencher a chamada real. PromotionsService ja consome o formato
+   * ERPCampaign abaixo, entao so esta funcao precisa mudar quando o
+   * endpoint for confirmado.
+   */
+  async fetchActivePromotionCampaigns(): Promise<ERPCampaign[]> {
+    try {
+      // Implementacao real chamaria algo como:
+      // const response = await axios.get(
+      //   `${this.SOLIDCOM_API_URL}/api/Campanha/GetCampanhasAtivas`,
+      //   { params: { filial: 'NOVA REAL', ecommerce: true }, timeout: 30000 },
+      // )
+      // return this.extractCampaigns(response.data)
+
+      return []
+    } catch (error) {
+      const reason = axios.isAxiosError(error) ? error.message : 'erro desconhecido'
+      this.logger.warn(`Falha ao buscar encartes/campanhas da Dorsal (${reason})`)
+      return []
     }
   }
 

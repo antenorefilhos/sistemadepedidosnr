@@ -8,7 +8,7 @@ import {
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
-import { useCommercialTaxonomy, useStoreBanners, useHeroSlides, usePromoBanners, useTopSellingProducts, type StoreBannerCMS } from '../hooks/useCMS'
+import { useCommercialTaxonomy, useStoreBanners, useHeroSlides, usePromoBanners, useTopSellingProducts, usePromotionCampaigns, type StoreBannerCMS } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
@@ -17,7 +17,7 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
 import { useQuery } from '@tanstack/react-query'
-import { resolveApiUrl, productsAPI } from '../services/api'
+import { resolveApiUrl, productsAPI, cmsAPI } from '../services/api'
 import type { Product } from '../types'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductShelf } from '../components/ProductShelf'
@@ -65,6 +65,11 @@ export default function Home() {
 
   const { data: products, isLoading: productsLoading } = useProducts()
   const { data: storeBanners } = useStoreBanners()
+  const { data: promotionCampaigns } = usePromotionCampaigns()
+  const highlightedCampaign = useMemo(
+    () => (promotionCampaigns || []).find((c) => c.highlightInHome && c.items.length > 0),
+    [promotionCampaigns],
+  )
   const { data: promoBannersRaw } = usePromoBanners()
   const { data: cmsCategories } = useCommercialTaxonomy()
   const { data: topSellingProducts } = useTopSellingProducts(8)
@@ -199,16 +204,17 @@ export default function Home() {
     if (!storeBanners || storeBanners.length === 0) return []
 
     const activeSlides = storeBanners
-      .filter((item: StoreBannerCMS) => item.active !== false && item.type === 'full' && item.imageUrl)
+      .filter((item: StoreBannerCMS) => item.active !== false && item.slot === 'hero' && item.desktopImageUrl)
       .sort((a: StoreBannerCMS, b: StoreBannerCMS) => (a.order || 0) - (b.order || 0))
 
     return activeSlides.map((item: StoreBannerCMS) => ({
+      id: item.id,
       title: item.title || item.name || 'Destaque',
       tag: 'Destaque',
-      description: 'Ofertas e destaques escolhidos para facilitar sua compra e fazer render mais.',
-      image: resolveApiUrl(item.imageUrl),
-      link: normalizeWineLink(item.link || '#'),
-      button: 'Ver oferta',
+      description: item.description || 'Ofertas e destaques escolhidos para facilitar sua compra e fazer render mais.',
+      image: resolveApiUrl(item.desktopImageUrl),
+      link: normalizeWineLink(item.linkValue || '#'),
+      button: item.ctaLabel || 'Ver oferta',
     }))
   }, [storeBanners])
 
@@ -523,7 +529,7 @@ export default function Home() {
           else if (diff < -50) setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
         }}
       >
-            {slides.map((slide: { title: string; tag?: string; description?: string; button?: string; image?: string; link?: string }, index: number) => (
+            {slides.map((slide: { id?: string; title: string; tag?: string; description?: string; button?: string; image?: string; link?: string }, index: number) => (
               <div
                 key={index}
                 className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
@@ -551,7 +557,11 @@ export default function Home() {
                   {slide.description}
                 </p>
                 <div className="flex items-center gap-3">
-                  {slide.link && <Link to={slide.link} className={buttonVariants({ variant: 'secondary', size: 'lg', className: 'w-full sm:w-auto text-sm sm:text-base' })}>
+                  {slide.link && <Link
+                    to={slide.link}
+                    onClick={() => { if (slide.id) cmsAPI.storeBanners.registerClick(slide.id).catch(() => {}) }}
+                    className={buttonVariants({ variant: 'secondary', size: 'lg', className: 'w-full sm:w-auto text-sm sm:text-base' })}
+                  >
                     {slide.button} <ArrowRight size={16} />
                   </Link>}
                 </div>
@@ -630,6 +640,18 @@ export default function Home() {
         to="/mercado"
         linkLabel="Ver mais"
       />
+
+      {highlightedCampaign && (
+        <ProductShelf
+          className="md:hidden px-4 pt-5 pb-2"
+          title={highlightedCampaign.name}
+          eyebrow="Encarte da semana"
+          icon={Sparkles}
+          products={highlightedCampaign.items}
+          to="/promocoes"
+          linkLabel="Ver encarte"
+        />
+      )}
 
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"

@@ -296,15 +296,22 @@ export class ProductsService {
     const where: Prisma.ProductWhereInput = { ...tenantStoreWhere(context) }
     const andFilters: Prisma.ProductWhereInput[] = []
 
-    if (search) {
-      andFilters.push({
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { alternativeDescription: { contains: search, mode: 'insensitive' } },
-          { ean: { contains: search, mode: 'insensitive' } },
-          { secondaryEans: { has: search } },
-        ],
-      })
+    // Tokenizado: "abacaxi kg" vira AND(abacaxi, kg) em vez de exigir a frase
+    // inteira contigua -- sem isso "Abacaxi kg" nao batia com produtos onde o
+    // ERP grava a unidade solta no nome (ex.: "Abacaxi Kg Extra").
+    const searchTokens = (search || '').trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (searchTokens.length > 0) {
+      andFilters.push(
+        ...searchTokens.map<Prisma.ProductWhereInput>((token) => ({
+          OR: [
+            { name: { contains: token, mode: 'insensitive' } },
+            { alternativeDescription: { contains: token, mode: 'insensitive' } },
+            { ean: { contains: token, mode: 'insensitive' } },
+            { secondaryEans: { has: token } },
+            { unit: { contains: token, mode: 'insensitive' } },
+          ],
+        })),
+      )
     }
 
     if (classificationFilters.length > 0) {
@@ -340,15 +347,52 @@ export class ProductsService {
       where.AND = andFilters
     }
 
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.product.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: safeLimit,
-      }),
-      this.prisma.product.count({ where }),
-    ])
+    let data: Awaited<ReturnType<typeof this.prisma.product.findMany>>
+    let total: number
+
+    if (searchTokens.length > 0) {
+      // Relevancia so da pra calcular em memoria (disponibilidade e "comeca
+      // com" nao sao expressaveis num orderBy do Prisma) -- busca traz um lote
+      // generoso, ordena aqui e so entao pagina. RELEVANCE_CANDIDATES_CAP
+      // limita o pior caso (termo muito generico casando milhares de linhas);
+      // acima do teto a pagina ainda funciona, so perde ranking fino no fim.
+      const RELEVANCE_CANDIDATES_CAP = 1000
+      const searchLower = search!.trim().toLowerCase()
+      const [candidates, count] = await this.prisma.$transaction([
+        this.prisma.product.findMany({ where, take: RELEVANCE_CANDIDATES_CAP }),
+        this.prisma.product.count({ where }),
+      ])
+
+      const ranked = candidates
+        .map((product) => {
+          const nameLower = (product.name || '').toLowerCase()
+          const isAvailable =
+            product.active &&
+            (String(product.syncOption || '').toUpperCase() === 'SEMPRE' || Number(product.stock || 0) > 0)
+          const startsWithSearch = nameLower.startsWith(searchLower)
+          return { product, isAvailable, startsWithSearch }
+        })
+        .sort((a, b) => {
+          if (a.isAvailable !== b.isAvailable) return a.isAvailable ? -1 : 1
+          if (a.startsWithSearch !== b.startsWithSearch) return a.startsWithSearch ? -1 : 1
+          return (a.product.name || '').localeCompare(b.product.name || '', 'pt-BR')
+        })
+
+      data = ranked.slice(skip, skip + safeLimit).map((r) => r.product)
+      total = count
+    } else {
+      const [rows, count] = await this.prisma.$transaction([
+        this.prisma.product.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: safeLimit,
+        }),
+        this.prisma.product.count({ where }),
+      ])
+      data = rows
+      total = count
+    }
 
     return {
       data,

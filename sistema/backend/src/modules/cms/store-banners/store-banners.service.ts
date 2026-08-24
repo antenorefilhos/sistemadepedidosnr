@@ -5,16 +5,23 @@ import { join } from 'path';
 
 export interface StoreBannerPayload {
   name: string;
-  type?: string;
+  slot?: string;
+  targetCategory?: string | null;
   active?: boolean;
-  link?: string;
+  linkType?: string;
+  linkValue?: string | null;
   linkTarget?: string;
   title?: string;
-  imageUrl: string;
-  mobileImageUrl?: string;
+  description?: string | null;
+  badgeText?: string | null;
+  ctaLabel?: string | null;
+  overlayColor?: string | null;
+  sponsorName?: string | null;
+  desktopImageUrl: string;
+  mobileImageUrl?: string | null;
   pages?: string;
-  scheduledStart?: string | null;
-  scheduledEnd?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   order?: number;
 }
 
@@ -40,20 +47,23 @@ export class StoreBannersService {
     }
   }
 
-  findActive() {
+  findActive(filters: { slot?: string; category?: string; page?: string } = {}) {
     const now = new Date();
     return this.prisma.storeBanner.findMany({
       where: {
         active: true,
+        ...(filters.slot ? { slot: filters.slot } : {}),
+        ...(filters.category ? { targetCategory: filters.category } : {}),
+        ...(filters.page ? { pages: { in: [filters.page, 'all'] } } : {}),
         OR: [
-          { scheduledStart: null },
-          { scheduledStart: { lte: now } },
+          { startDate: null },
+          { startDate: { lte: now } },
         ],
         AND: [
           {
             OR: [
-              { scheduledEnd: null },
-              { scheduledEnd: { gte: now } },
+              { endDate: null },
+              { endDate: { gte: now } },
             ],
           },
         ],
@@ -70,16 +80,23 @@ export class StoreBannersService {
     return this.prisma.storeBanner.create({
       data: {
         name: data.name,
-        type: data.type ?? 'full',
+        slot: data.slot ?? 'hero',
+        targetCategory: data.targetCategory ?? null,
         active: data.active ?? true,
-        link: data.link ?? null,
+        linkType: data.linkType ?? 'url',
+        linkValue: data.linkValue ?? null,
         linkTarget: data.linkTarget ?? '_self',
         title: data.title ?? null,
-        imageUrl: data.imageUrl,
+        description: data.description ?? null,
+        badgeText: data.badgeText ?? null,
+        ctaLabel: data.ctaLabel ?? null,
+        overlayColor: data.overlayColor ?? null,
+        sponsorName: data.sponsorName ?? null,
+        desktopImageUrl: data.desktopImageUrl,
         mobileImageUrl: data.mobileImageUrl ?? null,
         pages: data.pages ?? 'home',
-        scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : null,
-        scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : null,
+        startDate: data.startDate ? new Date(data.startDate) : null,
+        endDate: data.endDate ? new Date(data.endDate) : null,
         order: data.order ?? 0,
       },
     });
@@ -90,8 +107,8 @@ export class StoreBannersService {
     if (!existing) throw new Error(`Banner não encontrado: ${id}`);
 
     // Limpar imagem desktop anterior se uma nova for fornecida
-    if (data.imageUrl !== undefined && existing.imageUrl !== data.imageUrl) {
-      const filename = this.extractFilenameFromUrl(existing.imageUrl);
+    if (data.desktopImageUrl !== undefined && existing.desktopImageUrl !== data.desktopImageUrl) {
+      const filename = this.extractFilenameFromUrl(existing.desktopImageUrl);
       if (filename) await this.deleteFile(filename);
     }
 
@@ -105,16 +122,23 @@ export class StoreBannersService {
       where: { id },
       data: {
         ...(data.name !== undefined && { name: data.name }),
-        ...(data.type !== undefined && { type: data.type }),
+        ...(data.slot !== undefined && { slot: data.slot }),
+        ...(data.targetCategory !== undefined && { targetCategory: data.targetCategory || null }),
         ...(data.active !== undefined && { active: data.active }),
-        ...(data.link !== undefined && { link: data.link || null }),
+        ...(data.linkType !== undefined && { linkType: data.linkType }),
+        ...(data.linkValue !== undefined && { linkValue: data.linkValue || null }),
         ...(data.linkTarget !== undefined && { linkTarget: data.linkTarget }),
         ...(data.title !== undefined && { title: data.title || null }),
-        ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl }),
+        ...(data.description !== undefined && { description: data.description || null }),
+        ...(data.badgeText !== undefined && { badgeText: data.badgeText || null }),
+        ...(data.ctaLabel !== undefined && { ctaLabel: data.ctaLabel || null }),
+        ...(data.overlayColor !== undefined && { overlayColor: data.overlayColor || null }),
+        ...(data.sponsorName !== undefined && { sponsorName: data.sponsorName || null }),
+        ...(data.desktopImageUrl !== undefined && { desktopImageUrl: data.desktopImageUrl }),
         ...(data.mobileImageUrl !== undefined && { mobileImageUrl: data.mobileImageUrl || null }),
         ...(data.pages !== undefined && { pages: data.pages }),
-        ...(data.scheduledStart !== undefined && { scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : null }),
-        ...(data.scheduledEnd !== undefined && { scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : null }),
+        ...(data.startDate !== undefined && { startDate: data.startDate ? new Date(data.startDate) : null }),
+        ...(data.endDate !== undefined && { endDate: data.endDate ? new Date(data.endDate) : null }),
         ...(data.order !== undefined && { order: data.order }),
       },
     });
@@ -129,8 +153,8 @@ export class StoreBannersService {
     if (!banner) throw new Error(`Banner não encontrado: ${id}`);
 
     // Limpar arquivos de disco
-    if (banner.imageUrl) {
-      const filename = this.extractFilenameFromUrl(banner.imageUrl);
+    if (banner.desktopImageUrl) {
+      const filename = this.extractFilenameFromUrl(banner.desktopImageUrl);
       if (filename) await this.deleteFile(filename);
     }
 
@@ -141,5 +165,21 @@ export class StoreBannersService {
 
     // Deletar do BD
     return this.prisma.storeBanner.delete({ where: { id } });
+  }
+
+  // Incrementa de forma "melhor esforco" -- nunca deve derrubar a navegacao
+  // do cliente por causa de uma metrica.
+  async registerClick(id: string): Promise<void> {
+    await this.prisma.storeBanner.update({
+      where: { id },
+      data: { clicksCount: { increment: 1 } },
+    }).catch(() => undefined);
+  }
+
+  async registerImpression(id: string): Promise<void> {
+    await this.prisma.storeBanner.update({
+      where: { id },
+      data: { impressionsCount: { increment: 1 } },
+    }).catch(() => undefined);
   }
 }

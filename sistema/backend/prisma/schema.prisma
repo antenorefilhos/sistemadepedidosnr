@@ -491,6 +491,7 @@ model Product {
   categoryCurations CategoryProductCuration[]
   promoHighlights PromoBanner[] @relation("PromoBannerHighlightedProduct")
   recipeProducts RecipeProduct[]
+  campaignItems PromotionCampaignItem[]
 
   @@index([tenantId, storeId, active])
   @@index([tenantId, storeId, category])
@@ -1394,27 +1395,95 @@ model PromoBanner {
   @@map("promo_banners_cms")
 }
 
+// Modulo unificado de espacos publicitarios do storefront (substitui a
+// fragmentacao HeroSlide/PromoBanner/StoreBanner para banners novos --
+// as duas tabelas legadas continuam servindo o que ja existe la, ver
+// TASK_DEV_SPRINT_ADMIN_SEARCH_BANNERS_SOLIDCOM_ENCARTES.md).
 model StoreBanner {
-  id             String    @id @default(cuid())
-  tenantId       String    @default("tenant_default")
-  storeId        String    @default("store_default")
-  name           String
-  type           String    @default("full") // full | tarja | vitrine | mini | lateral
-  active         Boolean   @default(true)
-  link           String?
-  linkTarget     String    @default("_self") // _self | _blank
-  title          String?
-  imageUrl       String
-  mobileImageUrl String?
-  pages          String    @default("home") // home | all | category | product
-  scheduledStart DateTime?
-  scheduledEnd   DateTime?
-  order          Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  tenantId        String    @default("tenant_default")
+  storeId         String    @default("store_default")
+  name            String    // Nome interno / identificador da campanha
+  slot            String    @default("hero") // hero | intercalado | category | tarja | popup
+  targetCategory  String?   // Codigo da categoria quando slot == "category"
 
-  @@index([tenantId, storeId, active, order])
+  // Imagens responsivas
+  desktopImageUrl String
+  mobileImageUrl  String?
+
+  // Conteudo e overlays
+  title           String?
+  description     String?
+  badgeText       String?
+  ctaLabel        String?
+  overlayColor    String?   // Ex.: rgba(0,0,0,0.4) ou hex
+
+  // Acoes de link
+  linkType        String    @default("url") // url | category | product | search
+  linkValue       String?   // URL destino, ID do produto, codigo da categoria ou termo
+  linkTarget      String    @default("_self") // _self | _blank
+
+  pages           String    @default("home") // home | all | category | product
+
+  // Gestao comercial e agendamento
+  sponsorName     String?   // Ex.: Ambev, Seara, Friboi
+  startDate       DateTime? // Inicio da exibicao
+  endDate         DateTime? // Fim da exibicao
+  active          Boolean   @default(true)
+  order           Int       @default(0)
+
+  // Metricas
+  impressionsCount Int      @default(0)
+  clicksCount      Int      @default(0)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([tenantId, storeId, slot, active, order])
   @@map("store_banners_cms")
+}
+
+// Encartes e campanhas promocionais sincronizadas do ERP Solidcom (filial
+// Nova Real, flag ecommerce=true). Ver docs/solidcom-api.md antes de mexer
+// no sync -- tem armadilhas documentadas sobre o formato da API deles.
+model PromotionCampaign {
+  id              String    @id @default(cuid())
+  tenantId        String    @default("tenant_default")
+  storeId         String    @default("store_default")
+  erpCampaignId   Int?      @unique // Ex.: 375
+  name            String    // Ex.: "SEGUNDA DA CARNE NV"
+  slug            String    // Ex.: "segunda-da-carne"
+  type            String    @default("encarte") // encarte | tabloide | relampago
+  bannerUrl       String?
+  startDate       DateTime
+  endDate         DateTime
+  active          Boolean   @default(true)
+  highlightInHome Boolean   @default(false)
+
+  items           PromotionCampaignItem[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([tenantId, storeId, active, startDate, endDate])
+  @@map("promotion_campaigns")
+}
+
+model PromotionCampaignItem {
+  id               String            @id @default(cuid())
+  campaignId       String
+  campaign         PromotionCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ean              String
+  regularPrice     Decimal           @db.Decimal(10, 2)
+  promotionalPrice Decimal           @db.Decimal(10, 2)
+  discountPercent  Decimal?          @db.Decimal(5, 2)
+  order            Int               @default(0)
+
+  @@unique([campaignId, productId])
+  @@index([campaignId, order])
+  @@map("promotion_campaign_items")
 }
 
 // Notifications

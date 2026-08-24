@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
 import { StoreBannersService, StoreBannerPayload } from './store-banners.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
@@ -11,8 +11,13 @@ export class StoreBannersController {
   constructor(private readonly storeBannersService: StoreBannersService) {}
 
   @Get()
-  findActive() {
-    return this.storeBannersService.findActive();
+  findActive(@Query('slot') slot?: string, @Query('category') category?: string, @Query('page') page?: string) {
+    return this.storeBannersService.findActive({ slot, category, page });
+  }
+
+  @Get('active')
+  findActiveExplicit(@Query('slot') slot?: string, @Query('category') category?: string, @Query('page') page?: string) {
+    return this.storeBannersService.findActive({ slot, category, page });
   }
 
   @Get('all')
@@ -34,6 +39,18 @@ export class StoreBannersController {
   @Roles('admin')
   update(@Param('id') id: string, @Body() data: Partial<StoreBannerPayload>) {
     return this.storeBannersService.update(id, data);
+  }
+
+  @Post(':id/click')
+  async registerClick(@Param('id') id: string) {
+    await this.storeBannersService.registerClick(id);
+    return { success: true };
+  }
+
+  @Post(':id/impression')
+  async registerImpression(@Param('id') id: string) {
+    await this.storeBannersService.registerImpression(id);
+    return { success: true };
   }
 
   @Delete(':id')

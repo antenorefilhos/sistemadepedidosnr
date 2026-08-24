@@ -427,6 +427,7 @@ export const cmsAPI = {
   },
   storeBanners: {
     getAll: () => api.get('/cms/store-banners'),
+    registerClick: (id: string) => api.post(`/cms/store-banners/${id}/click`),
   },
   categories: {
     getAll: () => api.get('/cms/categories'),
@@ -434,6 +435,13 @@ export const cmsAPI = {
   },
   promoBanners: {
     getAll: () => api.get('/cms/promo-banners'),
+  },
+}
+
+// Encartes / campanhas promocionais do ERP Solidcom
+export const promotionsAPI = {
+  campaigns: {
+    getActive: () => api.get('/promotions/campaigns/active'),
   },
 }
 
