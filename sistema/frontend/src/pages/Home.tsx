@@ -1229,37 +1229,60 @@ function PopupBanner({ banner, onDismiss }: { banner: PromoBannerView; onDismiss
 
 /** Par de banners intercalados -- lado a lado no desktop (md:grid-cols-2), empilhado no mobile. */
 function PromoBannerPair({ banners, className }: { banners?: PromoBannerView[]; className?: string }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el || !banners || banners.length < 2) return
+    const index = Math.round(el.scrollLeft / el.clientWidth)
+    setActiveIndex(Math.max(0, Math.min(banners.length - 1, index)))
+  }
+
   if (!banners || banners.length === 0) return null
-  // Mobile: carrossel horizontal com snap -- 2 banners empilhados verticalmente
-  // (grid-cols-1) viravam uma parede de imagem gigante entre vitrines, sem
-  // nenhum produto no meio. Desktop mantem o grid 2 colunas lado a lado de sempre.
+  // Mobile: carrossel horizontal com snap, 1 banner por vez ocupando a largura
+  // toda (w-full snap-center) -- uma versao anterior deixava o 2o banner
+  // "espiando" cortado na lateral (w-[78%]), que lia como imagem quebrada em
+  // vez de carrossel de proposito (feedback com print). Dots embaixo indicam
+  // qual banner esta visivel. Desktop mantem o grid 2 colunas lado a lado.
   const single = banners.length === 1
   return (
-    <div
-      className={`flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 ${className || ''}`}
-    >
-      {banners.map((banner) => (
-        <div
-          key={banner.id}
-          className={`shrink-0 snap-start md:w-auto md:shrink md:snap-align-none ${single ? 'w-full' : 'w-[78%] sm:w-[65%]'}`}
-        >
-          <PromoBanner
-            image={banner.image}
-            alt={banner.title}
-            badge={banner.badge}
-            highlightNote={banner.highlightNote}
-            highlightedProduct={banner.highlightedProduct}
-            title={banner.title}
-            description={banner.description}
-            ctaLabel={banner.ctaLabel}
-            ctaTo={banner.ctaTo}
-            align={banner.align}
-            overlayColor={banner.overlayColor}
-            validUntil={banner.validUntil}
-            sponsorName={banner.sponsorName}
-          />
+    <div className={className}>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory md:grid md:grid-cols-2 md:gap-4 md:overflow-visible"
+      >
+        {banners.map((banner) => (
+          <div key={banner.id} className="w-full shrink-0 snap-center md:w-auto md:shrink md:snap-align-none">
+            <PromoBanner
+              image={banner.image}
+              alt={banner.title}
+              badge={banner.badge}
+              highlightNote={banner.highlightNote}
+              highlightedProduct={banner.highlightedProduct}
+              title={banner.title}
+              description={banner.description}
+              ctaLabel={banner.ctaLabel}
+              ctaTo={banner.ctaTo}
+              align={banner.align}
+              overlayColor={banner.overlayColor}
+              validUntil={banner.validUntil}
+              sponsorName={banner.sponsorName}
+            />
+          </div>
+        ))}
+      </div>
+      {!single && (
+        <div className="mt-2 flex justify-center gap-1.5 md:hidden">
+          {banners.map((banner, i) => (
+            <span
+              key={banner.id}
+              className={`h-1.5 rounded-full transition-all ${i === activeIndex ? 'w-5 bg-[#5D082A]' : 'w-1.5 bg-[#5D082A]/25'}`}
+            />
+          ))}
         </div>
-      ))}
+      )}
     </div>
   )
 }
@@ -1296,37 +1319,41 @@ function PromoBanner({
   const tone = overlayColor || '#231F20'
   return (
     <section className="fade-in-section">
-      <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[260px] overflow-hidden bg-[#F7F0E4] md:min-h-[320px]' })}>
+      <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[170px] overflow-hidden bg-[#F7F0E4] md:min-h-[320px]' })}>
         <img src={image} alt={alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
         <div
           className="absolute inset-0"
           style={{ background: buildOverlayGradient(tone) }}
         />
         {sponsorName && (
-          <span className="absolute right-3 top-3 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+          <span className="absolute right-2 top-2 z-10 rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:right-3 md:top-3 md:px-2.5 md:py-1 md:text-[11px]">
             Patrocinado por {sponsorName}
           </span>
         )}
-        <div className={`relative z-10 flex h-full items-end p-6 md:p-8 ${align === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
-          <div className="max-w-lg space-y-3">
+        <div className={`relative z-10 flex h-full items-end p-4 md:p-8 ${align === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
+          <div className="max-w-lg space-y-1.5 md:space-y-3">
             {(badge || validUntil) && (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                 {badge && (
-                  <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
+                  <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[9px] text-[#231F20] md:px-3 md:py-1 md:text-xs">
                     {badge}
                   </Badge>
                 )}
                 {validUntil && (
-                  <Badge className="h-auto border-white/40 bg-black/30 px-3 py-1 text-white backdrop-blur-sm">
+                  <Badge className="h-auto border-white/40 bg-black/30 px-2 py-0.5 text-[9px] text-white backdrop-blur-sm md:px-3 md:py-1 md:text-xs">
                     {validUntil}
                   </Badge>
                 )}
               </div>
             )}
-            <h3 className="text-2xl font-bold text-white md:text-4xl luxury-text">{title}</h3>
-            {description && <p className="text-sm leading-relaxed text-white/85 md:text-base">{description}</p>}
+            <h3 className="text-base font-bold text-white md:text-2xl md:text-4xl luxury-text">{title}</h3>
+            {description && (
+              <p className="line-clamp-2 text-xs leading-snug text-white/85 md:line-clamp-none md:text-base md:leading-relaxed">
+                {description}
+              </p>
+            )}
             {highlightedProduct && (
-              <div className="rounded-lg border border-white/30 bg-white/85 p-3 text-left shadow-xl backdrop-blur-sm">
+              <div className="hidden rounded-lg border border-white/30 bg-white/85 p-3 text-left shadow-xl backdrop-blur-sm md:block">
                 <p className="text-caption font-black uppercase tracking-[0.16em] text-[#5D082A]">Produto Exaltado</p>
                 <p className="mt-1 text-sm font-bold text-[#231F20]">{highlightedProduct.name}</p>
                 {highlightNote && <p className="mt-1 text-xs text-[#5D082A]">{highlightNote}</p>}
@@ -1339,9 +1366,17 @@ function PromoBanner({
               </div>
             )}
             {ctaLabel && ctaTo && (
-              <Link to={ctaTo} className={buttonVariants({ variant: 'outline', size: 'lg', className: 'border-white bg-white text-sm font-bold text-[#5D082A] hover:bg-[#F3E7C9]' })}>
+              <Link
+                to={ctaTo}
+                className={buttonVariants({
+                  variant: 'outline',
+                  size: 'sm',
+                  className: 'border-white bg-white font-bold text-[#5D082A] hover:bg-[#F3E7C9] md:h-12 md:px-5 md:text-sm',
+                })}
+              >
                 {ctaLabel}
-                <ArrowRight size={16} />
+                <ArrowRight size={14} className="md:hidden" />
+                <ArrowRight size={16} className="hidden md:block" />
               </Link>
             )}
           </div>
