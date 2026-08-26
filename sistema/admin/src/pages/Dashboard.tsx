@@ -989,36 +989,59 @@ export default function AdminDashboard() {
     }
   }
 
+  // Sync completo do catalogo leva ~190s -- rodar sincrono via HTTP
+  // request/response estourava timeout 504 do Nginx. Dispara em background
+  // e faz polling do status ate terminar, sem travar o navegador.
   const handleSyncProducts = async () => {
     try {
       setProductFeedback(null)
-      setSyncingProducts(true)
-      const response = await productsAPI.sync()
-      const taxonomy = response.data?.taxonomy
-      if (taxonomy) {
-        setProductFeedback({
-          tone: 'success',
-          title: 'Sincronizacao executada',
-          description: `Produtos sincronizados: ${response.data?.synced ?? 0}; erros: ${response.data?.errors ?? 0}; produtos processados: ${taxonomy.productsProcessed}; produtos recategorizados: ${taxonomy.productsRecategorized}; categorias detectadas: ${taxonomy.categoriesDetected}; categorias criadas: ${taxonomy.categoriesCreated}; raizes mercadologicas: ${taxonomy.mercadologicalRoots}.`,
-        })
+      const { data } = await productsAPI.syncBackground()
+      if (data.alreadyRunning) {
+        setProductFeedback({ tone: 'success', title: 'Sincronizacao ja estava em andamento -- aguardando terminar.' })
       } else {
-        setProductFeedback({
-          tone: 'success',
-          title: response.data?.message || 'Sincronizacao executada',
-        })
+        setProductFeedback({ tone: 'success', title: 'Sincronizacao iniciada em segundo plano...' })
       }
-      await loadProducts(productsPage, productsSearch)
-      await loadSolidcomStatus()
-      await loadMercadologicalTree()
-      await loadStats()
-      await loadAvailabilityMetrics()
+      setSyncingProducts(true)
+
+      const poll = async () => {
+        const status = await productsAPI.syncStatus()
+        if (status.data.running) {
+          window.setTimeout(poll, 3000)
+          return
+        }
+
+        setSyncingProducts(false)
+        if (status.data.lastError) {
+          setProductFeedback({ tone: 'error', title: `Erro na sincronizacao: ${status.data.lastError}` })
+          return
+        }
+
+        const result = status.data.lastResult as any
+        const taxonomy = result?.taxonomy
+        if (taxonomy) {
+          setProductFeedback({
+            tone: 'success',
+            title: 'Sincronizacao concluida',
+            description: `Produtos sincronizados: ${result?.synced ?? 0}; erros: ${result?.errors ?? 0}; produtos processados: ${taxonomy.productsProcessed}; produtos recategorizados: ${taxonomy.productsRecategorized}; categorias detectadas: ${taxonomy.categoriesDetected}; categorias criadas: ${taxonomy.categoriesCreated}; raizes mercadologicas: ${taxonomy.mercadologicalRoots}.`,
+          })
+        } else {
+          setProductFeedback({ tone: 'success', title: result?.message || 'Sincronizacao concluida' })
+        }
+
+        await loadProducts(productsPage, productsSearch)
+        await loadSolidcomStatus()
+        await loadMercadologicalTree()
+        await loadStats()
+        await loadAvailabilityMetrics()
+      }
+
+      window.setTimeout(poll, 3000)
     } catch (error: any) {
+      setSyncingProducts(false)
       setProductFeedback({
         tone: 'error',
-        title: getApiErrorMessage(error, 'Erro na sincronizacao'),
+        title: getApiErrorMessage(error, 'Erro ao iniciar sincronizacao'),
       })
-    } finally {
-      setSyncingProducts(false)
     }
   }
 

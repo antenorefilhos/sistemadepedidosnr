@@ -1108,6 +1108,15 @@ export const productsAPI = {
   bulkUpdateStatus: (ids: string[], active: boolean) => api.patch('/products/admin/bulk-status', { ids, active }),
   bulkDelete: (ids: string[]) => api.post('/products/admin/bulk-delete', { ids }),
   sync: () => api.get('/products/sync'),
+  syncBackground: () => api.post<{ started: boolean; alreadyRunning: boolean }>('/products/admin/sync'),
+  syncStatus: () =>
+    api.get<{
+      running: boolean
+      startedAt: string | null
+      finishedAt: string | null
+      lastResult: any
+      lastError: string | null
+    }>('/products/admin/sync/status'),
   getTopAnalytics: (limit = 5) => api.get<TopProductAnalyticsItem[]>('/products/analytics/top', { params: { limit } }),
   uploadImage: (ean: string, file: File, slot: '1' | '2' = '1') => {
     const formData = new FormData()

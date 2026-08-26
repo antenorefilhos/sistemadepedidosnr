@@ -262,23 +262,11 @@ export default function Home() {
       }))
   }, [storeBanners])
 
-  // Grid duplo do topo (desktop) usa os 2 primeiros, geridos pelo admin em
-  // Loja > Banners (slot=intercalado). Vitrines patrocinadas espalhadas
-  // entre as prateleiras (ate 6 slots) usam o restante -- sem repetir o
-  // mesmo banner duas vezes na pagina.
-  const topGridBanners = promoBanners.slice(0, 2)
-  const getPromoBanner = (index: number) => promoBanners[index + 2] || null
-  const promoBanner1 = getPromoBanner(0)
-  const promoBanner2 = getPromoBanner(1)
-  const promoBanner3 = getPromoBanner(2)
-  const promoBanner4 = getPromoBanner(3)
-  const promoBanner5 = getPromoBanner(4)
-  const promoBanner6 = getPromoBanner(5)
-
-  // Mobile: os mesmos banners intercalados, em pares, espalhados entre as
-  // vitrines de produto (em vez de um carrossel unico bunched num so lugar)
-  // -- da o respiro visual que quebra o scroll de cards e chama atencao.
-  const mobilePromoPairs = useMemo(() => {
+  // Banners intercalados (slot=intercalado, geridos em Loja > Banners),
+  // agrupados em pares e distribuidos entre as prateleiras de produto -- em
+  // vez de amontoados no topo/fim da pagina. Mesmo array usado no desktop
+  // (lado a lado, md:grid-cols-2) e no mobile (empilhado, grid-cols-1).
+  const promoPairs = useMemo(() => {
     const pairs: PromoBannerView[][] = []
     for (let i = 0; i < promoBanners.length; i += 2) {
       pairs.push(promoBanners.slice(i, i + 2))
@@ -716,27 +704,7 @@ export default function Home() {
       {/* Banners intercalados: espalhados em pares entre as vitrines em vez
           de bunched num carrossel unico -- da o respiro visual que chama
           atencao enquanto o cliente rola a pagina. */}
-      {mobilePromoPairs[0]?.length > 0 && (
-        <div className="md:hidden mx-4 mb-4 space-y-4">
-          {mobilePromoPairs[0].map((banner) => (
-            <PromoBanner
-              key={banner.id}
-              image={banner.image}
-              alt={banner.title}
-              badge={banner.badge}
-              highlightNote={banner.highlightNote}
-              highlightedProduct={banner.highlightedProduct}
-              title={banner.title}
-              description={banner.description}
-              ctaLabel={banner.ctaLabel}
-              ctaTo={banner.ctaTo}
-              align={banner.align}
-              overlayColor={banner.overlayColor}
-              validUntil={banner.validUntil}
-            />
-          ))}
-        </div>
-      )}
+      <PromoBannerPair banners={promoPairs[0]} className="md:hidden mx-4 mb-4" />
 
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
@@ -758,27 +726,7 @@ export default function Home() {
         linkLabel="Ver frescos"
       />
 
-      {mobilePromoPairs[1]?.length > 0 && (
-        <div className="md:hidden mx-4 mb-4 space-y-4">
-          {mobilePromoPairs[1].map((banner) => (
-            <PromoBanner
-              key={banner.id}
-              image={banner.image}
-              alt={banner.title}
-              badge={banner.badge}
-              highlightNote={banner.highlightNote}
-              highlightedProduct={banner.highlightedProduct}
-              title={banner.title}
-              description={banner.description}
-              ctaLabel={banner.ctaLabel}
-              ctaTo={banner.ctaTo}
-              align={banner.align}
-              overlayColor={banner.overlayColor}
-              validUntil={banner.validUntil}
-            />
-          ))}
-        </div>
-      )}
+      <PromoBannerPair banners={promoPairs[1]} className="md:hidden mx-4 mb-4" />
 
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
@@ -800,27 +748,7 @@ export default function Home() {
         linkLabel="Ver itens"
       />
 
-      {mobilePromoPairs[2]?.length > 0 && (
-        <div className="md:hidden mx-4 mb-4 space-y-4">
-          {mobilePromoPairs[2].map((banner) => (
-            <PromoBanner
-              key={banner.id}
-              image={banner.image}
-              alt={banner.title}
-              badge={banner.badge}
-              highlightNote={banner.highlightNote}
-              highlightedProduct={banner.highlightedProduct}
-              title={banner.title}
-              description={banner.description}
-              ctaLabel={banner.ctaLabel}
-              ctaTo={banner.ctaTo}
-              align={banner.align}
-              overlayColor={banner.overlayColor}
-              validUntil={banner.validUntil}
-            />
-          ))}
-        </div>
-      )}
+      <PromoBannerPair banners={promoPairs[2]} className="md:hidden mx-4 mb-4" />
 
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
@@ -890,28 +818,7 @@ export default function Home() {
           </section>
         )}
 
-        {topGridBanners.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-7xl mx-auto">
-            {topGridBanners.map((banner, index) => (
-              <PromoBanner
-                key={index}
-                image={banner.image}
-                alt={banner.title}
-                badge={banner.badge}
-                highlightNote={banner.highlightNote}
-                highlightedProduct={banner.highlightedProduct}
-                title={banner.title}
-                description={banner.description}
-                ctaLabel={banner.ctaLabel}
-                ctaTo={banner.ctaTo}
-                align={banner.align}
-                overlayColor={banner.overlayColor}
-                validUntil={banner.validUntil}
-              />
-            ))}
-          </div>
-        )}
-
+        {/* Vitrine 1: recompra/ofertas/frescos/churrasco/feira/recorrentes */}
         {intentShelves.length > 0 && (
         <div className="space-y-10">
           {intentShelves.map((shelf) => (
@@ -928,6 +835,10 @@ export default function Home() {
         </div>
         )}
 
+        {/* Par de banners 1 */}
+        <PromoBannerPair banners={promoPairs[0]} />
+
+        {/* Vitrine 2: mais vendidos */}
         {bestSellers.length > 0 && (
         <section className="fade-in-section">
           <div className="flex items-center justify-between mb-6">
@@ -971,23 +882,7 @@ export default function Home() {
         </section>
         )}
 
-        {promoBanner1 && (
-          <PromoBanner
-            image={promoBanner1.image}
-            alt={promoBanner1.title}
-            badge={promoBanner1.badge}
-            highlightNote={promoBanner1.highlightNote}
-            highlightedProduct={promoBanner1.highlightedProduct}
-            title={promoBanner1.title}
-            description={promoBanner1.description}
-            ctaLabel={promoBanner1.ctaLabel}
-            ctaTo={promoBanner1.ctaTo}
-            align={promoBanner1.align}
-            overlayColor={promoBanner1.overlayColor}
-            validUntil={promoBanner1.validUntil}
-          />
-        )}
-
+        {/* Vitrine 3: churrasco, padaria, carnes e consumo rapido */}
         {/* Category: PADARIA */}
         {categorized.padaria.length > 0 && (
         <section className="fade-in-section">
@@ -1042,22 +937,8 @@ export default function Home() {
         </section>
         )}
 
-        {promoBanner2 && (
-          <PromoBanner
-            image={promoBanner2.image}
-            alt={promoBanner2.title}
-            badge={promoBanner2.badge}
-            highlightNote={promoBanner2.highlightNote}
-            highlightedProduct={promoBanner2.highlightedProduct}
-            title={promoBanner2.title}
-            description={promoBanner2.description}
-            ctaLabel={promoBanner2.ctaLabel}
-            ctaTo={promoBanner2.ctaTo}
-            align={promoBanner2.align}
-            overlayColor={promoBanner2.overlayColor}
-            validUntil={promoBanner2.validUntil}
-          />
-        )}
+        {/* Par de banners 2 */}
+        <PromoBannerPair banners={promoPairs[1]} />
 
         {/* Category: GULOSEIMAS */}
         {categorized.guloseimas.length > 0 && (
@@ -1077,73 +958,8 @@ export default function Home() {
         </section>
         )}
 
-        {promoBanner3 && (
-          <PromoBanner
-            image={promoBanner3.image}
-            alt={promoBanner3.title}
-            badge={promoBanner3.badge}
-            highlightNote={promoBanner3.highlightNote}
-            highlightedProduct={promoBanner3.highlightedProduct}
-            title={promoBanner3.title}
-            description={promoBanner3.description}
-            ctaLabel={promoBanner3.ctaLabel}
-            ctaTo={promoBanner3.ctaTo}
-            align={promoBanner3.align}
-            overlayColor={promoBanner3.overlayColor}
-            validUntil={promoBanner3.validUntil}
-          />
-        )}
-
-        {promoBanner4 && (
-          <PromoBanner
-            image={promoBanner4.image}
-            alt={promoBanner4.title}
-            badge={promoBanner4.badge}
-            highlightNote={promoBanner4.highlightNote}
-            highlightedProduct={promoBanner4.highlightedProduct}
-            title={promoBanner4.title}
-            description={promoBanner4.description}
-            ctaLabel={promoBanner4.ctaLabel}
-            ctaTo={promoBanner4.ctaTo}
-            align={promoBanner4.align}
-            overlayColor={promoBanner4.overlayColor}
-            validUntil={promoBanner4.validUntil}
-          />
-        )}
-
-        {promoBanner5 && (
-          <PromoBanner
-            image={promoBanner5.image}
-            alt={promoBanner5.title}
-            badge={promoBanner5.badge}
-            highlightNote={promoBanner5.highlightNote}
-            highlightedProduct={promoBanner5.highlightedProduct}
-            title={promoBanner5.title}
-            description={promoBanner5.description}
-            ctaLabel={promoBanner5.ctaLabel}
-            ctaTo={promoBanner5.ctaTo}
-            align={promoBanner5.align}
-            overlayColor={promoBanner5.overlayColor}
-            validUntil={promoBanner5.validUntil}
-          />
-        )}
-
-        {promoBanner6 && (
-          <PromoBanner
-            image={promoBanner6.image}
-            alt={promoBanner6.title}
-            badge={promoBanner6.badge}
-            highlightNote={promoBanner6.highlightNote}
-            highlightedProduct={promoBanner6.highlightedProduct}
-            title={promoBanner6.title}
-            description={promoBanner6.description}
-            ctaLabel={promoBanner6.ctaLabel}
-            ctaTo={promoBanner6.ctaTo}
-            align={promoBanner6.align}
-            overlayColor={promoBanner6.overlayColor}
-            validUntil={promoBanner6.validUntil}
-          />
-        )}
+        {/* Par de banners 3 */}
+        <PromoBannerPair banners={promoPairs[2]} />
 
           {/* General Grid */}
           <section className="pt-8">
@@ -1185,6 +1001,32 @@ export default function Home() {
       <MobileBottomNav />
       </>
       )}
+    </div>
+  )
+}
+
+/** Par de banners intercalados -- lado a lado no desktop (md:grid-cols-2), empilhado no mobile. */
+function PromoBannerPair({ banners, className }: { banners?: PromoBannerView[]; className?: string }) {
+  if (!banners || banners.length === 0) return null
+  return (
+    <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${className || ''}`}>
+      {banners.map((banner) => (
+        <PromoBanner
+          key={banner.id}
+          image={banner.image}
+          alt={banner.title}
+          badge={banner.badge}
+          highlightNote={banner.highlightNote}
+          highlightedProduct={banner.highlightedProduct}
+          title={banner.title}
+          description={banner.description}
+          ctaLabel={banner.ctaLabel}
+          ctaTo={banner.ctaTo}
+          align={banner.align}
+          overlayColor={banner.overlayColor}
+          validUntil={banner.validUntil}
+        />
+      ))}
     </div>
   )
 }

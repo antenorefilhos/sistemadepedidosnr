@@ -32,8 +32,8 @@ export function Footer() {
   const whatsappSecondaryUrl = whatsappSecondaryDigits ? `https://wa.me/${whatsappSecondaryDigits}` : null
 
   return (
-    <footer className="border-t border-[#E8D7B0]/60 bg-[#FBF7F0] pb-20 md:pb-6 text-[#5d4f33]">
-      <div className="mx-auto max-w-7xl px-4 py-8 md:py-10">
+    <footer className="border-t border-[#E8D7B0]/60 bg-[#FBF7F0] pb-14 pt-4 md:pb-6 md:pt-8 text-[#5d4f33]">
+      <div className="mx-auto max-w-7xl px-4">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-4 md:gap-8">
           {/* Coluna 1: Identidade & Localização */}
           <div className="rounded-xl border border-[#E8D7B0]/60 bg-white/60 p-4 md:border-0 md:bg-transparent md:p-0">
@@ -179,7 +179,7 @@ export function Footer() {
           </p>
         )}
 
-        <div className="mt-4 border-t border-[#E8D7B0]/60 pt-4 text-center text-xs text-[#8A6A3A]">
+        <div className="mt-4 border-t border-[#E8D7B0]/60 pt-3 text-center text-xs text-[#8A6A3A]">
           © {new Date().getFullYear() /* eslint-disable-line -- ano corrente, so muda uma vez por ano no build */} Antenor & Filhos. Todos os direitos reservados.
         </div>
       </div>

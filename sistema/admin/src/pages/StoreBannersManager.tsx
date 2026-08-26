@@ -1,24 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   Calendar,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Eye,
   EyeOff,
   Image as ImageIcon,
+  Layers,
+  LayoutGrid,
   Link2,
   Loader2,
   Monitor,
   MousePointerClick,
+  Package,
   Pencil,
   Plus,
   Smartphone,
+  Tag,
   Trash2,
   X,
 } from 'lucide-react';
-import { cmsAPI, getApiErrorMessage, resolveApiUrl, uploadsAPI } from '../services/api';
+import { cmsAPI, getApiErrorMessage, productsAPI, resolveApiUrl, uploadsAPI } from '../services/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -111,19 +118,12 @@ const SLOT_TABS: { value: BannerSlot | 'all'; label: string }[] = [
   { value: 'popup', label: 'Popup' },
 ];
 
-const SLOT_OPTIONS: { value: BannerSlot; label: string; dims: string }[] = [
-  { value: 'hero', label: 'Hero (Carrossel Principal)', dims: 'Desktop até 1920px · Mobile até 767px' },
-  { value: 'intercalado', label: 'Intercalado (no feed de produtos)', dims: 'Desktop até 850px · Mobile até 767px' },
-  { value: 'category', label: 'Categoria', dims: 'Desktop até 850px · Mobile até 767px' },
-  { value: 'tarja', label: 'Tarja Informativa', dims: 'Desktop até 1920px · Mobile até 767px' },
-  { value: 'popup', label: 'Popup', dims: 'Desktop até 900px · Mobile até 767px' },
-];
-
-const LINK_TYPE_OPTIONS: { value: LinkType; label: string; placeholder: string }[] = [
-  { value: 'url', label: 'URL / caminho', placeholder: 'https:// ou /caminho-relativo' },
-  { value: 'category', label: 'Categoria', placeholder: 'Código da categoria, ex: CERVEJAS_CHOPP' },
-  { value: 'product', label: 'Produto', placeholder: 'ID do produto' },
-  { value: 'search', label: 'Busca', placeholder: 'Termo de busca' },
+const SLOT_OPTIONS: { value: BannerSlot; label: string; shortLabel: string; dims: string; icon: typeof Monitor }[] = [
+  { value: 'hero', label: 'Topo Principal (Hero Carousel)', shortLabel: 'Hero Carousel', dims: 'Desktop até 1920px · Mobile até 767px', icon: Monitor },
+  { value: 'intercalado', label: 'Entre as Prateleiras (Intercalado)', shortLabel: 'Intercalado', dims: 'Desktop até 850px · Mobile até 767px', icon: LayoutGrid },
+  { value: 'category', label: 'Topo de Categoria', shortLabel: 'Categoria', dims: 'Desktop até 850px · Mobile até 767px', icon: Tag },
+  { value: 'tarja', label: 'Tarja de Aviso / Regras', shortLabel: 'Tarja', dims: 'Desktop até 1920px · Mobile até 767px', icon: AlertTriangle },
+  { value: 'popup', label: 'Popup', shortLabel: 'Popup', dims: 'Desktop até 900px · Mobile até 767px', icon: Layers },
 ];
 
 const PAGES_OPTIONS: { value: BannerPages; label: string }[] = [
@@ -303,6 +303,12 @@ export default function StoreBannersManager() {
   const [uploadingDesktop, setUploadingDesktop] = useState(false);
   const [uploadingMobile, setUploadingMobile] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [categories, setCategories] = useState<{ id: string; name: string; active: boolean }[]>([]);
+  const [productQuery, setProductQuery] = useState('');
+  const [productResults, setProductResults] = useState<{ id: string; name: string; ean: string }[]>([]);
+  const [productSearching, setProductSearching] = useState(false);
+  const [selectedProductLabel, setSelectedProductLabel] = useState('');
   const desktopInputRef = useRef<HTMLInputElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
 
@@ -326,6 +332,32 @@ export default function StoreBannersManager() {
 
   useEffect(() => { loadData(); }, []);
 
+  useEffect(() => {
+    cmsAPI.categories.getAll()
+      .then((res) => setCategories((res.data as any[]).filter((c) => c.active !== false)))
+      .catch(() => {});
+  }, []);
+
+  // Autocomplete de produto pro "Abrir Produto" -- debounce simples, sem lib extra.
+  useEffect(() => {
+    if (!productQuery.trim() || productQuery.trim().length < 2) {
+      setProductResults([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      try {
+        setProductSearching(true);
+        const res = await productsAPI.getAdmin({ page: 1, limit: 6, search: productQuery.trim() });
+        setProductResults(((res.data as any)?.data || []).map((p: any) => ({ id: p.id, name: p.name, ean: p.ean })));
+      } catch {
+        setProductResults([]);
+      } finally {
+        setProductSearching(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [productQuery]);
+
   const visibleItems = useMemo(
     () => (activeTab === 'all' ? items : items.filter((item) => item.slot === activeTab)),
     [items, activeTab],
@@ -337,6 +369,10 @@ export default function StoreBannersManager() {
     setEditing(null);
     setForm({ ...emptyForm(), slot: activeTab === 'all' ? 'hero' : activeTab });
     setErrors({});
+    setAdvancedOpen(false);
+    setProductQuery('');
+    setProductResults([]);
+    setSelectedProductLabel('');
     setIsModalOpen(true);
   };
 
@@ -366,6 +402,10 @@ export default function StoreBannersManager() {
       campaignErpId: item.campaignErpId != null ? String(item.campaignErpId) : '',
     });
     setErrors({});
+    setAdvancedOpen(false);
+    setProductQuery('');
+    setProductResults([]);
+    setSelectedProductLabel(item.linkType === 'product' ? (item.linkValue || '') : '');
     setIsModalOpen(true);
   };
 
@@ -526,7 +566,6 @@ export default function StoreBannersManager() {
 
   const dimHint = SLOT_OPTIONS.find((t) => t.value === form.slot)?.dims ?? '';
   const artGuide = ART_GUIDE[form.slot];
-  const linkTypeConfig = LINK_TYPE_OPTIONS.find((t) => t.value === form.linkType)!;
 
   /* ─────────────────────────────────────────────────── */
 
@@ -767,12 +806,10 @@ export default function StoreBannersManager() {
             </div>
 
             {/* modal body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
 
-              {/* ── Configurações básicas ── */}
-              <section className="space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Configurações básicas</p>
-
+              {/* ══════════ CAMADA 1 — CONFIGURAÇÃO BÁSICA ══════════ */}
+              <section className="space-y-4">
                 {/* Active toggle */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">Banner ativo</span>
@@ -804,20 +841,32 @@ export default function StoreBannersManager() {
                   {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
                 </div>
 
-                {/* Slot */}
+                {/* Onde vai aparecer? -- cards visuais */}
                 <div>
-                  <Label className="block text-xs font-medium text-gray-600 mb-1">Espaço publicitário (slot)</Label>
-                  <Select
-                    value={form.slot}
-                    onChange={(e) => set('slot', e.target.value as BannerSlot)}
-                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                  >
-                    {SLOT_OPTIONS.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </Select>
+                  <Label className="block text-xs font-medium text-gray-600 mb-2">Onde vai aparecer?</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SLOT_OPTIONS.map((opt) => {
+                      const Icon = opt.icon;
+                      const isActive = form.slot === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => set('slot', opt.value)}
+                          className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center transition-colors ${
+                            isActive
+                              ? 'border-gray-900 bg-gray-900 text-white'
+                              : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                          }`}
+                        >
+                          <Icon size={22} />
+                          <span className="text-xs font-semibold leading-tight">{opt.shortLabel}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                   {dimHint && (
-                    <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
+                    <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1">
                       <Monitor size={10} /> {dimHint}
                     </p>
                   )}
@@ -826,218 +875,25 @@ export default function StoreBannersManager() {
                 {/* Target category — only for slot=category */}
                 {form.slot === 'category' && (
                   <div>
-                    <Label className="block text-xs font-medium text-gray-600 mb-1">Código da categoria</Label>
-                    <Input
-                      type="text"
+                    <Label className="block text-xs font-medium text-gray-600 mb-1">Qual categoria?</Label>
+                    <Select
                       value={form.targetCategory}
                       onChange={(e) => set('targetCategory', e.target.value)}
                       className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                      placeholder="Ex: CERVEJAS_CHOPP"
-                    />
-                  </div>
-                )}
-
-                {/* Sponsor */}
-                <div>
-                  <Label className="block text-xs font-medium text-gray-600 mb-1">
-                    Patrocinador
-                    <span className="ml-1 font-normal text-gray-400">(opcional — ex: Ambev, Seara, Friboi)</span>
-                  </Label>
-                  <Input
-                    type="text"
-                    value={form.sponsorName}
-                    onChange={(e) => set('sponsorName', e.target.value)}
-                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                    placeholder="Ex: Ambev"
-                  />
-                </div>
-
-                {/* Pages */}
-                <div>
-                  <Label className="block text-xs font-medium text-gray-600 mb-1">Página de publicação</Label>
-                  <Select
-                    value={form.pages}
-                    onChange={(e) => set('pages', e.target.value as BannerPages)}
-                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                  >
-                    {PAGES_OPTIONS.map((p) => (
-                      <option key={p.value} value={p.value}>{p.label}</option>
-                    ))}
-                  </Select>
-                </div>
-
-                {/* Link type + value */}
-                <div>
-                  <Label className="block text-xs font-medium text-gray-600 mb-1">Ação do link</Label>
-                  <Select
-                    value={form.linkType}
-                    onChange={(e) => set('linkType', e.target.value as LinkType)}
-                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900 mb-2"
-                  >
-                    {LINK_TYPE_OPTIONS.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </Select>
-                  <Input
-                    type="text"
-                    value={form.linkValue}
-                    onChange={(e) => set('linkValue', e.target.value)}
-                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                    placeholder={linkTypeConfig.placeholder}
-                  />
-                  {form.linkType === 'url' && !isValidUrl(form.linkValue) && (
-                    <p className="text-xs text-amber-500 mt-1">URL inválida</p>
-                  )}
-                </div>
-
-                {/* Link target — only for url links */}
-                {form.linkType === 'url' && form.linkValue.trim() && (
-                  <div>
-                    <Label className="block text-xs font-medium text-gray-600 mb-1">Quando clicar no link</Label>
-                    <div className="flex gap-2">
-                      {[
-                        { value: '_self', label: 'Mesma janela' },
-                        { value: '_blank', label: 'Nova janela' },
-                      ].map((opt) => (
-                        <Button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => set('linkTarget', opt.value as LinkTarget)}
-                          variant={form.linkTarget === opt.value ? 'default' : 'outline'}
-                          size="sm"
-                          className={`flex-1 rounded-lg text-xs ${form.linkTarget === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
-                        >
-                          {opt.label}
-                        </Button>
+                    >
+                      <option value="">Selecione a categoria</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
                       ))}
-                    </div>
+                    </Select>
                   </div>
                 )}
 
-                {/* Title */}
-                <div>
-                  <Label className="block text-xs font-medium text-gray-600 mb-1">
-                    Título do banner
-                    <span className="ml-1 font-normal text-gray-400">(opcional)</span>
-                  </Label>
-                  <Input
-                    type="text"
-                    value={form.title}
-                    onChange={(e) => set('title', e.target.value)}
-                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                    placeholder="Ex: Promoção de Verão"
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <Label className="block text-xs font-medium text-gray-600 mb-1">
-                    Descrição
-                    <span className="ml-1 font-normal text-gray-400">(opcional)</span>
-                  </Label>
-                  <Input
-                    type="text"
-                    value={form.description}
-                    onChange={(e) => set('description', e.target.value)}
-                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                    placeholder="Texto de apoio exibido sob o título"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Badge text */}
-                  <div>
-                    <Label className="block text-xs font-medium text-gray-600 mb-1">
-                      Selo <span className="font-normal text-gray-400">(opcional)</span>
-                    </Label>
-                    <Input
-                      type="text"
-                      value={form.badgeText}
-                      onChange={(e) => set('badgeText', e.target.value)}
-                      className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                      placeholder="Ex: Só hoje"
-                    />
-                  </div>
-
-                  {/* CTA label */}
-                  <div>
-                    <Label className="block text-xs font-medium text-gray-600 mb-1">
-                      Texto do botão <span className="font-normal text-gray-400">(opcional)</span>
-                    </Label>
-                    <Input
-                      type="text"
-                      value={form.ctaLabel}
-                      onChange={(e) => set('ctaLabel', e.target.value)}
-                      className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                      placeholder="Ex: Ver oferta"
-                    />
-                  </div>
-                </div>
-
-                {/* Overlay color */}
-                <div>
-                  <Label className="block text-xs font-medium text-gray-600 mb-1">
-                    Cor do overlay
-                    <span className="ml-1 font-normal text-gray-400">(opcional — ex: rgba(0,0,0,0.4))</span>
-                  </Label>
-                  <Input
-                    type="text"
-                    value={form.overlayColor}
-                    onChange={(e) => set('overlayColor', e.target.value)}
-                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                    placeholder="rgba(0,0,0,0.4)"
-                  />
-                </div>
-
-                {/* Highlight note + align — so relevante pra banners intercalados em par (duo) */}
-                {form.slot === 'intercalado' && (
-                  <>
-                    <div>
-                      <Label className="block text-xs font-medium text-gray-600 mb-1">
-                        Nota do produto exaltado
-                        <span className="ml-1 font-normal text-gray-400">(opcional — usada quando o link é um produto)</span>
-                      </Label>
-                      <Input
-                        type="text"
-                        value={form.highlightNote}
-                        onChange={(e) => set('highlightNote', e.target.value)}
-                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                        placeholder="Ex: Direto da nossa boutique"
-                      />
-                    </div>
-                    <div>
-                      <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do texto</Label>
-                      <div className="flex gap-2">
-                        {[
-                          { value: 'left', label: 'Esquerda' },
-                          { value: 'right', label: 'Direita' },
-                        ].map((opt) => (
-                          <Button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => set('align', opt.value as 'left' | 'right')}
-                            variant={form.align === opt.value ? 'default' : 'outline'}
-                            size="sm"
-                            className={`flex-1 rounded-lg text-xs ${form.align === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
-                          >
-                            {opt.label}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </section>
-
-              {/* ── Imagens ── */}
-              <section className="space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Imagens</p>
-
-                {/* Desktop image */}
+                {/* Upload das fotos */}
                 <div>
                   <Label className="block text-xs font-medium text-gray-600 mb-1">
                     <Monitor size={11} className="inline mr-1" />
-                    Imagem desktop <span className="text-red-400">*</span>
+                    Foto desktop <span className="text-red-400">*</span>
                     <span className="ml-1 font-normal text-gray-400">
                       (recomendado: {artGuide.desktop} · ate {artGuide.desktopKb} KB)
                     </span>
@@ -1076,18 +932,17 @@ export default function StoreBannersManager() {
                     className="w-full justify-center rounded-lg border-2 border-dashed border-gray-200 px-3 py-3 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700"
                   >
                     {uploadingDesktop ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={14} />}
-                    {uploadingDesktop ? 'Enviando...' : form.desktopImageUrl ? 'Trocar imagem desktop' : 'Selecionar imagem desktop'}
+                    {uploadingDesktop ? 'Enviando...' : form.desktopImageUrl ? 'Trocar foto desktop' : 'Selecionar foto desktop'}
                   </Button>
                   {errors.desktopImageUrl && <p className="text-xs text-red-500 mt-1">{errors.desktopImageUrl}</p>}
                 </div>
 
-                {/* Mobile image */}
                 <div>
                   <Label className="block text-xs font-medium text-gray-600 mb-1">
                     <Smartphone size={11} className="inline mr-1" />
-                    Imagem mobile
+                    Foto mobile
                     <span className="ml-1 font-normal text-gray-400">
-                      (opcional — exibida em telas &lt; 767px · recomendado: {artGuide.mobile} · ate {artGuide.mobileKb} KB)
+                      (opcional · recomendado: {artGuide.mobile} · ate {artGuide.mobileKb} KB)
                     </span>
                   </Label>
                   {form.mobileImageUrl && (
@@ -1124,89 +979,362 @@ export default function StoreBannersManager() {
                     className="w-full justify-center rounded-lg border-2 border-dashed border-gray-200 px-3 py-2.5 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700"
                   >
                     {uploadingMobile ? <Loader2 size={14} className="animate-spin" /> : <Smartphone size={14} />}
-                    {uploadingMobile ? 'Enviando...' : form.mobileImageUrl ? 'Trocar imagem mobile' : 'Selecionar imagem mobile'}
+                    {uploadingMobile ? 'Enviando...' : form.mobileImageUrl ? 'Trocar foto mobile' : 'Selecionar foto mobile'}
                   </Button>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    Se não definida, exibirá a imagem desktop redimensionada. Largura máx: 767px.
+                    Se não definida, exibirá a foto desktop redimensionada.
                   </p>
                 </div>
-              </section>
 
-              {/* ── Encarte / campanha ── */}
-              <section className="space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Vincular a um encarte</p>
-                <p className="text-[11px] text-gray-400 -mt-1">
-                  Opcional. Informe o código do encarte no Solidcom e o banner fica ativo automaticamente
-                  enquanto o encarte estiver vigente lá — sem precisar mexer em datas aqui.
-                </p>
+                {/* O que acontece ao clicar? -- 3 botoes diretos */}
                 <div>
-                  <Label className="block text-xs font-medium text-gray-600 mb-1">Código do encarte (Solidcom)</Label>
-                  <Input
-                    type="number"
-                    value={form.campaignErpId}
-                    onChange={(e) => set('campaignErpId', e.target.value)}
-                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                    placeholder="Ex: 375"
-                  />
-                  {form.campaignErpId.trim() && (
-                    editing?.campaignErpId === Number(form.campaignErpId) ? (
-                      editing.campaignFound ? (
-                        <p className="text-xs text-emerald-600 mt-1">
-                          Vinculado a "{editing.campaignName}"
-                          {editing.campaignEndDate && ` · vigente até ${new Date(editing.campaignEndDate).toLocaleDateString('pt-BR')}`}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-amber-600 mt-1">
-                          Encarte {form.campaignErpId} ainda não sincronizado — o banner fica oculto até ele existir no catálogo.
-                        </p>
-                      )
-                    ) : (
-                      <p className="text-[11px] text-gray-400 mt-1">Salve para conferir se o código já existe.</p>
-                    )
+                  <Label className="block text-xs font-medium text-gray-600 mb-2">O que acontece ao clicar?</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: 'product' as LinkType, label: 'Abrir Produto', icon: Package },
+                      { value: 'category' as LinkType, label: 'Abrir Categoria', icon: Tag },
+                      { value: 'url' as LinkType, label: 'Link Externo', icon: Link2 },
+                    ].map((opt) => {
+                      const Icon = opt.icon;
+                      const isActive = form.linkType === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => set('linkType', opt.value)}
+                          className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-center transition-colors ${
+                            isActive ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                          }`}
+                        >
+                          <Icon size={18} />
+                          <span className="text-[11px] font-semibold leading-tight">{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Produto -- autocomplete */}
+                  {form.linkType === 'product' && (
+                    <div className="mt-3 relative">
+                      <Input
+                        type="text"
+                        value={selectedProductLabel || productQuery}
+                        onChange={(e) => {
+                          setSelectedProductLabel('');
+                          setProductQuery(e.target.value);
+                          set('linkValue', '');
+                        }}
+                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        placeholder="Buscar produto pelo nome..."
+                      />
+                      {productSearching && (
+                        <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
+                      )}
+                      {productResults.length > 0 && !selectedProductLabel && (
+                        <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                          {productResults.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                set('linkValue', p.id);
+                                setSelectedProductLabel(p.name);
+                                setProductResults([]);
+                              }}
+                              className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-gray-50"
+                            >
+                              <span className="font-medium text-gray-800">{p.name}</span>
+                              <span className="text-[11px] text-gray-400">EAN {p.ean}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {form.linkValue && !selectedProductLabel && (
+                        <p className="text-[11px] text-gray-400 mt-1">Produto vinculado: ID {form.linkValue}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Categoria -- dropdown */}
+                  {form.linkType === 'category' && (
+                    <Select
+                      value={form.linkValue}
+                      onChange={(e) => set('linkValue', e.target.value)}
+                      className="mt-3 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                    >
+                      <option value="">Selecione a categoria</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                    </Select>
+                  )}
+
+                  {/* URL -- campo simples */}
+                  {form.linkType === 'url' && (
+                    <>
+                      <Input
+                        type="text"
+                        value={form.linkValue}
+                        onChange={(e) => set('linkValue', e.target.value)}
+                        className="mt-3 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        placeholder="https:// ou /caminho-relativo"
+                      />
+                      {!isValidUrl(form.linkValue) && (
+                        <p className="text-xs text-amber-500 mt-1">URL inválida</p>
+                      )}
+                    </>
                   )}
                 </div>
               </section>
 
-              {/* ── Agendamento ── */}
-              <section className={`space-y-3 ${form.campaignErpId.trim() ? 'opacity-40 pointer-events-none' : ''}`}>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Agendamento manual</p>
-                <p className="text-[11px] text-gray-400 -mt-1">
-                  {form.campaignErpId.trim()
-                    ? 'Ignorado enquanto o banner estiver vinculado a um encarte acima.'
-                    : 'Opcional. Intervalo mínimo de 1h entre início e fim. Pode haver pequeno delay por cache.'}
-                </p>
+              {/* ══════════ CAMADA 2 — OPÇÕES AVANÇADAS (acordeão) ══════════ */}
+              <section className="border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setAdvancedOpen((v) => !v)}
+                  className="flex w-full items-center justify-between text-sm font-semibold text-gray-700"
+                >
+                  Opções avançadas
+                  {advancedOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="block text-xs font-medium text-gray-600 mb-1">
-                      <Calendar size={10} className="inline mr-1" />
-                      Início
-                    </Label>
-                    <Input
-                      type="datetime-local"
-                      value={form.startDate}
-                      onChange={(e) => set('startDate', e.target.value)}
-                      disabled={Boolean(form.campaignErpId.trim())}
-                      className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                    />
-                  </div>
-                  <div>
-                    <Label className="block text-xs font-medium text-gray-600 mb-1">
-                      <Calendar size={10} className="inline mr-1" />
-                      Fim
-                    </Label>
-                    <Input
-                      type="datetime-local"
-                      value={form.endDate}
-                      onChange={(e) => set('endDate', e.target.value)}
-                      disabled={Boolean(form.campaignErpId.trim())}
-                      className={`rounded-lg text-sm focus-visible:ring-gray-900 ${errors.endDate ? 'border-red-400' : 'border-gray-200'}`}
-                    />
-                    {errors.endDate && (
-                      <p className="text-xs text-red-500 mt-1">{errors.endDate}</p>
+                {advancedOpen && (
+                  <div className="mt-4 space-y-4">
+                    {/* Sponsor */}
+                    <div>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">
+                        Patrocinador
+                        <span className="ml-1 font-normal text-gray-400">(opcional — ex: Ambev, Seara, Friboi)</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={form.sponsorName}
+                        onChange={(e) => set('sponsorName', e.target.value)}
+                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        placeholder="Ex: Ambev"
+                      />
+                    </div>
+
+                    {/* Pages */}
+                    <div>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">Página de publicação</Label>
+                      <Select
+                        value={form.pages}
+                        onChange={(e) => set('pages', e.target.value as BannerPages)}
+                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                      >
+                        {PAGES_OPTIONS.map((p) => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    {/* Link target — only for url links */}
+                    {form.linkType === 'url' && form.linkValue.trim() && (
+                      <div>
+                        <Label className="block text-xs font-medium text-gray-600 mb-1">Quando clicar no link</Label>
+                        <div className="flex gap-2">
+                          {[
+                            { value: '_self', label: 'Mesma janela' },
+                            { value: '_blank', label: 'Nova janela' },
+                          ].map((opt) => (
+                            <Button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => set('linkTarget', opt.value as LinkTarget)}
+                              variant={form.linkTarget === opt.value ? 'default' : 'outline'}
+                              size="sm"
+                              className={`flex-1 rounded-lg text-xs ${form.linkTarget === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+                            >
+                              {opt.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
                     )}
+
+                    {/* Textos sobre a imagem */}
+                    <div>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">
+                        Título do banner <span className="font-normal text-gray-400">(opcional)</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={form.title}
+                        onChange={(e) => set('title', e.target.value)}
+                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        placeholder="Ex: Promoção de Verão"
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">
+                        Descrição <span className="font-normal text-gray-400">(opcional)</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={form.description}
+                        onChange={(e) => set('description', e.target.value)}
+                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        placeholder="Texto de apoio exibido sob o título"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="block text-xs font-medium text-gray-600 mb-1">
+                          Selo <span className="font-normal text-gray-400">(opcional)</span>
+                        </Label>
+                        <Input
+                          type="text"
+                          value={form.badgeText}
+                          onChange={(e) => set('badgeText', e.target.value)}
+                          className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                          placeholder="Ex: Só hoje"
+                        />
+                      </div>
+                      <div>
+                        <Label className="block text-xs font-medium text-gray-600 mb-1">
+                          Texto do botão <span className="font-normal text-gray-400">(opcional)</span>
+                        </Label>
+                        <Input
+                          type="text"
+                          value={form.ctaLabel}
+                          onChange={(e) => set('ctaLabel', e.target.value)}
+                          className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                          placeholder="Ex: Ver oferta"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">
+                        Cor do overlay
+                        <span className="ml-1 font-normal text-gray-400">(opcional — ex: rgba(0,0,0,0.4))</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={form.overlayColor}
+                        onChange={(e) => set('overlayColor', e.target.value)}
+                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        placeholder="rgba(0,0,0,0.4)"
+                      />
+                    </div>
+
+                    {/* Highlight note + align — so relevante pra banners intercalados em par (duo) */}
+                    {form.slot === 'intercalado' && (
+                      <>
+                        <div>
+                          <Label className="block text-xs font-medium text-gray-600 mb-1">
+                            Nota do produto exaltado
+                            <span className="ml-1 font-normal text-gray-400">(opcional — usada quando o link é um produto)</span>
+                          </Label>
+                          <Input
+                            type="text"
+                            value={form.highlightNote}
+                            onChange={(e) => set('highlightNote', e.target.value)}
+                            className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                            placeholder="Ex: Direto da nossa boutique"
+                          />
+                        </div>
+                        <div>
+                          <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do texto</Label>
+                          <div className="flex gap-2">
+                            {[
+                              { value: 'left', label: 'Esquerda' },
+                              { value: 'right', label: 'Direita' },
+                            ].map((opt) => (
+                              <Button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => set('align', opt.value as 'left' | 'right')}
+                                variant={form.align === opt.value ? 'default' : 'outline'}
+                                size="sm"
+                                className={`flex-1 rounded-lg text-xs ${form.align === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+                              >
+                                {opt.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Encarte / campanha */}
+                    <div className="border-t border-gray-100 pt-4">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Vincular a um encarte</p>
+                      <p className="text-[11px] text-gray-400 mb-2">
+                        Opcional. Informe o código do encarte no Solidcom e o banner fica ativo automaticamente
+                        enquanto o encarte estiver vigente lá — sem precisar mexer em datas abaixo.
+                      </p>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">Código do encarte (Solidcom)</Label>
+                      <Input
+                        type="number"
+                        value={form.campaignErpId}
+                        onChange={(e) => set('campaignErpId', e.target.value)}
+                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        placeholder="Ex: 375"
+                      />
+                      {form.campaignErpId.trim() && (
+                        editing?.campaignErpId === Number(form.campaignErpId) ? (
+                          editing.campaignFound ? (
+                            <p className="text-xs text-emerald-600 mt-1">
+                              Vinculado a "{editing.campaignName}"
+                              {editing.campaignEndDate && ` · vigente até ${new Date(editing.campaignEndDate).toLocaleDateString('pt-BR')}`}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-amber-600 mt-1">
+                              Encarte {form.campaignErpId} ainda não sincronizado — o banner fica oculto até ele existir no catálogo.
+                            </p>
+                          )
+                        ) : (
+                          <p className="text-[11px] text-gray-400 mt-1">Salve para conferir se o código já existe.</p>
+                        )
+                      )}
+                    </div>
+
+                    {/* Agendamento manual */}
+                    <div className={form.campaignErpId.trim() ? 'opacity-40 pointer-events-none' : ''}>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Agendamento manual</p>
+                      <p className="text-[11px] text-gray-400 mb-2">
+                        {form.campaignErpId.trim()
+                          ? 'Ignorado enquanto o banner estiver vinculado a um encarte acima.'
+                          : 'Opcional. Intervalo mínimo de 1h entre início e fim.'}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="block text-xs font-medium text-gray-600 mb-1">
+                            <Calendar size={10} className="inline mr-1" />
+                            Início
+                          </Label>
+                          <Input
+                            type="datetime-local"
+                            value={form.startDate}
+                            onChange={(e) => set('startDate', e.target.value)}
+                            disabled={Boolean(form.campaignErpId.trim())}
+                            className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                          />
+                        </div>
+                        <div>
+                          <Label className="block text-xs font-medium text-gray-600 mb-1">
+                            <Calendar size={10} className="inline mr-1" />
+                            Fim
+                          </Label>
+                          <Input
+                            type="datetime-local"
+                            value={form.endDate}
+                            onChange={(e) => set('endDate', e.target.value)}
+                            disabled={Boolean(form.campaignErpId.trim())}
+                            className={`rounded-lg text-sm focus-visible:ring-gray-900 ${errors.endDate ? 'border-red-400' : 'border-gray-200'}`}
+                          />
+                          {errors.endDate && (
+                            <p className="text-xs text-red-500 mt-1">{errors.endDate}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </section>
             </div>
 

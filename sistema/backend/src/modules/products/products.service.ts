@@ -139,6 +139,17 @@ export class ProductsService {
   private readonly logger = new Logger(ProductsService.name)
   private readonly useLegacyClassificationMappings = process.env.ENABLE_LEGACY_CLASSIFICATION_MAPPINGS === 'true'
 
+  // Estado do job de sync manual disparado pelo admin. Em memoria (nao
+  // sobrevive a restart do processo) de proposito -- e so pra dar feedback
+  // de "esta rodando" pro botao do admin, nao precisa persistir.
+  private syncJob: {
+    running: boolean
+    startedAt: Date | null
+    finishedAt: Date | null
+    lastResult: unknown
+    lastError: string | null
+  } = { running: false, startedAt: null, finishedAt: null, lastResult: null, lastError: null }
+
   constructor(
     private prisma: PrismaService,
     private solidcomERPService: SolidcomERPService,
@@ -1202,6 +1213,39 @@ export class ProductsService {
     return product
   }
 
+  // Dispara o sync completo em background e retorna na hora -- o sync
+  // sincrono (via HTTP request/response) e o que estourava timeout 504 do
+  // Nginx no botao "Sincronizar Solidcom" do admin (o catalogo inteiro leva
+  // ~190s, ver docs/solidcom-api.md). O admin faz polling em
+  // getSyncStatus() pra saber quando terminou.
+  startSyncInBackground(): { started: boolean; alreadyRunning: boolean } {
+    if (this.syncJob.running) {
+      return { started: false, alreadyRunning: true }
+    }
+
+    this.syncJob = { running: true, startedAt: new Date(), finishedAt: null, lastResult: null, lastError: null }
+
+    this.syncFromERP()
+      .then((result) => {
+        this.syncJob = { ...this.syncJob, running: false, finishedAt: new Date(), lastResult: result }
+      })
+      .catch((error) => {
+        this.logger.error('Falha no sync manual em background:', error instanceof Error ? error.stack : String(error))
+        this.syncJob = {
+          ...this.syncJob,
+          running: false,
+          finishedAt: new Date(),
+          lastError: error instanceof Error ? error.message : String(error),
+        }
+      })
+
+    return { started: true, alreadyRunning: false }
+  }
+
+  getSyncStatus() {
+    return this.syncJob
+  }
+
   async syncFromERP() {
     if (!(await this.integrationModules.isEnabled('solidcom'))) {
       return {
@@ -1352,7 +1396,7 @@ export class ProductsService {
           syncOption: item.syncOption || 'ESTOQUE',
           badges: item.badges,
           origin: item.origin,
-          active: true,
+          active: item.active !== false,
         }
 
         // Produto ja existente do mesmo id_produto (mesmo se o ean principal

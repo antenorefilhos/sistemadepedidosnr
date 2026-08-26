@@ -129,19 +129,17 @@ Sem isto no ar, todo cliente cai no CEP.
       fora do polígono da zona. Corrigido: GPS automático não dispara mais
       quando já existe uma verificação válida (dentro da área) salva. Ver
       `Checkout.tsx`.
-- [ ] **Configurar zonas de entrega e janelas de horário reais.** Checado em
-      17/08/2026: a `ZONA TESTE QA - REMOVER` não existe mais em produção —
-      hoje só tem a zona real "Chafariz" (polígono GEO cobrindo Pedro do
-      Rio, Petrópolis), cadastrada na tela "Taxas de Entrega" do admin.
-      Falta o que nunca existiu: uma zona `CEP_RANGE` de fallback pra quem
-      digita endereço manual (sem GPS) ou edita qualquer campo do
-      endereço — hoje isso sempre cai em "fora da área" mesmo dentro da
-      zona real, porque só tem validação por polígono.
-      **Janelas de horário resolvidas em 18/08/2026**: o cliente escolhe o
-      horário no checkout a partir das janelas de funcionamento do admin
-      (que já embutem o fechamento antecipado), com 15 min de antecedência
-      mínima e sem limite de capacidade — decisão de negócio, não usa a
-      máquina de `FulfillmentSlot`. O horário vira `hrCombinada` no ERP.
+- [x] **Configurar zonas de entrega e janelas de horário reais.**
+      - **Zonas de entrega e localidades resolvidas em 20/08/2026**: sistema
+        híbrido no backend com suporte a CEPs multi-localidade (ex: `25750-222`
+        cobrindo centro e condomínios com taxas de balcão reais via
+        `delivery-points.json` seed), seletor de condomínio/localidade em
+        sub-modal dedicado no storefront e checkout, e fallback inteligente.
+      - **Janelas de horário resolvidas em 18/08/2026**: o cliente escolhe o
+        horário no checkout a partir das janelas de funcionamento do admin
+        (que já embutem o fechamento antecipado), com 15 min de antecedência
+        mínima e sem limite de capacidade — decisão de negócio, não usa a
+        máquina de `FulfillmentSlot`. O horário vira `hrCombinada` no ERP.
 - [x] **Retirada na loja no site.** O backend já suportava `PICKUP` inteiro
       (checkout, entrega e o `retiraNaLoja` do Solidcom); faltava a opção na
       tela do cliente. Na retirada pula endereço e validação de zona, frete
@@ -172,6 +170,12 @@ Sem isto no ar, todo cliente cai no CEP.
       "electron", preto, sem cor e engolindo avisos em sequência): trocado
       por uma janela própria no canto, com fila pra não se atropelarem.
       Lógica isolada em `Notificador/escalation.js` com testes (`npm test`).
+- [x] **Integração da Base IBGE CNEFE (Censo 2022) para Geocodificação Local e Reconhecimento de Servidões/Condomínios.**
+      Concluído em 20/08/2026 (commit `e417169`). Ingestão oficial dos 158.493 endereços e coordenadas
+      porta a porta de Petrópolis (Censo Demográfico 2022) via `scripts/import-ibge-cnefe.ts`.
+      Geocodificação reversa local instantânea (< 3ms) no PostgreSQL via `IbgeAddressService.findNearest`,
+      rotas `/delivery/ibge/*` e integração inteligente no storefront (`reverseGeocode` com fallback).
+      Deploy ativo e validado em produção na VPS Hostinger.
 
 ## Concluído antes deste plano
 

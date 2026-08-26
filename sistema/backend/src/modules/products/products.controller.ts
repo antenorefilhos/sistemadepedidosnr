@@ -442,6 +442,31 @@ export class ProductsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
+  @Post('admin/sync')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Sincronizar com ERP em background (assincrono)',
+    description:
+      'Dispara o sync completo em background e retorna na hora -- o sync sincrono (via POST /sync) ' +
+      'estoura timeout 504 do Nginx porque o catalogo inteiro leva ~190s. Use GET /admin/sync/status ' +
+      'pra saber quando terminou.',
+  })
+  @ApiResponse({ status: 200, description: 'Job iniciado (ou ja em andamento)' })
+  async syncERPBackground() {
+    return this.productsService.startSyncInBackground()
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('admin/sync/status')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Status do job de sync manual em background' })
+  async syncERPBackgroundStatus() {
+    return this.productsService.getSyncStatus()
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Post('sync/incremental')
   @ApiBearerAuth()
   @ApiOperation({
