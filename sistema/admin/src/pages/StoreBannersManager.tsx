@@ -159,6 +159,144 @@ const ART_GUIDE: Record<BannerSlot, { desktop: string; desktopKb: number; mobile
 
 const MAX_IMAGE_SIZE_MB = 5;
 
+/* ─── Overlay color helpers ─────────────────────────── */
+
+const OVERLAY_PRESETS: { label: string; hex: string }[] = [
+  { label: 'Preto', hex: '#000000' },
+  { label: 'Marrom Antenor', hex: '#231F20' },
+  { label: 'Vinho', hex: '#5D082A' },
+  { label: 'Dourado', hex: '#D2BB8A' },
+  { label: 'Verde', hex: '#0F5132' },
+  { label: 'Azul', hex: '#1E3A5F' },
+];
+
+const DEFAULT_OVERLAY_HEX = '#231F20';
+const DEFAULT_OVERLAY_OPACITY = 60;
+
+const hexToRgb = (hex: string) => {
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean.padEnd(6, '0');
+  const num = parseInt(full, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+};
+
+const rgbToHex = (r: number, g: number, b: number) =>
+  `#${[r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+
+/** Interpreta o overlayColor salvo (rgba(...) ou #hex) em {hex, opacidade 0-100}. */
+const parseOverlayColor = (value: string): { hex: string; opacity: number } => {
+  const trimmed = value.trim();
+  const rgbaMatch = trimmed.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\)/i);
+  if (rgbaMatch) {
+    const [, r, g, b, a] = rgbaMatch;
+    return {
+      hex: rgbToHex(Number(r), Number(g), Number(b)),
+      opacity: a !== undefined ? Math.round(Number(a) * 100) : 100,
+    };
+  }
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) {
+    const { r, g, b } = hexToRgb(trimmed);
+    return { hex: rgbToHex(r, g, b), opacity: 100 };
+  }
+  return { hex: DEFAULT_OVERLAY_HEX, opacity: DEFAULT_OVERLAY_OPACITY };
+};
+
+const composeOverlayColor = (hex: string, opacityPct: number) => {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${(opacityPct / 100).toFixed(2)})`;
+};
+
+/**
+ * Modelos ricos pra comecar de algo pronto em vez de formulario em branco --
+ * cobrem os 4 slots (hero, intercalado, tarja, popup) com badge, CTA, overlay
+ * e alinhamento ja definidos. Imagem e nome continuam manuais (nao da pra
+ * adivinhar). Aplicar um modelo so sobrescreve esses campos, o resto do
+ * formulario (link, agendamento, patrocinador) fica intacto.
+ */
+type BannerTemplate = {
+  id: string;
+  slot: BannerSlot;
+  label: string;
+  swatch: string;
+  title: string;
+  description: string;
+  badgeText: string;
+  ctaLabel: string;
+  overlayColor: string;
+  align?: 'left' | 'right';
+};
+
+const BANNER_TEMPLATES: BannerTemplate[] = [
+  {
+    id: 'hero-lancamento',
+    slot: 'hero',
+    label: 'Hero — Lançamento',
+    swatch: '#231F20',
+    title: 'Chegou a novidade que você esperava',
+    description: 'Conheça os lançamentos da semana com condições especiais.',
+    badgeText: 'Novidade',
+    ctaLabel: 'Conferir agora',
+    overlayColor: composeOverlayColor('#231F20', 55),
+  },
+  {
+    id: 'hero-oferta',
+    slot: 'hero',
+    label: 'Hero — Grande Oferta',
+    swatch: '#5D082A',
+    title: 'Grande oferta da semana',
+    description: 'Preços especiais por tempo limitado. Aproveite antes que acabe.',
+    badgeText: 'Só essa semana',
+    ctaLabel: 'Ver ofertas',
+    overlayColor: composeOverlayColor('#5D082A', 60),
+  },
+  {
+    id: 'intercalado-destaque',
+    slot: 'intercalado',
+    label: 'Intercalado — Produto em Destaque',
+    swatch: '#231F20',
+    title: 'Direto da nossa seleção especial',
+    description: 'Qualidade Antenor & Filhos com preço que cabe no seu bolso.',
+    badgeText: 'Mais vendido',
+    ctaLabel: 'Aproveitar',
+    overlayColor: composeOverlayColor('#231F20', 65),
+    align: 'left',
+  },
+  {
+    id: 'intercalado-combo',
+    slot: 'intercalado',
+    label: 'Intercalado — Combo Econômico',
+    swatch: '#0F5132',
+    title: 'Monte seu combo e economize',
+    description: 'Combine produtos selecionados e pague menos.',
+    badgeText: 'Economia',
+    ctaLabel: 'Montar combo',
+    overlayColor: composeOverlayColor('#0F5132', 60),
+    align: 'right',
+  },
+  {
+    id: 'tarja-frete',
+    slot: 'tarja',
+    label: 'Tarja — Frete Grátis',
+    swatch: '#1E3A5F',
+    title: 'Frete grátis acima de R$150',
+    description: 'Válido para toda a loja, direto no seu endereço.',
+    badgeText: 'Frete grátis',
+    ctaLabel: 'Aproveitar agora',
+    overlayColor: composeOverlayColor('#231F20', 35),
+  },
+  {
+    id: 'popup-cupom',
+    slot: 'popup',
+    label: 'Popup — Cupom de Boas-vindas',
+    swatch: '#D2BB8A',
+    title: 'Ganhe 10% na primeira compra',
+    description: 'Use o cupom no fechamento do pedido.',
+    badgeText: 'Exclusivo',
+    ctaLabel: 'Resgatar cupom',
+    overlayColor: composeOverlayColor('#5D082A', 70),
+  },
+];
+
 const emptyForm = (): FormState => ({
   name: '',
   slot: 'hero',
@@ -324,6 +462,7 @@ export default function StoreBannersManager() {
   const [productResults, setProductResults] = useState<{ id: string; name: string; ean: string }[]>([]);
   const [productSearching, setProductSearching] = useState(false);
   const [selectedProductLabel, setSelectedProductLabel] = useState('');
+  const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(null);
   const desktopInputRef = useRef<HTMLInputElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
 
@@ -388,7 +527,23 @@ export default function StoreBannersManager() {
     setProductQuery('');
     setProductResults([]);
     setSelectedProductLabel('');
+    setAppliedTemplateId(null);
     setIsModalOpen(true);
+  };
+
+  const applyTemplate = (template: BannerTemplate) => {
+    setForm((prev) => ({
+      ...prev,
+      slot: template.slot,
+      title: template.title,
+      description: template.description,
+      badgeText: template.badgeText,
+      ctaLabel: template.ctaLabel,
+      overlayColor: template.overlayColor,
+      align: template.align ?? prev.align,
+    }));
+    setAppliedTemplateId(template.id);
+    setAdvancedOpen(true); // titulo/badge/cta/overlay do modelo estao na Camada 2
   };
 
   const openEdit = (item: StoreBanner) => {
@@ -421,6 +576,7 @@ export default function StoreBannersManager() {
     setProductQuery('');
     setProductResults([]);
     setSelectedProductLabel(item.linkType === 'product' ? (item.linkValue || '') : '');
+    setAppliedTemplateId(null);
     setIsModalOpen(true);
   };
 
@@ -581,6 +737,9 @@ export default function StoreBannersManager() {
 
   const dimHint = SLOT_OPTIONS.find((t) => t.value === form.slot)?.dims ?? '';
   const artGuide = ART_GUIDE[form.slot];
+  const { hex: overlayHex, opacity: overlayOpacity } = form.overlayColor.trim()
+    ? parseOverlayColor(form.overlayColor)
+    : { hex: DEFAULT_OVERLAY_HEX, opacity: DEFAULT_OVERLAY_OPACITY };
   // So desabilita o agendamento manual quando a campanha do encarte ja foi
   // confirmada (existe no catalogo) -- enquanto nao sincroniza, e o unico
   // controle de vigencia que o usuario tem (fallback em store-banners.service.ts).
@@ -829,6 +988,41 @@ export default function StoreBannersManager() {
 
             {/* modal body */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+
+              {/* ══════════ MODELOS PRONTOS (so na criacao) ══════════ */}
+              {!editing && (
+                <section className="space-y-2">
+                  <Label className="block text-xs font-medium text-gray-600">
+                    Começar de um modelo <span className="font-normal text-gray-400">(opcional — preenche título, selo, botão e overlay; imagem e nome continuam manuais)</span>
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {BANNER_TEMPLATES.map((template) => {
+                      const isActive = appliedTemplateId === template.id;
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => applyTemplate(template)}
+                          className={`flex items-center gap-2 rounded-lg border-2 px-3 py-2 text-left transition-colors ${
+                            isActive ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-400'
+                          }`}
+                        >
+                          <span className="h-6 w-6 shrink-0 rounded-full border border-black/10" style={{ background: template.swatch }} />
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-semibold text-gray-800">{template.label}</span>
+                            <span className="block truncate text-[11px] text-gray-400">{template.badgeText} · {template.ctaLabel}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {appliedTemplateId && (
+                    <p className="text-[11px] text-emerald-700 font-medium">
+                      ✓ Modelo aplicado — ajuste o que quiser abaixo (título, textos e overlay estão em "Opções avançadas").
+                    </p>
+                  )}
+                </section>
+              )}
 
               {/* ══════════ CAMADA 1 — CONFIGURAÇÃO BÁSICA ══════════ */}
               <section className="space-y-4">
@@ -1132,8 +1326,7 @@ export default function StoreBannersManager() {
                     {/* Sponsor */}
                     <div>
                       <Label className="block text-xs font-medium text-gray-600 mb-1">
-                        Patrocinador
-                        <span className="ml-1 font-normal text-gray-400">(opcional — ex: Ambev, Seara, Friboi)</span>
+                        Patrocinador <span className="font-normal text-gray-400">(opcional)</span>
                       </Label>
                       <Input
                         type="text"
@@ -1142,6 +1335,10 @@ export default function StoreBannersManager() {
                         className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
                         placeholder="Ex: Ambev"
                       />
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Preenchido, aparece como selo "Patrocinado por {form.sponsorName.trim() || 'Ambev'}" no
+                        canto do banner no site. Deixe em branco pra não mostrar nada.
+                      </p>
                     </div>
 
                     {/* Pages */}
@@ -1238,15 +1435,64 @@ export default function StoreBannersManager() {
 
                     <div>
                       <Label className="block text-xs font-medium text-gray-600 mb-1">
-                        Cor do overlay
-                        <span className="ml-1 font-normal text-gray-400">(opcional — ex: rgba(0,0,0,0.4))</span>
+                        Cor do overlay <span className="font-normal text-gray-400">(opcional — escurece a foto pra dar contraste ao texto)</span>
                       </Label>
-                      <Input
-                        type="text"
-                        value={form.overlayColor}
-                        onChange={(e) => set('overlayColor', e.target.value)}
-                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                        placeholder="rgba(0,0,0,0.4)"
+
+                      {/* Chips de presets */}
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        {OVERLAY_PRESETS.map((preset) => {
+                          const isActive = form.overlayColor.trim() && overlayHex.toLowerCase() === preset.hex.toLowerCase();
+                          return (
+                            <button
+                              key={preset.hex}
+                              type="button"
+                              title={preset.label}
+                              onClick={() => set('overlayColor', composeOverlayColor(preset.hex, overlayOpacity))}
+                              className={`h-7 w-7 rounded-full border-2 transition-transform ${isActive ? 'scale-110 border-gray-900' : 'border-white shadow-sm hover:scale-105'}`}
+                              style={{ background: preset.hex, boxShadow: isActive ? undefined : '0 0 0 1px #e5e7eb' }}
+                            />
+                          );
+                        })}
+                        {form.overlayColor.trim() && (
+                          <Button
+                            type="button"
+                            onClick={() => set('overlayColor', '')}
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 rounded-full px-2 text-[11px] text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                          >
+                            Remover
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Seletor nativo + opacidade */}
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          aria-label="Escolher cor do overlay"
+                          value={overlayHex}
+                          onChange={(e) => set('overlayColor', composeOverlayColor(e.target.value, overlayOpacity))}
+                          className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-transparent p-0.5"
+                        />
+                        <div className="flex-1">
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={overlayOpacity}
+                            onChange={(e) => set('overlayColor', composeOverlayColor(overlayHex, Number(e.target.value)))}
+                            className="w-full accent-gray-900"
+                            aria-label="Opacidade do overlay"
+                          />
+                        </div>
+                        <span className="w-9 shrink-0 text-right text-xs text-gray-400">{overlayOpacity}%</span>
+                      </div>
+
+                      {/* Preview */}
+                      <div
+                        className="mt-2 h-9 rounded-lg border border-gray-200"
+                        style={{ background: form.overlayColor.trim() || 'repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 6px, #fff 6px, #fff 12px)' }}
                       />
                     </div>
 

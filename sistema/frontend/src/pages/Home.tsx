@@ -49,6 +49,7 @@ type PromoBannerView = {
   align?: 'left' | 'right'
   overlayColor?: string
   validUntil?: string
+  sponsorName?: string
 }
 
 // dd/mm -- o ano so importa se a vigencia passar de 1 ano, o que nao e o
@@ -259,6 +260,7 @@ export default function Home() {
         align: item.align || 'left',
         overlayColor: item.overlayColor || undefined,
         validUntil: item.campaignEndDate ? formatValidUntil(item.campaignEndDate) : undefined,
+        sponsorName: item.sponsorName || undefined,
       }))
   }, [storeBanners])
 
@@ -1025,6 +1027,7 @@ function PromoBannerPair({ banners, className }: { banners?: PromoBannerView[]; 
           align={banner.align}
           overlayColor={banner.overlayColor}
           validUntil={banner.validUntil}
+          sponsorName={banner.sponsorName}
         />
       ))}
     </div>
@@ -1044,6 +1047,7 @@ function PromoBanner({
   align = 'left',
   overlayColor,
   validUntil,
+  sponsorName,
 }: {
   image: string
   alt: string
@@ -1057,6 +1061,7 @@ function PromoBanner({
   align?: 'left' | 'right'
   overlayColor?: string
   validUntil?: string
+  sponsorName?: string
 }) {
   const tone = overlayColor || '#231F20'
   return (
@@ -1067,6 +1072,11 @@ function PromoBanner({
           className="absolute inset-0"
           style={{ background: `linear-gradient(to right, ${tone}D1 0%, ${tone}73 45%, transparent 100%)` }}
         />
+        {sponsorName && (
+          <span className="absolute right-3 top-3 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+            Patrocinado por {sponsorName}
+          </span>
+        )}
         <div className={`relative z-10 flex h-full items-end p-6 md:p-8 ${align === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
           <div className="max-w-lg space-y-3">
             {(badge || validUntil) && (
