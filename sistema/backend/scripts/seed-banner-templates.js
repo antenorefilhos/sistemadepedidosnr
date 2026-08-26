@@ -1,8 +1,9 @@
 // Popula os 6 modelos ricos de banner (StoreBannersManager.tsx BANNER_TEMPLATES)
-// como registros reais e ativos em store_banners_cms, com imagem propria
-// (SVG gerado na hora, sem depender de asset externo) em vez de deixar o
-// admin com a listagem vazia. Idempotente: usa id fixo por template, entao
-// rodar de novo atualiza em vez de duplicar.
+// como registros reais e ativos em store_banners_cms, com foto real
+// (assets/banner-templates/*.webp, gerada por IA e otimizada uma vez via
+// scripts/optimize-banner-templates.js -- ver esse script pra regenerar) em
+// vez de deixar o admin com a listagem vazia. Idempotente: usa id fixo por
+// template, entao rodar de novo atualiza em vez de duplicar.
 //
 // Uso: node scripts/seed-banner-templates.js
 const { PrismaClient } = require('@prisma/client')
@@ -12,6 +13,7 @@ const path = require('path')
 const prisma = new PrismaClient()
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
+const ASSETS_DIR = path.join(process.cwd(), 'assets', 'banner-templates')
 
 const hexToRgb = (hex) => {
   const clean = hex.replace('#', '')
@@ -26,9 +28,10 @@ const shade = (hex, pct) => {
   return rgbToHex(r + (f - r) * p, g + (f - g) * p, b + (f - b) * p)
 }
 
-// Gera um SVG de fundo -- gradiente elegante + textura sutil de pontos,
-// SEM titulo/badge/CTA desenhados na imagem. Todo componente do storefront
-// que consome o banner (PromoBanner, HeroSlider, TarjaStrip, PopupBanner) ja
+// Fallback quando o webp real (assets/banner-templates/) nao existe pra um
+// template -- gradiente elegante + textura sutil de pontos, SEM
+// titulo/badge/CTA desenhados na imagem. Todo componente do storefront que
+// consome o banner (PromoBanner, HeroSlider, TarjaStrip, PopupBanner) ja
 // desenha titulo/badge/CTA como camada de texto por cima da imagem a partir
 // dos campos do banner -- uma primeira versao deste script desenhava esse
 // mesmo texto DENTRO do SVG tambem, duplicando (texto do React por cima do
@@ -141,10 +144,17 @@ async function main() {
   let order = 0
   for (const t of TEMPLATES) {
     const dims = DIMS[t.slot]
-    const filename = `${t.id}.svg`
-    const filepath = path.join(UPLOADS_DIR, filename)
-    const svg = buildBannerSvg({ width: dims.width, height: dims.height, colorHex: t.swatch })
-    fs.writeFileSync(filepath, svg, 'utf8')
+    const webpSrc = path.join(ASSETS_DIR, `${t.id}.webp`)
+    let filename
+    if (fs.existsSync(webpSrc)) {
+      filename = `${t.id}.webp`
+      fs.copyFileSync(webpSrc, path.join(UPLOADS_DIR, filename))
+    } else {
+      console.warn(`  (sem foto real em assets/banner-templates/${t.id}.webp -- usando fundo gerado)`)
+      filename = `${t.id}.svg`
+      const svg = buildBannerSvg({ width: dims.width, height: dims.height, colorHex: t.swatch })
+      fs.writeFileSync(path.join(UPLOADS_DIR, filename), svg, 'utf8')
+    }
 
     const desktopImageUrl = `/uploads/${filename}`
 
