@@ -14,6 +14,18 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.2.6',
+    date: '26/08/2026',
+    title: 'Gestão Visual de Banners, Sync Assíncrono e Expurgo ERP',
+    highlights: [
+      { type: 'feat', description: 'Novo modal de Banners em 2 camadas: básica com cards visuais ilustrados e avançada em acordeão.' },
+      { type: 'feat', description: 'Sincronização assíncrona do ERP Solidcom em segundo plano com acompanhamento de status em tempo real.' },
+      { type: 'feat', description: 'Distribuição intercalada e equilibrada dos banners promocionais entre as prateleiras da loja.' },
+      { type: 'fix', description: 'Expurgo e inativação automática de produtos desativados no Solidcom (respeito a ativo=false no catálogo).' },
+      { type: 'fix', description: 'Eliminação definitiva do vácuo no rodapé com alinhamento milimétrico acima da navegação mobile.' },
+    ],
+  },
+  {
     version: '1.2.5',
     date: '24/08/2026',
     title: 'Módulo de Mídia, Encartes ERP e Experiência Adega',
