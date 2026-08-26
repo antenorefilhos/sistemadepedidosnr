@@ -330,7 +330,8 @@ export default function Home() {
   // Banners intercalados (slot=intercalado, geridos em Loja > Banners),
   // agrupados em pares e distribuidos entre as prateleiras de produto -- em
   // vez de amontoados no topo/fim da pagina. Mesmo array usado no desktop
-  // (lado a lado, md:grid-cols-2) e no mobile (empilhado, grid-cols-1).
+  // (lado a lado, md:grid-cols-2) e no mobile (carrossel horizontal com snap,
+  // ver PromoBannerPair).
   const promoPairs = useMemo(() => {
     const pairs: PromoBannerView[][] = []
     for (let i = 0; i < promoBanners.length; i += 2) {
@@ -338,6 +339,14 @@ export default function Home() {
     }
     return pairs
   }, [promoBanners])
+
+  // Garante que o primeiro banner intercalado do mobile NUNCA apareca colado
+  // direto no Hero: rebuyShelf (sem historico) e highlightedCampaign (sem
+  // encarte em destaque) costumam vir vazios ao mesmo tempo, e offersShelf
+  // pode teoricamente vir vazio tambem (loja sem promocao ativa). Nesse caso
+  // raro, pula o 1o par de banners no mobile -- ele reaparece mais adiante,
+  // ja com freshShelf (catalogo geral, praticamente sempre populado) antes.
+  const hasMobileLeadContent = rebuyShelf.length > 0 || Boolean(highlightedCampaign) || offersShelf.length > 0
 
   // Ponto de ajuda/contato da Home (heuristica "ajuda e documentacao": a Home nao
   // tinha nenhum contato). Reaproveita o mesmo padrao ja usado em Account.tsx:
@@ -799,11 +808,11 @@ export default function Home() {
         />
       )}
 
-      {/* Banners intercalados: espalhados em pares entre as vitrines em vez
-          de bunched num carrossel unico -- da o respiro visual que chama
-          atencao enquanto o cliente rola a pagina. */}
-      <PromoBannerPair banners={promoPairs[0]} className="md:hidden mx-4 mb-4" />
-
+      {/* "Ofertas para hoje" fica ANTES do primeiro banner de proposito: rebuyShelf
+          e highlightedCampaign acima costumam vir vazios (sem historico/sem
+          encarte em destaque), e sem uma vitrine real aqui o Hero ficava colado
+          direto no banner intercalado -- 2-3 banners empilhados sem nenhum
+          produto entre eles antes do usuario ver qualquer coisa pra comprar. */}
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
         title="Ofertas para hoje"
@@ -813,6 +822,12 @@ export default function Home() {
         to="/promocoes"
         linkLabel="Promos"
       />
+
+      {/* Banners intercalados: espalhados em pares entre as vitrines em vez
+          de bunched num carrossel unico -- da o respiro visual que chama
+          atencao enquanto o cliente rola a pagina. hasMobileLeadContent
+          garante que este 1o par nunca fique colado direto no Hero. */}
+      {hasMobileLeadContent && <PromoBannerPair banners={promoPairs[0]} className="md:hidden mx-4 mb-4" />}
 
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
@@ -1215,25 +1230,35 @@ function PopupBanner({ banner, onDismiss }: { banner: PromoBannerView; onDismiss
 /** Par de banners intercalados -- lado a lado no desktop (md:grid-cols-2), empilhado no mobile. */
 function PromoBannerPair({ banners, className }: { banners?: PromoBannerView[]; className?: string }) {
   if (!banners || banners.length === 0) return null
+  // Mobile: carrossel horizontal com snap -- 2 banners empilhados verticalmente
+  // (grid-cols-1) viravam uma parede de imagem gigante entre vitrines, sem
+  // nenhum produto no meio. Desktop mantem o grid 2 colunas lado a lado de sempre.
+  const single = banners.length === 1
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${className || ''}`}>
+    <div
+      className={`flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 ${className || ''}`}
+    >
       {banners.map((banner) => (
-        <PromoBanner
+        <div
           key={banner.id}
-          image={banner.image}
-          alt={banner.title}
-          badge={banner.badge}
-          highlightNote={banner.highlightNote}
-          highlightedProduct={banner.highlightedProduct}
-          title={banner.title}
-          description={banner.description}
-          ctaLabel={banner.ctaLabel}
-          ctaTo={banner.ctaTo}
-          align={banner.align}
-          overlayColor={banner.overlayColor}
-          validUntil={banner.validUntil}
-          sponsorName={banner.sponsorName}
-        />
+          className={`shrink-0 snap-start md:w-auto md:shrink md:snap-align-none ${single ? 'w-full' : 'w-[85%] sm:w-[70%]'}`}
+        >
+          <PromoBanner
+            image={banner.image}
+            alt={banner.title}
+            badge={banner.badge}
+            highlightNote={banner.highlightNote}
+            highlightedProduct={banner.highlightedProduct}
+            title={banner.title}
+            description={banner.description}
+            ctaLabel={banner.ctaLabel}
+            ctaTo={banner.ctaTo}
+            align={banner.align}
+            overlayColor={banner.overlayColor}
+            validUntil={banner.validUntil}
+            sponsorName={banner.sponsorName}
+          />
+        </div>
       ))}
     </div>
   )
