@@ -45,6 +45,7 @@
     "import:ibge-cnefe": "node -r ts-node/register -e \"require('./scripts/import-ibge-cnefe.ts')\"",
     "photos:match": "ts-node scripts/match-photos.ts",
     "seed:staging-recipes": "node scripts/seed-staging-recipes.js",
+    "seed:banner-templates": "node scripts/seed-banner-templates.js",
     "validate:staging-recipes": "node scripts/validate-staging-recipes.js"
   },
   "prisma": {
