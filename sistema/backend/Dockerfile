@@ -50,6 +50,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
 # JSON de dados lido por scripts/seed-delivery-zones.ts em runtime (nao e
 # TS compilado, "dist" nao carrega ele sozinho)
 COPY --from=builder --chown=nestjs:nodejs /app/src/modules/delivery/data ./src/modules/delivery/data
+# Fotos-fonte lidas por scripts/seed-banner-templates.js em runtime (mesmo
+# motivo do delivery/data acima -- nao faz parte do "dist" compilado)
+COPY --from=builder --chown=nestjs:nodejs /app/assets ./assets
 
 # Cria pasta de uploads e define permissões
 RUN mkdir -p uploads && chown -R nestjs:nodejs uploads
