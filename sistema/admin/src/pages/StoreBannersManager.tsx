@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -382,59 +382,273 @@ const SCHEDULE_STATUS_COLOR: Record<ScheduleStatus, string> = {
 
 /* ─── Preview layout blocks ─────────────────────────── */
 
-function PreviewLayout({ banners }: { banners: StoreBanner[] }) {
-  const has = (slot: BannerSlot) => banners.some((b) => b.active && b.slot === slot);
-  const intercaladoCount = banners.filter((b) => b.active && b.slot === 'intercalado').length;
+type PreviewDevice = 'desktop' | 'mobile';
 
+/** Mini prateleira de produtos placeholder -- o preview representa a ordem e o
+ * layout real da Home (ver Home.tsx), nao o catalogo real (buscar produtos
+ * aqui seria peso extra pro admin sem ganho: o que importa validar aqui e o
+ * banner, nao o card de produto). */
+function MiniShelf({ title }: { title: string }) {
   return (
-    <div className="w-full max-w-xl mx-auto space-y-1 select-none">
-      <div className="h-8 rounded bg-gray-200 flex items-center px-3 text-xs text-gray-400 font-medium">Menu Superior</div>
+    <div className="px-2 py-2">
+      <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wide text-gray-500">{title}</p>
+      <div className="flex gap-1.5">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-12 flex-1 rounded-md border border-gray-100 bg-gray-50" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      {has('hero') ? (
-        <div className="h-24 rounded bg-gradient-to-r from-blue-200 to-blue-100 flex items-center justify-center text-xs text-blue-600 font-semibold border border-blue-200">
-          Hero
+function PreviewBadge({ text }: { text?: string | null }) {
+  if (!text) return null;
+  return (
+    <span className="inline-flex w-fit items-center rounded bg-[#D2BB8A] px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wide text-[#231F20]">
+      {text}
+    </span>
+  );
+}
+
+/** Overlay do banner no preview -- mesma logica de tinta que o storefront
+ * usa (ver buildOverlayGradient/buildOverlaySolid em homeCategories.ts do
+ * frontend), simplificada pra so precisar do overlayColor cru salvo. */
+function bannerOverlayStyle(overlayColor?: string | null): CSSProperties {
+  return { background: overlayColor || 'rgba(35, 31, 32, 0.45)' };
+}
+
+function PreviewBannerTile({
+  banner,
+  onSelect,
+  height,
+  className,
+}: {
+  banner: StoreBanner;
+  onSelect: (b: StoreBanner) => void;
+  height: number;
+  className?: string;
+}) {
+  // Alturas minusculas (tarja, ~22px) nao cabem badge+titulo+CTA empilhados
+  // sem cortar tudo pela metade -- so uma linha de texto centralizada.
+  const compact = height < 30;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(banner)}
+      title={`Editar "${banner.name}"`}
+      className={`group relative block w-full overflow-hidden rounded-md text-left ring-1 ring-black/5 transition-transform hover:scale-[1.02] ${className || ''}`}
+      style={{ height }}
+    >
+      <img src={resolveApiUrl(banner.desktopImageUrl)} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      <div className="absolute inset-0" style={bannerOverlayStyle(banner.overlayColor)} />
+      {compact ? (
+        <div className="relative z-10 flex h-full items-center px-2">
+          <p className="truncate text-[8px] font-bold leading-none text-white">
+            {banner.badgeText || banner.title || banner.name}
+          </p>
         </div>
       ) : (
-        <div className="h-24 rounded border-2 border-dashed border-gray-200 flex items-center justify-center text-xs text-gray-300">
-          Hero (vazio)
+        <div className="relative z-10 flex h-full flex-col justify-end gap-0.5 p-1.5">
+          <PreviewBadge text={banner.badgeText} />
+          <p className="truncate text-[9px] font-bold leading-tight text-white">{banner.title || banner.name}</p>
+          {banner.ctaLabel && (
+            <span className="w-fit rounded-sm bg-white/95 px-1.5 py-0.5 text-[7px] font-bold text-[#5D082A]">{banner.ctaLabel}</span>
+          )}
         </div>
       )}
+      <span className="absolute inset-0 opacity-0 ring-2 ring-inset ring-gray-900 transition-opacity group-hover:opacity-100" />
+    </button>
+  );
+}
 
-      {has('tarja') && (
-        <div className="h-8 rounded bg-amber-100 flex items-center justify-center text-xs text-amber-600 font-semibold border border-amber-200">
-          Tarja Informativa
-        </div>
-      )}
+function PreviewLayout({ banners, onSelectBanner }: { banners: StoreBanner[]; onSelectBanner: (b: StoreBanner) => void }) {
+  const [device, setDevice] = useState<PreviewDevice>('desktop');
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [popupOpen, setPopupOpen] = useState(false);
 
-      <div className="grid grid-cols-3 gap-1">
-        {[0, 1, 2].map((i) => {
-          const active = i < intercaladoCount;
-          return active ? (
-            <div key={i} className="h-12 rounded bg-purple-100 flex items-center justify-center text-xs text-purple-600 font-semibold border border-purple-200">
-              Intercalado {i + 1}
-            </div>
-          ) : (
-            <div key={i} className="h-12 rounded border-2 border-dashed border-gray-200 flex items-center justify-center text-[10px] text-gray-300">
-              Intercalado {i + 1}
-            </div>
+  const heroSlides = useMemo(
+    () => banners.filter((b) => b.active && b.slot === 'hero' && b.desktopImageUrl).sort((a, b) => a.order - b.order),
+    [banners],
+  );
+  const tarja = useMemo(
+    () => banners.find((b) => b.active && b.slot === 'tarja' && b.desktopImageUrl),
+    [banners],
+  );
+  const intercalados = useMemo(
+    () => banners.filter((b) => b.active && b.slot === 'intercalado' && b.desktopImageUrl).sort((a, b) => a.order - b.order),
+    [banners],
+  );
+  const popup = useMemo(
+    () => banners.find((b) => b.active && b.slot === 'popup' && b.desktopImageUrl),
+    [banners],
+  );
+
+  useEffect(() => {
+    if (heroIndex >= heroSlides.length) setHeroIndex(0);
+  }, [heroSlides.length, heroIndex]);
+
+  const currentHero = heroSlides[heroIndex];
+  const pair = intercalados.slice(0, 2);
+  const isMobile = device === 'mobile';
+
+  return (
+    <div className="space-y-3">
+      {/* Seletor Desktop / Mobile */}
+      <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
+        {([
+          { value: 'desktop' as PreviewDevice, label: 'Desktop', icon: Monitor },
+          { value: 'mobile' as PreviewDevice, label: 'Mobile', icon: Smartphone },
+        ]).map((opt) => {
+          const Icon = opt.icon;
+          const active = device === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setDevice(opt.value)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-colors ${
+                active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              <Icon size={13} />
+              {opt.label}
+            </button>
           );
         })}
       </div>
 
-      {has('category') && (
-        <div className="h-16 rounded bg-emerald-100 flex items-center justify-center text-xs text-emerald-600 font-semibold border border-emerald-200">
-          Categoria
-        </div>
-      )}
+      {/* Mockup da loja */}
+      <div
+        className={`relative mx-auto select-none overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all ${
+          isMobile ? 'max-w-[280px]' : 'max-w-full'
+        }`}
+      >
+        {/* Tarja informativa */}
+        {tarja ? (
+          <PreviewBannerTile banner={tarja} onSelect={onSelectBanner} height={22} className="rounded-none" />
+        ) : (
+          <div className="flex h-5 items-center justify-center border-b border-dashed border-gray-200 text-[8px] text-gray-300">
+            Sem tarja ativa
+          </div>
+        )}
 
-      {has('popup') && (
-        <div className="h-16 w-24 mx-auto rounded bg-rose-100 flex items-center justify-center text-xs text-rose-600 font-semibold border border-rose-200">
-          Popup
+        {/* Header mockup */}
+        <div className="space-y-1.5 bg-[#5D082A] px-2.5 py-2">
+          <div className="flex items-center justify-between">
+            <div className="h-2 w-16 rounded-full bg-white/40" />
+            <div className="flex gap-1">
+              <div className="h-2.5 w-2.5 rounded-full bg-white/25" />
+              <div className="h-2.5 w-2.5 rounded-full bg-white/25" />
+            </div>
+          </div>
+          <div className="h-4 rounded-full bg-white/95" />
+          {!isMobile && (
+            <div className="flex gap-1 overflow-hidden pt-0.5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-4 w-4 shrink-0 rounded-full bg-white/15" />
+              ))}
+            </div>
+          )}
         </div>
-      )}
 
-      <div className="h-14 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400">
-        Listagem de Produtos
+        {/* Hero */}
+        {currentHero ? (
+          <div className="relative">
+            <PreviewBannerTile banner={currentHero} onSelect={onSelectBanner} height={isMobile ? 108 : 84} className="rounded-none" />
+            {heroSlides.length > 1 && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-1.5 z-10 flex justify-center gap-1">
+                {heroSlides.map((s, i) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHeroIndex(i);
+                    }}
+                    aria-label={`Ver slide ${i + 1}`}
+                    className={`pointer-events-auto h-1 rounded-full transition-all ${
+                      i === heroIndex ? 'w-3 bg-[#D2BB8A]' : 'w-1 bg-white/50'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex h-14 items-center justify-center border-b border-dashed border-gray-200 text-[9px] text-gray-300">
+            Hero vazio
+          </div>
+        )}
+
+        {/* Vitrine 1 */}
+        <MiniShelf title="Ofertas para hoje" />
+
+        {/* Banners intercalados */}
+        {pair.length > 0 && (
+          <div className={isMobile ? 'flex gap-1.5 overflow-hidden px-2 pb-2' : 'grid grid-cols-2 gap-1.5 px-2 pb-2'}>
+            {pair.map((banner, i) => (
+              <PreviewBannerTile
+                key={banner.id}
+                banner={banner}
+                onSelect={onSelectBanner}
+                height={isMobile ? 60 : 54}
+                className={isMobile ? (i === 0 ? 'w-[78%] shrink-0' : 'w-[20%] shrink-0') : undefined}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Vitrine 2 */}
+        <MiniShelf title="Frescos da loja" />
+
+        {/* Popup promocional */}
+        <div className="border-t border-dashed border-gray-200 px-2 py-1.5">
+          {popup ? (
+            <button
+              type="button"
+              onClick={() => setPopupOpen((v) => !v)}
+              className="flex w-full items-center justify-between text-[9px] font-semibold text-gray-500 hover:text-gray-700"
+            >
+              <span className="flex items-center gap-1">
+                <Layers size={10} /> Popup "{popup.name}"
+              </span>
+              {popupOpen ? <EyeOff size={11} /> : <Eye size={11} />}
+            </button>
+          ) : (
+            <p className="text-[8px] text-gray-300">Sem popup ativo</p>
+          )}
+        </div>
+
+        {/* Popup: modal suspenso sobre o mockup inteiro, igual ao storefront */}
+        {popup && popupOpen && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-[200px] overflow-hidden rounded-lg bg-[#F7F0E4] shadow-xl">
+              <button
+                type="button"
+                onClick={() => setPopupOpen(false)}
+                aria-label="Fechar preview do popup"
+                className="absolute right-2 top-2 z-10 rounded-full bg-black/30 p-0.5 text-white"
+              >
+                <X size={10} />
+              </button>
+              <button type="button" onClick={() => onSelectBanner(popup)} className="block w-full text-left">
+                <div className="relative h-20 w-full">
+                  <img src={resolveApiUrl(popup.desktopImageUrl)} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                  <div className="absolute inset-0" style={bannerOverlayStyle(popup.overlayColor)} />
+                </div>
+                <div className="space-y-1 p-2">
+                  <PreviewBadge text={popup.badgeText} />
+                  <p className="text-[10px] font-bold leading-tight text-[#231F20]">{popup.title || popup.name}</p>
+                  {popup.ctaLabel && (
+                    <span className="block w-full rounded bg-[#5D082A] px-2 py-1 text-center text-[8px] font-bold text-white">
+                      {popup.ctaLabel}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -818,7 +1032,7 @@ export default function StoreBannersManager() {
               <Loader2 size={20} className="animate-spin" />
             </div>
           ) : (
-            <PreviewLayout banners={items} />
+            <PreviewLayout banners={items} onSelectBanner={openEdit} />
           )}
         </div>
 
