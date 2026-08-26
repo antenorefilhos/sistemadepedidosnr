@@ -205,3 +205,35 @@ export const normalizeWineLink = (link?: string) => {
   }
   return link
 }
+
+/**
+ * Converte qualquer valor de link de banner (nome de categoria, URL, produto ou slug)
+ * para a rota valida correspondente no storefront, evitando erros 404.
+ */
+export const resolveBannerLink = (linkValue?: string | null, linkType?: string): string => {
+  if (!linkValue || !linkValue.trim()) return '/mercado'
+  const trimmed = linkValue.trim()
+
+  // URL externa completa (http:// ou https://)
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+
+  // Rota relativa formatada sem espacos
+  if (trimmed.startsWith('/') && !trimmed.includes(' ') && !trimmed.includes('&')) {
+    return normalizeWineLink(trimmed)
+  }
+
+  // Nome ou rota de categoria
+  const clean = trimmed.replace(/^\//, '').trim()
+  const lower = clean.toLowerCase()
+
+  if (lower.includes('adega') || lower.includes('vinho')) {
+    return '/adega'
+  }
+
+  if (linkType === 'category' || !trimmed.startsWith('/')) {
+    const slug = toCategoryUrlParam(clean)
+    if (slug) return `/mercado?cat=${slug}`
+  }
+
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+}

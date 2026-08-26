@@ -3,7 +3,7 @@ import { useHomeShelves } from '../hooks/useHomeShelves'
 import {
   CATEGORY_ICONS,
   getCategoryHref,
-  normalizeWineLink,
+  resolveBannerLink,
 } from '../utils/homeCategories'
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
@@ -117,7 +117,7 @@ export default function Home() {
           description: item.description || undefined,
           ctaLabel: item.ctaLabel || undefined,
           imageUrl: resolveApiUrl(item.desktopImageUrl),
-          link: item.linkValue || undefined,
+          link: resolveBannerLink(item.linkValue, item.linkType),
           active: item.active,
           order: item.order,
         })),
@@ -233,7 +233,7 @@ export default function Home() {
       tag: 'Destaque',
       description: item.description || 'Ofertas e destaques escolhidos para facilitar sua compra e fazer render mais.',
       image: resolveApiUrl(item.desktopImageUrl),
-      link: normalizeWineLink(item.linkValue || '#'),
+      link: resolveBannerLink(item.linkValue, item.linkType),
       button: item.ctaLabel || 'Ver oferta',
     }))
   }, [storeBanners])
@@ -255,7 +255,7 @@ export default function Home() {
         description: item.description || undefined,
         image: resolveApiUrl(item.desktopImageUrl),
         ctaLabel: item.ctaLabel || 'Aproveitar',
-        ctaTo: item.linkValue || '/mercado',
+        ctaTo: resolveBannerLink(item.linkValue, item.linkType),
         align: item.align || 'left',
         overlayColor: item.overlayColor || undefined,
         validUntil: item.campaignEndDate ? formatValidUntil(item.campaignEndDate) : undefined,

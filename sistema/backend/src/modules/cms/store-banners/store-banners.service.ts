@@ -79,14 +79,16 @@ export class StoreBannersService {
     // campanha -- ignora startDate/endDate proprios. Codigo configurado mas
     // encarte ainda nao sincronizado = banner fica invisivel ate existir.
     const visible = banners.filter((banner) => {
-      if (banner.campaignErpId == null) {
-        if (banner.startDate && banner.startDate > now) return false;
-        if (banner.endDate && banner.endDate < now) return false;
-        return true;
+      if (banner.campaignErpId != null) {
+        const campaign = campaignByErpId.get(banner.campaignErpId);
+        if (campaign) {
+          return campaign.active && campaign.startDate <= now && campaign.endDate >= now;
+        }
+        // Fallback: se o encarte ainda nao foi sincronizado via API, respeita a vigencia e status do proprio banner
       }
-      const campaign = campaignByErpId.get(banner.campaignErpId);
-      if (!campaign) return false;
-      return campaign.active && campaign.startDate <= now && campaign.endDate >= now;
+      if (banner.startDate && banner.startDate > now) return false;
+      if (banner.endDate && banner.endDate < now) return false;
+      return true;
     });
 
     // Resolve o produto exaltado (linkType=product) pra quem consome o

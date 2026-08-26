@@ -1057,16 +1057,23 @@ export default function StoreBannersManager() {
 
                   {/* Categoria -- dropdown */}
                   {form.linkType === 'category' && (
-                    <Select
-                      value={form.linkValue}
-                      onChange={(e) => set('linkValue', e.target.value)}
-                      className="mt-3 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                    >
-                      <option value="">Selecione a categoria</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
-                      ))}
-                    </Select>
+                    <>
+                      <Select
+                        value={form.linkValue}
+                        onChange={(e) => set('linkValue', e.target.value)}
+                        className="mt-3 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                      >
+                        <option value="">Selecione a categoria</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </Select>
+                      {form.linkValue && (
+                        <p className="text-[11px] text-emerald-700 mt-1.5 flex items-center gap-1 font-medium">
+                          ✓ Destino no site: {form.linkValue.toLowerCase().includes('adega') ? '/adega' : `/mercado?cat=${form.linkValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
+                        </p>
+                      )}
+                    </>
                   )}
 
                   {/* URL -- campo simples */}
