@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma.service';
 import { promises as fs } from 'fs';
 import { join } from 'path';
@@ -26,6 +26,44 @@ export interface StoreBannerPayload {
   endDate?: string | null;
   campaignErpId?: number | null;
   order?: number;
+}
+
+// Enums do StoreBanner sao `String` no schema (sem @@enum no Postgres, ver
+// comentario no schema.prisma) -- o unico lugar que garante um valor valido
+// e aqui. Um slot/linkType invalido nao quebra nada na hora (Prisma aceita
+// qualquer string), mas o banner nunca aparece em lugar nenhum do storefront
+// (todo consumidor filtra por igualdade estrita com esses valores) -- silencioso
+// e dificil de debugar, por isso valida na entrada em vez de deixar passar.
+const VALID_SLOTS = ['hero', 'intercalado', 'category', 'tarja', 'popup'];
+const VALID_LINK_TYPES = ['url', 'category', 'product', 'search'];
+const VALID_LINK_TARGETS = ['_self', '_blank'];
+const VALID_PAGES = ['home', 'all', 'category', 'product'];
+const VALID_ALIGN = ['left', 'right'];
+
+function assertValidEnum(value: string | undefined, allowed: string[], field: string) {
+  if (value !== undefined && !allowed.includes(value)) {
+    throw new BadRequestException(`${field} inválido: "${value}". Valores aceitos: ${allowed.join(', ')}.`);
+  }
+}
+
+function validateBannerPayload(data: Partial<StoreBannerPayload>, { isCreate }: { isCreate: boolean }) {
+  assertValidEnum(data.slot, VALID_SLOTS, 'slot');
+  assertValidEnum(data.linkType, VALID_LINK_TYPES, 'linkType');
+  assertValidEnum(data.linkTarget, VALID_LINK_TARGETS, 'linkTarget');
+  assertValidEnum(data.pages, VALID_PAGES, 'pages');
+  assertValidEnum(data.align, VALID_ALIGN, 'align');
+  if (data.slot === 'category' && !data.targetCategory?.trim()) {
+    throw new BadRequestException('targetCategory é obrigatório quando slot = "category".');
+  }
+  // So na criacao: um PATCH parcial que nao toca `name`/`desktopImageUrl`
+  // (ex.: so reordenando ou ativando/desativando) nao deve barrar por esses
+  // campos estarem "ausentes" do payload -- eles ja existem no registro.
+  if (isCreate || data.name !== undefined) {
+    if (!data.name?.trim()) throw new BadRequestException('name é obrigatório.');
+  }
+  if (isCreate || data.desktopImageUrl !== undefined) {
+    if (!data.desktopImageUrl?.trim()) throw new BadRequestException('desktopImageUrl é obrigatório.');
+  }
 }
 
 @Injectable()
@@ -129,6 +167,7 @@ export class StoreBannersService {
   }
 
   create(data: StoreBannerPayload) {
+    validateBannerPayload(data, { isCreate: true });
     return this.prisma.storeBanner.create({
       data: {
         name: data.name,
@@ -158,6 +197,7 @@ export class StoreBannersService {
   }
 
   async update(id: string, data: Partial<StoreBannerPayload>) {
+    validateBannerPayload(data, { isCreate: false });
     const existing = await this.prisma.storeBanner.findUnique({ where: { id } });
     if (!existing) throw new Error(`Banner não encontrado: ${id}`);
 

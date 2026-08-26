@@ -26,17 +26,19 @@ const shade = (hex, pct) => {
   return rgbToHex(r + (f - r) * p, g + (f - g) * p, b + (f - b) * p)
 }
 
-// Gera um SVG de fundo com gradiente elegante + textura sutil de pontos +
-// titulo/badge -- serve como imagem valida do banner ate o lojista trocar
-// pela foto real.
-function buildBannerSvg({ width, height, colorHex, badgeText, title, ctaLabel }) {
+// Gera um SVG de fundo -- gradiente elegante + textura sutil de pontos,
+// SEM titulo/badge/CTA desenhados na imagem. Todo componente do storefront
+// que consome o banner (PromoBanner, HeroSlider, TarjaStrip, PopupBanner) ja
+// desenha titulo/badge/CTA como camada de texto por cima da imagem a partir
+// dos campos do banner -- uma primeira versao deste script desenhava esse
+// mesmo texto DENTRO do SVG tambem, duplicando (texto do React por cima do
+// texto da imagem) e, na tarja (56px de altura real vs SVG pensado pra
+// 420px), vazando gigante pra fora da faixa. So o fundo evita os dois.
+function buildBannerSvg({ width, height, colorHex }) {
   const from = shade(colorHex, 0.12)
   const to = shade(colorHex, -0.28)
   const dotColor = shade(colorHex, 0.4)
-  const titleSize = Math.round(height * 0.11)
-  const badgeSize = Math.round(height * 0.045)
-  const ctaSize = Math.round(height * 0.045)
-  const pad = Math.round(width * 0.06)
+  const dotSize = Math.round(height * 0.06)
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <defs>
@@ -44,17 +46,12 @@ function buildBannerSvg({ width, height, colorHex, badgeText, title, ctaLabel })
       <stop offset="0%" stop-color="${from}" />
       <stop offset="100%" stop-color="${to}" />
     </linearGradient>
-    <pattern id="dots" width="${Math.round(height * 0.06)}" height="${Math.round(height * 0.06)}" patternUnits="userSpaceOnUse">
+    <pattern id="dots" width="${dotSize}" height="${dotSize}" patternUnits="userSpaceOnUse">
       <circle cx="2" cy="2" r="1.4" fill="${dotColor}" opacity="0.25" />
     </pattern>
   </defs>
   <rect width="${width}" height="${height}" fill="url(#bg)" />
   <rect width="${width}" height="${height}" fill="url(#dots)" />
-  ${badgeText ? `<rect x="${pad}" y="${Math.round(height * 0.32)}" width="${badgeText.length * badgeSize * 0.62 + 28}" height="${badgeSize + 20}" rx="${(badgeSize + 20) / 2}" fill="#D2BB8A" />
-  <text x="${pad + 14}" y="${Math.round(height * 0.32) + badgeSize + 4}" font-family="Arial, sans-serif" font-size="${badgeSize}" font-weight="700" letter-spacing="1" fill="#231F20">${badgeText.toUpperCase()}</text>` : ''}
-  <text x="${pad}" y="${Math.round(height * 0.55)}" font-family="Georgia, 'Times New Roman', serif" font-size="${titleSize}" font-weight="700" fill="#FFFFFF">${title}</text>
-  ${ctaLabel ? `<rect x="${pad}" y="${Math.round(height * 0.68)}" width="${ctaLabel.length * ctaSize * 0.62 + 44}" height="${ctaSize + 26}" rx="8" fill="#FFFFFF" />
-  <text x="${pad + 22}" y="${Math.round(height * 0.68) + ctaSize + 8}" font-family="Arial, sans-serif" font-size="${ctaSize}" font-weight="700" fill="${to}">${ctaLabel} →</text>` : ''}
 </svg>`
 }
 
@@ -146,14 +143,7 @@ async function main() {
     const dims = DIMS[t.slot]
     const filename = `${t.id}.svg`
     const filepath = path.join(UPLOADS_DIR, filename)
-    const svg = buildBannerSvg({
-      width: dims.width,
-      height: dims.height,
-      colorHex: t.swatch,
-      badgeText: t.badgeText,
-      title: t.title,
-      ctaLabel: t.ctaLabel,
-    })
+    const svg = buildBannerSvg({ width: dims.width, height: dims.height, colorHex: t.swatch })
     fs.writeFileSync(filepath, svg, 'utf8')
 
     const desktopImageUrl = `/uploads/${filename}`

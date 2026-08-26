@@ -5,6 +5,7 @@ import {
   getCategoryHref,
   resolveBannerLink,
   buildOverlayGradient,
+  buildOverlaySolid,
 } from '../utils/homeCategories'
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
@@ -26,7 +27,7 @@ import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock,
-  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight
+  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight, X
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
@@ -222,6 +223,23 @@ export default function Home() {
   ])
 
   const [currentSlide, setCurrentSlide] = useState(0)
+  // Tarja/popup fechados ficam fechados so pela sessao (sessionStorage) --
+  // reaparecem na proxima visita, diferente de um "nunca mais mostrar" perene.
+  const [tarjaDismissedIds, setTarjaDismissedIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('tarja-dismissed') || '[]')
+    } catch {
+      return []
+    }
+  })
+  const [popupDismissedIds, setPopupDismissedIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('popup-dismissed') || '[]')
+    } catch {
+      return []
+    }
+  })
+  const [popupVisible, setPopupVisible] = useState(false)
 
   const slides = useMemo(() => {
     if (!storeBanners || storeBanners.length === 0) return []
@@ -266,6 +284,49 @@ export default function Home() {
       }))
   }, [storeBanners])
 
+  // Tarja informativa (slot=tarja) -- so o primeiro banner ativo, exibido
+  // como faixa fina no topo da pagina. Vinha sendo cadastrado no admin desde
+  // a unificacao dos banners mas nunca teve consumidor no storefront.
+  const tarjaBanner = useMemo<PromoBannerView | undefined>(() => {
+    if (!Array.isArray(storeBanners) || storeBanners.length === 0) return undefined
+    const item = storeBanners
+      .filter((b) => b.active !== false && b.slot === 'tarja' && b.desktopImageUrl)
+      .sort((a, b) => (a.order || 0) - (b.order || 0))[0]
+    if (!item) return undefined
+    return {
+      id: item.id,
+      title: item.title || item.name || 'Aviso',
+      badge: item.badgeText || undefined,
+      description: item.description || undefined,
+      image: resolveApiUrl(item.desktopImageUrl),
+      ctaLabel: item.ctaLabel || undefined,
+      ctaTo: resolveBannerLink(item.linkValue, item.linkType),
+      overlayColor: item.overlayColor || undefined,
+      sponsorName: item.sponsorName || undefined,
+    }
+  }, [storeBanners])
+
+  // Popup (slot=popup) -- so o primeiro banner ativo, mesmo mecanismo de
+  // "so o primeiro" e mesmo gap de nunca ter tido consumidor no storefront.
+  const popupBanner = useMemo<PromoBannerView | undefined>(() => {
+    if (!Array.isArray(storeBanners) || storeBanners.length === 0) return undefined
+    const item = storeBanners
+      .filter((b) => b.active !== false && b.slot === 'popup' && b.desktopImageUrl)
+      .sort((a, b) => (a.order || 0) - (b.order || 0))[0]
+    if (!item) return undefined
+    return {
+      id: item.id,
+      title: item.title || item.name || 'Oferta especial',
+      badge: item.badgeText || undefined,
+      description: item.description || undefined,
+      image: resolveApiUrl(item.desktopImageUrl),
+      ctaLabel: item.ctaLabel || 'Aproveitar',
+      ctaTo: resolveBannerLink(item.linkValue, item.linkType),
+      overlayColor: item.overlayColor || undefined,
+      sponsorName: item.sponsorName || undefined,
+    }
+  }, [storeBanners])
+
   // Banners intercalados (slot=intercalado, geridos em Loja > Banners),
   // agrupados em pares e distribuidos entre as prateleiras de produto -- em
   // vez de amontoados no topo/fim da pagina. Mesmo array usado no desktop
@@ -292,6 +353,31 @@ export default function Home() {
 
   useEffect(() => {
     trackEvent('VIEW_CATEGORY', 'HOME', 'General')
+  }, [])
+
+  // Popup abre com um pequeno delay (nao trava o primeiro paint nem parece
+  // intrusivo abrindo instantaneo) e so se ainda nao foi fechado nesta sessao.
+  useEffect(() => {
+    if (!popupBanner?.id || popupDismissedIds.includes(popupBanner.id)) return
+    const timer = window.setTimeout(() => setPopupVisible(true), 1500)
+    return () => window.clearTimeout(timer)
+  }, [popupBanner?.id, popupDismissedIds])
+
+  const dismissTarja = useCallback((id: string) => {
+    setTarjaDismissedIds((prev) => {
+      const next = [...prev, id]
+      sessionStorage.setItem('tarja-dismissed', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  const dismissPopup = useCallback((id: string) => {
+    setPopupVisible(false)
+    setPopupDismissedIds((prev) => {
+      const next = [...prev, id]
+      sessionStorage.setItem('popup-dismissed', JSON.stringify(next))
+      return next
+    })
   }, [])
 
   useEffect(() => {
@@ -336,6 +422,14 @@ export default function Home() {
       <h1 className="sr-only">
         {brand.storeName} - mercado online com acougue, padaria, adega e ofertas
       </h1>
+
+      {tarjaBanner && !tarjaDismissedIds.includes(tarjaBanner.id || '') && (
+        <TarjaStrip banner={tarjaBanner} onDismiss={() => tarjaBanner.id && dismissTarja(tarjaBanner.id)} />
+      )}
+
+      {popupBanner && popupVisible && (
+        <PopupBanner banner={popupBanner} onDismiss={() => popupBanner.id && dismissPopup(popupBanner.id)} />
+      )}
 
       {/* ── MOBILE HEADER (< md) ── */}
       {!isDesktop && (
@@ -1005,6 +1099,115 @@ export default function Home() {
       <MobileBottomNav />
       </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Faixa fina no topo da pagina (slot=tarja) -- avisos tipo "frete gratis
+ * acima de X" ou regras da loja. Tinta uniforme (buildOverlaySolid) em vez
+ * do gradiente diagonal do PromoBanner: o conteudo aqui se espalha pela
+ * largura toda, um fade lateral deixaria o texto do lado direito ilegivel.
+ */
+function TarjaStrip({ banner, onDismiss }: { banner: PromoBannerView; onDismiss: () => void }) {
+  const handleCtaClick = () => {
+    if (banner.id) cmsAPI.storeBanners.registerClick(banner.id).catch(() => {})
+  }
+  return (
+    <div className="relative w-full overflow-hidden">
+      <img src={banner.image} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+      <div className="absolute inset-0" style={{ background: buildOverlaySolid(banner.overlayColor || '#231F20') }} />
+      <div className="relative z-10 mx-auto flex min-h-[52px] w-full max-w-7xl items-center justify-between gap-3 px-4 py-2 md:min-h-[64px] md:px-6">
+        <div className="flex min-w-0 items-center gap-2 md:gap-3">
+          {banner.badge && (
+            <Badge tone="gold" className="hidden h-auto shrink-0 border-[#D2BB8A] bg-[#D2BB8A] px-2.5 py-1 text-[#231F20] sm:inline-flex">
+              {banner.badge}
+            </Badge>
+          )}
+          <p className="truncate text-sm font-semibold text-white md:text-base">{banner.title}</p>
+          {banner.description && (
+            <p className="hidden truncate text-xs text-white/80 md:block md:text-sm">{banner.description}</p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {banner.ctaLabel && banner.ctaTo && (
+            <Link
+              to={banner.ctaTo}
+              onClick={handleCtaClick}
+              className="whitespace-nowrap rounded-full border border-white bg-white/95 px-3 py-1 text-xs font-bold text-[#5D082A] hover:bg-white md:text-sm"
+            >
+              {banner.ctaLabel}
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Fechar aviso"
+            className="rounded-full p-1 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Popup (slot=popup) -- modal simples, sem lib de dialog externa (mesmo
+ * padrao ja usado no admin StoreBannersManager.tsx: fixed inset-0 + backdrop
+ * clicavel + fechar por X/Escape). Abre com delay (ver useEffect no Home) e
+ * fica fechado pelo resto da sessao depois de dispensado.
+ */
+function PopupBanner({ banner, onDismiss }: { banner: PromoBannerView; onDismiss: () => void }) {
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onDismiss])
+
+  const handleCtaClick = () => {
+    if (banner.id) cmsAPI.storeBanners.registerClick(banner.id).catch(() => {})
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onDismiss} />
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-[#F7F0E4] shadow-2xl">
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Fechar"
+          className="absolute right-3 top-3 z-20 rounded-full bg-black/30 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-black/50"
+        >
+          <X size={16} />
+        </button>
+        <div className="relative aspect-[3/2] w-full">
+          <img src={banner.image} alt={banner.title} className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0" style={{ background: buildOverlaySolid(banner.overlayColor || '#231F20', 0.35) }} />
+        </div>
+        <div className="space-y-2 p-5 text-left">
+          {banner.badge && (
+            <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
+              {banner.badge}
+            </Badge>
+          )}
+          <h3 className="text-xl font-bold text-[#231F20] luxury-text">{banner.title}</h3>
+          {banner.description && <p className="text-sm text-[#5d4f33]">{banner.description}</p>}
+          {banner.ctaLabel && banner.ctaTo && (
+            <Link
+              to={banner.ctaTo}
+              onClick={handleCtaClick}
+              className={buttonVariants({ variant: 'primary', size: 'lg', className: 'mt-2 w-full justify-center bg-[#5D082A] text-white hover:bg-[#7B1038]' })}
+            >
+              {banner.ctaLabel}
+              <ArrowRight size={16} />
+            </Link>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

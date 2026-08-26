@@ -5,7 +5,7 @@ import { PrismaService } from '../../../common/prisma.service';
 describe('StoreBannersService', () => {
   let service: StoreBannersService;
   let prisma: {
-    storeBanner: { findMany: jest.Mock };
+    storeBanner: { findMany: jest.Mock; create: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
     promotionCampaign: { findMany: jest.Mock };
     product: { findMany: jest.Mock };
   };
@@ -25,7 +25,12 @@ describe('StoreBannersService', () => {
 
   beforeEach(async () => {
     prisma = {
-      storeBanner: { findMany: jest.fn() },
+      storeBanner: {
+        findMany: jest.fn(),
+        create: jest.fn((args) => Promise.resolve(args.data)),
+        findUnique: jest.fn(),
+        update: jest.fn((args) => Promise.resolve(args.data)),
+      },
       promotionCampaign: { findMany: jest.fn() },
       product: { findMany: jest.fn() },
     };
@@ -104,5 +109,62 @@ describe('StoreBannersService', () => {
     const visible = await service.findActive();
 
     expect(visible).toHaveLength(0);
+  });
+
+  const validPayload = () => ({
+    name: 'Banner válido',
+    desktopImageUrl: '/uploads/banner.jpg',
+    slot: 'hero',
+    linkType: 'url',
+    linkTarget: '_self' as const,
+    pages: 'home',
+    align: 'left' as const,
+  });
+
+  describe('validação de payload (create/update)', () => {
+    it('cria normalmente com um payload valido', async () => {
+      await expect(service.create(validPayload())).resolves.toBeDefined();
+      expect(prisma.storeBanner.create).toHaveBeenCalled();
+    });
+
+    it('rejeita slot fora do enum', () => {
+      expect(() => service.create({ ...validPayload(), slot: 'banner-gigante' })).toThrow(/slot inválido/i);
+    });
+
+    it('rejeita linkType fora do enum', () => {
+      expect(() => service.create({ ...validPayload(), linkType: 'whatsapp' })).toThrow(/linkType inválido/i);
+    });
+
+    it('exige targetCategory quando slot = category', () => {
+      expect(() => service.create({ ...validPayload(), slot: 'category', targetCategory: null })).toThrow(
+        /targetCategory é obrigatório/i,
+      );
+    });
+
+    it('aceita slot = category quando targetCategory esta preenchido', async () => {
+      await expect(
+        service.create({ ...validPayload(), slot: 'category', targetCategory: 'ACOUGUE' }),
+      ).resolves.toBeDefined();
+    });
+
+    it('rejeita name vazio na criação', () => {
+      expect(() => service.create({ ...validPayload(), name: '   ' })).toThrow(/name é obrigatório/i);
+    });
+
+    it('rejeita desktopImageUrl vazio na criação', () => {
+      expect(() => service.create({ ...validPayload(), desktopImageUrl: '' })).toThrow(
+        /desktopImageUrl é obrigatório/i,
+      );
+    });
+
+    it('PATCH parcial (so reordenar) nao exige name/desktopImageUrl de novo', async () => {
+      prisma.storeBanner.findUnique.mockResolvedValue({ id: 'b1', desktopImageUrl: '/uploads/x.jpg', mobileImageUrl: null });
+      await expect(service.update('b1', { order: 3 })).resolves.toBeDefined();
+    });
+
+    it('PATCH que troca o slot pra category exige targetCategory mesmo sem tocar outros campos', async () => {
+      prisma.storeBanner.findUnique.mockResolvedValue({ id: 'b1', desktopImageUrl: '/uploads/x.jpg', mobileImageUrl: null });
+      await expect(service.update('b1', { slot: 'category' })).rejects.toThrow(/targetCategory é obrigatório/i);
+    });
   });
 });

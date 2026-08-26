@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveBannerLink, buildOverlayGradient } from './homeCategories'
+import { resolveBannerLink, buildOverlayGradient, buildOverlaySolid } from './homeCategories'
 
 describe('resolveBannerLink', () => {
   it('resolve produto para /produto/:id, nao pra filtro de categoria', () => {
@@ -58,5 +58,19 @@ describe('buildOverlayGradient', () => {
     expect(buildOverlayGradient('nao-e-uma-cor')).toBe(
       'linear-gradient(to right, rgba(35, 31, 32, 0.82) 0%, rgba(35, 31, 32, 0.45) 45%, transparent 100%)',
     )
+  })
+})
+
+describe('buildOverlaySolid', () => {
+  it('gera rgba solido a partir do rgba() do color picker, aplicando o multiplicador de alpha', () => {
+    expect(buildOverlaySolid('rgba(93, 8, 42, 0.6)')).toBe('rgba(93, 8, 42, 0.43)')
+  })
+
+  it('nunca ultrapassa alpha 1 mesmo com tone e multiplicador altos', () => {
+    expect(buildOverlaySolid('rgba(0, 0, 0, 1)', 1.5)).toBe('rgba(0, 0, 0, 1.00)')
+  })
+
+  it('aceita hex e usa o multiplicador default (0.72)', () => {
+    expect(buildOverlaySolid('#231F20')).toBe('rgba(35, 31, 32, 0.72)')
   })
 })

@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Header } from '@nestjs/common';
 import { StoreBannersService, StoreBannerPayload } from './store-banners.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { RelaxedThrottle } from '../../../common/decorators/relaxed-throttle.decorator'
+
+// Rota publica, sem auth, chamada em toda carga da Home -- banner muda pouco
+// (edicao manual no admin), entao um cache curto de CDN/browser tira carga
+// do banco sem deixar uma alteracao recem-salva demorar pra aparecer.
+const PUBLIC_CACHE_HEADER = 'public, max-age=60, stale-while-revalidate=300';
 
 @RelaxedThrottle()
 @Controller('cms/store-banners')
@@ -11,11 +16,13 @@ export class StoreBannersController {
   constructor(private readonly storeBannersService: StoreBannersService) {}
 
   @Get()
+  @Header('Cache-Control', PUBLIC_CACHE_HEADER)
   findActive(@Query('slot') slot?: string, @Query('category') category?: string, @Query('page') page?: string) {
     return this.storeBannersService.findActive({ slot, category, page });
   }
 
   @Get('active')
+  @Header('Cache-Control', PUBLIC_CACHE_HEADER)
   findActiveExplicit(@Query('slot') slot?: string, @Query('category') category?: string, @Query('page') page?: string) {
     return this.storeBannersService.findActive({ slot, category, page });
   }

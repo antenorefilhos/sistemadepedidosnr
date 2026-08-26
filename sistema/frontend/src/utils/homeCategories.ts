@@ -244,32 +244,49 @@ export const resolveBannerLink = (linkValue?: string | null, linkType?: string):
 /**
  * overlayColor do banner (StoreBanner.overlayColor) vem em dois formatos:
  * hex "#231F20" (default e banner antigo, editado a mao) ou "rgba(r, g, b, a)"
- * (color picker do admin, ver StoreBannersManager.tsx). O gradiente do
- * PromoBanner (Home.tsx) concatenava sufixo de alpha em hex direto na string
- * (`${tone}D1`) -- funciona pra hex, gera CSS invalido pra rgba
- * (`rgba(...)D1`), e o overlay some silenciosamente (background invalido =
- * browser ignora a regra toda). Este helper normaliza os dois formatos pros
- * mesmos dois stops do gradiente (~82% e ~45% de opacidade, os mesmos valores
- * que "D1"/"73" davam em hex).
+ * (color picker do admin, ver StoreBannersManager.tsx). Este parser normaliza
+ * os dois formatos pra {r,g,b,a}, com fallback pro marrom Antenor quando o
+ * valor nao bate com nenhum dos dois (nunca deixa `undefined` vazar pro CSS).
  */
-export const buildOverlayGradient = (tone: string): string => {
+const parseTone = (tone: string): { r: number; g: number; b: number; a: number } => {
   const trimmed = tone.trim()
   const rgbaMatch = trimmed.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\)/i)
-  let r = 0x23, g = 0x1f, b = 0x20, a = 1
   if (rgbaMatch) {
-    r = Number(rgbaMatch[1])
-    g = Number(rgbaMatch[2])
-    b = Number(rgbaMatch[3])
-    a = rgbaMatch[4] !== undefined ? Number(rgbaMatch[4]) : 1
-  } else {
-    const hexMatch = trimmed.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i)
-    if (hexMatch) {
-      const clean = hexMatch[1].length === 3 ? hexMatch[1].split('').map((c) => c + c).join('') : hexMatch[1]
-      const num = parseInt(clean, 16)
-      r = (num >> 16) & 255
-      g = (num >> 8) & 255
-      b = num & 255
+    return {
+      r: Number(rgbaMatch[1]),
+      g: Number(rgbaMatch[2]),
+      b: Number(rgbaMatch[3]),
+      a: rgbaMatch[4] !== undefined ? Number(rgbaMatch[4]) : 1,
     }
   }
+  const hexMatch = trimmed.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hexMatch) {
+    const clean = hexMatch[1].length === 3 ? hexMatch[1].split('').map((c) => c + c).join('') : hexMatch[1]
+    const num = parseInt(clean, 16)
+    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255, a: 1 }
+  }
+  return { r: 0x23, g: 0x1f, b: 0x20, a: 1 }
+}
+
+/**
+ * Gradiente diagonal pro PromoBanner/HeroSlider (texto do lado esquerdo,
+ * imagem "respira" do lado direito). O gradiente antigo concatenava sufixo
+ * de alpha em hex direto na string (`${tone}D1`) -- funciona pra hex, gera
+ * CSS invalido pra rgba (`rgba(...)D1`), e o overlay some silenciosamente
+ * (background invalido = browser ignora a regra toda). Os dois stops abaixo
+ * (~82% e ~45% de opacidade) reproduzem os valores que "D1"/"73" davam em hex.
+ */
+export const buildOverlayGradient = (tone: string): string => {
+  const { r, g, b, a } = parseTone(tone)
   return `linear-gradient(to right, rgba(${r}, ${g}, ${b}, ${(a * 0.82).toFixed(2)}) 0%, rgba(${r}, ${g}, ${b}, ${(a * 0.45).toFixed(2)}) 45%, transparent 100%)`
+}
+
+/**
+ * Tinta uniforme (sem gradiente direcional) pra tarja e popup -- conteudo
+ * espalhado pela largura toda (tarja) ou centralizado num cartao pequeno
+ * (popup), onde um fade lateral deixaria texto ilegivel de um dos lados.
+ */
+export const buildOverlaySolid = (tone: string, alphaMultiplier = 0.72): string => {
+  const { r, g, b, a } = parseTone(tone)
+  return `rgba(${r}, ${g}, ${b}, ${Math.min(1, a * alphaMultiplier).toFixed(2)})`
 }
