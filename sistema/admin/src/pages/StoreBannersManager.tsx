@@ -194,6 +194,21 @@ const isValidUrl = (v: string) => {
   }
 };
 
+// Preview de "pra onde o link vai" no formulario de categoria. Espelha (sem
+// importar, admin e storefront sao apps separados) a heuristica adega/vinho
+// + slug de sistema/frontend/src/utils/homeCategories.ts:resolveBannerLink --
+// qualquer ajuste na regra de slug de categoria precisa ser feito nos dois lugares.
+const previewCategoryDestination = (categoryName: string) => {
+  const lower = categoryName.toLowerCase();
+  if (lower.includes('adega') || lower.includes('vinho')) return '/adega';
+  const slug = lower
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `/mercado?cat=${slug}`;
+};
+
 type ScheduleStatus = 'scheduled' | 'live' | 'expired' | 'always' | 'campaign-live' | 'campaign-missing';
 
 function getScheduleStatus(item: StoreBanner): ScheduleStatus {
@@ -566,6 +581,13 @@ export default function StoreBannersManager() {
 
   const dimHint = SLOT_OPTIONS.find((t) => t.value === form.slot)?.dims ?? '';
   const artGuide = ART_GUIDE[form.slot];
+  // So desabilita o agendamento manual quando a campanha do encarte ja foi
+  // confirmada (existe no catalogo) -- enquanto nao sincroniza, e o unico
+  // controle de vigencia que o usuario tem (fallback em store-banners.service.ts).
+  const campaignConfirmed =
+    Boolean(form.campaignErpId.trim()) &&
+    editing?.campaignErpId === Number(form.campaignErpId) &&
+    editing?.campaignFound === true;
 
   /* ─────────────────────────────────────────────────── */
 
@@ -1070,7 +1092,7 @@ export default function StoreBannersManager() {
                       </Select>
                       {form.linkValue && (
                         <p className="text-[11px] text-emerald-700 mt-1.5 flex items-center gap-1 font-medium">
-                          ✓ Destino no site: {form.linkValue.toLowerCase().includes('adega') ? '/adega' : `/mercado?cat=${form.linkValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
+                          ✓ Destino no site: {previewCategoryDestination(form.linkValue)}
                         </p>
                       )}
                     </>
@@ -1291,7 +1313,7 @@ export default function StoreBannersManager() {
                             </p>
                           ) : (
                             <p className="text-xs text-amber-600 mt-1">
-                              Encarte {form.campaignErpId} ainda não sincronizado — o banner fica oculto até ele existir no catálogo.
+                              Encarte {form.campaignErpId} ainda não sincronizado — até lá, o banner usa o agendamento manual abaixo.
                             </p>
                           )
                         ) : (
@@ -1300,13 +1322,17 @@ export default function StoreBannersManager() {
                       )}
                     </div>
 
-                    {/* Agendamento manual */}
-                    <div className={form.campaignErpId.trim() ? 'opacity-40 pointer-events-none' : ''}>
+                    {/* Agendamento manual -- so trava quando a campanha do encarte ja
+                        foi confirmada (existe no catalogo); enquanto nao sincroniza,
+                        e o fallback de vigencia (ver store-banners.service.ts). */}
+                    <div className={campaignConfirmed ? 'opacity-40 pointer-events-none' : ''}>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Agendamento manual</p>
                       <p className="text-[11px] text-gray-400 mb-2">
-                        {form.campaignErpId.trim()
-                          ? 'Ignorado enquanto o banner estiver vinculado a um encarte acima.'
-                          : 'Opcional. Intervalo mínimo de 1h entre início e fim.'}
+                        {campaignConfirmed
+                          ? 'Ignorado -- o banner segue a vigência do encarte acima.'
+                          : form.campaignErpId.trim()
+                            ? 'Encarte ainda não sincronizado: usado como fallback de vigência até lá.'
+                            : 'Opcional. Intervalo mínimo de 1h entre início e fim.'}
                       </p>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -1318,7 +1344,7 @@ export default function StoreBannersManager() {
                             type="datetime-local"
                             value={form.startDate}
                             onChange={(e) => set('startDate', e.target.value)}
-                            disabled={Boolean(form.campaignErpId.trim())}
+                            disabled={campaignConfirmed}
                             className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
                           />
                         </div>
@@ -1331,7 +1357,7 @@ export default function StoreBannersManager() {
                             type="datetime-local"
                             value={form.endDate}
                             onChange={(e) => set('endDate', e.target.value)}
-                            disabled={Boolean(form.campaignErpId.trim())}
+                            disabled={campaignConfirmed}
                             className={`rounded-lg text-sm focus-visible:ring-gray-900 ${errors.endDate ? 'border-red-400' : 'border-gray-200'}`}
                           />
                           {errors.endDate && (

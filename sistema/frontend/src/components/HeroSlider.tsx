@@ -5,7 +5,6 @@ import { Badge } from './ui/badge'
 import { buttonVariants } from './ui/button'
 import { surfaceClasses } from './ui/surface'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
-import { resolveBannerLink } from '../utils/homeCategories'
 
 export interface HeroSlideCMS {
   id: string
@@ -44,7 +43,8 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
   if (slides.length === 0) return null
 
   const slide = slides[index] ?? slides[0]
-  const link = resolveBannerLink(slide.link)
+  // Ja resolvido pelo Home.tsx (resolveBannerLink) antes de virar HeroSlideCMS.
+  const link = slide.link || '/mercado'
 
   const ctaClassName = buttonVariants({ variant: 'secondary', size: 'lg', className: 'whitespace-nowrap' })
   const cta = slide.ctaLabel ? (

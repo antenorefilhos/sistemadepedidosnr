@@ -207,8 +207,11 @@ export const normalizeWineLink = (link?: string) => {
 }
 
 /**
- * Converte qualquer valor de link de banner (nome de categoria, URL, produto ou slug)
- * para a rota valida correspondente no storefront, evitando erros 404.
+ * Converte o `linkValue` de um StoreBanner (id de produto, nome de categoria
+ * ou URL/rota) na rota valida correspondente no storefront, evitando link
+ * quebrado ou filtro vazio. `linkType` vem do proprio banner (StoreBanner.linkType)
+ * e decide o formato de `linkValue` -- sem ele nao da pra saber se um valor
+ * como "cmspojqwu000eo6fecglzp23m" e um id de produto ou um slug de categoria.
  */
 export const resolveBannerLink = (linkValue?: string | null, linkType?: string): string => {
   if (!linkValue || !linkValue.trim()) return '/mercado'
@@ -217,23 +220,23 @@ export const resolveBannerLink = (linkValue?: string | null, linkType?: string):
   // URL externa completa (http:// ou https://)
   if (/^https?:\/\//i.test(trimmed)) return trimmed
 
-  // Rota relativa formatada sem espacos
+  // Produto: linkValue e o id do produto, rota fixa /produto/:id (ver App.tsx)
+  if (linkType === 'product') {
+    return trimmed.startsWith('/produto/') ? trimmed : `/produto/${trimmed}`
+  }
+
+  // Rota relativa ja formatada (ex: link avulso tipo "url" apontando /promocoes)
   if (trimmed.startsWith('/') && !trimmed.includes(' ') && !trimmed.includes('&')) {
     return normalizeWineLink(trimmed)
   }
 
-  // Nome ou rota de categoria
+  // Categoria: nome vindo do CMS -> slug de ?cat=. Adega tem pagina propria.
   const clean = trimmed.replace(/^\//, '').trim()
   const lower = clean.toLowerCase()
+  if (lower.includes('adega') || lower.includes('vinho')) return '/adega'
 
-  if (lower.includes('adega') || lower.includes('vinho')) {
-    return '/adega'
-  }
-
-  if (linkType === 'category' || !trimmed.startsWith('/')) {
-    const slug = toCategoryUrlParam(clean)
-    if (slug) return `/mercado?cat=${slug}`
-  }
+  const slug = toCategoryUrlParam(clean)
+  if (slug) return `/mercado?cat=${slug}`
 
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
 }

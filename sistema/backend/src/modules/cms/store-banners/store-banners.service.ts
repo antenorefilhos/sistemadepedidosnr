@@ -76,15 +76,18 @@ export class StoreBannersService {
     const campaignByErpId = await this.resolveCampaigns(banners);
 
     // Vigencia: banner vinculado a encarte (campaignErpId) segue 100% a
-    // campanha -- ignora startDate/endDate proprios. Codigo configurado mas
-    // encarte ainda nao sincronizado = banner fica invisivel ate existir.
+    // campanha depois que ela sincroniza. Antes disso (ou se o encarte
+    // nunca chegar a sincronizar), cai no fallback de startDate/endDate
+    // proprios do banner -- por isso o admin (StoreBannersManager) so
+    // desabilita esses dois campos quando `campaignFound` confirma que a
+    // campanha ja existe; enquanto nao existe, eles continuam editaveis e
+    // sao o unico controle de vigencia que o usuario tem sobre o banner.
     const visible = banners.filter((banner) => {
       if (banner.campaignErpId != null) {
         const campaign = campaignByErpId.get(banner.campaignErpId);
         if (campaign) {
           return campaign.active && campaign.startDate <= now && campaign.endDate >= now;
         }
-        // Fallback: se o encarte ainda nao foi sincronizado via API, respeita a vigencia e status do proprio banner
       }
       if (banner.startDate && banner.startDate > now) return false;
       if (banner.endDate && banner.endDate < now) return false;
