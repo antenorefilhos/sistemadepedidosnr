@@ -4,6 +4,7 @@ import {
   CATEGORY_ICONS,
   getCategoryHref,
   resolveBannerLink,
+  buildOverlayGradient,
 } from '../utils/homeCategories'
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
@@ -119,6 +120,7 @@ export default function Home() {
           ctaLabel: item.ctaLabel || undefined,
           imageUrl: resolveApiUrl(item.desktopImageUrl),
           link: resolveBannerLink(item.linkValue, item.linkType),
+          sponsorName: item.sponsorName || undefined,
           active: item.active,
           order: item.order,
         })),
@@ -1070,7 +1072,7 @@ function PromoBanner({
         <img src={image} alt={alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
         <div
           className="absolute inset-0"
-          style={{ background: `linear-gradient(to right, ${tone}D1 0%, ${tone}73 45%, transparent 100%)` }}
+          style={{ background: buildOverlayGradient(tone) }}
         />
         {sponsorName && (
           <span className="absolute right-3 top-3 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">

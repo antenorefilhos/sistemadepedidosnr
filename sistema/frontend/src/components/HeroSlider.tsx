@@ -14,6 +14,7 @@ export interface HeroSlideCMS {
   ctaLabel?: string | null
   imageUrl: string
   link?: string | null
+  sponsorName?: string | null
   active?: boolean
   order?: number
 }
@@ -76,6 +77,11 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
           : undefined
       }
     >
+      {slide.sponsorName && (
+        <span className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:right-6 md:top-6">
+          Patrocinado por {slide.sponsorName}
+        </span>
+      )}
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div className="max-w-2xl">
           {slide.tag && (

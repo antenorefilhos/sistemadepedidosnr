@@ -240,3 +240,36 @@ export const resolveBannerLink = (linkValue?: string | null, linkType?: string):
 
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
 }
+
+/**
+ * overlayColor do banner (StoreBanner.overlayColor) vem em dois formatos:
+ * hex "#231F20" (default e banner antigo, editado a mao) ou "rgba(r, g, b, a)"
+ * (color picker do admin, ver StoreBannersManager.tsx). O gradiente do
+ * PromoBanner (Home.tsx) concatenava sufixo de alpha em hex direto na string
+ * (`${tone}D1`) -- funciona pra hex, gera CSS invalido pra rgba
+ * (`rgba(...)D1`), e o overlay some silenciosamente (background invalido =
+ * browser ignora a regra toda). Este helper normaliza os dois formatos pros
+ * mesmos dois stops do gradiente (~82% e ~45% de opacidade, os mesmos valores
+ * que "D1"/"73" davam em hex).
+ */
+export const buildOverlayGradient = (tone: string): string => {
+  const trimmed = tone.trim()
+  const rgbaMatch = trimmed.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\)/i)
+  let r = 0x23, g = 0x1f, b = 0x20, a = 1
+  if (rgbaMatch) {
+    r = Number(rgbaMatch[1])
+    g = Number(rgbaMatch[2])
+    b = Number(rgbaMatch[3])
+    a = rgbaMatch[4] !== undefined ? Number(rgbaMatch[4]) : 1
+  } else {
+    const hexMatch = trimmed.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i)
+    if (hexMatch) {
+      const clean = hexMatch[1].length === 3 ? hexMatch[1].split('').map((c) => c + c).join('') : hexMatch[1]
+      const num = parseInt(clean, 16)
+      r = (num >> 16) & 255
+      g = (num >> 8) & 255
+      b = num & 255
+    }
+  }
+  return `linear-gradient(to right, rgba(${r}, ${g}, ${b}, ${(a * 0.82).toFixed(2)}) 0%, rgba(${r}, ${g}, ${b}, ${(a * 0.45).toFixed(2)}) 45%, transparent 100%)`
+}
