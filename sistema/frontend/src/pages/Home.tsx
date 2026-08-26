@@ -1241,7 +1241,7 @@ function PromoBannerPair({ banners, className }: { banners?: PromoBannerView[]; 
       {banners.map((banner) => (
         <div
           key={banner.id}
-          className={`shrink-0 snap-start md:w-auto md:shrink md:snap-align-none ${single ? 'w-full' : 'w-[85%] sm:w-[70%]'}`}
+          className={`shrink-0 snap-start md:w-auto md:shrink md:snap-align-none ${single ? 'w-full' : 'w-[78%] sm:w-[65%]'}`}
         >
           <PromoBanner
             image={banner.image}
