@@ -167,10 +167,12 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
     ? Math.max(-80, Math.min(80, dragOffset * 0.35))
     : 0
 
+  // Mesmo CTA do PromoBanner (Home.tsx) -- outline branco com texto vinho.
   const ctaClassName = buttonVariants({
-    variant: 'secondary',
+    variant: 'outline',
     size: 'sm',
-    className: 'w-fit whitespace-nowrap md:h-12 md:px-5 md:text-sm',
+    className:
+      'w-fit whitespace-nowrap border-white bg-white font-bold text-[#5D082A] hover:bg-[#F3E7C9] md:h-12 md:px-5 md:text-sm',
   })
   const cta = slide.ctaLabel ? (
     isExternalLink(link) ? (
@@ -254,7 +256,9 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
           Um unico bloco alinhado left/center/right resolve os dois. */}
       <div className={`absolute inset-0 z-10 flex flex-col justify-center gap-2 p-4 sm:gap-3 sm:p-6 md:p-8 ${ALIGN_CLASSES[align]}`}>
         {slide.sponsorName && (
-          <span className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:right-6 md:top-6">
+          // Offset acompanha o padding do container (p-4 -> sm:p-6), senao o
+          // selo fica desalinhado do conteudo na faixa sm.
+          <span className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm sm:right-6 sm:top-6">
             {slide.sponsorName}
           </span>
         )}
