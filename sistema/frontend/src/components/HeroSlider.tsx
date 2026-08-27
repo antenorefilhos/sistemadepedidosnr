@@ -46,13 +46,9 @@ const DESCRIPTION_ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
   right: 'ml-auto',
 }
 
-const DOTS_POSITION_CLASSES: Record<HeroSlideAlign, string> = {
-  left: 'left-4 sm:left-6 md:left-8',
-  center: 'left-1/2 -translate-x-1/2',
-  right: 'right-4 sm:right-6 md:right-8',
-}
-
-const CARD_MIN_HEIGHT = 'min-h-[220px] md:min-h-[320px] lg:min-h-[360px]'
+// Mesma escala do PromoBanner (Home.tsx) -- os dois sao o mesmo tipo de card
+// e apareciam com alturas diferentes na mesma pagina.
+const CARD_MIN_HEIGHT = 'min-h-[230px] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[340px]'
 
 function isExternalLink(link: string) {
   return /^https?:\/\//i.test(link)
@@ -177,8 +173,6 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
 
   if (slides.length === 0) return null
 
-  const activeSlide = slides[index] ?? slides[0]
-  const activeAlign = activeSlide.align || 'left'
   const hasDots = slides.length > 1
 
   // Arrasto acompanha o dedo 1:1 (o track inteiro desliza mostrando o card
@@ -225,25 +219,33 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
   }
 
   return (
+    // Wrapper sem overflow: as bolinhas ficam embaixo do card, na pagina. O
+    // overflow-hidden que recorta o track fica so no container do card, senao
+    // ele cortaria as bolinhas junto. Regiao/teclado ficam aqui pra que o
+    // carrossel e seus controles sejam um bloco so pra leitor de tela; os
+    // handlers de arrasto ficam no card, que e o que desliza de fato.
     <div
       role="region"
       aria-roledescription="carousel"
       aria-label="Slides de destaque"
       tabIndex={hasDots ? 0 : -1}
       onKeyDown={handleKeyDown}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onPointerLeave={endDrag}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      className={surfaceClasses({
-        tone: 'dark',
-        className: `relative ${CARD_MIN_HEIGHT} touch-pan-y select-none overflow-hidden rounded-2xl border-[#D2BB8A]/40 shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A]`,
-      })}
+      className="outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A] focus-visible:ring-offset-2 rounded-2xl"
     >
+      <div
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onPointerLeave={endDrag}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className={surfaceClasses({
+          tone: 'dark',
+          className: `relative ${CARD_MIN_HEIGHT} touch-pan-y select-none overflow-hidden rounded-2xl border-[#D2BB8A]/40 shadow-lg`,
+        })}
+      >
       {/* Track: os cards ficam lado a lado e a faixa inteira desliza. O fade
           anterior trocava so a imagem de fundo dentro de um container unico,
           entao o conteudo (titulo/CTA) aparecia trocado de uma vez em cima de
@@ -267,11 +269,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
               aria-roledescription="slide"
               aria-label={`${i + 1} de ${slides.length}`}
               aria-hidden={!isActive}
-              className={`relative flex w-full shrink-0 select-none flex-col justify-between bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-4 sm:p-6 md:p-8 ${CARD_MIN_HEIGHT} ${
-                // Espaco reservado pras bolinhas, que ficam ancoradas na base
-                // do slider (fora do track) e passariam por cima do CTA.
-                hasDots ? 'pb-10 sm:pb-12 md:pb-14' : ''
-              }`}
+              className={`relative flex w-full shrink-0 select-none flex-col justify-between bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-4 sm:p-6 md:p-8 ${CARD_MIN_HEIGHT}`}
               style={{
                 backgroundImage: slide.imageUrl
                   ? `${buildOverlayGradient(slide.overlayColor || '#5D082A', align)}, url(${slide.imageUrl})`
@@ -320,14 +318,13 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
             </div>
           )
         })}
+        </div>
       </div>
 
+      {/* Fora do card, sobre o fundo branco da pagina -- por isso vinho em vez
+          do dourado que era usado sobre a foto. */}
       {hasDots && (
-        <div
-          className={`absolute bottom-4 z-20 flex items-center gap-2 ${DOTS_POSITION_CLASSES[activeAlign]}`}
-          role="tablist"
-          aria-label="Slides de destaque"
-        >
+        <div className="mt-3 flex items-center justify-center gap-2" role="tablist" aria-label="Slides de destaque">
           {slides.map((slide, i) => (
             <button
               key={slide.id}
@@ -336,10 +333,8 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
               aria-selected={i === index}
               aria-label={`Ir para slide ${i + 1}`}
               onClick={() => goTo(i)}
-              onPointerDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
               className={`h-1.5 rounded-full transition-all ${
-                i === index ? 'w-6 bg-[#D2BB8A]' : 'w-1.5 bg-white/40 hover:bg-white/60'
+                i === index ? 'w-6 bg-[#5D082A]' : 'w-1.5 bg-[#5D082A]/25 hover:bg-[#5D082A]/50'
               }`}
             />
           ))}
