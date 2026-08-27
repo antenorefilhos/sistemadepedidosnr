@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  // Usado so pelo `npm run build`. Testes ficam de fora porque a imagem Docker
+  // do storefront builda com o contexto em ./frontend (ver docker-compose) e o
+  // teste de paridade do overlay importa admin/src/utils/bannerOverlay.ts por
+  // caminho relativo -- arquivo que existe no repo mas nao dentro do contexto,
+  // entao o tsc do build quebrava com "cannot find module".
+  //
+  // Os testes continuam checados no editor e por `tsc --noEmit` (tsconfig.json
+  // inclui src inteiro), e rodam normalmente no vitest, que roda no host.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}

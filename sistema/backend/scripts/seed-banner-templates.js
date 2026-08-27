@@ -126,10 +126,12 @@ const TEMPLATES = [
     title: 'Cortes selecionados do nosso açougue',
     description: 'Carne fresca escolhida a dedo, cortada na hora pra sua receita.',
     badgeText: 'Especial',
-    ctaLabel: 'Ver cortes',
+    ctaLabel: 'Ver ofertas do açougue',
     overlayColor: 'rgba(93, 8, 42, 0.55)',
     align: 'left',
     targetCategory: 'Acougue Churrasco',
+    linkType: 'url',
+    linkValue: '/promocoes',
     // Reaproveita a foto de outro modelo (nao existe webp proprio em
     // assets/banner-templates) -- o arquivo e copiado com o id deste banner,
     // entao cada um fica com a sua copia.
@@ -143,10 +145,12 @@ const TEMPLATES = [
     title: 'Vinhos que valem a pena',
     description: 'Rótulos escolhidos pra acompanhar do dia a dia à ocasião especial.',
     badgeText: 'Seleção especial',
-    ctaLabel: 'Ver vinhos',
+    ctaLabel: 'Ver ofertas da adega',
     overlayColor: 'rgba(35, 31, 32, 0.6)',
     align: 'right',
     targetCategory: 'Adega Vinhos Espumantes',
+    linkType: 'url',
+    linkValue: '/promocoes',
     imageFrom: 'seed-banner-intercalado-destaque',
   },
   {
@@ -229,8 +233,11 @@ async function main() {
     // transforma o nome no /mercado?cat=... certo, e manda Adega pra /adega).
     const isCategory = t.slot === 'category'
     const targetCategory = isCategory && t.targetCategory ? await resolveCategoryName(t.targetCategory) : null
-    const linkType = isCategory ? 'category' : 'url'
-    const linkValue = isCategory ? targetCategory : '/mercado'
+    // O CTA do banner de categoria NAO aponta pra propria categoria: o banner ja
+    // fica dentro dela, entao o botao recarregaria a mesma tela. Os modelos
+    // levam pras promocoes -- destino real, e o operador troca pra onde quiser.
+    const linkType = t.linkType || 'url'
+    const linkValue = t.linkValue || '/mercado'
 
     await prisma.storeBanner.upsert({
       where: { id: t.id },

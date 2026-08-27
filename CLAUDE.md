@@ -246,6 +246,32 @@ consulta `DeliveryZone` diretamente (como `isFreeShippingEarnedByZone` em
 `orders.service.ts`) vai parar de reconhecer zonas cadastradas só no sistema
 novo. Ver `sistema/backend/src/modules/delivery/delivery.service.ts`.
 
+## Armadilha: tela completa no admin sem nenhum consumidor no storefront
+
+`DeliveryArea` (acima) não é caso isolado. O mesmo padrão já apareceu no slot
+`category` dos banners: o admin tinha aba própria, CRUD, pré-visualização,
+ordenação e validação — e **nenhum componente do storefront consumia**.
+`useStoreBanners()` era chamado num único lugar (`Home.tsx`), que filtrava
+`hero`/`intercalado`/`tarja`/`popup`. Cadastrar banner de categoria não fazia
+absolutamente nada, sem erro nem aviso. Corrigido em 27/08/2026
+(`Search.tsx` e `WinePage.tsx` passaram a consumir).
+
+O que torna esse bug caro: os dois lados parecem prontos isoladamente. O admin
+salva, a API responde 200, o dado entra no banco, o teste passa. Só falta o
+elo, e nada no sistema reclama da falta dele.
+
+**Antes de dar por pronta qualquer tela nova do admin**, confirme que existe
+consumidor do outro lado — grep pelo campo/slot/model no storefront, não pelo
+nome da feature:
+
+```bash
+grep -rn "slot === 'category'" sistema/frontend/src   # quem filtra o slot?
+grep -rn "useStoreBanners\|deliveryArea" sistema/frontend/src sistema/backend/src
+```
+
+Se o grep só achar a definição do tipo e nenhum uso, a feature está morta —
+independentemente de quantas telas do admin a alimentam.
+
 ## Frete grátis: zona sobrepõe o global, sempre — dois lugares aplicam a regra
 
 Regra de negócio (confirmada com o Jonathan em 19/08/2026): frete grátis

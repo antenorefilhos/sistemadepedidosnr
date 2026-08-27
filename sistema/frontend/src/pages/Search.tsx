@@ -11,6 +11,8 @@ import {
   getCategoryHref,
   findCategoryBanner,
   resolveBannerLink,
+  normalizeCategoryCode,
+  toCategoryUrlParam,
 } from '../utils/homeCategories'
 import { PromoBanner } from '../components/PromoBanner'
 import { productsAPI, resolveApiUrl } from '../services/api'
@@ -103,18 +105,6 @@ const normalizeSearchText = (text: string) =>
     .join(' ')
     .trim()
 
-const normalizeCategoryCode = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-
-const toCategoryUrlParam = (value: string) =>
-  normalizeCategoryCode(value)
-    .toLowerCase()
-    .replace(/_/g, '-')
 
 export default function MercadoPage() {
   const [searchParams, setSearchParams] = useSearchParams()

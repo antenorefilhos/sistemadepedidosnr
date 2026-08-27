@@ -36,6 +36,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { buildOverlayGradient } from '../utils/bannerOverlay';
 
 /* ─── Types ─────────────────────────────────────────── */
 
@@ -478,28 +479,15 @@ function PreviewBadge({ text, className }: { text?: string | null; className: st
   );
 }
 
-/** Overlay do banner no preview -- espelha buildOverlayGradient/
- * buildOverlaySolid (homeCategories.ts do frontend). Sem `align` gera tinta
- * chapada, que e o que tarja e popup usam; com `align` gera o mesmo gradiente
- * direcional do hero/intercalado, senao o preview mostrava cor uniforme e o
- * operador so descobria a direcao real depois de publicar.
- *
- * Duplicado de proposito: admin e storefront sao pacotes separados, sem
- * modulo compartilhado. Se mexer nos stops la, mexa aqui tambem. */
+/** Overlay do banner no preview. Sem `align` gera tinta chapada, que e o que
+ * tarja e popup usam; com `align` gera o mesmo gradiente direcional do
+ * hero/intercalado/categoria -- senao o preview mostrava cor uniforme e o
+ * operador so descobria a direcao real depois de publicar. A tinta em si vem
+ * de utils/bannerOverlay.ts, cuja paridade com o storefront e garantida por
+ * teste (ver o cabecalho daquele arquivo). */
 function bannerOverlayStyle(overlayColor?: string | null, align?: 'left' | 'center' | 'right'): CSSProperties {
   const raw = overlayColor || 'rgba(35, 31, 32, 0.45)';
-  if (!align) return { background: raw };
-
-  const { hex, opacity } = parseOverlayColor(raw);
-  const { r, g, b } = hexToRgb(hex);
-  const a = opacity / 100;
-  const rgba = (multiplier: number) => `rgba(${r}, ${g}, ${b}, ${(a * multiplier).toFixed(2)})`;
-
-  if (align === 'center') {
-    return { background: `linear-gradient(to bottom, ${rgba(1)} 0%, ${rgba(0.6)} 50%, ${rgba(1)} 100%)` };
-  }
-  const direction = align === 'right' ? 'to left' : 'to right';
-  return { background: `linear-gradient(${direction}, ${rgba(1)} 0%, ${rgba(0.75)} 55%, transparent 100%)` };
+  return { background: align ? buildOverlayGradient(raw, align) : raw };
 }
 
 // Limites alinhados com o que cabe no banner sem estourar/truncar: titulo tem

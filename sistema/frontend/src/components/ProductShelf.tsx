@@ -96,12 +96,16 @@ export function ProductShelf({
             ))}
           </div>
 
-          {/* Setas de navegacao -- so desktop, aparecem no hover da vitrine */}
+          {/* Setas de navegacao -- so desktop, aparecem no hover da vitrine.
+              O avanco pra fora e 1/3 (12px num botao de 36px), nao 1/2: a
+              vitrine vive dentro de um container com px-4, entao um avanco de
+              18px estourava 2px alem da viewport e deixava a pagina inteira
+              com scroll horizontal em qualquer largura abaixo do max-w-7xl. */}
           <button
             type="button"
             onClick={() => scrollByCard('left')}
             aria-label="Produtos anteriores"
-            className="absolute left-0 top-[calc(50%-0.75rem)] z-10 hidden h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-[#5D082A] opacity-0 shadow-md transition-opacity hover:bg-[#FBF7F0] group-hover/shelf:opacity-100 md:flex"
+            className="absolute left-0 top-[calc(50%-0.75rem)] z-10 hidden h-9 w-9 -translate-x-1/3 items-center justify-center rounded-full border border-gray-200 bg-white text-[#5D082A] opacity-0 shadow-md transition-opacity hover:bg-[#FBF7F0] group-hover/shelf:opacity-100 md:flex"
           >
             <ChevronLeft size={18} />
           </button>
@@ -109,7 +113,7 @@ export function ProductShelf({
             type="button"
             onClick={() => scrollByCard('right')}
             aria-label="Próximos produtos"
-            className="absolute right-0 top-[calc(50%-0.75rem)] z-10 hidden h-9 w-9 translate-x-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-[#5D082A] opacity-0 shadow-md transition-opacity hover:bg-[#FBF7F0] group-hover/shelf:opacity-100 md:flex"
+            className="absolute right-0 top-[calc(50%-0.75rem)] z-10 hidden h-9 w-9 translate-x-1/3 items-center justify-center rounded-full border border-gray-200 bg-white text-[#5D082A] opacity-0 shadow-md transition-opacity hover:bg-[#FBF7F0] group-hover/shelf:opacity-100 md:flex"
           >
             <ChevronRight size={18} />
           </button>

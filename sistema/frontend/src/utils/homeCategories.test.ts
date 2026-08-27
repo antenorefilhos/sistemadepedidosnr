@@ -209,3 +209,33 @@ describe('findWineCategoryBanner', () => {
     expect(findWineCategoryBanner([])).toBeUndefined()
   })
 })
+
+// Admin e storefront sao pacotes npm separados e cada imagem Docker builda com
+// o contexto na propria pasta, entao a tinta do overlay e duplicada de
+// proposito (ver o cabecalho de admin/src/utils/bannerOverlay.ts). Este bloco e
+// o que impede as duas copias de divergirem em silencio: os testes rodam no
+// host, sem Docker, entao conseguem importar os dois lados e comparar.
+describe('paridade com o preview do admin', () => {
+  const TONES = ['#231F20', '#fff', 'rgba(93, 8, 42, 0.6)', 'rgba(15, 81, 50, 0.7)', 'nao-e-uma-cor']
+  const ALIGNS = ['left', 'center', 'right'] as const
+
+  it('buildOverlayGradient gera exatamente a mesma string nos dois pacotes', async () => {
+    const admin = await import('../../../admin/src/utils/bannerOverlay')
+    for (const tone of TONES) {
+      for (const align of ALIGNS) {
+        expect(admin.buildOverlayGradient(tone, align)).toBe(buildOverlayGradient(tone, align))
+      }
+      // sem align explicito (default) tambem precisa bater
+      expect(admin.buildOverlayGradient(tone)).toBe(buildOverlayGradient(tone))
+    }
+  })
+
+  it('buildOverlaySolid gera exatamente a mesma string nos dois pacotes', async () => {
+    const admin = await import('../../../admin/src/utils/bannerOverlay')
+    for (const tone of TONES) {
+      expect(admin.buildOverlaySolid(tone)).toBe(buildOverlaySolid(tone))
+      expect(admin.buildOverlaySolid(tone, 0.5)).toBe(buildOverlaySolid(tone, 0.5))
+      expect(admin.buildOverlaySolid(tone, 1.5)).toBe(buildOverlaySolid(tone, 1.5))
+    }
+  })
+})
