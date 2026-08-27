@@ -14,6 +14,17 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.2.8',
+    date: '27/08/2026',
+    title: 'Banner de Categoria na Loja e Ajustes de Navegação',
+    highlights: [
+      { type: 'feat', description: 'Banner de categoria agora aparece na loja: no topo da página da categoria escolhida e na Adega. Antes dava pra cadastrar, mas ele não era exibido em lugar nenhum.' },
+      { type: 'feat', description: 'Dois modelos prontos de banner de categoria (Açougue e Adega) para começar sem partir do zero.' },
+      { type: 'feat', description: 'Cliques nos banners intercalados passam a ser contabilizados, como já acontecia nos demais.' },
+      { type: 'fix', description: 'Loja não desliza mais alguns pixels para o lado — a página deixou de ter barra de rolagem horizontal.' },
+    ],
+  },
+  {
     version: '1.2.7',
     date: '27/08/2026',
     title: 'Carrossel Hero em Cards, Overlay Direcional e Controle de Tempo',

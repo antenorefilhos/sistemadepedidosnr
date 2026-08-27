@@ -14,7 +14,16 @@ sistema/frontend/stats.html
 .od-skills/
 .github/skills/
 .github/hooks/
-.claude/
+# `.claude/*` (com barra-asterisco), nao `.claude/`: com o diretorio inteiro
+# ignorado o git nao desce nele e as excecoes abaixo nunca sao avaliadas.
+.claude/*
+# Excecao: a skill /salvar e' processo DESTE projeto (onde documentar, o que
+# sincronizar no changelog do admin), nao configuracao de maquina — vale
+# versionar pra nao viver so num computador. settings.json,
+# settings.local.json, worktrees e skills de plugin seguem ignorados.
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/salvar/
 # .github/workflows/ (CI) permanece versionado — so o tooling de agente e' ignorado
 
 # Generated artifacts
