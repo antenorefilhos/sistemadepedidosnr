@@ -58,7 +58,7 @@ interface StoreBanner {
   highlightNote?: string | null;
   ctaLabel?: string | null;
   overlayColor?: string | null;
-  align?: 'left' | 'right';
+  align?: 'left' | 'center' | 'right';
   sponsorName?: string | null;
   desktopImageUrl: string;
   mobileImageUrl?: string | null;
@@ -88,7 +88,7 @@ interface FormState {
   highlightNote: string;
   ctaLabel: string;
   overlayColor: string;
-  align: 'left' | 'right';
+  align: 'left' | 'center' | 'right';
   sponsorName: string;
   desktopImageUrl: string;
   mobileImageUrl: string;
@@ -226,7 +226,7 @@ type BannerTemplate = {
   badgeText: string;
   ctaLabel: string;
   overlayColor: string;
-  align?: 'left' | 'right';
+  align?: 'left' | 'center' | 'right';
 };
 
 const BANNER_TEMPLATES: BannerTemplate[] = [
@@ -507,7 +507,11 @@ function PreviewBannerTile({
           <p className={`truncate font-bold leading-none text-white ${s.strip}`}>{banner.title || banner.name}</p>
         </div>
       ) : (
-        <div className="relative z-10 flex h-full flex-col justify-end gap-1 p-2.5">
+        <div
+          className={`relative z-10 flex h-full flex-col justify-end gap-1 p-2.5 ${
+            banner.align === 'center' ? 'items-center text-center' : banner.align === 'right' ? 'items-end text-right' : 'items-start text-left'
+          }`}
+        >
           <PreviewBadge text={banner.badgeText} className={s.badge} />
           <p className={`line-clamp-2 font-bold leading-tight text-white ${s.title}`}>{banner.title || banner.name}</p>
           {banner.ctaLabel && (
@@ -1057,7 +1061,7 @@ export default function StoreBannersManager() {
         highlightNote: form.slot === 'intercalado' ? (form.highlightNote.trim() || null) : null,
         ctaLabel: form.ctaLabel.trim() || null,
         overlayColor: form.overlayColor.trim() || null,
-        align: form.slot === 'intercalado' ? form.align : 'left',
+        align: form.slot === 'hero' || form.slot === 'intercalado' ? form.align : 'left',
         sponsorName: form.sponsorName.trim() || null,
         desktopImageUrl: form.desktopImageUrl,
         mobileImageUrl: form.mobileImageUrl.trim() || null,
@@ -1900,43 +1904,47 @@ export default function StoreBannersManager() {
                       />
                     </div>
 
-                    {/* Highlight note + align — so relevante pra banners intercalados em par (duo) */}
+                    {/* Nota do produto exaltado -- so relevante pra banners intercalados em par (duo) */}
                     {form.slot === 'intercalado' && (
-                      <>
-                        <div>
-                          <Label className="block text-xs font-medium text-gray-600 mb-1">
-                            Nota do produto exaltado
-                            <span className="ml-1 font-normal text-gray-400">(opcional — usada quando o link é um produto)</span>
-                          </Label>
-                          <Input
-                            type="text"
-                            value={form.highlightNote}
-                            onChange={(e) => set('highlightNote', e.target.value)}
-                            className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                            placeholder="Ex: Direto da nossa boutique"
-                          />
+                      <div>
+                        <Label className="block text-xs font-medium text-gray-600 mb-1">
+                          Nota do produto exaltado
+                          <span className="ml-1 font-normal text-gray-400">(opcional — usada quando o link é um produto)</span>
+                        </Label>
+                        <Input
+                          type="text"
+                          value={form.highlightNote}
+                          onChange={(e) => set('highlightNote', e.target.value)}
+                          className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                          placeholder="Ex: Direto da nossa boutique"
+                        />
+                      </div>
+                    )}
+
+                    {/* Alinhamento -- hero e intercalado sao os slots com texto/CTA sobrepostos
+                        na imagem, onde faz sentido escolher onde o bloco fica ancorado. */}
+                    {(form.slot === 'hero' || form.slot === 'intercalado') && (
+                      <div>
+                        <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do conteúdo</Label>
+                        <div className="flex gap-2">
+                          {[
+                            { value: 'left', label: 'Esquerda' },
+                            { value: 'center', label: 'Centro' },
+                            { value: 'right', label: 'Direita' },
+                          ].map((opt) => (
+                            <Button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => set('align', opt.value as 'left' | 'center' | 'right')}
+                              variant={form.align === opt.value ? 'default' : 'outline'}
+                              size="sm"
+                              className={`flex-1 rounded-lg text-xs ${form.align === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+                            >
+                              {opt.label}
+                            </Button>
+                          ))}
                         </div>
-                        <div>
-                          <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do texto</Label>
-                          <div className="flex gap-2">
-                            {[
-                              { value: 'left', label: 'Esquerda' },
-                              { value: 'right', label: 'Direita' },
-                            ].map((opt) => (
-                              <Button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => set('align', opt.value as 'left' | 'right')}
-                                variant={form.align === opt.value ? 'default' : 'outline'}
-                                size="sm"
-                                className={`flex-1 rounded-lg text-xs ${form.align === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
-                              >
-                                {opt.label}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      </>
+                      </div>
                     )}
 
                     {/* Encarte / campanha */}

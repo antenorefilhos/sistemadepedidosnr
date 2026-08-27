@@ -95,19 +95,6 @@
   scrollbar-width: none;
 }
 
-/* Crossfade da camada de fundo do HeroSlider (troca de slide, nao arrasto) */
-@keyframes hero-fade {
-  from {
-    opacity: 0.4;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.animate-hero-fade {
-  animation: hero-fade 0.35s ease-out;
-}
-
 /* Confete + popup de frete gratis conquistado (FreeShippingBar) */
 @keyframes confetti-fall {
   0% {

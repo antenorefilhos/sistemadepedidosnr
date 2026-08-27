@@ -10,12 +10,11 @@ import {
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
-import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns, type StoreBannerCMS } from '../hooks/useCMS'
+import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
 import { useBrand } from '../hooks/useBrand'
-import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
 import { useQuery } from '@tanstack/react-query'
@@ -48,7 +47,7 @@ type PromoBannerView = {
   image: string
   ctaLabel?: string
   ctaTo?: string
-  align?: 'left' | 'right'
+  align?: 'left' | 'center' | 'right'
   overlayColor?: string
   validUntil?: string
   sponsorName?: string
@@ -63,14 +62,12 @@ const formatValidUntil = (isoDate: string) => {
 
 export default function Home() {
   const navigate = useNavigate()
-  const touchStartX = useRef(0)
   const categoryScrollRef = useRef<HTMLDivElement>(null)
   const scrollCategories = useCallback((direction: 'left' | 'right') => {
     const el = categoryScrollRef.current
     if (!el) return
     el.scrollBy({ left: direction === 'left' ? -240 : 240, behavior: 'smooth' })
   }, [])
-  const prefersReducedMotion = usePrefersReducedMotion()
   // Monta apenas a arvore do viewport atual (mobile OU desktop) em vez de
   // renderizar as duas e esconder uma com CSS — evita ~2x cards no DOM.
   const isDesktop = useIsDesktop()
@@ -122,6 +119,7 @@ export default function Home() {
           imageUrl: resolveApiUrl(item.desktopImageUrl),
           link: resolveBannerLink(item.linkValue, item.linkType),
           sponsorName: item.sponsorName || undefined,
+          align: item.align || 'left',
           active: item.active,
           order: item.order,
         })),
@@ -222,7 +220,6 @@ export default function Home() {
     user, rebuyShelf, offersShelf, freshShelf, churrascoOccasionShelf, fairShelf, recurringShelf,
   ])
 
-  const [currentSlide, setCurrentSlide] = useState(0)
   // Tarja/popup fechados ficam fechados so pela sessao (sessionStorage) --
   // reaparecem na proxima visita, diferente de um "nunca mais mostrar" perene.
   const [tarjaDismissedIds, setTarjaDismissedIds] = useState<string[]>(() => {
@@ -240,24 +237,6 @@ export default function Home() {
     }
   })
   const [popupVisible, setPopupVisible] = useState(false)
-
-  const slides = useMemo(() => {
-    if (!storeBanners || storeBanners.length === 0) return []
-
-    const activeSlides = storeBanners
-      .filter((item: StoreBannerCMS) => item.active !== false && item.slot === 'hero' && item.desktopImageUrl)
-      .sort((a: StoreBannerCMS, b: StoreBannerCMS) => (a.order || 0) - (b.order || 0))
-
-    return activeSlides.map((item: StoreBannerCMS) => ({
-      id: item.id,
-      title: item.title || item.name || 'Destaque',
-      tag: 'Destaque',
-      description: item.description || 'Ofertas e destaques escolhidos para facilitar sua compra e fazer render mais.',
-      image: resolveApiUrl(item.desktopImageUrl),
-      link: resolveBannerLink(item.linkValue, item.linkType),
-      button: item.ctaLabel || 'Ver oferta',
-    }))
-  }, [storeBanners])
 
   // Fonte unica pros banners intercalados: StoreBanner slot=intercalado
   // (unifica o que antes vinha de PromoBanner).
@@ -388,14 +367,6 @@ export default function Home() {
       return next
     })
   }, [])
-
-  useEffect(() => {
-    if (slides.length <= 1 || prefersReducedMotion) return
-    const timer = setInterval(() => {
-      setCurrentSlide(prev => (prev + 1) % slides.length)
-    }, 6000)
-    return () => clearInterval(timer)
-  }, [slides.length, prefersReducedMotion])
 
   // Schema.org Data
   const organizationSchema = {
@@ -649,73 +620,15 @@ export default function Home() {
       </div>
       )}
 
-      {/* Hero Slider — escondido no mobile, substituído pela seção Popular */}
-      {isDesktop && slides.length > 0 && <div
-        className="hidden md:block relative h-[420px] sm:h-[520px] md:h-[620px] overflow-hidden bg-[#231F20]"
-        onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
-        onTouchEnd={(e) => {
-          const diff = touchStartX.current - e.changedTouches[0].clientX
-          if (diff > 50) setCurrentSlide((prev) => (prev + 1) % slides.length)
-          else if (diff < -50) setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
-        }}
-      >
-            {slides.map((slide: { id?: string; title: string; tag?: string; description?: string; button?: string; image?: string; link?: string }, index: number) => (
-              <div
-                key={index}
-                className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                  index === currentSlide ? 'opacity-100' : 'opacity-0'
-                }`}
-              >
-            <img 
-              src={slide.image} 
-              alt={slide.title} 
-              className="w-full h-full object-cover opacity-60"
-              loading={index === 0 ? "eager" : "lazy"}
-              fetchPriority={index === 0 ? "high" : "auto"}
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#231F20] via-[#231F20]/40 to-transparent" />
-            
-            <div className="absolute inset-0 z-10 max-w-7xl mx-auto px-4 sm:px-6 flex flex-col justify-center gap-3 sm:gap-4">
-              <div className="max-w-xl">
-                <Badge tone="gold" className="mb-3 h-auto w-fit gap-1.5 border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
-                  <Sparkles size={11} /> {slide.tag}
-                </Badge>
-                <h2 className="text-2xl sm:text-4xl md:text-6xl font-bold text-white mb-3 luxury-text tracking-tight leading-tight">
-                  {slide.title}
-                </h2>
-                <p className="text-white/80 mb-5 sm:mb-7 text-sm sm:text-base leading-relaxed line-clamp-2 sm:line-clamp-none">
-                  {slide.description}
-                </p>
-                <div className="flex items-center gap-3">
-                  {slide.link && <Link
-                    to={slide.link}
-                    onClick={() => { if (slide.id) cmsAPI.storeBanners.registerClick(slide.id).catch(() => {}) }}
-                    className={buttonVariants({ variant: 'secondary', size: 'lg', className: 'w-full sm:w-auto text-sm sm:text-base' })}
-                  >
-                    {slide.button} <ArrowRight size={16} />
-                  </Link>}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-        
-        {/* Dots */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-30">
-          {slides.map((_: Record<string, unknown>, index: number) => (
-            <Button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              aria-label={`Ir para slide ${index + 1}`}
-              variant="ghost"
-              size="icon"
-              className={`h-2 rounded-full p-0 transition-all hover:bg-white/40 ${
-                index === currentSlide ? 'bg-[#D2BB8A] w-6' : 'bg-white/30 w-2'
-              }`}
-            />
-          ))}
+      {/* Hero Slider — mesmo componente pra mobile e desktop (era duplicado,
+          uma versao desktop-only aqui e outra em HeroSlider.tsx pro mobile;
+          unificado pra nao ter que corrigir bug de bolinha/flash/alinhamento
+          em dois lugares). */}
+      {activeHeroSlides.length > 0 && (
+        <div className="mx-4 mt-4 mb-4 md:mx-0 md:mt-0 md:mb-0">
+          <HeroSlider slides={activeHeroSlides} />
         </div>
-      </div>}
+      )}
 
       {/* Categorias abaixo do banner — apenas desktop */}
       {isDesktop && homeCategories.length > 0 && (
@@ -761,13 +674,9 @@ export default function Home() {
       {/* ── MOBILE MAIN — vitrines de intencao ── */}
       {!isDesktop && (
       <>
-      {/* Hero primeiro: e a vitrine de entrada, nao faz sentido enterrada
-          depois de 7 prateleiras de produto. */}
-      {activeHeroSlides.length > 0 ? (
-        <section className="md:hidden mx-4 mt-4 mb-4">
-          <HeroSlider slides={activeHeroSlides} />
-        </section>
-      ) : featuredCommercialSection && (
+      {/* Hero ja renderizado acima (fora do bloco mobile/desktop) -- esse
+          fallback so aparece quando nao ha nenhum banner de hero cadastrado. */}
+      {activeHeroSlides.length === 0 && featuredCommercialSection && (
         <section className="md:hidden mx-4 mt-4 mb-4">
           <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-[#D2BB8A]/40 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-5 shadow-xl' })}>
             <div className="flex flex-col gap-4">
@@ -912,7 +821,7 @@ export default function Home() {
         
         {/* Hero principal ja aparece na tira do topo (StoreBanner slot=hero,
             logo abaixo do header) -- este bloco so cobre a ausencia dele. */}
-        {slides.length === 0 && featuredCommercialSection && (
+        {activeHeroSlides.length === 0 && featuredCommercialSection && (
           <section className="fade-in-section">
             <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-[#D2BB8A]/40 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-6 shadow-xl md:p-8' })}>
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
@@ -1311,12 +1220,14 @@ function PromoBanner({
   description?: string
   ctaLabel?: string
   ctaTo?: string
-  align?: 'left' | 'right'
+  align?: 'left' | 'center' | 'right'
   overlayColor?: string
   validUntil?: string
   sponsorName?: string
 }) {
   const tone = overlayColor || '#231F20'
+  const alignClass =
+    align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left'
   return (
     <section className="fade-in-section">
       <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[170px] overflow-hidden bg-[#F7F0E4] md:min-h-[320px]' })}>
@@ -1330,7 +1241,7 @@ function PromoBanner({
             Patrocinado por {sponsorName}
           </span>
         )}
-        <div className={`relative z-10 flex h-full items-end p-4 md:p-8 ${align === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
+        <div className={`relative z-10 flex h-full items-end p-4 md:p-8 ${alignClass}`}>
           <div className="max-w-lg space-y-1.5 md:space-y-3">
             {(badge || validUntil) && (
               <div className="flex flex-wrap items-center gap-1.5 md:gap-2">

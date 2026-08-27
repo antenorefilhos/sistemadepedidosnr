@@ -141,6 +141,14 @@ describe('StoreBannersService', () => {
       );
     });
 
+    it('aceita align = center', async () => {
+      await expect(service.create({ ...validPayload(), align: 'center' })).resolves.toBeDefined();
+    });
+
+    it('rejeita align fora do enum', () => {
+      expect(() => service.create({ ...validPayload(), align: 'justified' })).toThrow(/align inválido/i);
+    });
+
     it('aceita slot = category quando targetCategory esta preenchido', async () => {
       await expect(
         service.create({ ...validPayload(), slot: 'category', targetCategory: 'ACOUGUE' }),

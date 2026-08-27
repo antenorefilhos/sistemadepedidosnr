@@ -23,7 +23,7 @@ export interface StoreBannerCMS {
   highlightedProduct?: Product | null
   ctaLabel?: string | null
   overlayColor?: string | null
-  align?: 'left' | 'right'
+  align?: 'left' | 'center' | 'right'
   sponsorName?: string | null
   desktopImageUrl: string
   mobileImageUrl?: string

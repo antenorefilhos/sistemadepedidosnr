@@ -38,7 +38,7 @@ const VALID_SLOTS = ['hero', 'intercalado', 'category', 'tarja', 'popup'];
 const VALID_LINK_TYPES = ['url', 'category', 'product', 'search'];
 const VALID_LINK_TARGETS = ['_self', '_blank'];
 const VALID_PAGES = ['home', 'all', 'category', 'product'];
-const VALID_ALIGN = ['left', 'right'];
+const VALID_ALIGN = ['left', 'center', 'right'];
 
 function assertValidEnum(value: string | undefined, allowed: string[], field: string) {
   if (value !== undefined && !allowed.includes(value)) {
