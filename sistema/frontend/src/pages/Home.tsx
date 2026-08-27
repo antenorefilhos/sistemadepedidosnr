@@ -1226,8 +1226,10 @@ function PromoBanner({
   sponsorName?: string
 }) {
   const tone = overlayColor || '#231F20'
-  const alignClass =
-    align === 'right' ? 'items-end text-right' : align === 'center' ? 'items-center text-center' : 'items-start text-left'
+  // Bloco de baixo ancorado conforme o alinhamento configurado. A linha de
+  // cima (tags + patrocinio) fica sempre topo-esquerda/topo-direita.
+  const contentAlignClass =
+    align === 'right' ? 'self-end text-right' : align === 'center' ? 'self-center text-center' : 'self-start text-left'
   return (
     <section className="fade-in-section">
       <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[230px] overflow-hidden bg-[#F7F0E4] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[340px]' })}>
@@ -1236,30 +1238,36 @@ function PromoBanner({
           className="absolute inset-0"
           style={{ background: buildOverlayGradient(tone) }}
         />
-        {sponsorName && (
-          <span className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:right-6 md:top-6 md:px-2.5 md:py-1 md:text-[11px]">
-            Patrocinado por {sponsorName}
-          </span>
-        )}
-        <div className={`absolute inset-0 z-10 flex flex-col justify-center gap-2 p-4 sm:gap-2.5 sm:p-6 md:gap-3.5 md:p-8 ${alignClass}`}>
-          <div className="max-w-lg">
-            {(badge || validUntil) && (
-              <div className="mb-0.5 flex flex-wrap items-center gap-1.5 md:gap-2">
-                {badge && (
-                  <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[9px] text-[#231F20] md:px-3 md:py-1 md:text-xs">
-                    {badge}
-                  </Badge>
-                )}
-                {validUntil && (
-                  <Badge className="h-auto border-white/40 bg-black/30 px-2 py-0.5 text-[9px] text-white backdrop-blur-sm md:px-3 md:py-1 md:text-xs">
-                    {validUntil}
-                  </Badge>
-                )}
-              </div>
+        {/* Topo e rodape, nao centralizado: com o card mais alto (230-340px) um
+            bloco unico centralizado deixava a foto tapada no meio e vazio nas
+            duas pontas. Tags sobem pro topo, texto/CTA descem pro rodape, e o
+            miolo da imagem fica limpo. A linha do topo e sempre renderizada
+            (mesmo vazia) pra o justify-between manter o texto colado na base. */}
+        <div className="absolute inset-0 z-10 flex flex-col justify-between p-4 sm:p-6 md:p-8">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+              {badge && (
+                <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[9px] text-[#231F20] md:px-3 md:py-1 md:text-xs">
+                  {badge}
+                </Badge>
+              )}
+              {validUntil && (
+                <Badge className="h-auto border-white/40 bg-black/30 px-2 py-0.5 text-[9px] text-white backdrop-blur-sm md:px-3 md:py-1 md:text-xs">
+                  {validUntil}
+                </Badge>
+              )}
+            </div>
+            {sponsorName && (
+              <span className="ml-auto shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:px-2.5 md:py-1 md:text-[11px]">
+                Patrocinado por {sponsorName}
+              </span>
             )}
+          </div>
+
+          <div className={`max-w-lg ${contentAlignClass}`}>
             <h3 className="text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-2xl lg:text-3xl">{title}</h3>
             {description && (
-              <p className="line-clamp-2 text-xs leading-snug text-white/85 sm:text-sm md:line-clamp-none md:leading-relaxed">
+              <p className="mt-1 line-clamp-2 text-xs leading-snug text-white/85 sm:text-sm md:line-clamp-none md:leading-relaxed">
                 {description}
               </p>
             )}
@@ -1282,7 +1290,7 @@ function PromoBanner({
                 className={buttonVariants({
                   variant: 'outline',
                   size: 'sm',
-                  className: 'mt-1 border-white bg-white font-bold text-[#5D082A] hover:bg-[#F3E7C9] sm:mt-1.5 md:h-12 md:px-5 md:text-sm',
+                  className: 'mt-2 border-white bg-white font-bold text-[#5D082A] hover:bg-[#F3E7C9] sm:mt-2.5 md:h-12 md:px-5 md:text-sm',
                 })}
               >
                 {ctaLabel}
