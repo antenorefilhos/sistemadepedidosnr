@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type TouchEvent as ReactTouchEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { Badge } from './ui/badge'
@@ -26,6 +26,7 @@ const AUTO_ADVANCE_MS = 6500
 // Abaixo disso conta como toque/clique, nao arrasto -- deixa o link/CTA
 // clicavel normalmente em vez de sempre interpretar como swipe.
 const SWIPE_THRESHOLD_PX = 40
+const TOUCH_SWIPE_THRESHOLD_PX = 35
 
 const ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
   left: 'items-start text-left',
@@ -67,8 +68,16 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
     setInteractionTick((t) => t + 1)
   }
 
+  // No iOS WebKit, PointerEvent com setPointerCapture dispara pointercancel
+  // assim que o dedo move um pouco, cancelando o arrasto antes do threshold
+  // -- eventos de touch nativos (onTouchStart/Move/End) nao sofrem disso.
+  // Pointer events seguem cuidando do mouse (desktop); pointerType==='touch'
+  // e ignorado aqui pra nao disputar estado com os handlers de touch abaixo
+  // (iOS dispara os dois pra um mesmo gesto).
+  const dragStartYRef = useRef(0)
+
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (slides.length < 2) return
+    if (slides.length < 2 || e.pointerType === 'touch') return
     pointerIdRef.current = e.pointerId
     dragStartXRef.current = e.clientX
     setIsDragging(true)
@@ -83,11 +92,12 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
   }
 
   const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!isDragging || pointerIdRef.current !== e.pointerId) return
+    if (e.pointerType === 'touch' || !isDragging || pointerIdRef.current !== e.pointerId) return
     setDragOffset(e.clientX - dragStartXRef.current)
   }
 
   const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return
     if (!isDragging || pointerIdRef.current !== e.pointerId) return
     const delta = e.clientX - dragStartXRef.current
     if (Math.abs(delta) >= SWIPE_THRESHOLD_PX) {
@@ -96,6 +106,32 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
     setIsDragging(false)
     setDragOffset(0)
     pointerIdRef.current = null
+  }
+
+  const handleTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (slides.length < 2) return
+    const touch = e.touches[0]
+    dragStartXRef.current = touch.clientX
+    dragStartYRef.current = touch.clientY
+    setIsDragging(true)
+  }
+
+  const handleTouchMove = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (!isDragging) return
+    const touch = e.touches[0]
+    const deltaX = touch.clientX - dragStartXRef.current
+    const deltaY = touch.clientY - dragStartYRef.current
+    if (Math.abs(deltaX) > Math.abs(deltaY)) setDragOffset(deltaX)
+  }
+
+  const handleTouchEnd = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (!isDragging) return
+    const deltaX = e.changedTouches[0].clientX - dragStartXRef.current
+    if (Math.abs(deltaX) >= TOUCH_SWIPE_THRESHOLD_PX) {
+      goTo(index + (deltaX < 0 ? 1 : -1))
+    }
+    setIsDragging(false)
+    setDragOffset(0)
   }
 
   const handleKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -123,7 +159,11 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
     ? Math.max(-80, Math.min(80, dragOffset * 0.35))
     : 0
 
-  const ctaClassName = buttonVariants({ variant: 'secondary', size: 'lg', className: 'w-fit whitespace-nowrap' })
+  const ctaClassName = buttonVariants({
+    variant: 'secondary',
+    size: 'sm',
+    className: 'w-fit whitespace-nowrap md:h-12 md:px-5 md:text-sm',
+  })
   const cta = slide.ctaLabel ? (
     isExternalLink(link) ? (
       <a
@@ -132,11 +172,17 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
         rel="noreferrer"
         className={ctaClassName}
         onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
       >
         {slide.ctaLabel} <ArrowRight size={16} />
       </a>
     ) : (
-      <Link to={link} className={ctaClassName} onPointerDown={(e) => e.stopPropagation()}>
+      <Link
+        to={link}
+        className={ctaClassName}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      >
         {slide.ctaLabel} <ArrowRight size={16} />
       </Link>
     )
@@ -154,6 +200,9 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       onPointerLeave={endDrag}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       className={surfaceClasses({
         tone: 'dark',
         className:
@@ -177,7 +226,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
           style={{
             opacity: i === index ? 1 : 0,
             backgroundImage: s.imageUrl
-              ? `linear-gradient(90deg, rgba(93,8,42,0.92) 0%, rgba(123,16,56,0.82) 45%, rgba(35,31,32,0.55) 100%), url(${s.imageUrl})`
+              ? `linear-gradient(90deg, rgba(93,8,42,0.90) 0%, rgba(123,16,56,0.68) 52%, rgba(35,31,32,0.30) 100%), url(${s.imageUrl})`
               : undefined,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -192,7 +241,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
           pra configurar, e no mobile viravam flex-col sem items-* explicito
           -- align-items:stretch (default) esticava o CTA a largura toda.
           Um unico bloco alinhado left/center/right resolve os dois. */}
-      <div className={`absolute inset-0 z-10 flex flex-col justify-center gap-3 p-6 md:p-8 ${ALIGN_CLASSES[align]}`}>
+      <div className={`absolute inset-0 z-10 flex flex-col justify-center gap-2 p-4 sm:gap-3 sm:p-6 md:p-8 ${ALIGN_CLASSES[align]}`}>
         {slide.sponsorName && (
           <span className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:right-6 md:top-6">
             Patrocinado por {slide.sponsorName}
@@ -200,18 +249,27 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
         )}
         <div className="max-w-2xl">
           {slide.tag && (
-            <Badge tone="gold" className="mb-3 h-auto w-fit border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
+            <Badge
+              tone="gold"
+              className="mb-1.5 h-auto w-fit border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[10px] text-[#231F20] sm:mb-2 sm:px-2.5 sm:py-1 sm:text-xs"
+            >
               {slide.tag}
             </Badge>
           )}
-          <h3 className="text-2xl font-bold text-white luxury-text mb-2 md:text-4xl">{slide.title}</h3>
-          {slide.description && <p className="text-sm text-white/80 md:text-base">{slide.description}</p>}
+          <h3 className="mb-1 line-clamp-2 text-lg font-bold leading-tight text-white luxury-text sm:mb-2 sm:text-xl md:text-3xl lg:text-4xl">
+            {slide.title}
+          </h3>
+          {slide.description && (
+            <p className="line-clamp-2 text-xs text-white/85 sm:text-sm md:line-clamp-none md:text-base">
+              {slide.description}
+            </p>
+          )}
         </div>
         {cta}
 
         {slides.length > 1 && (
           <div
-            className="mt-2 flex items-center gap-2"
+            className="mt-1 flex items-center gap-2 sm:mt-2"
             role="tablist"
             aria-label="Slides de destaque"
           >
@@ -224,6 +282,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                 aria-label={`Ir para slide ${i + 1}`}
                 onClick={() => goTo(i)}
                 onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 className={`h-1.5 rounded-full transition-all ${
                   i === index ? 'w-6 bg-[#D2BB8A]' : 'w-1.5 bg-white/40 hover:bg-white/60'
                 }`}
