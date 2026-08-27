@@ -18,6 +18,12 @@ export function useDragScroll<T extends HTMLElement>(externalRef?: RefObject<T |
     const el = ref.current
     if (!el) return
     state.current = { dragging: true, startX: e.pageX, startScrollLeft: el.scrollLeft, moved: false }
+    // O container pode ter scroll-snap. Cada atribuicao de scrollLeft conta
+    // como um scroll terminado, entao o browser re-encaixa no ponto de snap na
+    // hora -- com `mandatory` o conteudo fica travado no card atual e so pula
+    // pro seguinte depois da metade, em vez de acompanhar o mouse. Desliga
+    // durante o arrasto e devolve ao soltar, quando o snap encaixa certinho.
+    el.style.scrollSnapType = 'none'
   }
 
   const onMouseMove = (e: React.MouseEvent) => {
@@ -29,7 +35,11 @@ export function useDragScroll<T extends HTMLElement>(externalRef?: RefObject<T |
   }
 
   const stopDrag = () => {
+    if (!state.current.dragging) return
     state.current.dragging = false
+    // Devolve o snap (a regra volta a valer pela classe do elemento) -- ao
+    // limpar o inline style o browser encaixa no card mais proximo sozinho.
+    if (ref.current) ref.current.style.scrollSnapType = ''
   }
 
   // Depois de um drag de verdade, ignora o proximo click (evita abrir o

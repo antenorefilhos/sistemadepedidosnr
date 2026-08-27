@@ -16,6 +16,7 @@ import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
 import { useBrand } from '../hooks/useBrand'
 import { useIsDesktop } from '../hooks/useMediaQuery'
+import { useDragScroll } from '../hooks/useDragScroll'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
 import { useQuery } from '@tanstack/react-query'
 import { resolveApiUrl, productsAPI, cmsAPI } from '../services/api'
@@ -1141,6 +1142,12 @@ function PopupBanner({ banner, onDismiss }: { banner: PromoBannerView; onDismiss
 /** Par de banners intercalados -- lado a lado no desktop (md:grid-cols-2), empilhado no mobile. */
 function PromoBannerPair({ banners, className }: { banners?: PromoBannerView[]; className?: string }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Arrastar com o mouse: no touch o scroll nativo ja resolve, mas no desktop
+  // (e em janela estreita, onde o carrossel aparece) nao havia como puxar o
+  // banner -- a barra de rolagem fica escondida de proposito (no-scrollbar),
+  // entao so sobrava a roda do mouse, que nao e obvio. Compartilha o mesmo
+  // ref do onScroll que atualiza as bolinhas.
+  const dragScroll = useDragScroll(scrollRef)
   const [activeIndex, setActiveIndex] = useState(0)
 
   const handleScroll = () => {
@@ -1162,7 +1169,8 @@ function PromoBannerPair({ banners, className }: { banners?: PromoBannerView[]; 
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory md:grid md:grid-cols-2 md:gap-4 md:overflow-visible"
+        {...dragScroll.dragProps}
+        className="flex cursor-grab overflow-x-auto no-scrollbar snap-x snap-mandatory active:cursor-grabbing md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:cursor-auto"
       >
         {banners.map((banner) => (
           <div key={banner.id} className="w-full shrink-0 snap-center md:w-auto md:shrink md:snap-align-none">
