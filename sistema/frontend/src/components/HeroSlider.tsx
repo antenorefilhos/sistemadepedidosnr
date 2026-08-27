@@ -156,7 +156,8 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
       onPointerLeave={endDrag}
       className={surfaceClasses({
         tone: 'dark',
-        className: 'relative touch-pan-y select-none overflow-hidden border-[#D2BB8A]/40 outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A]',
+        className:
+          'relative min-h-[220px] touch-pan-y select-none overflow-hidden rounded-2xl border-[#D2BB8A]/40 shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A] md:min-h-[320px] lg:min-h-[360px]',
       })}
     >
       {/* Camadas de fundo -- uma por slide, sempre montadas (nunca remove/recria
@@ -191,7 +192,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
           pra configurar, e no mobile viravam flex-col sem items-* explicito
           -- align-items:stretch (default) esticava o CTA a largura toda.
           Um unico bloco alinhado left/center/right resolve os dois. */}
-      <div className={`relative z-10 flex flex-col gap-3 p-6 md:p-8 ${ALIGN_CLASSES[align]}`}>
+      <div className={`absolute inset-0 z-10 flex flex-col justify-center gap-3 p-6 md:p-8 ${ALIGN_CLASSES[align]}`}>
         {slide.sponsorName && (
           <span className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:right-6 md:top-6">
             Patrocinado por {slide.sponsorName}

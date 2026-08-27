@@ -625,7 +625,7 @@ export default function Home() {
           unificado pra nao ter que corrigir bug de bolinha/flash/alinhamento
           em dois lugares). */}
       {activeHeroSlides.length > 0 && (
-        <div className="mx-4 mt-4 mb-4 md:mx-0 md:mt-0 md:mb-0">
+        <div className="max-w-7xl mx-auto px-4 pt-4 md:pt-6">
           <HeroSlider slides={activeHeroSlides} />
         </div>
       )}
