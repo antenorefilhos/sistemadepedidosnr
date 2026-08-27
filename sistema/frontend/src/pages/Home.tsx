@@ -1227,11 +1227,15 @@ function PromoBanner({
   sponsorName?: string
 }) {
   const tone = overlayColor || '#231F20'
-  // Mesmo mapeamento do ALIGN_CLASSES do HeroSlider -- os dois componentes
-  // compartilham o layout (bloco unico centralizado), entao compartilham o
-  // jeito de alinhar tambem.
+  // Mesmo mapeamento do ALIGN_CLASSES do HeroSlider. self-* (nao items-* no
+  // container): a linha do topo precisa manter a largura toda pro
+  // justify-between empurrar o patrocinio pra direita.
   const contentAlignClass =
-    align === 'right' ? 'items-end text-right' : align === 'center' ? 'items-center text-center' : 'items-start text-left'
+    align === 'right'
+      ? 'self-end items-end text-right'
+      : align === 'center'
+        ? 'self-center items-center text-center'
+        : 'self-start items-start text-left'
   // A descricao e mais estreita que o bloco (max-w-*%), entao precisa da
   // margem auto correspondente pra encostar no mesmo lado que o texto aponta
   // -- sem isso, em align=right/center ela ficaria presa a esquerda do bloco.
@@ -1242,45 +1246,41 @@ function PromoBanner({
         <img src={image} alt={alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
         <div
           className="absolute inset-0"
-          style={{ background: buildOverlayGradient(tone) }}
+          style={{ background: buildOverlayGradient(tone, align) }}
         />
-        {/* Mesmo container do HeroSlider: bloco unico (selo -> titulo ->
-            descricao -> produto exaltado -> CTA) centralizado verticalmente,
-            alinhado por ALIGN_CLASSES. Patrocinio sai do fluxo e fica fixo no
-            topo direito, com offset acompanhando o padding (p-4 -> sm:p-6). */}
-        <div className={`absolute inset-0 z-10 flex flex-col justify-center gap-2 p-4 sm:gap-3 sm:p-6 md:p-8 ${contentAlignClass}`}>
-          {sponsorName && (
-            <span className="absolute right-4 top-4 z-10 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm sm:right-6 sm:top-6 md:px-2.5 md:py-1 md:text-[11px]">
-              {sponsorName}
-            </span>
-          )}
-
-          <div className="max-w-lg">
-            {(badge || validUntil) && (
-              // inline-flex (nao flex): como bloco ele ocuparia a largura toda
-              // e os selos ficariam colados a esquerda mesmo com align
-              // center/right. Inline-flex obedece o text-align herdado, igual
-              // ao selo do HeroSlider.
-              <div className="mb-1.5 inline-flex flex-wrap items-center gap-1.5 sm:mb-2 md:gap-2">
-                {badge && (
-                  <Badge tone="gold" className="h-auto w-fit border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[9px] text-[#231F20] md:px-3 md:py-1 md:text-xs">
-                    {badge}
-                  </Badge>
-                )}
-                {validUntil && (
-                  <Badge className="h-auto w-fit border-white/40 bg-black/30 px-2 py-0.5 text-[9px] text-white backdrop-blur-sm md:px-3 md:py-1 md:text-xs">
-                    {validUntil}
-                  </Badge>
-                )}
-              </div>
+        {/* Tres zonas (topo / centro / base), mesmo esqueleto do HeroSlider:
+            selos no topo, texto no meio, CTA na base. A linha do topo e sempre
+            renderizada mesmo vazia -- com um filho a menos o justify-between
+            reposicionaria as outras zonas. */}
+        <div className="absolute inset-0 z-10 flex flex-col justify-between p-4 sm:p-6 md:p-8">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+              {badge && (
+                <Badge tone="gold" className="h-auto w-fit border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[9px] text-[#231F20] md:px-3 md:py-1 md:text-xs">
+                  {badge}
+                </Badge>
+              )}
+              {validUntil && (
+                <Badge className="h-auto w-fit border-white/40 bg-black/30 px-2 py-0.5 text-[9px] text-white backdrop-blur-sm md:px-3 md:py-1 md:text-xs">
+                  {validUntil}
+                </Badge>
+              )}
+            </div>
+            {sponsorName && (
+              <span className="ml-auto shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:px-2.5 md:py-1 md:text-[11px]">
+                {sponsorName}
+              </span>
             )}
+          </div>
+
+          <div className={`max-w-lg ${contentAlignClass}`}>
             <h3 className="text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-2xl lg:text-3xl">{title}</h3>
             {/* Descricao contida em ~2/3 pra nao invadir a foto do produto a
                 direita; whitespace-pre-line respeita o Enter que o operador
                 digita no textarea do admin. */}
             {description && (
               <p
-                className={`mt-1 line-clamp-2 max-w-[75%] whitespace-pre-line text-xs leading-snug text-white/85 sm:max-w-[65%] sm:text-sm md:line-clamp-none md:max-w-[60%] md:leading-relaxed ${descriptionAlignClass}`}
+                className={`mt-1 line-clamp-3 max-w-[75%] whitespace-pre-line text-xs leading-snug text-white/85 sm:mt-2 sm:text-sm md:max-w-[60%] md:leading-relaxed ${descriptionAlignClass}`}
               >
                 {description}
               </p>
@@ -1298,13 +1298,16 @@ function PromoBanner({
                 </Link>
               </div>
             )}
+          </div>
+
+          <div className={`flex flex-col ${contentAlignClass}`}>
             {ctaLabel && ctaTo && (
               <Link
                 to={ctaTo}
                 className={buttonVariants({
                   variant: 'outline',
                   size: 'sm',
-                  className: 'mt-2 border-white bg-white font-bold text-[#5D082A] hover:bg-[#F3E7C9] sm:mt-2.5 md:h-12 md:px-5 md:text-sm',
+                  className: 'border-white bg-white font-bold text-[#5D082A] hover:bg-[#F3E7C9] md:h-12 md:px-5 md:text-sm',
                 })}
               >
                 {ctaLabel}

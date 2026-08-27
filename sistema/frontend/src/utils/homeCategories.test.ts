@@ -37,27 +37,45 @@ describe('buildOverlayGradient', () => {
   it('gera gradiente valido (sem sufixo de hex colado) a partir de rgba() do color picker', () => {
     const gradient = buildOverlayGradient('rgba(93, 8, 42, 0.6)')
     expect(gradient).toBe(
-      'linear-gradient(to right, rgba(93, 8, 42, 0.49) 0%, rgba(93, 8, 42, 0.27) 45%, transparent 100%)',
+      'linear-gradient(to right, rgba(93, 8, 42, 0.51) 0%, rgba(93, 8, 42, 0.30) 55%, transparent 100%)',
     )
     expect(gradient).not.toMatch(/\)[0-9a-f]{2}\s/i) // nunca concatena sufixo hex numa rgba()
   })
 
-  it('mantem compatibilidade com overlayColor hex antigo (mesmos stops de sempre)', () => {
+  it('mantem compatibilidade com overlayColor hex antigo', () => {
     expect(buildOverlayGradient('#231F20')).toBe(
-      'linear-gradient(to right, rgba(35, 31, 32, 0.82) 0%, rgba(35, 31, 32, 0.45) 45%, transparent 100%)',
+      'linear-gradient(to right, rgba(35, 31, 32, 0.85) 0%, rgba(35, 31, 32, 0.50) 55%, transparent 100%)',
     )
   })
 
   it('hex de 3 digitos expande corretamente', () => {
     expect(buildOverlayGradient('#fff')).toBe(
-      'linear-gradient(to right, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.45) 45%, transparent 100%)',
+      'linear-gradient(to right, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.50) 55%, transparent 100%)',
     )
   })
 
   it('valor irreconhecivel cai no default (marrom Antenor) em vez de gerar CSS quebrado', () => {
     expect(buildOverlayGradient('nao-e-uma-cor')).toBe(
-      'linear-gradient(to right, rgba(35, 31, 32, 0.82) 0%, rgba(35, 31, 32, 0.45) 45%, transparent 100%)',
+      'linear-gradient(to right, rgba(35, 31, 32, 0.85) 0%, rgba(35, 31, 32, 0.50) 55%, transparent 100%)',
     )
+  })
+
+  // A direcao tem que seguir o alinhamento: com `to right` fixo, um banner
+  // align=right escurecia o lado vazio e deixava o texto sobre a parte clara.
+  it('align=right inverte a direcao pra escurecer o lado do texto', () => {
+    expect(buildOverlayGradient('#231F20', 'right')).toBe(
+      'linear-gradient(to left, rgba(35, 31, 32, 0.85) 0%, rgba(35, 31, 32, 0.50) 55%, transparent 100%)',
+    )
+  })
+
+  it('align=center usa gradiente vertical (nao ha lado livre pra foto)', () => {
+    expect(buildOverlayGradient('#231F20', 'center')).toBe(
+      'linear-gradient(to bottom, rgba(35, 31, 32, 0.75) 0%, rgba(35, 31, 32, 0.45) 50%, rgba(35, 31, 32, 0.75) 100%)',
+    )
+  })
+
+  it('sem align explicito continua se comportando como left', () => {
+    expect(buildOverlayGradient('#231F20')).toBe(buildOverlayGradient('#231F20', 'left'))
   })
 })
 

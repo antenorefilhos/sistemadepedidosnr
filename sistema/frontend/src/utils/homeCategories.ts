@@ -269,16 +269,31 @@ const parseTone = (tone: string): { r: number; g: number; b: number; a: number }
 }
 
 /**
- * Gradiente diagonal pro PromoBanner/HeroSlider (texto do lado esquerdo,
- * imagem "respira" do lado direito). O gradiente antigo concatenava sufixo
- * de alpha em hex direto na string (`${tone}D1`) -- funciona pra hex, gera
- * CSS invalido pra rgba (`rgba(...)D1`), e o overlay some silenciosamente
- * (background invalido = browser ignora a regra toda). Os dois stops abaixo
- * (~82% e ~45% de opacidade) reproduzem os valores que "D1"/"73" davam em hex.
+ * Gradiente do PromoBanner/HeroSlider: escurece o lado onde o texto fica e
+ * deixa o lado oposto limpo pra foto aparecer. A direcao acompanha o
+ * alinhamento configurado no admin -- num banner align=right o gradiente
+ * fixo `to right` escurecia justamente o lado vazio e deixava o texto por
+ * cima da parte clara da foto.
+ *
+ * Center nao tem lado livre (o texto fica no meio), entao usa gradiente
+ * vertical: escurece topo e base e alivia o miolo, mantendo contraste sem
+ * chapar a imagem inteira.
+ *
+ * Os stops sao montados com rgba() completo de proposito: a versao antiga
+ * concatenava sufixo de alpha em hex na string (`${tone}D1`), o que gera CSS
+ * invalido pra cor vinda em rgba() do color picker (`rgba(...)D1`) e faz o
+ * overlay sumir calado (background invalido = browser descarta a regra toda).
  */
-export const buildOverlayGradient = (tone: string): string => {
+export const buildOverlayGradient = (tone: string, align: 'left' | 'center' | 'right' = 'left'): string => {
   const { r, g, b, a } = parseTone(tone)
-  return `linear-gradient(to right, rgba(${r}, ${g}, ${b}, ${(a * 0.82).toFixed(2)}) 0%, rgba(${r}, ${g}, ${b}, ${(a * 0.45).toFixed(2)}) 45%, transparent 100%)`
+  const rgba = (multiplier: number) => `rgba(${r}, ${g}, ${b}, ${(a * multiplier).toFixed(2)})`
+
+  if (align === 'center') {
+    return `linear-gradient(to bottom, ${rgba(0.75)} 0%, ${rgba(0.45)} 50%, ${rgba(0.75)} 100%)`
+  }
+
+  const direction = align === 'right' ? 'to left' : 'to right'
+  return `linear-gradient(${direction}, ${rgba(0.85)} 0%, ${rgba(0.5)} 55%, transparent 100%)`
 }
 
 /**

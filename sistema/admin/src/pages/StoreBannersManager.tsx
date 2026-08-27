@@ -470,6 +470,26 @@ function bannerOverlayStyle(overlayColor?: string | null): CSSProperties {
   return { background: overlayColor || 'rgba(35, 31, 32, 0.45)' };
 }
 
+// Limites alinhados com o que cabe no banner sem estourar/truncar: titulo tem
+// line-clamp-2 e descricao line-clamp-3 no storefront, entao acima disso o
+// texto e cortado na exibicao em vez de simplesmente ficar menor.
+const FIELD_LIMITS = {
+  title: 60,
+  description: 160,
+  badgeText: 25,
+  sponsorName: 30,
+  ctaLabel: 25,
+} as const;
+
+function CharCounter({ value, max }: { value: string; max: number }) {
+  const used = value.length;
+  return (
+    <span className={`text-[11px] tabular-nums ${used >= max ? 'text-red-600' : used >= max * 0.9 ? 'text-amber-600' : 'text-gray-400'}`}>
+      {used}/{max}
+    </span>
+  );
+}
+
 function PreviewBannerTile({
   banner,
   onSelect,
@@ -1734,11 +1754,15 @@ export default function StoreBannersManager() {
                   <div className="mt-4 space-y-4">
                     {/* Sponsor */}
                     <div>
-                      <Label className="block text-xs font-medium text-gray-600 mb-1">
-                        Patrocinador <span className="font-normal text-gray-400">(opcional)</span>
-                      </Label>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="block text-xs font-medium text-gray-600">
+                          Patrocinador <span className="font-normal text-gray-400">(opcional)</span>
+                        </Label>
+                        <CharCounter value={form.sponsorName} max={FIELD_LIMITS.sponsorName} />
+                      </div>
                       <Input
                         type="text"
+                        maxLength={FIELD_LIMITS.sponsorName}
                         value={form.sponsorName}
                         onChange={(e) => set('sponsorName', e.target.value)}
                         className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
@@ -1790,11 +1814,15 @@ export default function StoreBannersManager() {
 
                     {/* Textos sobre a imagem */}
                     <div>
-                      <Label className="block text-xs font-medium text-gray-600 mb-1">
-                        Título do banner <span className="font-normal text-gray-400">(opcional)</span>
-                      </Label>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="block text-xs font-medium text-gray-600">
+                          Título do banner <span className="font-normal text-gray-400">(opcional)</span>
+                        </Label>
+                        <CharCounter value={form.title} max={FIELD_LIMITS.title} />
+                      </div>
                       <Input
                         type="text"
+                        maxLength={FIELD_LIMITS.title}
                         value={form.title}
                         onChange={(e) => set('title', e.target.value)}
                         className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
@@ -1803,11 +1831,15 @@ export default function StoreBannersManager() {
                     </div>
 
                     <div>
-                      <Label className="block text-xs font-medium text-gray-600 mb-1">
-                        Descrição <span className="font-normal text-gray-400">(opcional)</span>
-                      </Label>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="block text-xs font-medium text-gray-600">
+                          Descrição <span className="font-normal text-gray-400">(opcional)</span>
+                        </Label>
+                        <CharCounter value={form.description} max={FIELD_LIMITS.description} />
+                      </div>
                       <Textarea
                         rows={2}
+                        maxLength={FIELD_LIMITS.description}
                         value={form.description}
                         onChange={(e) => set('description', e.target.value)}
                         className="min-h-0 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
@@ -1821,11 +1853,15 @@ export default function StoreBannersManager() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label className="block text-xs font-medium text-gray-600 mb-1">
-                          Selo <span className="font-normal text-gray-400">(opcional)</span>
-                        </Label>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="block text-xs font-medium text-gray-600">
+                            Selo <span className="font-normal text-gray-400">(opcional)</span>
+                          </Label>
+                          <CharCounter value={form.badgeText} max={FIELD_LIMITS.badgeText} />
+                        </div>
                         <Input
                           type="text"
+                          maxLength={FIELD_LIMITS.badgeText}
                           value={form.badgeText}
                           onChange={(e) => set('badgeText', e.target.value)}
                           className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
@@ -1833,11 +1869,15 @@ export default function StoreBannersManager() {
                         />
                       </div>
                       <div>
-                        <Label className="block text-xs font-medium text-gray-600 mb-1">
-                          Texto do botão <span className="font-normal text-gray-400">(opcional)</span>
-                        </Label>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="block text-xs font-medium text-gray-600">
+                            Texto do botão <span className="font-normal text-gray-400">(opcional)</span>
+                          </Label>
+                          <CharCounter value={form.ctaLabel} max={FIELD_LIMITS.ctaLabel} />
+                        </div>
                         <Input
                           type="text"
+                          maxLength={FIELD_LIMITS.ctaLabel}
                           value={form.ctaLabel}
                           onChange={(e) => set('ctaLabel', e.target.value)}
                           className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"

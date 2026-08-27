@@ -30,10 +30,13 @@ const AUTO_ADVANCE_MS = 6500
 const SWIPE_THRESHOLD_PX = 40
 const TOUCH_SWIPE_THRESHOLD_PX = 35
 
+// self-* (nao items-* no container): a linha do topo precisa continuar com a
+// largura toda pro justify-between empurrar o patrocinio pra direita. items-*
+// no pai encolheria essa linha junto e colaria os dois selos.
 const ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
-  left: 'items-start text-left',
-  center: 'items-center text-center',
-  right: 'items-end text-right',
+  left: 'self-start items-start text-left',
+  center: 'self-center items-center text-center',
+  right: 'self-end items-end text-right',
 }
 
 const DESCRIPTION_ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
@@ -239,7 +242,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
             // PromoBanner) -- antes era um gradiente de vinho hardcoded e o
             // color picker do CMS nao tinha efeito nenhum no hero.
             backgroundImage: s.imageUrl
-              ? `${buildOverlayGradient(s.overlayColor || '#5D082A')}, url(${s.imageUrl})`
+              ? `${buildOverlayGradient(s.overlayColor || '#5D082A', s.align || 'left')}, url(${s.imageUrl})`
               : undefined,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -248,30 +251,31 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
         />
       ))}
 
-      {/* Bloco de conteudo unico (badge/titulo/descricao/CTA empilhados) --
-          mesmo padrao do PromoBanner (Home.tsx). Um layout de 2 colunas
-          (titulo a esquerda, CTA a direita) tornava "alinhamento" ambiguo
-          pra configurar, e no mobile viravam flex-col sem items-* explicito
-          -- align-items:stretch (default) esticava o CTA a largura toda.
-          Um unico bloco alinhado left/center/right resolve os dois. */}
-      <div className={`absolute inset-0 z-10 flex flex-col justify-center gap-2 p-4 sm:gap-3 sm:p-6 md:p-8 ${ALIGN_CLASSES[align]}`}>
-        {slide.sponsorName && (
-          // Offset acompanha o padding do container (p-4 -> sm:p-6), senao o
-          // selo fica desalinhado do conteudo na faixa sm.
-          <span className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm sm:right-6 sm:top-6">
-            {slide.sponsorName}
-          </span>
-        )}
-        <div className="max-w-2xl">
-          {slide.tag && (
-            <Badge
-              tone="gold"
-              className="mb-1.5 h-auto w-fit border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[10px] text-[#231F20] sm:mb-2 sm:px-2.5 sm:py-1 sm:text-xs"
-            >
-              {slide.tag}
-            </Badge>
+      {/* Tres zonas (topo / centro / base), mesmo esqueleto do PromoBanner:
+          selos no topo, texto no meio, CTA e bolinhas na base. A linha do topo
+          e sempre renderizada mesmo vazia -- com um filho a menos o
+          justify-between reposicionaria as outras zonas. */}
+      <div className="absolute inset-0 z-10 flex flex-col justify-between p-4 sm:p-6 md:p-8">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+            {slide.tag && (
+              <Badge
+                tone="gold"
+                className="h-auto w-fit border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[10px] text-[#231F20] sm:px-2.5 sm:py-1 sm:text-xs"
+              >
+                {slide.tag}
+              </Badge>
+            )}
+          </div>
+          {slide.sponsorName && (
+            <span className="ml-auto shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm sm:px-2.5 sm:py-1 sm:text-[11px]">
+              {slide.sponsorName}
+            </span>
           )}
-          <h3 className="mb-1 line-clamp-2 text-lg font-bold leading-tight text-white luxury-text sm:mb-2 sm:text-xl md:text-3xl lg:text-4xl">
+        </div>
+
+        <div className={`max-w-2xl ${ALIGN_CLASSES[align]}`}>
+          <h3 className="line-clamp-2 text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-3xl lg:text-4xl">
             {slide.title}
           </h3>
           {slide.description && (
@@ -280,37 +284,35 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
             // auto acompanha o alinhamento -- sem ela, em center/right o texto
             // (mais estreito que o bloco) ficaria preso a esquerda.
             <p
-              className={`line-clamp-2 max-w-[75%] whitespace-pre-line text-xs text-white/85 sm:max-w-[65%] sm:text-sm md:line-clamp-none md:max-w-[60%] md:text-base ${DESCRIPTION_ALIGN_CLASSES[align]}`}
+              className={`mt-1 line-clamp-3 max-w-[75%] whitespace-pre-line text-xs text-white/85 sm:mt-2 sm:text-sm md:max-w-[60%] md:text-base ${DESCRIPTION_ALIGN_CLASSES[align]}`}
             >
               {slide.description}
             </p>
           )}
         </div>
-        {cta}
 
-        {slides.length > 1 && (
-          <div
-            className="mt-1 flex items-center gap-2 sm:mt-2"
-            role="tablist"
-            aria-label="Slides de destaque"
-          >
-            {slides.map((s, i) => (
-              <button
-                key={s.id}
-                type="button"
-                role="tab"
-                aria-selected={i === index}
-                aria-label={`Ir para slide ${i + 1}`}
-                onClick={() => goTo(i)}
-                onPointerDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                className={`h-1.5 rounded-full transition-all ${
-                  i === index ? 'w-6 bg-[#D2BB8A]' : 'w-1.5 bg-white/40 hover:bg-white/60'
-                }`}
-              />
-            ))}
-          </div>
-        )}
+        <div className={`flex flex-col gap-2 ${ALIGN_CLASSES[align]}`}>
+          {cta}
+          {slides.length > 1 && (
+            <div className="flex items-center gap-2" role="tablist" aria-label="Slides de destaque">
+              {slides.map((s, i) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === index}
+                  aria-label={`Ir para slide ${i + 1}`}
+                  onClick={() => goTo(i)}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  className={`h-1.5 rounded-full transition-all ${
+                    i === index ? 'w-6 bg-[#D2BB8A]' : 'w-1.5 bg-white/40 hover:bg-white/60'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
