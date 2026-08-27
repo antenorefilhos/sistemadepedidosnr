@@ -84,7 +84,10 @@ export function PromoBanner({
 
   return (
     <section className="fade-in-section">
-      <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[230px] overflow-hidden bg-[#F7F0E4] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[340px]' })}>
+      {/* border-0 anula a borda que surfaceClasses traz por padrao -- a foto
+          sangra ate a borda do card, e o filete dourado em volta lia como
+          contorno solto. Mesmo tratamento do card do HeroSlider. */}
+      <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[230px] overflow-hidden border-0 bg-[#F7F0E4] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[340px]' })}>
         <img src={image} alt={alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
         <div
           className="absolute inset-0"

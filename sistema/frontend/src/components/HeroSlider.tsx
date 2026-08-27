@@ -288,7 +288,10 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
               aria-hidden={!isActive}
               className={surfaceClasses({
                 tone: 'dark',
-                className: `relative flex w-full shrink-0 select-none flex-col justify-between overflow-hidden rounded-2xl border-[#D2BB8A]/40 bg-[#231F20] p-4 shadow-lg sm:p-6 md:p-8 ${CARD_MIN_HEIGHT}`,
+                // border-0 anula a borda que surfaceClasses traz por padrao: o
+                // card e uma foto sangrando ate a borda, e o filete dourado em
+                // volta lia como contorno solto em vez de moldura.
+                className: `relative flex w-full shrink-0 select-none flex-col justify-between overflow-hidden rounded-2xl border-0 bg-[#231F20] p-4 shadow-lg sm:p-6 md:p-8 ${CARD_MIN_HEIGHT}`,
               })}
             >
               {/* img + div de overlay, mesma montagem do PromoBanner. Como

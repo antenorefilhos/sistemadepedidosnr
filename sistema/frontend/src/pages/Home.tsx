@@ -665,7 +665,7 @@ export default function Home() {
           fallback so aparece quando nao ha nenhum banner de hero cadastrado. */}
       {activeHeroSlides.length === 0 && featuredCommercialSection && (
         <section className="md:hidden mx-4 mt-4 mb-4">
-          <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-[#D2BB8A]/40 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-5 shadow-xl' })}>
+          <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-0 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-5 shadow-xl' })}>
             <div className="flex flex-col gap-4">
               <div>
                 <Badge tone="gold" className="mb-3 h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
@@ -810,7 +810,7 @@ export default function Home() {
             logo abaixo do header) -- este bloco so cobre a ausencia dele. */}
         {activeHeroSlides.length === 0 && featuredCommercialSection && (
           <section className="fade-in-section">
-            <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-[#D2BB8A]/40 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-6 shadow-xl md:p-8' })}>
+            <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-0 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-6 shadow-xl md:p-8' })}>
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                 <div className="max-w-2xl">
                   <Badge tone="gold" className="mb-3 h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
