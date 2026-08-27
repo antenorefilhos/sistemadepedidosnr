@@ -1227,7 +1227,7 @@ function PromoBanner({
 }) {
   const tone = overlayColor || '#231F20'
   const alignClass =
-    align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left'
+    align === 'right' ? 'items-end text-right' : align === 'center' ? 'items-center text-center' : 'items-start text-left'
   return (
     <section className="fade-in-section">
       <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[230px] overflow-hidden bg-[#F7F0E4] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[340px]' })}>
@@ -1241,10 +1241,10 @@ function PromoBanner({
             Patrocinado por {sponsorName}
           </span>
         )}
-        <div className={`relative z-10 flex h-full items-end p-4 md:p-8 ${alignClass}`}>
-          <div className="max-w-lg space-y-1.5 md:space-y-3">
+        <div className={`absolute inset-0 z-10 flex flex-col justify-center gap-2 p-4 sm:gap-2.5 sm:p-6 md:gap-3.5 md:p-8 ${alignClass}`}>
+          <div className="max-w-lg">
             {(badge || validUntil) && (
-              <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+              <div className="mb-0.5 flex flex-wrap items-center gap-1.5 md:gap-2">
                 {badge && (
                   <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[9px] text-[#231F20] md:px-3 md:py-1 md:text-xs">
                     {badge}
@@ -1257,14 +1257,14 @@ function PromoBanner({
                 )}
               </div>
             )}
-            <h3 className="text-base font-bold text-white md:text-2xl md:text-4xl luxury-text">{title}</h3>
+            <h3 className="text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-2xl lg:text-3xl">{title}</h3>
             {description && (
-              <p className="line-clamp-2 text-xs leading-snug text-white/85 md:line-clamp-none md:text-base md:leading-relaxed">
+              <p className="line-clamp-2 text-xs leading-snug text-white/85 sm:text-sm md:line-clamp-none md:leading-relaxed">
                 {description}
               </p>
             )}
             {highlightedProduct && (
-              <div className="hidden rounded-lg border border-white/30 bg-white/85 p-3 text-left shadow-xl backdrop-blur-sm md:block">
+              <div className="mt-2 hidden rounded-lg border border-white/30 bg-white/85 p-3 text-left shadow-xl backdrop-blur-sm md:block">
                 <p className="text-caption font-black uppercase tracking-[0.16em] text-[#5D082A]">Produto Exaltado</p>
                 <p className="mt-1 text-sm font-bold text-[#231F20]">{highlightedProduct.name}</p>
                 {highlightNote && <p className="mt-1 text-xs text-[#5D082A]">{highlightNote}</p>}
@@ -1282,7 +1282,7 @@ function PromoBanner({
                 className={buttonVariants({
                   variant: 'outline',
                   size: 'sm',
-                  className: 'border-white bg-white font-bold text-[#5D082A] hover:bg-[#F3E7C9] md:h-12 md:px-5 md:text-sm',
+                  className: 'mt-1 border-white bg-white font-bold text-[#5D082A] hover:bg-[#F3E7C9] sm:mt-1.5 md:h-12 md:px-5 md:text-sm',
                 })}
               >
                 {ctaLabel}
