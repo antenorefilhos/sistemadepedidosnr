@@ -35,6 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 /* ─── Types ─────────────────────────────────────────── */
 
@@ -1741,11 +1742,11 @@ export default function StoreBannersManager() {
                         value={form.sponsorName}
                         onChange={(e) => set('sponsorName', e.target.value)}
                         className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                        placeholder="Ex: Ambev"
+                        placeholder="Ex: Patrocinado por Ambev"
                       />
                       <p className="text-[11px] text-gray-500 mt-1">
-                        Preenchido, aparece como selo "Patrocinado por {form.sponsorName.trim() || 'Ambev'}" no
-                        canto do banner no site. Deixe em branco pra não mostrar nada.
+                        O selo mostra exatamente o que você digitar — escreva "Patrocinado por X",
+                        "Oferecimento Y" ou o que preferir. Em branco, não aparece nada.
                       </p>
                     </div>
 
@@ -1805,13 +1806,17 @@ export default function StoreBannersManager() {
                       <Label className="block text-xs font-medium text-gray-600 mb-1">
                         Descrição <span className="font-normal text-gray-400">(opcional)</span>
                       </Label>
-                      <Input
-                        type="text"
+                      <Textarea
+                        rows={2}
                         value={form.description}
                         onChange={(e) => set('description', e.target.value)}
-                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        className="min-h-0 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
                         placeholder="Texto de apoio exibido sob o título"
                       />
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Enter quebra a linha no banner. O texto ocupa no máximo 2/3 da largura pra
+                        não cobrir a foto.
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">

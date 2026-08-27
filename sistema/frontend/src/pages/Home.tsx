@@ -119,6 +119,7 @@ export default function Home() {
           imageUrl: resolveApiUrl(item.desktopImageUrl),
           link: resolveBannerLink(item.linkValue, item.linkType),
           sponsorName: item.sponsorName || undefined,
+          overlayColor: item.overlayColor || undefined,
           align: item.align || 'left',
           active: item.active,
           order: item.order,
@@ -1230,6 +1231,10 @@ function PromoBanner({
   // cima (tags + patrocinio) fica sempre topo-esquerda/topo-direita.
   const contentAlignClass =
     align === 'right' ? 'self-end text-right' : align === 'center' ? 'self-center text-center' : 'self-start text-left'
+  // A descricao e mais estreita que o bloco (max-w-*%), entao precisa da
+  // margem auto correspondente pra encostar no mesmo lado que o texto aponta
+  // -- sem isso, em align=right/center ela ficaria presa a esquerda do bloco.
+  const descriptionAlignClass = align === 'right' ? 'ml-auto' : align === 'center' ? 'mx-auto' : ''
   return (
     <section className="fade-in-section">
       <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[230px] overflow-hidden bg-[#F7F0E4] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[340px]' })}>
@@ -1259,15 +1264,20 @@ function PromoBanner({
             </div>
             {sponsorName && (
               <span className="ml-auto shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:px-2.5 md:py-1 md:text-[11px]">
-                Patrocinado por {sponsorName}
+                {sponsorName}
               </span>
             )}
           </div>
 
           <div className={`max-w-lg ${contentAlignClass}`}>
             <h3 className="text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-2xl lg:text-3xl">{title}</h3>
+            {/* Descricao contida em ~2/3 pra nao invadir a foto do produto a
+                direita; whitespace-pre-line respeita o Enter que o operador
+                digita no textarea do admin. */}
             {description && (
-              <p className="mt-1 line-clamp-2 text-xs leading-snug text-white/85 sm:text-sm md:line-clamp-none md:leading-relaxed">
+              <p
+                className={`mt-1 line-clamp-2 max-w-[75%] whitespace-pre-line text-xs leading-snug text-white/85 sm:max-w-[65%] sm:text-sm md:line-clamp-none md:max-w-[60%] md:leading-relaxed ${descriptionAlignClass}`}
+              >
                 {description}
               </p>
             )}

@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react'
 import { Badge } from './ui/badge'
 import { buttonVariants } from './ui/button'
 import { surfaceClasses } from './ui/surface'
+import { buildOverlayGradient } from '../utils/homeCategories'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 
 export type HeroSlideAlign = 'left' | 'center' | 'right'
@@ -17,6 +18,7 @@ export interface HeroSlideCMS {
   imageUrl: string
   link?: string | null
   sponsorName?: string | null
+  overlayColor?: string | null
   align?: HeroSlideAlign
   active?: boolean
   order?: number
@@ -32,6 +34,12 @@ const ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
   left: 'items-start text-left',
   center: 'items-center text-center',
   right: 'items-end text-right',
+}
+
+const DESCRIPTION_ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
+  left: '',
+  center: 'mx-auto',
+  right: 'ml-auto',
 }
 
 function isExternalLink(link: string) {
@@ -225,8 +233,11 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
           }`}
           style={{
             opacity: i === index ? 1 : 0,
+            // Overlay respeita a cor configurada no admin (mesma funcao do
+            // PromoBanner) -- antes era um gradiente de vinho hardcoded e o
+            // color picker do CMS nao tinha efeito nenhum no hero.
             backgroundImage: s.imageUrl
-              ? `linear-gradient(90deg, rgba(93,8,42,0.90) 0%, rgba(123,16,56,0.68) 52%, rgba(35,31,32,0.30) 100%), url(${s.imageUrl})`
+              ? `${buildOverlayGradient(s.overlayColor || '#5D082A')}, url(${s.imageUrl})`
               : undefined,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -244,7 +255,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
       <div className={`absolute inset-0 z-10 flex flex-col justify-center gap-2 p-4 sm:gap-3 sm:p-6 md:p-8 ${ALIGN_CLASSES[align]}`}>
         {slide.sponsorName && (
           <span className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-black/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:right-6 md:top-6">
-            Patrocinado por {slide.sponsorName}
+            {slide.sponsorName}
           </span>
         )}
         <div className="max-w-2xl">
@@ -260,7 +271,13 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
             {slide.title}
           </h3>
           {slide.description && (
-            <p className="line-clamp-2 text-xs text-white/85 sm:text-sm md:line-clamp-none md:text-base">
+            // Contida em ~2/3 pra nao invadir a foto do produto a direita;
+            // whitespace-pre-line respeita o Enter digitado no admin. A margem
+            // auto acompanha o alinhamento -- sem ela, em center/right o texto
+            // (mais estreito que o bloco) ficaria preso a esquerda.
+            <p
+              className={`line-clamp-2 max-w-[75%] whitespace-pre-line text-xs text-white/85 sm:max-w-[65%] sm:text-sm md:line-clamp-none md:max-w-[60%] md:text-base ${DESCRIPTION_ALIGN_CLASSES[align]}`}
+            >
               {slide.description}
             </p>
           )}

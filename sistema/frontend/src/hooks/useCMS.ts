@@ -39,8 +39,12 @@ export function useStoreBanners() {
     const response = await cmsAPI.storeBanners.getAll()
     return response.data as StoreBannerCMS[]
   }, {
-    staleTime: 1000 * 60 * 10,
+    // Curto de proposito: o operador edita o banner no admin e espera ver o
+    // resultado na loja na hora. Com 10min de staleTime a aba aberta segurava
+    // a versao antiga e parecia que o salvamento nao tinha funcionado.
+    staleTime: 1000 * 15,
     cacheTime: 1000 * 60 * 15,
+    refetchOnWindowFocus: true,
     keepPreviousData: true,
   })
 }
