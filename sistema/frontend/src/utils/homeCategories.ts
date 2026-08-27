@@ -196,6 +196,71 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   default: ShoppingBag,
 }
 
+/**
+ * Banner de topo da pagina de categoria (StoreBanner slot=category).
+ *
+ * O casamento e feito aqui no cliente, sobre a lista que `useStoreBanners()`
+ * ja tem em cache, em vez de bater no `?category=` do backend: aquele filtro e
+ * igualdade exata de string contra `targetCategory`, entao "Acougue Churrasco"
+ * nao acha "AÇOUGUE CHURRASCO" nem "acougue-churrasco" -- e a pagina de
+ * categoria so conhece o codigo normalizado que veio da URL. Normalizando os
+ * dois lados, acento/caixa/hifen deixam de importar. De quebra evita uma
+ * segunda requisicao por pagina de categoria.
+ *
+ * A vigencia (startDate/endDate e encarte vinculado) ja vem resolvida do
+ * servidor -- `GET /cms/store-banners` so devolve banner vigente --, entao
+ * aqui basta filtrar slot/foto e casar a categoria.
+ */
+type CategoryBannerLike = {
+  slot?: string
+  active?: boolean
+  targetCategory?: string | null
+  desktopImageUrl?: string
+  order?: number
+}
+
+const isDisplayableCategoryBanner = (banner: CategoryBannerLike) =>
+  banner.slot === 'category' && banner.active !== false && Boolean(banner.desktopImageUrl)
+
+// Empate resolvido pelo `order` do admin (mesma ordenacao das outras listas de
+// banner), pra dois banners na mesma categoria nao alternarem a cada render.
+const lowestOrderFirst = <T extends CategoryBannerLike>(banners: T[]) =>
+  [...banners].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0]
+
+export const findCategoryBanner = <T extends CategoryBannerLike>(
+  banners: T[] | undefined,
+  categoryCode?: string | null,
+): T | undefined => {
+  if (!Array.isArray(banners) || !categoryCode?.trim()) return undefined
+  const target = normalizeCategoryCode(categoryCode)
+  if (!target) return undefined
+  const matches = banners.filter(
+    (banner) =>
+      isDisplayableCategoryBanner(banner) &&
+      banner.targetCategory &&
+      normalizeCategoryCode(banner.targetCategory) === target,
+  )
+  return matches.length ? lowestOrderFirst(matches) : undefined
+}
+
+/**
+ * A Adega tem pagina propria (`/adega`), sem `?cat=` na URL, entao nao da pra
+ * casar por codigo. Vale a mesma regra que `resolveBannerLink` usa pra mandar
+ * um banner de categoria pra /adega -- assim o banner que aponta pra Adega e o
+ * banner que aparece na Adega sao sempre o mesmo.
+ */
+export const findWineCategoryBanner = <T extends CategoryBannerLike>(
+  banners: T[] | undefined,
+): T | undefined => {
+  if (!Array.isArray(banners)) return undefined
+  const matches = banners.filter((banner) => {
+    if (!isDisplayableCategoryBanner(banner) || !banner.targetCategory) return false
+    const code = normalizeCategoryCode(banner.targetCategory)
+    return code.includes('ADEGA') || code.includes('VINHO')
+  })
+  return matches.length ? lowestOrderFirst(matches) : undefined
+}
+
 /** Normaliza os aliases da Adega para uma rota unica. */
 export const normalizeWineLink = (link?: string) => {
   if (!link) return '#'

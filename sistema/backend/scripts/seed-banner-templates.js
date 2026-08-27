@@ -173,6 +173,36 @@ const TEMPLATES = [
   },
 ]
 
+// Mesma normalizacao do storefront (normalizeCategoryCode em
+// utils/homeCategories.ts): sem acento, MAIUSCULO, separador virando _.
+const normalizeCategoryCode = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+/**
+ * targetCategory precisa guardar o nome da categoria EXATAMENTE como esta no
+ * banco, porque o select do admin casa por nome (`value={c.name}`) -- um valor
+ * escrito a mao aqui abriria o formulario sem opcao selecionada e o operador
+ * sobrescreveria sem perceber. O nome varia por ambiente ("Acougue Churrasco"
+ * local, "Açougue & Churrasco" em producao), entao o literal do template serve
+ * so pra achar a categoria pelo codigo normalizado; o nome real vem do banco.
+ */
+async function resolveCategoryName(literal) {
+  const target = normalizeCategoryCode(literal)
+  const categories = await prisma.category.findMany({ where: { active: true }, select: { name: true } })
+  const match = categories.find((c) => normalizeCategoryCode(c.name) === target)
+  if (!match) {
+    console.warn(`  (categoria "${literal}" nao existe neste banco -- gravando o literal)`)
+    return literal
+  }
+  if (match.name !== literal) console.log(`  categoria "${literal}" -> "${match.name}" (nome real do banco)`)
+  return match.name
+}
+
 async function main() {
   if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
 
@@ -198,15 +228,16 @@ async function main() {
     // Banner de categoria aponta pra propria categoria (resolveBannerLink
     // transforma o nome no /mercado?cat=... certo, e manda Adega pra /adega).
     const isCategory = t.slot === 'category'
+    const targetCategory = isCategory && t.targetCategory ? await resolveCategoryName(t.targetCategory) : null
     const linkType = isCategory ? 'category' : 'url'
-    const linkValue = isCategory ? t.targetCategory : '/mercado'
+    const linkValue = isCategory ? targetCategory : '/mercado'
 
     await prisma.storeBanner.upsert({
       where: { id: t.id },
       update: {
         name: t.name,
         slot: t.slot,
-        targetCategory: t.targetCategory || null,
+        targetCategory,
         title: t.title,
         description: t.description,
         badgeText: t.badgeText,
@@ -222,7 +253,7 @@ async function main() {
         id: t.id,
         name: t.name,
         slot: t.slot,
-        targetCategory: t.targetCategory || null,
+        targetCategory,
         title: t.title,
         description: t.description,
         badgeText: t.badgeText,

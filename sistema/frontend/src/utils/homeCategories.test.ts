@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { resolveBannerLink, buildOverlayGradient, buildOverlaySolid } from './homeCategories'
+import {
+  resolveBannerLink,
+  buildOverlayGradient,
+  buildOverlaySolid,
+  findCategoryBanner,
+  findWineCategoryBanner,
+} from './homeCategories'
 
 describe('resolveBannerLink', () => {
   it('resolve produto para /produto/:id, nao pra filtro de categoria', () => {
@@ -90,5 +96,116 @@ describe('buildOverlaySolid', () => {
 
   it('aceita hex e usa o multiplicador default (0.72)', () => {
     expect(buildOverlaySolid('#231F20')).toBe('rgba(35, 31, 32, 0.72)')
+  })
+})
+
+describe('findCategoryBanner', () => {
+  const banner = (over: Record<string, unknown> = {}) => ({
+    id: 'b1',
+    slot: 'category',
+    active: true,
+    targetCategory: 'Acougue Churrasco',
+    desktopImageUrl: '/uploads/x.webp',
+    order: 0,
+    ...over,
+  })
+
+  // O codigo vem da URL ja normalizado (?cat=acougue-churrasco ->
+  // ACOUGUE_CHURRASCO), enquanto targetCategory guarda o nome como cadastrado.
+  it('casa o nome cadastrado com o codigo normalizado da URL', () => {
+    expect(findCategoryBanner([banner()], 'ACOUGUE_CHURRASCO')?.id).toBe('b1')
+  })
+
+  it('ignora acento, caixa e hifen dos dois lados', () => {
+    expect(findCategoryBanner([banner({ targetCategory: 'AÇOUGUE CHURRASCO' })], 'acougue-churrasco')?.id).toBe('b1')
+    expect(findCategoryBanner([banner({ targetCategory: 'açougue_churrasco' })], 'Acougue Churrasco')?.id).toBe('b1')
+  })
+
+  // Caso real: em producao a categoria se chama "Açougue & Churrasco" e a URL
+  // traz acougue-churrasco. O "&" tem que colapsar no mesmo separador dos dois
+  // lados, senao o banner nunca aparece la (e aparece no ambiente local, onde
+  // o nome nao tem "&") -- o tipo de divergencia que so apareceria em producao.
+  it('casa nome com "&" e espacos com o codigo da URL', () => {
+    expect(findCategoryBanner([banner({ targetCategory: 'Açougue & Churrasco' })], 'ACOUGUE_CHURRASCO')?.id).toBe('b1')
+    expect(findCategoryBanner([banner({ targetCategory: 'Açougue & Churrasco' })], 'acougue-churrasco')?.id).toBe('b1')
+  })
+
+  it('nao casa categoria diferente', () => {
+    expect(findCategoryBanner([banner()], 'HORTIFRUTI_ORGANICOS')).toBeUndefined()
+  })
+
+  it('nao vaza banner de outro slot com a mesma categoria', () => {
+    expect(findCategoryBanner([banner({ slot: 'hero' })], 'ACOUGUE_CHURRASCO')).toBeUndefined()
+    expect(findCategoryBanner([banner({ slot: 'intercalado' })], 'ACOUGUE_CHURRASCO')).toBeUndefined()
+  })
+
+  it('ignora banner inativo ou sem foto', () => {
+    expect(findCategoryBanner([banner({ active: false })], 'ACOUGUE_CHURRASCO')).toBeUndefined()
+    expect(findCategoryBanner([banner({ desktopImageUrl: '' })], 'ACOUGUE_CHURRASCO')).toBeUndefined()
+    expect(findCategoryBanner([banner({ desktopImageUrl: undefined })], 'ACOUGUE_CHURRASCO')).toBeUndefined()
+  })
+
+  it('ignora banner de categoria sem targetCategory preenchido', () => {
+    expect(findCategoryBanner([banner({ targetCategory: null })], 'ACOUGUE_CHURRASCO')).toBeUndefined()
+    expect(findCategoryBanner([banner({ targetCategory: '' })], 'ACOUGUE_CHURRASCO')).toBeUndefined()
+  })
+
+  // Sem categoria na URL a pagina e busca livre/catalogo geral -- nao ha
+  // categoria pra anunciar, entao nenhum banner deve aparecer.
+  it('sem categoria (busca livre) nao devolve banner', () => {
+    expect(findCategoryBanner([banner()], undefined)).toBeUndefined()
+    expect(findCategoryBanner([banner()], '')).toBeUndefined()
+    expect(findCategoryBanner([banner()], '   ')).toBeUndefined()
+  })
+
+  it('lida com lista ausente ou vazia sem quebrar', () => {
+    expect(findCategoryBanner(undefined, 'ACOUGUE_CHURRASCO')).toBeUndefined()
+    expect(findCategoryBanner([], 'ACOUGUE_CHURRASCO')).toBeUndefined()
+  })
+
+  // Dois banners na mesma categoria: escolha estavel pelo order do admin, pra
+  // nao alternar entre eles a cada render.
+  it('com mais de um na mesma categoria, escolhe o de menor order', () => {
+    const escolhido = findCategoryBanner(
+      [banner({ id: 'b-depois', order: 5 }), banner({ id: 'b-antes', order: 1 })],
+      'ACOUGUE_CHURRASCO',
+    )
+    expect(escolhido?.id).toBe('b-antes')
+  })
+})
+
+describe('findWineCategoryBanner', () => {
+  const wine = (over: Record<string, unknown> = {}) => ({
+    id: 'w1',
+    slot: 'category',
+    active: true,
+    targetCategory: 'Adega Vinhos Espumantes',
+    desktopImageUrl: '/uploads/x.webp',
+    order: 0,
+    ...over,
+  })
+
+  // A Adega tem rota propria (/adega), sem ?cat= -- por isso a regra e por
+  // nome, a mesma que resolveBannerLink usa pra mandar o CTA pra /adega.
+  it('acha o banner da Adega pelo nome da categoria', () => {
+    expect(findWineCategoryBanner([wine()])?.id).toBe('w1')
+    expect(findWineCategoryBanner([wine({ targetCategory: 'Vinhos' })])?.id).toBe('w1')
+    expect(findWineCategoryBanner([wine({ targetCategory: 'ADEGA' })])?.id).toBe('w1')
+  })
+
+  it('nao pega banner de outra categoria', () => {
+    expect(findWineCategoryBanner([wine({ targetCategory: 'Acougue Churrasco' })])).toBeUndefined()
+    expect(findWineCategoryBanner([wine({ targetCategory: 'Cervejas Chopp' })])).toBeUndefined()
+  })
+
+  it('respeita slot, ativo e foto', () => {
+    expect(findWineCategoryBanner([wine({ slot: 'hero' })])).toBeUndefined()
+    expect(findWineCategoryBanner([wine({ active: false })])).toBeUndefined()
+    expect(findWineCategoryBanner([wine({ desktopImageUrl: '' })])).toBeUndefined()
+  })
+
+  it('lida com lista ausente ou vazia sem quebrar', () => {
+    expect(findWineCategoryBanner(undefined)).toBeUndefined()
+    expect(findWineCategoryBanner([])).toBeUndefined()
   })
 })

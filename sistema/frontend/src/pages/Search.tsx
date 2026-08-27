@@ -3,9 +3,17 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useInfiniteProducts, useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
-import { useCommercialTaxonomy } from '../hooks/useCMS'
-import { CMS_CATEGORY_TO_RULE_ID, HOME_CATEGORY_RULES, HOME_COMMERCIAL_PRIORITY, getCategoryHref } from '../utils/homeCategories'
-import { productsAPI } from '../services/api'
+import { useCommercialTaxonomy, useStoreBanners } from '../hooks/useCMS'
+import {
+  CMS_CATEGORY_TO_RULE_ID,
+  HOME_CATEGORY_RULES,
+  HOME_COMMERCIAL_PRIORITY,
+  getCategoryHref,
+  findCategoryBanner,
+  resolveBannerLink,
+} from '../utils/homeCategories'
+import { PromoBanner } from '../components/PromoBanner'
+import { productsAPI, resolveApiUrl } from '../services/api'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { trackEvent } from '../utils/analytics'
 import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X } from 'lucide-react'
@@ -126,6 +134,17 @@ export default function MercadoPage() {
   const classification02 = searchParams.get('classification02') || ''
   const classification03 = searchParams.get('classification03') || ''
   const classification04 = searchParams.get('classification04') || ''
+
+  // Banner de topo da categoria (StoreBanner slot=category). So quando a
+  // pagina esta navegando uma categoria: com termo de busca (`q`) ela vira
+  // "resultados para X" e o banner empurraria os resultados pra baixo, que e
+  // justamente o que a pessoa veio ver.
+  const { data: storeBanners } = useStoreBanners()
+  const categoryBanner = useMemo(
+    () => (q ? undefined : findCategoryBanner(storeBanners, cat)),
+    [storeBanners, cat, q],
+  )
+
   const { data: mercadologicalTree = [] } = useQuery({
     queryKey: ['mercadological-tree'],
     queryFn: async (): Promise<MercadologicalTreeLevel1[]> => {
@@ -807,6 +826,24 @@ export default function MercadoPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
+        {categoryBanner && (
+          <div className="mb-5">
+            <PromoBanner
+              bannerId={categoryBanner.id}
+              image={resolveApiUrl(categoryBanner.desktopImageUrl)}
+              alt={categoryBanner.title || categoryBanner.name || 'Destaque da categoria'}
+              badge={categoryBanner.badgeText || undefined}
+              title={categoryBanner.title || categoryBanner.name || 'Destaque'}
+              description={categoryBanner.description || undefined}
+              ctaLabel={categoryBanner.ctaLabel || undefined}
+              ctaTo={resolveBannerLink(categoryBanner.linkValue, categoryBanner.linkType)}
+              align={categoryBanner.align || 'left'}
+              overlayColor={categoryBanner.overlayColor || undefined}
+              sponsorName={categoryBanner.sponsorName || undefined}
+            />
+          </div>
+        )}
+
         {/* Contagem de resultados */}
         {!isLoading && (
           <p className="text-sm text-gray-500 mb-4">

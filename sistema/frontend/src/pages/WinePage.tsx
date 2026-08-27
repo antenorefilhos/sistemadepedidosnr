@@ -1,5 +1,9 @@
 import { useProducts, useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
+import { useStoreBanners } from '../hooks/useCMS'
+import { findWineCategoryBanner, resolveBannerLink } from '../utils/homeCategories'
+import { PromoBanner } from '../components/PromoBanner'
+import { resolveApiUrl } from '../services/api'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import type { Product } from '../types'
@@ -81,6 +85,11 @@ export default function WinePage() {
   const { data: products, isLoading } = useProducts(undefined, 'ADEGA_VINHOS_ESPUMANTES')
   const { count } = useCart()
   const { user } = useAuth()
+  // A Adega tem rota propria (/adega), sem ?cat= na URL, entao o banner e
+  // achado pelo nome da categoria -- mesma regra que manda um banner de
+  // categoria da Adega apontar pra ca (ver findWineCategoryBanner).
+  const { data: storeBanners } = useStoreBanners()
+  const wineBanner = useMemo(() => findWineCategoryBanner(storeBanners), [storeBanners])
   const [selectedSubcat, setSelectedSubcat] = useState<WineSubcategory>('all')
 
   useEffect(() => {
@@ -218,6 +227,29 @@ export default function WinePage() {
             })}
           </div>
         </section>
+
+        {/* Banner de categoria (StoreBanner slot=category apontando pra Adega).
+            Fica abaixo do hero e do filtro, nao no topo: o hero da Adega ja e
+            a peca de identidade da pagina, e um segundo bloco grande logo
+            acima dele disputaria a mesma atencao. Aqui ele le como destaque
+            comercial dentro da Adega, antes dos rotulos. */}
+        {wineBanner && (
+          <section className="max-w-7xl mx-auto px-4 pt-8">
+            <PromoBanner
+              bannerId={wineBanner.id}
+              image={resolveApiUrl(wineBanner.desktopImageUrl)}
+              alt={wineBanner.title || wineBanner.name || 'Destaque da Adega'}
+              badge={wineBanner.badgeText || undefined}
+              title={wineBanner.title || wineBanner.name || 'Destaque'}
+              description={wineBanner.description || undefined}
+              ctaLabel={wineBanner.ctaLabel || undefined}
+              ctaTo={resolveBannerLink(wineBanner.linkValue, wineBanner.linkType)}
+              align={wineBanner.align || 'left'}
+              overlayColor={wineBanner.overlayColor || undefined}
+              sponsorName={wineBanner.sponsorName || undefined}
+            />
+          </section>
+        )}
 
         {/* Wine Grid */}
         <section className="max-w-7xl mx-auto px-4 py-16">
