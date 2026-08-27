@@ -1230,14 +1230,14 @@ function PromoBanner({
     align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left'
   return (
     <section className="fade-in-section">
-      <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[170px] overflow-hidden bg-[#F7F0E4] md:min-h-[320px]' })}>
+      <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[230px] overflow-hidden bg-[#F7F0E4] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[340px]' })}>
         <img src={image} alt={alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
         <div
           className="absolute inset-0"
           style={{ background: buildOverlayGradient(tone) }}
         />
         {sponsorName && (
-          <span className="absolute right-2 top-2 z-10 rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:right-3 md:top-3 md:px-2.5 md:py-1 md:text-[11px]">
+          <span className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:right-6 md:top-6 md:px-2.5 md:py-1 md:text-[11px]">
             Patrocinado por {sponsorName}
           </span>
         )}
