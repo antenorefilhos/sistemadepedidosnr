@@ -22,6 +22,8 @@ export const ADMIN_CHANGELOG: ChangelogRelease[] = [
       { type: 'feat', description: 'Dois modelos prontos de banner de categoria (Açougue e Adega) para começar sem partir do zero.' },
       { type: 'feat', description: 'Cliques nos banners intercalados passam a ser contabilizados, como já acontecia nos demais.' },
       { type: 'fix', description: 'Loja não desliza mais alguns pixels para o lado — a página deixou de ter barra de rolagem horizontal.' },
+      { type: 'fix', description: 'Banners perderam o contorno dourado em volta: a foto agora vai até a borda do card, sem moldura.' },
+      { type: 'fix', description: 'Botão dos banners de exemplo levava de volta para a mesma página. Agora aponta para as promoções.' },
     ],
   },
   {
