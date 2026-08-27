@@ -29,10 +29,11 @@ const AUTO_ADVANCE_MS = 6500
 // clicavel normalmente em vez de sempre interpretar como swipe.
 const SWIPE_THRESHOLD_PX = 40
 const TOUCH_SWIPE_THRESHOLD_PX = 35
+// Quanto do arrasto passa pra tela quando nao ha card do outro lado (primeiro
+// slide puxado pra direita, ultimo puxado pra esquerda). Sem isso o track
+// mostraria o vazio ao lado da faixa.
+const EDGE_RESISTANCE = 0.35
 
-// self-* (nao items-* no container): a linha do topo precisa continuar com a
-// largura toda pro justify-between empurrar o patrocinio pra direita. items-*
-// no pai encolheria essa linha junto e colaria os dois selos.
 const ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
   left: 'self-start items-start text-left',
   center: 'self-center items-center text-center',
@@ -45,6 +46,14 @@ const DESCRIPTION_ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
   right: 'ml-auto',
 }
 
+const DOTS_POSITION_CLASSES: Record<HeroSlideAlign, string> = {
+  left: 'left-4 sm:left-6 md:left-8',
+  center: 'left-1/2 -translate-x-1/2',
+  right: 'right-4 sm:right-6 md:right-8',
+}
+
+const CARD_MIN_HEIGHT = 'min-h-[220px] md:min-h-[320px] lg:min-h-[360px]'
+
 function isExternalLink(link: string) {
   return /^https?:\/\//i.test(link)
 }
@@ -56,11 +65,23 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
   const prefersReducedMotion = usePrefersReducedMotion()
 
   const dragStartXRef = useRef(0)
+  const dragStartYRef = useRef(0)
   const pointerIdRef = useRef<number | null>(null)
   // Bumped a cada interacao manual (swipe/teclado/bolinha) pra reiniciar o
   // timer de auto-advance -- sem isso o slide trocava sozinho poucos
   // segundos depois do usuario ja ter escolhido um manualmente.
   const [interactionTick, setInteractionTick] = useState(0)
+
+  // O indice da renderizacao anterior. Com track horizontal, voltar do ultimo
+  // slide pro primeiro (auto-advance ou swipe) percorreria todos os cards do
+  // meio na animacao. Quando o salto e maior que um vizinho, a transicao e
+  // desligada e o track pula direto -- o efeito fica igual ao que o fade
+  // antigo fazia nessa volta.
+  const previousIndexRef = useRef(index)
+  const isWrapJump = Math.abs(index - previousIndexRef.current) > 1
+  useEffect(() => {
+    previousIndexRef.current = index
+  }, [index])
 
   useEffect(() => {
     if (index >= slides.length) setIndex(0)
@@ -85,8 +106,6 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
   // Pointer events seguem cuidando do mouse (desktop); pointerType==='touch'
   // e ignorado aqui pra nao disputar estado com os handlers de touch abaixo
   // (iOS dispara os dois pra um mesmo gesto).
-  const dragStartYRef = useRef(0)
-
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (slides.length < 2 || e.pointerType === 'touch') return
     pointerIdRef.current = e.pointerId
@@ -158,16 +177,18 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
 
   if (slides.length === 0) return null
 
-  const slide = slides[index] ?? slides[0]
-  // Ja resolvido pelo Home.tsx (resolveBannerLink) antes de virar HeroSlideCMS.
-  const link = slide.link || '/mercado'
-  const align = slide.align || 'left'
+  const activeSlide = slides[index] ?? slides[0]
+  const activeAlign = activeSlide.align || 'left'
+  const hasDots = slides.length > 1
 
-  // Arrastando: acompanha o dedo/mouse com leve resistencia nas bordas (nao
-  // desliza livre igual um carrossel infinito real, so da o feedback de "ta
-  // puxando"). Sem arrastar: 0, a transicao suave assume o resto.
-  const dragTransform = isDragging
-    ? Math.max(-80, Math.min(80, dragOffset * 0.35))
+  // Arrasto acompanha o dedo 1:1 (o track inteiro desliza mostrando o card
+  // vizinho), com resistencia so nas pontas, onde nao existe vizinho.
+  const isPullingPastStart = index === 0 && dragOffset > 0
+  const isPullingPastEnd = index === slides.length - 1 && dragOffset < 0
+  const visualDragOffset = isDragging
+    ? isPullingPastStart || isPullingPastEnd
+      ? dragOffset * EDGE_RESISTANCE
+      : dragOffset
     : 0
 
   // Mesmo CTA do PromoBanner (Home.tsx) -- outline branco com texto vinho.
@@ -177,36 +198,38 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
     className:
       'w-fit whitespace-nowrap border-white bg-white font-bold text-[#5D082A] hover:bg-[#F3E7C9] md:h-12 md:px-5 md:text-sm',
   })
-  const cta = slide.ctaLabel ? (
-    isExternalLink(link) ? (
-      <a
-        href={link}
-        target="_blank"
-        rel="noreferrer"
-        className={ctaClassName}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-      >
+
+  const renderCta = (slide: HeroSlideCMS, isActive: boolean) => {
+    if (!slide.ctaLabel) return null
+    // Ja resolvido pelo Home.tsx (resolveBannerLink) antes de virar HeroSlideCMS.
+    const link = slide.link || '/mercado'
+    // Card fora de vista continua no DOM (e o track que desliza), entao o CTA
+    // dele sai da ordem de tabulacao -- senao o Tab levaria o foco pra um
+    // botao invisivel e o browser arrastaria o container atras dele.
+    const shared = {
+      className: ctaClassName,
+      tabIndex: isActive ? 0 : -1,
+      onPointerDown: (e: ReactPointerEvent<HTMLElement>) => e.stopPropagation(),
+      onTouchStart: (e: ReactTouchEvent<HTMLElement>) => e.stopPropagation(),
+    }
+
+    return isExternalLink(link) ? (
+      <a href={link} target="_blank" rel="noreferrer" {...shared}>
         {slide.ctaLabel} <ArrowRight size={16} />
       </a>
     ) : (
-      <Link
-        to={link}
-        className={ctaClassName}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-      >
+      <Link to={link} {...shared}>
         {slide.ctaLabel} <ArrowRight size={16} />
       </Link>
     )
-  ) : null
+  }
 
   return (
     <div
       role="region"
       aria-roledescription="carousel"
       aria-label="Slides de destaque"
-      tabIndex={slides.length > 1 ? 0 : -1}
+      tabIndex={hasDots ? 0 : -1}
       onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -218,102 +241,110 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
       onTouchEnd={handleTouchEnd}
       className={surfaceClasses({
         tone: 'dark',
-        className:
-          'relative min-h-[220px] touch-pan-y select-none overflow-hidden rounded-2xl border-[#D2BB8A]/40 shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A] md:min-h-[320px] lg:min-h-[360px]',
+        className: `relative ${CARD_MIN_HEIGHT} touch-pan-y select-none overflow-hidden rounded-2xl border-[#D2BB8A]/40 shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A]`,
       })}
     >
-      {/* Camadas de fundo -- uma por slide, sempre montadas (nunca remove/recria
-          via key), so alterna opacity. Trocar de slide antes disparava
-          key={slide.id} -> React desmontava o elemento antigo e montava um
-          novo do zero, que renascia em opacity:0 (a keyframe animate-hero-fade)
-          -- um frame de fundo vazio/preto entre um slide e outro. Com as duas
-          camadas persistentes, o fade e um crossfade real (uma sobe enquanto a
-          outra desce ao mesmo tempo), sem nunca passar por "nada visivel". */}
-      {slides.map((s, i) => (
-        <div
-          key={s.id}
-          aria-hidden={i !== index}
-          className={`absolute inset-0 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] ${
-            isDragging || prefersReducedMotion ? '' : 'transition-opacity duration-[400ms] ease-in-out'
-          }`}
-          style={{
-            opacity: i === index ? 1 : 0,
-            // Overlay respeita a cor configurada no admin (mesma funcao do
-            // PromoBanner) -- antes era um gradiente de vinho hardcoded e o
-            // color picker do CMS nao tinha efeito nenhum no hero.
-            backgroundImage: s.imageUrl
-              ? `${buildOverlayGradient(s.overlayColor || '#5D082A', s.align || 'left')}, url(${s.imageUrl})`
-              : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            transform: i === index ? `translateX(${dragTransform}px)` : undefined,
-          }}
-        />
-      ))}
-
-      {/* Tres zonas (topo / centro / base), mesmo esqueleto do PromoBanner:
-          selos no topo, texto no meio, CTA e bolinhas na base. A linha do topo
-          e sempre renderizada mesmo vazia -- com um filho a menos o
-          justify-between reposicionaria as outras zonas. */}
-      <div className="absolute inset-0 z-10 flex flex-col justify-between p-4 sm:p-6 md:p-8">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-            {slide.tag && (
-              <Badge
-                tone="gold"
-                className="h-auto w-fit border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[10px] text-[#231F20] sm:px-2.5 sm:py-1 sm:text-xs"
-              >
-                {slide.tag}
-              </Badge>
-            )}
-          </div>
-          {slide.sponsorName && (
-            <span className="ml-auto shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm sm:px-2.5 sm:py-1 sm:text-[11px]">
-              {slide.sponsorName}
-            </span>
-          )}
-        </div>
-
-        <div className={`max-w-2xl ${ALIGN_CLASSES[align]}`}>
-          <h3 className="line-clamp-2 text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-3xl lg:text-4xl">
-            {slide.title}
-          </h3>
-          {slide.description && (
-            // Contida em ~2/3 pra nao invadir a foto do produto a direita;
-            // whitespace-pre-line respeita o Enter digitado no admin. A margem
-            // auto acompanha o alinhamento -- sem ela, em center/right o texto
-            // (mais estreito que o bloco) ficaria preso a esquerda.
-            <p
-              className={`mt-1 line-clamp-3 max-w-[75%] whitespace-pre-line text-xs text-white/85 sm:mt-2 sm:text-sm md:max-w-[60%] md:text-base ${DESCRIPTION_ALIGN_CLASSES[align]}`}
+      {/* Track: os cards ficam lado a lado e a faixa inteira desliza. O fade
+          anterior trocava so a imagem de fundo dentro de um container unico,
+          entao o conteudo (titulo/CTA) aparecia trocado de uma vez em cima de
+          um fundo em transicao. Com o track, cada slide e um card completo que
+          entra e sai junto com seu proprio texto. As porcentagens do
+          translateX resolvem contra a largura do track (w-full = a do
+          container), entao -100% e exatamente um card. */}
+      <div
+        className={`flex w-full ${
+          isDragging || prefersReducedMotion || isWrapJump ? '' : 'transition-transform duration-500 ease-out'
+        }`}
+        style={{ transform: `translateX(calc(-${index * 100}% + ${visualDragOffset}px))` }}
+      >
+        {slides.map((slide, i) => {
+          const align = slide.align || 'left'
+          const isActive = i === index
+          return (
+            <div
+              key={slide.id}
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`${i + 1} de ${slides.length}`}
+              aria-hidden={!isActive}
+              className={`relative flex w-full shrink-0 select-none flex-col justify-between bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-4 sm:p-6 md:p-8 ${CARD_MIN_HEIGHT} ${
+                // Espaco reservado pras bolinhas, que ficam ancoradas na base
+                // do slider (fora do track) e passariam por cima do CTA.
+                hasDots ? 'pb-10 sm:pb-12 md:pb-14' : ''
+              }`}
+              style={{
+                backgroundImage: slide.imageUrl
+                  ? `${buildOverlayGradient(slide.overlayColor || '#5D082A', align)}, url(${slide.imageUrl})`
+                  : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
             >
-              {slide.description}
-            </p>
-          )}
-        </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+                  {slide.tag && (
+                    <Badge
+                      tone="gold"
+                      className="h-auto w-fit border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[10px] text-[#231F20] sm:px-2.5 sm:py-1 sm:text-xs"
+                    >
+                      {slide.tag}
+                    </Badge>
+                  )}
+                </div>
+                {slide.sponsorName && (
+                  <span className="ml-auto shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm sm:px-2.5 sm:py-1 sm:text-[11px]">
+                    {slide.sponsorName}
+                  </span>
+                )}
+              </div>
 
-        <div className={`flex flex-col gap-2 ${ALIGN_CLASSES[align]}`}>
-          {cta}
-          {slides.length > 1 && (
-            <div className="flex items-center gap-2" role="tablist" aria-label="Slides de destaque">
-              {slides.map((s, i) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={i === index}
-                  aria-label={`Ir para slide ${i + 1}`}
-                  onClick={() => goTo(i)}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === index ? 'w-6 bg-[#D2BB8A]' : 'w-1.5 bg-white/40 hover:bg-white/60'
-                  }`}
-                />
-              ))}
+              <div className={`max-w-2xl ${ALIGN_CLASSES[align]}`}>
+                <h3 className="line-clamp-2 text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-3xl lg:text-4xl">
+                  {slide.title}
+                </h3>
+                {slide.description && (
+                  // Contida em ~2/3 pra nao invadir a foto do produto a direita;
+                  // whitespace-pre-line respeita o Enter digitado no admin. A
+                  // margem auto acompanha o alinhamento -- sem ela, em
+                  // center/right o texto (mais estreito que o bloco) ficaria
+                  // preso a esquerda.
+                  <p
+                    className={`mt-1 line-clamp-3 max-w-[75%] whitespace-pre-line text-xs text-white/85 sm:mt-2 sm:text-sm md:max-w-[60%] md:text-base ${DESCRIPTION_ALIGN_CLASSES[align]}`}
+                  >
+                    {slide.description}
+                  </p>
+                )}
+              </div>
+
+              <div className={`flex flex-col ${ALIGN_CLASSES[align]}`}>{renderCta(slide, isActive)}</div>
             </div>
-          )}
-        </div>
+          )
+        })}
       </div>
+
+      {hasDots && (
+        <div
+          className={`absolute bottom-4 z-20 flex items-center gap-2 ${DOTS_POSITION_CLASSES[activeAlign]}`}
+          role="tablist"
+          aria-label="Slides de destaque"
+        >
+          {slides.map((slide, i) => (
+            <button
+              key={slide.id}
+              type="button"
+              role="tab"
+              aria-selected={i === index}
+              aria-label={`Ir para slide ${i + 1}`}
+              onClick={() => goTo(i)}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              className={`h-1.5 rounded-full transition-all ${
+                i === index ? 'w-6 bg-[#D2BB8A]' : 'w-1.5 bg-white/40 hover:bg-white/60'
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
