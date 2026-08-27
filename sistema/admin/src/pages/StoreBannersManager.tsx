@@ -59,6 +59,7 @@ interface StoreBanner {
   highlightNote?: string | null;
   ctaLabel?: string | null;
   overlayColor?: string | null;
+  displayDuration?: number;
   align?: 'left' | 'center' | 'right';
   sponsorName?: string | null;
   desktopImageUrl: string;
@@ -90,6 +91,7 @@ interface FormState {
   ctaLabel: string;
   overlayColor: string;
   align: 'left' | 'center' | 'right';
+  displayDuration: number;
   sponsorName: string;
   desktopImageUrl: string;
   mobileImageUrl: string;
@@ -278,6 +280,18 @@ const BANNER_TEMPLATES: BannerTemplate[] = [
     align: 'right',
   },
   {
+    id: 'category-departamento',
+    slot: 'category',
+    label: 'Categoria — Destaque do Departamento',
+    swatch: '#5D082A',
+    title: 'O melhor do departamento',
+    description: 'Seleção de itens escolhidos a dedo para esta categoria.',
+    badgeText: 'Especial',
+    ctaLabel: 'Ver departamento',
+    overlayColor: composeOverlayColor('#5D082A', 55),
+    align: 'left',
+  },
+  {
     id: 'tarja-frete',
     slot: 'tarja',
     label: 'Tarja — Frete Grátis',
@@ -316,6 +330,7 @@ const emptyForm = (): FormState => ({
   ctaLabel: '',
   overlayColor: '',
   align: 'left',
+  displayDuration: 5,
   sponsorName: '',
   desktopImageUrl: '',
   mobileImageUrl: '',
@@ -463,11 +478,28 @@ function PreviewBadge({ text, className }: { text?: string | null; className: st
   );
 }
 
-/** Overlay do banner no preview -- mesma logica de tinta que o storefront
- * usa (ver buildOverlayGradient/buildOverlaySolid em homeCategories.ts do
- * frontend), simplificada pra so precisar do overlayColor cru salvo. */
-function bannerOverlayStyle(overlayColor?: string | null): CSSProperties {
-  return { background: overlayColor || 'rgba(35, 31, 32, 0.45)' };
+/** Overlay do banner no preview -- espelha buildOverlayGradient/
+ * buildOverlaySolid (homeCategories.ts do frontend). Sem `align` gera tinta
+ * chapada, que e o que tarja e popup usam; com `align` gera o mesmo gradiente
+ * direcional do hero/intercalado, senao o preview mostrava cor uniforme e o
+ * operador so descobria a direcao real depois de publicar.
+ *
+ * Duplicado de proposito: admin e storefront sao pacotes separados, sem
+ * modulo compartilhado. Se mexer nos stops la, mexa aqui tambem. */
+function bannerOverlayStyle(overlayColor?: string | null, align?: 'left' | 'center' | 'right'): CSSProperties {
+  const raw = overlayColor || 'rgba(35, 31, 32, 0.45)';
+  if (!align) return { background: raw };
+
+  const { hex, opacity } = parseOverlayColor(raw);
+  const { r, g, b } = hexToRgb(hex);
+  const a = opacity / 100;
+  const rgba = (multiplier: number) => `rgba(${r}, ${g}, ${b}, ${(a * multiplier).toFixed(2)})`;
+
+  if (align === 'center') {
+    return { background: `linear-gradient(to bottom, ${rgba(1)} 0%, ${rgba(0.6)} 50%, ${rgba(1)} 100%)` };
+  }
+  const direction = align === 'right' ? 'to left' : 'to right';
+  return { background: `linear-gradient(${direction}, ${rgba(1)} 0%, ${rgba(0.75)} 55%, transparent 100%)` };
 }
 
 // Limites alinhados com o que cabe no banner sem estourar/truncar: titulo tem
@@ -517,7 +549,10 @@ function PreviewBannerTile({
       style={{ height }}
     >
       <img src={resolveApiUrl(banner.desktopImageUrl)} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0" style={bannerOverlayStyle(banner.overlayColor)} />
+      <div
+        className="absolute inset-0"
+        style={bannerOverlayStyle(banner.overlayColor, layout === 'strip' ? undefined : banner.align || 'left')}
+      />
       {layout === 'strip' ? (
         <div className="relative z-10 flex h-full items-center gap-2 px-3">
           {banner.badgeText && (
@@ -991,6 +1026,7 @@ export default function StoreBannersManager() {
       highlightNote: item.highlightNote ?? '',
       ctaLabel: item.ctaLabel ?? '',
       overlayColor: item.overlayColor ?? '',
+      displayDuration: item.displayDuration ?? 5,
       align: item.align ?? 'left',
       sponsorName: item.sponsorName ?? '',
       desktopImageUrl: item.desktopImageUrl,
@@ -1083,6 +1119,7 @@ export default function StoreBannersManager() {
         ctaLabel: form.ctaLabel.trim() || null,
         overlayColor: form.overlayColor.trim() || null,
         align: form.slot === 'hero' || form.slot === 'intercalado' ? form.align : 'left',
+        displayDuration: form.slot === 'hero' ? form.displayDuration : 5,
         sponsorName: form.sponsorName.trim() || null,
         desktopImageUrl: form.desktopImageUrl,
         mobileImageUrl: form.mobileImageUrl.trim() || null,
@@ -1989,6 +2026,41 @@ export default function StoreBannersManager() {
                             </Button>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Tempo em tela -- so o hero roda em carrossel, os outros
+                        slots ficam parados, entao a duracao nao se aplica. */}
+                    {form.slot === 'hero' && (
+                      <div>
+                        <Label className="block text-xs font-medium text-gray-600 mb-1">Tempo em tela</Label>
+                        <div className="flex gap-2">
+                          {[3, 5, 7, 10].map((seconds) => (
+                            <Button
+                              key={seconds}
+                              type="button"
+                              onClick={() => set('displayDuration', seconds)}
+                              variant={form.displayDuration === seconds ? 'default' : 'outline'}
+                              size="sm"
+                              className={`flex-1 rounded-lg text-xs ${form.displayDuration === seconds ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+                            >
+                              {seconds}s
+                            </Button>
+                          ))}
+                          <Input
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={form.displayDuration}
+                            onChange={(e) => set('displayDuration', Number(e.target.value))}
+                            className="w-20 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                            aria-label="Tempo em tela em segundos"
+                          />
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Segundos que este banner fica visível antes do carrossel avançar (1 a 60).
+                          Texto mais longo pede mais tempo de leitura.
+                        </p>
                       </div>
                     )}
 

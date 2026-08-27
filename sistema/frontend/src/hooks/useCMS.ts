@@ -24,6 +24,7 @@ export interface StoreBannerCMS {
   ctaLabel?: string | null
   overlayColor?: string | null
   align?: 'left' | 'center' | 'right'
+  displayDuration?: number
   sponsorName?: string | null
   desktopImageUrl: string
   mobileImageUrl?: string

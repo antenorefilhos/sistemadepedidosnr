@@ -120,6 +120,7 @@ export default function Home() {
           link: resolveBannerLink(item.linkValue, item.linkType),
           sponsorName: item.sponsorName || undefined,
           overlayColor: item.overlayColor || undefined,
+          displayDuration: item.displayDuration,
           align: item.align || 'left',
           active: item.active,
           order: item.order,

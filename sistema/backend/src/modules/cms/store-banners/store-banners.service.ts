@@ -18,6 +18,7 @@ export interface StoreBannerPayload {
   ctaLabel?: string | null;
   overlayColor?: string | null;
   align?: string;
+  displayDuration?: number;
   sponsorName?: string | null;
   desktopImageUrl: string;
   mobileImageUrl?: string | null;
@@ -52,6 +53,17 @@ function validateBannerPayload(data: Partial<StoreBannerPayload>, { isCreate }: 
   assertValidEnum(data.linkTarget, VALID_LINK_TARGETS, 'linkTarget');
   assertValidEnum(data.pages, VALID_PAGES, 'pages');
   assertValidEnum(data.align, VALID_ALIGN, 'align');
+  // Segundos que o slide fica na tela. Limite alto de proposito: acima de 60s
+  // o carrossel deixa de parecer carrossel, e valor quebrado (0, negativo,
+  // fracionado) viraria setInterval invalido no storefront.
+  if (data.displayDuration !== undefined) {
+    const duration = data.displayDuration;
+    if (!Number.isInteger(duration) || duration < 1 || duration > 60) {
+      throw new BadRequestException(
+        `displayDuration inválido: "${duration}". Informe um número inteiro de segundos entre 1 e 60.`,
+      );
+    }
+  }
   if (data.slot === 'category' && !data.targetCategory?.trim()) {
     throw new BadRequestException('targetCategory é obrigatório quando slot = "category".');
   }
@@ -184,6 +196,7 @@ export class StoreBannersService {
         ctaLabel: data.ctaLabel ?? null,
         overlayColor: data.overlayColor ?? null,
         align: data.align ?? 'left',
+        displayDuration: data.displayDuration ?? 5,
         sponsorName: data.sponsorName ?? null,
         desktopImageUrl: data.desktopImageUrl,
         mobileImageUrl: data.mobileImageUrl ?? null,
@@ -230,6 +243,7 @@ export class StoreBannersService {
         ...(data.ctaLabel !== undefined && { ctaLabel: data.ctaLabel || null }),
         ...(data.overlayColor !== undefined && { overlayColor: data.overlayColor || null }),
         ...(data.align !== undefined && { align: data.align }),
+        ...(data.displayDuration !== undefined && { displayDuration: data.displayDuration }),
         ...(data.sponsorName !== undefined && { sponsorName: data.sponsorName || null }),
         ...(data.desktopImageUrl !== undefined && { desktopImageUrl: data.desktopImageUrl }),
         ...(data.mobileImageUrl !== undefined && { mobileImageUrl: data.mobileImageUrl || null }),

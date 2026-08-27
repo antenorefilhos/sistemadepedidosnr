@@ -19,12 +19,15 @@ export interface HeroSlideCMS {
   link?: string | null
   sponsorName?: string | null
   overlayColor?: string | null
+  /** Segundos que este slide fica na tela antes de avancar. */
+  displayDuration?: number
   align?: HeroSlideAlign
   active?: boolean
   order?: number
 }
 
-const AUTO_ADVANCE_MS = 6500
+// Usado quando o banner nao tem displayDuration configurado no admin.
+const DEFAULT_DISPLAY_SECONDS = 5
 // Abaixo disso conta como toque/clique, nao arrasto -- deixa o link/CTA
 // clicavel normalmente em vez de sempre interpretar como swipe.
 const SWIPE_THRESHOLD_PX = 40
@@ -83,13 +86,18 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
     if (index >= slides.length) setIndex(0)
   }, [slides.length, index])
 
+  // O tempo e do slide que esta na tela, entao isso e um setTimeout que se
+  // reagenda a cada troca -- nao um setInterval fixo. Depender de `index` no
+  // array de dependencias e o que faz o proximo slide usar a duracao dele, e
+  // nao a do primeiro.
   useEffect(() => {
     if (slides.length < 2 || prefersReducedMotion) return
-    const id = setInterval(() => {
+    const seconds = slides[index]?.displayDuration || DEFAULT_DISPLAY_SECONDS
+    const id = setTimeout(() => {
       setIndex((prev) => (prev + 1) % slides.length)
-    }, AUTO_ADVANCE_MS)
-    return () => clearInterval(id)
-  }, [slides.length, prefersReducedMotion, interactionTick])
+    }, seconds * 1000)
+    return () => clearTimeout(id)
+  }, [slides, index, prefersReducedMotion, interactionTick])
 
   const goTo = (next: number) => {
     setIndex(((next % slides.length) + slides.length) % slides.length)
@@ -269,16 +277,30 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
               aria-roledescription="slide"
               aria-label={`${i + 1} de ${slides.length}`}
               aria-hidden={!isActive}
-              className={`relative flex w-full shrink-0 select-none flex-col justify-between bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-4 sm:p-6 md:p-8 ${CARD_MIN_HEIGHT}`}
-              style={{
-                backgroundImage: slide.imageUrl
-                  ? `${buildOverlayGradient(slide.overlayColor || '#5D082A', align)}, url(${slide.imageUrl})`
-                  : undefined,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }}
+              className={`relative flex w-full shrink-0 select-none flex-col justify-between bg-[#231F20] p-4 sm:p-6 md:p-8 ${CARD_MIN_HEIGHT}`}
             >
-              <div className="flex items-center justify-between gap-2">
+              {/* img + div de overlay, mesma montagem do PromoBanner. Como
+                  backgroundImage empilhado (gradiente, url) o gradiente e a
+                  foto compartilhavam background-size: cover, entao a cor
+                  esticava junto com a imagem em vez de cobrir o card inteiro
+                  -- em card largo com foto estreita sobrava borda sem tinta. */}
+              {slide.imageUrl && (
+                <img
+                  src={slide.imageUrl}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                  fetchPriority={i === 0 ? 'high' : 'auto'}
+                  draggable={false}
+                />
+              )}
+              <div
+                className="absolute inset-0"
+                style={{ background: buildOverlayGradient(slide.overlayColor || '#231F20', align) }}
+              />
+
+              <div className="relative z-10 flex items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                   {slide.tag && (
                     <Badge
@@ -296,7 +318,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                 )}
               </div>
 
-              <div className={`max-w-2xl ${ALIGN_CLASSES[align]}`}>
+              <div className={`relative z-10 max-w-2xl ${ALIGN_CLASSES[align]}`}>
                 <h3 className="line-clamp-2 text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-3xl lg:text-4xl">
                   {slide.title}
                 </h3>
@@ -314,7 +336,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                 )}
               </div>
 
-              <div className={`flex flex-col ${ALIGN_CLASSES[align]}`}>{renderCta(slide, isActive)}</div>
+              <div className={`relative z-10 flex flex-col ${ALIGN_CLASSES[align]}`}>{renderCta(slide, isActive)}</div>
             </div>
           )
         })}

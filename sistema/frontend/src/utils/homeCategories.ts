@@ -279,6 +279,12 @@ const parseTone = (tone: string): { r: number; g: number; b: number; a: number }
  * vertical: escurece topo e base e alivia o miolo, mantendo contraste sem
  * chapar a imagem inteira.
  *
+ * O primeiro stop usa o alpha configurado sem atenuar (multiplicador 1): quem
+ * escolhe uma cor no color picker ja escolheu a opacidade junto, e reduzir
+ * pra 0.85 antes de pintar fazia cor forte (verde, azul, dourado) aparecer
+ * lavada e dificil de distinguir de outra. A atenuacao fica so no stop do
+ * meio pra frente, que e onde a foto precisa reaparecer.
+ *
  * Os stops sao montados com rgba() completo de proposito: a versao antiga
  * concatenava sufixo de alpha em hex na string (`${tone}D1`), o que gera CSS
  * invalido pra cor vinda em rgba() do color picker (`rgba(...)D1`) e faz o
@@ -289,11 +295,11 @@ export const buildOverlayGradient = (tone: string, align: 'left' | 'center' | 'r
   const rgba = (multiplier: number) => `rgba(${r}, ${g}, ${b}, ${(a * multiplier).toFixed(2)})`
 
   if (align === 'center') {
-    return `linear-gradient(to bottom, ${rgba(0.75)} 0%, ${rgba(0.45)} 50%, ${rgba(0.75)} 100%)`
+    return `linear-gradient(to bottom, ${rgba(1)} 0%, ${rgba(0.6)} 50%, ${rgba(1)} 100%)`
   }
 
   const direction = align === 'right' ? 'to left' : 'to right'
-  return `linear-gradient(${direction}, ${rgba(0.85)} 0%, ${rgba(0.5)} 55%, transparent 100%)`
+  return `linear-gradient(${direction}, ${rgba(1)} 0%, ${rgba(0.75)} 55%, transparent 100%)`
 }
 
 /**

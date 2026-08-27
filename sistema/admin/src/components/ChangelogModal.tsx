@@ -14,6 +14,23 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.2.7',
+    date: '27/08/2026',
+    title: 'Carrossel Hero em Cards, Overlay Direcional e Controle de Tempo',
+    highlights: [
+      { type: 'feat', description: 'Carrossel Hero virou faixa de cards individuais: cada banner desliza inteiro (imagem e texto juntos), com swipe 1:1 acompanhando o dedo.' },
+      { type: 'feat', description: 'Tempo de exibição configurável por slide (3s, 5s, 7s, 10s ou valor livre até 60s) — banner com texto longo pode ficar mais tempo na tela.' },
+      { type: 'feat', description: 'Overlay agora acompanha o alinhamento: escurece o lado onde o texto está e libera o outro pra foto aparecer.' },
+      { type: 'feat', description: 'Cor do overlay aplicada com fidelidade — verde, azul, dourado e cores fortes não saem mais lavadas.' },
+      { type: 'feat', description: 'Novo modelo pronto de banner para páginas de categoria (Destaque do Departamento).' },
+      { type: 'feat', description: 'Limite de caracteres com contador nos campos do banner, alinhado ao que cabe sem cortar na loja.' },
+      { type: 'fix', description: 'Hero e banners intercalados unificados em 3 zonas (selo no topo, texto no meio, botão na base) e com a mesma altura.' },
+      { type: 'fix', description: 'Bolinhas do carrossel saíram de cima da foto para abaixo do card, centralizadas.' },
+      { type: 'fix', description: 'Swipe do Hero voltou a funcionar no iPhone (Safari e Chrome).' },
+      { type: 'fix', description: 'Edição de banner no admin reflete na loja em segundos, sem esperar o cache antigo de 10 minutos.' },
+    ],
+  },
+  {
     version: '1.2.6',
     date: '26/08/2026',
     title: 'Gestão Visual de Banners, Sync Assíncrono e Expurgo ERP',

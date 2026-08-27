@@ -149,6 +149,18 @@ describe('StoreBannersService', () => {
       expect(() => service.create({ ...validPayload(), align: 'justified' })).toThrow(/align inválido/i);
     });
 
+    it('aceita displayDuration inteiro dentro da faixa', async () => {
+      await expect(service.create({ ...validPayload(), displayDuration: 10 })).resolves.toBeDefined();
+    });
+
+    it('rejeita displayDuration fracionado, zerado, negativo ou acima de 60', () => {
+      for (const invalid of [0, -3, 7.5, 61]) {
+        expect(() => service.create({ ...validPayload(), displayDuration: invalid })).toThrow(
+          /displayDuration inválido/i,
+        );
+      }
+    });
+
     it('aceita slot = category quando targetCategory esta preenchido', async () => {
       await expect(
         service.create({ ...validPayload(), slot: 'category', targetCategory: 'ACOUGUE' }),
