@@ -52,6 +52,10 @@ const DESCRIPTION_ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
 // Mesma escala do PromoBanner (Home.tsx) -- os dois sao o mesmo tipo de card
 // e apareciam com alturas diferentes na mesma pagina.
 const CARD_MIN_HEIGHT = 'min-h-[230px] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[340px]'
+// Vao entre um card e outro. So aparece durante o arrasto/transicao (em
+// repouso o card ocupa a largura toda), e e o que deixa claro que sao dois
+// cards separados andando, nao uma imagem escorregando dentro de uma moldura.
+const CARD_GAP_PX = 16
 
 function isExternalLink(link: string) {
   return /^https?:\/\//i.test(link)
@@ -240,6 +244,13 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
       onKeyDown={handleKeyDown}
       className="outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A] focus-visible:ring-offset-2 rounded-2xl"
     >
+      {/* Janela de recorte, sem moldura: borda, cantos e sombra ficam em cada
+          card (abaixo), nao aqui. Enquanto essa moldura estava neste div ela
+          nao saia do lugar durante o arrasto -- so o conteudo deslizava dentro
+          dela, e o gesto lia como "a imagem escorrega dentro do card" em vez
+          de "o card inteiro anda", que e como os outros carrosseis se
+          comportam. O py/-my abre espaco pra sombra do card nao ser cortada
+          pelo overflow, sem mexer no espacamento da pagina. */}
       <div
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -249,23 +260,21 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className={surfaceClasses({
-          tone: 'dark',
-          className: `relative ${CARD_MIN_HEIGHT} touch-pan-y select-none overflow-hidden rounded-2xl border-[#D2BB8A]/40 shadow-lg`,
-        })}
+        className="relative -my-3 select-none overflow-hidden py-3 touch-pan-y"
       >
-      {/* Track: os cards ficam lado a lado e a faixa inteira desliza. O fade
-          anterior trocava so a imagem de fundo dentro de um container unico,
-          entao o conteudo (titulo/CTA) aparecia trocado de uma vez em cima de
-          um fundo em transicao. Com o track, cada slide e um card completo que
-          entra e sai junto com seu proprio texto. As porcentagens do
-          translateX resolvem contra a largura do track (w-full = a do
-          container), entao -100% e exatamente um card. */}
+      {/* Track: os cards ficam lado a lado e a faixa inteira desliza. O passo
+          e a largura do card mais o vao entre eles -- o 100% do translateX
+          resolve contra a largura do track (= a do container, ja que os cards
+          sao w-full), e o vao precisa entrar somado ou o card iria parando
+          progressivamente fora de posicao a cada slide. */}
       <div
         className={`flex w-full ${
           isDragging || prefersReducedMotion || isWrapJump ? '' : 'transition-transform duration-500 ease-out'
         }`}
-        style={{ transform: `translateX(calc(-${index * 100}% + ${visualDragOffset}px))` }}
+        style={{
+          gap: `${CARD_GAP_PX}px`,
+          transform: `translateX(calc(${-index} * (100% + ${CARD_GAP_PX}px) + ${visualDragOffset}px))`,
+        }}
       >
         {slides.map((slide, i) => {
           const align = slide.align || 'left'
@@ -277,7 +286,10 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
               aria-roledescription="slide"
               aria-label={`${i + 1} de ${slides.length}`}
               aria-hidden={!isActive}
-              className={`relative flex w-full shrink-0 select-none flex-col justify-between bg-[#231F20] p-4 sm:p-6 md:p-8 ${CARD_MIN_HEIGHT}`}
+              className={surfaceClasses({
+                tone: 'dark',
+                className: `relative flex w-full shrink-0 select-none flex-col justify-between overflow-hidden rounded-2xl border-[#D2BB8A]/40 bg-[#231F20] p-4 shadow-lg sm:p-6 md:p-8 ${CARD_MIN_HEIGHT}`,
+              })}
             >
               {/* img + div de overlay, mesma montagem do PromoBanner. Como
                   backgroundImage empilhado (gradiente, url) o gradiente e a
