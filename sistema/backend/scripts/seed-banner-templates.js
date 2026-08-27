@@ -61,6 +61,7 @@ function buildBannerSvg({ width, height, colorHex }) {
 const DIMS = {
   hero: { width: 1920, height: 720 },
   intercalado: { width: 850, height: 520 },
+  category: { width: 1600, height: 600 },
   tarja: { width: 1920, height: 420 },
   popup: { width: 900, height: 600 },
 }
@@ -114,6 +115,40 @@ const TEMPLATES = [
     overlayColor: 'rgba(15, 81, 50, 0.6)',
     align: 'right',
   },
+  // Banners de categoria: aparecem na aba "Categorias" do admin. targetCategory
+  // e obrigatorio pro slot (o backend recusa sem ele) e guarda o NOME da
+  // categoria do CMS, nao um id -- e o que o select do admin envia.
+  {
+    id: 'seed-banner-category-acougue',
+    slot: 'category',
+    name: 'Categoria — Açougue (modelo)',
+    swatch: '#5D082A',
+    title: 'Cortes selecionados do nosso açougue',
+    description: 'Carne fresca escolhida a dedo, cortada na hora pra sua receita.',
+    badgeText: 'Especial',
+    ctaLabel: 'Ver cortes',
+    overlayColor: 'rgba(93, 8, 42, 0.55)',
+    align: 'left',
+    targetCategory: 'Acougue Churrasco',
+    // Reaproveita a foto de outro modelo (nao existe webp proprio em
+    // assets/banner-templates) -- o arquivo e copiado com o id deste banner,
+    // entao cada um fica com a sua copia.
+    imageFrom: 'seed-banner-hero-oferta',
+  },
+  {
+    id: 'seed-banner-category-adega',
+    slot: 'category',
+    name: 'Categoria — Adega (modelo)',
+    swatch: '#231F20',
+    title: 'Vinhos que valem a pena',
+    description: 'Rótulos escolhidos pra acompanhar do dia a dia à ocasião especial.',
+    badgeText: 'Seleção especial',
+    ctaLabel: 'Ver vinhos',
+    overlayColor: 'rgba(35, 31, 32, 0.6)',
+    align: 'right',
+    targetCategory: 'Adega Vinhos Espumantes',
+    imageFrom: 'seed-banner-intercalado-destaque',
+  },
   {
     id: 'seed-banner-tarja-frete',
     slot: 'tarja',
@@ -144,7 +179,9 @@ async function main() {
   let order = 0
   for (const t of TEMPLATES) {
     const dims = DIMS[t.slot]
-    const webpSrc = path.join(ASSETS_DIR, `${t.id}.webp`)
+    // imageFrom: modelo sem webp proprio que emprestа a foto de outro. A copia
+    // vai pro uploads com o id DESTE banner, entao os dois ficam independentes.
+    const webpSrc = path.join(ASSETS_DIR, `${t.imageFrom || t.id}.webp`)
     let filename
     if (fs.existsSync(webpSrc)) {
       filename = `${t.id}.webp`
@@ -158,17 +195,26 @@ async function main() {
 
     const desktopImageUrl = `/uploads/${filename}`
 
+    // Banner de categoria aponta pra propria categoria (resolveBannerLink
+    // transforma o nome no /mercado?cat=... certo, e manda Adega pra /adega).
+    const isCategory = t.slot === 'category'
+    const linkType = isCategory ? 'category' : 'url'
+    const linkValue = isCategory ? t.targetCategory : '/mercado'
+
     await prisma.storeBanner.upsert({
       where: { id: t.id },
       update: {
         name: t.name,
         slot: t.slot,
+        targetCategory: t.targetCategory || null,
         title: t.title,
         description: t.description,
         badgeText: t.badgeText,
         ctaLabel: t.ctaLabel,
         overlayColor: t.overlayColor,
         align: t.align || 'left',
+        linkType,
+        linkValue,
         desktopImageUrl,
         active: true,
       },
@@ -176,6 +222,7 @@ async function main() {
         id: t.id,
         name: t.name,
         slot: t.slot,
+        targetCategory: t.targetCategory || null,
         title: t.title,
         description: t.description,
         badgeText: t.badgeText,
@@ -183,10 +230,10 @@ async function main() {
         overlayColor: t.overlayColor,
         align: t.align || 'left',
         desktopImageUrl,
-        linkType: 'url',
-        linkValue: '/mercado',
+        linkType,
+        linkValue,
         linkTarget: '_self',
-        pages: 'home',
+        pages: isCategory ? 'category' : 'home',
         active: true,
         order: order,
       },
