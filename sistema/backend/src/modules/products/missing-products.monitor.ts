@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../common/prisma.service'
 import { SolidcomERPService } from '../integrations/solidcom-erp.service'
 import { EmailService } from '../notifications/email.service'
+import { winstonLogger } from '../../common/logger'
 
 /**
  * Rede de seguranca pro bug do "Limao kg" (27/08/2026): o produto estava
@@ -22,7 +23,6 @@ import { EmailService } from '../notifications/email.service'
  */
 @Injectable()
 export class MissingProductsMonitor {
-  private readonly logger = new Logger(MissingProductsMonitor.name)
   private readonly enabled = String(process.env.MISSING_PRODUCTS_MONITOR_ENABLED || '').toLowerCase() === 'true'
   private readonly alertTo = process.env.MISSING_PRODUCTS_ALERT_EMAIL || ''
 
@@ -31,18 +31,23 @@ export class MissingProductsMonitor {
     private readonly erp: SolidcomERPService,
     private readonly email: EmailService,
   ) {
-    // Mesmo padrao do ProductsSyncScheduler: sem isso nao ha como saber, olhando
-    // o log, se o monitor esta de pe -- ele so fala quando o cron dispara, e um
-    // monitor silencioso por estar desligado e indistinguivel de um monitor
-    // silencioso por nao ter achado nada. Que e o bug que ele monitora.
+    // Sem esta linha nao ha como saber, olhando o log, se o monitor esta de pe:
+    // um monitor calado por estar desligado e indistinguivel de um calado por
+    // nao ter achado nada -- que e a propria falha silenciosa que ele monitora.
+    //
+    // Tudo aqui usa winstonLogger, nunca o Logger do Nest: `main.ts` cria a app
+    // com `logger: false`, entao Logger do Nest nao sai em lugar nenhum em
+    // producao. Varios schedulers do projeto ainda logam por ele e sao mudos na
+    // VPS -- nao copie esse padrao.
     if (!this.enabled) {
-      this.logger.log('Monitor de produto sumido desabilitado (MISSING_PRODUCTS_MONITOR_ENABLED=true para ativar).')
+      winstonLogger.info('missing_products_monitor_disabled')
       return
     }
     const destino = this.alertTo ? this.alertTo : 'SO NO LOG (MISSING_PRODUCTS_ALERT_EMAIL vazia)'
-    this.logger.log(
-      `Monitor de produto sumido ATIVO (cron: ${process.env.MISSING_PRODUCTS_MONITOR_CRON || '30 3 * * *'}, alerta para: ${destino}).`,
-    )
+    winstonLogger.info('missing_products_monitor_ready', {
+      cron: process.env.MISSING_PRODUCTS_MONITOR_CRON || '30 3 * * *',
+      alertTo: destino,
+    })
   }
 
   @Cron(process.env.MISSING_PRODUCTS_MONITOR_CRON || '30 3 * * *', {
@@ -53,19 +58,20 @@ export class MissingProductsMonitor {
     try {
       const missing = await this.findWronglyHidden()
       if (missing.length === 0) {
-        this.logger.log('Monitor de produto sumido: nenhuma divergencia.')
+        winstonLogger.info('missing_products_check_clean')
         return
       }
-      this.logger.error(
-        `Monitor de produto sumido: ${missing.length} produto(s) fora da vitrine com o ERP marcando SEMPRE. ` +
-          `EANs: ${missing.map((p) => p.ean).join(', ')}`,
-      )
+      // Copia duravel do alerta: e o que fica quando o e-mail nao sai.
+      winstonLogger.error('missing_products_detected', {
+        count: missing.length,
+        eans: missing.map((p) => p.ean),
+        names: missing.map((p) => p.name),
+      })
       await this.notify(missing)
     } catch (error) {
-      this.logger.error(
-        'Falha no monitor de produto sumido:',
-        error instanceof Error ? error.stack : String(error),
-      )
+      winstonLogger.error('missing_products_monitor_failed', {
+        error: error instanceof Error ? error.stack : String(error),
+      })
     }
   }
 
@@ -85,7 +91,7 @@ export class MissingProductsMonitor {
       // Nenhum SEMPRE no retorno inteiro nao e "esta tudo certo" -- e sinal de
       // que o campo parou de vir (o mesmo modo de falha do bug original).
       // Alertar aqui seria ruido; deixar passar calado seria o bug de novo.
-      this.logger.warn('Monitor: ERP nao retornou nenhum produto SEMPRE -- campo tipoIntegracao pode ter sumido.')
+      winstonLogger.warn('missing_products_erp_no_sempre', { erpRows: data.length })
       return []
     }
 
@@ -101,7 +107,7 @@ export class MissingProductsMonitor {
 
   private async notify(missing: Array<{ ean: string; name: string; syncOption: string }>): Promise<void> {
     if (!this.alertTo) {
-      this.logger.warn('MISSING_PRODUCTS_ALERT_EMAIL nao configurada -- alerta ficou so no log.')
+      winstonLogger.warn('missing_products_alert_email_missing', { count: missing.length })
       return
     }
     const linhas = missing
