@@ -5,6 +5,7 @@ import helmet from 'helmet'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { AppModule } from './app.module'
 import { winstonLogger } from './common/logger'
+import { NestWinstonLogger } from './common/nest-winston-logger'
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor'
 
 function traduzirMensagem(msg: string): string {
@@ -42,7 +43,12 @@ function resolveCorsOrigins() {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { logger: false })
+  // Era `logger: false`, que desligava o Logger do Nest inteiro -- todo
+  // this.logger.* do backend sumia em producao, incluindo avisos de config
+  // faltando (ver a armadilha do Resend no CLAUDE.md). O bridge manda tudo pro
+  // winston e continua filtrando so o ruido de boot, que era o motivo original
+  // de desligar. Ver common/nest-winston-logger.ts.
+  const app = await NestFactory.create(AppModule, { logger: new NestWinstonLogger() })
 
   // Atras do proxy reverso de producao (Caddy), toda requisicao chegaria com o
   // mesmo IP interno se isso nao fosse setado -- rate limit, anti-fraude e
