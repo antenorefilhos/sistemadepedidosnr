@@ -30,7 +30,20 @@ export class MissingProductsMonitor {
     private readonly prisma: PrismaService,
     private readonly erp: SolidcomERPService,
     private readonly email: EmailService,
-  ) {}
+  ) {
+    // Mesmo padrao do ProductsSyncScheduler: sem isso nao ha como saber, olhando
+    // o log, se o monitor esta de pe -- ele so fala quando o cron dispara, e um
+    // monitor silencioso por estar desligado e indistinguivel de um monitor
+    // silencioso por nao ter achado nada. Que e o bug que ele monitora.
+    if (!this.enabled) {
+      this.logger.log('Monitor de produto sumido desabilitado (MISSING_PRODUCTS_MONITOR_ENABLED=true para ativar).')
+      return
+    }
+    const destino = this.alertTo ? this.alertTo : 'SO NO LOG (MISSING_PRODUCTS_ALERT_EMAIL vazia)'
+    this.logger.log(
+      `Monitor de produto sumido ATIVO (cron: ${process.env.MISSING_PRODUCTS_MONITOR_CRON || '30 3 * * *'}, alerta para: ${destino}).`,
+    )
+  }
 
   @Cron(process.env.MISSING_PRODUCTS_MONITOR_CRON || '30 3 * * *', {
     name: 'missing-products-monitor',
