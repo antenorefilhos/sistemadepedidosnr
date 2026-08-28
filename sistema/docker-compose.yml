@@ -69,7 +69,25 @@ services:
       AI_NOTIFICATIONS_CRON_ENABLED: ${AI_NOTIFICATIONS_CRON_ENABLED:-false}
       AI_NOTIFICATIONS_CRON: ${AI_NOTIFICATIONS_CRON:-0 9,13,18 * * *}
       HANDOFF_CSV_PATH: ${HANDOFF_CSV_PATH:-/data/handoff_ecommerce_v3_n1_n2.csv}
+      # Credenciais/endereco do ERP. Estavam so como fallback hardcoded no
+      # solidcom-erp.service.ts -- documentadas no .env.example e sem chegar
+      # no container, entao configurar nao tinha efeito nenhum.
+      SOLIDCOM_API_URL: ${SOLIDCOM_API_URL:-}
+      SOLIDCOM_API_KEY: ${SOLIDCOM_API_KEY:-}
+      SOLIDCOM_CNPJ: ${SOLIDCOM_CNPJ:-}
+      SOLIDCOM_CODECOM: ${SOLIDCOM_CODECOM:-}
+      SOLIDCOM_BALCAO_CPF: ${SOLIDCOM_BALCAO_CPF:-}
       ERP_SYNC_CRON_ENABLED: ${ERP_SYNC_CRON_ENABLED:-true}
+      # O sync incremental lia estas duas do .env, mas elas nunca eram
+      # repassadas -- valia sempre o default do proprio codigo.
+      ERP_SYNC_INCREMENTAL_CRON: ${ERP_SYNC_INCREMENTAL_CRON:-0 * * * *}
+      ERP_SYNC_INCREMENTAL_HOURS: ${ERP_SYNC_INCREMENTAL_HOURS:-2}
+      # Sem estas, ligar o sync de encartes/campanhas era impossivel: o
+      # scheduler so ativa com PROMOTIONS_SYNC_CRON_ENABLED=true, e a variavel
+      # nao chegava no container por mais que estivesse no .env.
+      PROMOTIONS_SYNC_CRON_ENABLED: ${PROMOTIONS_SYNC_CRON_ENABLED:-false}
+      PROMOTIONS_SYNC_CRON: ${PROMOTIONS_SYNC_CRON:-*/30 * * * *}
+      PROMOTIONS_EXPIRE_CRON: ${PROMOTIONS_EXPIRE_CRON:-*/15 * * * *}
       ERP_SYNC_CRON: ${ERP_SYNC_CRON:-0 4 * * *}
       MISSING_PRODUCTS_MONITOR_ENABLED: ${MISSING_PRODUCTS_MONITOR_ENABLED:-true}
       MISSING_PRODUCTS_MONITOR_CRON: ${MISSING_PRODUCTS_MONITOR_CRON:-30 3 * * *}
