@@ -204,6 +204,40 @@ Antes de dar por configurada qualquer variavel nova, rode
 servico `api`, **so o que esta listado em `environment:` chega no container** —
 documentar no `.env.example` e preencher o `.env` nao basta.
 
+## Armadilha: `migrate deploy` nao detecta schema fora de sincronia
+
+`prisma migrate deploy` compara **quais migrations ja foram aplicadas**, nunca o
+`schema.prisma` com o banco. Model editado sem migration correspondente passa
+batido em todo deploy, e o log diz "All migrations have been successfully
+applied" — verdadeiro e irrelevante.
+
+Foi assim que `drivers.adminId` ficou meses ausente em producao (achado em
+28/08/2026). O campo esta no schema desde sempre e o banco nunca teve a coluna.
+Efeito: o **app do entregador estava 100% quebrado** — todo endpoint `/driver`
+passa por `findDriverByAdmin`, que consulta `where: { adminId }`, e o Prisma
+estourava em runtime logo apos o login com "The column `drivers.adminId` does
+not exist in the current database". Nao era 404 tratavel, era erro cru.
+
+Havia um segundo efeito, pior por ser mudo: `ensureDriverProfile`
+(`auth.service.ts`) faz `upsert` na mesma coluna pra vincular perfil de
+motorista a quem recebe o modulo `delivery`. Ele tambem quebrava — por isso
+existia conta de motorista com o modulo certo e **zero** linhas em `drivers`.
+
+Antes de investigar "bug" em app que fala com o banco, rode:
+
+```bash
+node sistema/scripts/check-schema-drift.js --container antenor_api
+```
+
+Ele roda o `prisma migrate diff` e **filtra o ruido**: o diff cru sempre lista
+~20 divergencias benignas (nomes de indice truncados pelo Prisma, `DEFAULT` que
+o banco tem a mais), e e no meio delas que o problema real se esconde. Sai com
+codigo 1 so quando ha divergencia funcional.
+
+Quando achar divergencia, decida a direcao: se o **schema** esta certo, escreva
+migration a mao; se o **banco** esta certo (ex.: indice criado a mao pra
+desempenho), declare no schema. Em 28/08/2026 tinha das duas.
+
 ## Armadilha: e-mail nunca saiu em producao (Resend sem chave, e log mudo)
 
 Descoberto em 28/08/2026 ao testar o alerta do monitor de produto sumido.
