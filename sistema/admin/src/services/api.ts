@@ -883,6 +883,10 @@ export interface AdminCustomer {
   createdAt: string
   blocked?: boolean
   blockedReason?: string | null
+  /** true quando o cliente aceitou notificacao push em pelo menos um aparelho. */
+  pushEnabled?: boolean
+  /** Uma assinatura por aparelho/navegador: mesmo cliente no celular e no PC conta 2. */
+  pushSubscriptionCount?: number
   addresses?: Array<{
     id: string
     street: string

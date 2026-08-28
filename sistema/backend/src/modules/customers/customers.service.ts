@@ -18,23 +18,56 @@ export class CustomersService {
   ) {}
 
   async findAll(search?: string) {
-    if (search) {
-      return this.prisma.customer.findMany({
-        where: {
-          OR: [
-            { name: { contains: search } },
-            { cpf: { contains: search } },
-            { whatsapp: { contains: search } },
-          ],
-        },
-        include: { addresses: true },
-      })
-    }
+    const customers = search
+      ? await this.prisma.customer.findMany({
+          where: {
+            OR: [
+              { name: { contains: search } },
+              { cpf: { contains: search } },
+              { whatsapp: { contains: search } },
+            ],
+          },
+          include: { addresses: true },
+        })
+      : await this.prisma.customer.findMany({
+          include: { addresses: true },
+          orderBy: { createdAt: 'desc' },
+        })
 
-    return this.prisma.customer.findMany({
-      include: { addresses: true },
-      orderBy: { createdAt: 'desc' },
+    return this.withPushInfo(customers)
+  }
+
+  /**
+   * Anexa a cada cliente quantos aparelhos dele aceitam notificacao push.
+   *
+   * Responde uma pergunta operacional que a lista nao respondia: antes de
+   * disparar um broadcast, quem de fato recebe? Em 28/08/2026 a resposta era
+   * "ninguem" -- zero assinaturas, e nao havia como saber isso sem consultar o
+   * banco na mao.
+   *
+   * `PushSubscription` nao tem relacao Prisma com `Customer` (so um `customerId`
+   * indexado), entao nao da pra usar `_count`/`include` -- e um groupBy a parte,
+   * de proposito: criar a relacao agora exigiria migration com FK, e o ganho
+   * seria so sintatico.
+   *
+   * Uma assinatura por aparelho/navegador: o mesmo cliente no celular e no PC
+   * conta 2. Por isso o campo e contagem, nao booleano.
+   */
+  private async withPushInfo<T extends { id: string }>(customers: T[]) {
+    if (customers.length === 0) return []
+
+    const grouped = await this.prisma.pushSubscription.groupBy({
+      by: ['customerId'],
+      where: { customerId: { in: customers.map((c) => c.id) } },
+      _count: { _all: true },
     })
+    const porCliente = new Map(grouped.map((g) => [g.customerId, g._count._all]))
+
+    return customers.map((customer) => ({
+      ...customer,
+      pushSubscriptionCount: porCliente.get(customer.id) ?? 0,
+      pushEnabled: (porCliente.get(customer.id) ?? 0) > 0,
+    }))
   }
 
   async findOne(id: string) {

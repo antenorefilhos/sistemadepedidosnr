@@ -1,4 +1,4 @@
-import { Columns, Copy, Eye, KeyRound, LayoutList, Mail, MessageCircle, Pencil, RefreshCw, Search, ShieldAlert, ShieldCheck, X, Filter } from 'lucide-react'
+import { Bell, BellOff, Columns, Copy, Eye, KeyRound, LayoutList, Mail, MessageCircle, Pencil, RefreshCw, Search, ShieldAlert, ShieldCheck, X, Filter } from 'lucide-react'
 import { useState, useEffect, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -365,6 +365,7 @@ export default function CustomersSection({
                   <TableHead className="px-6 py-4 text-[#9e7080]">WhatsApp</TableHead>
                   <TableHead className="px-6 py-4 text-[#9e7080]">Email</TableHead>
                   <TableHead className="px-6 py-4 text-[#9e7080]">Pedidos</TableHead>
+                  <TableHead className="px-6 py-4 text-[#9e7080]">Avisos</TableHead>
                   <TableHead className="px-6 py-4 text-right text-[#9e7080]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -387,6 +388,29 @@ export default function CustomersSection({
                       <Badge variant="secondary" className="rounded-full bg-[#fdf0f4] px-2.5 py-0.5 text-xs font-bold text-[#4a0622]">
                         {customerOrderCountMap[customer.id] || 0}
                       </Badge>
+                    </TableCell>
+                    {/* Quem realmente recebe push. Sem isto, o alcance de um
+                        broadcast so era descoberto consultando o banco na mao --
+                        e em 28/08/2026 a resposta era zero, sem ninguem saber. */}
+                    <TableCell className="px-6 py-4">
+                      {customer.pushEnabled ? (
+                        <Badge
+                          variant="secondary"
+                          className="gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700"
+                          title={`Recebe notificações em ${customer.pushSubscriptionCount} aparelho(s)`}
+                        >
+                          <Bell size={11} />
+                          {(customer.pushSubscriptionCount ?? 0) > 1 ? customer.pushSubscriptionCount : 'Sim'}
+                        </Badge>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs text-gray-400"
+                          title="Não ativou notificações no navegador — um broadcast não chega neste cliente"
+                        >
+                          <BellOff size={11} />
+                          Não
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="px-6 py-4 text-right">
                       <Button
@@ -433,6 +457,18 @@ export default function CustomersSection({
                         </Button>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
+                        {/* Mesma informacao da coluna "Avisos" da tabela -- a
+                            visao em cards nao pode saber menos que a de linhas. */}
+                        {customer.pushEnabled && (
+                          <Badge
+                            variant="secondary"
+                            className="gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700"
+                            title={`Recebe notificações em ${customer.pushSubscriptionCount} aparelho(s)`}
+                          >
+                            <Bell size={10} />
+                            Avisos
+                          </Badge>
+                        )}
                         {customer.whatsapp && renderWhatsAppBadge(customer.whatsapp, true)}
                         {customer.email && (
                           <Badge variant="outline" className="max-w-[180px] truncate rounded-md border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
