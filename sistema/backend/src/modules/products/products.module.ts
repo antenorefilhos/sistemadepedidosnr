@@ -6,14 +6,16 @@ import { PrismaService } from '../../common/prisma.service'
 import { IntegrationsModule } from '../../modules/integrations/integrations.module'
 import { ProductSearchService } from './product-search.service'
 import { ProductsSyncScheduler } from './products-sync.scheduler'
+import { MissingProductsMonitor } from './missing-products.monitor'
 import { CategoriesModule } from '../categories/categories.module'
+import { NotificationsModule } from '../notifications/notifications.module'
 import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { PermissionGuard } from '../../common/guards/permission.guard'
 
 @Module({
-  imports: [IntegrationsModule, CategoriesModule],
+  imports: [IntegrationsModule, CategoriesModule, NotificationsModule],
   controllers: [ProductsController, AdminProductsController],
-  providers: [ProductsService, PrismaService, ProductSearchService, ProductsSyncScheduler, TenantAccessGuard, PermissionGuard],
+  providers: [ProductsService, PrismaService, ProductSearchService, ProductsSyncScheduler, MissingProductsMonitor, TenantAccessGuard, PermissionGuard],
   exports: [ProductsService, ProductSearchService],
 })
 export class ProductsModule {}
