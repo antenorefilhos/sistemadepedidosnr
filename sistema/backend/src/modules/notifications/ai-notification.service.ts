@@ -4,7 +4,15 @@ import { PrismaService } from '../../common/prisma.service'
 import { NotificationsService } from './notifications.service'
 
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions'
-const NVIDIA_MODEL = process.env.NVIDIA_MODEL || 'meta/llama-3.1-8b-instruct'
+// meta/llama-3.1-8b-instruct foi descontinuado pela NVIDIA em 26/08/2026 e
+// passou a responder 410 Gone -- ou seja, o ciclo inteiro parou de funcionar
+// sozinho, sem ninguem mexer em nada. Modelo tem prazo de validade; tratar a
+// escolha como permanente e o erro.
+//
+// gpt-oss-20b foi o escolhido depois de testar o que a conta realmente acessa:
+// llama-3.2-11b-vision devolve `<|python_tag|>` em vez de JSON valido nos
+// argumentos da tool, e gpt-oss-120b estoura o timeout de 15s desta chamada.
+const NVIDIA_MODEL = process.env.NVIDIA_MODEL || 'openai/gpt-oss-20b'
 
 const SEND_NOTIFICATION_TOOL = {
   type: 'function',
@@ -132,10 +140,22 @@ export class AiNotificationService {
     const candidates = await this.findCandidates(windowHours, cooldownHours, limit)
     let notified = 0
     let skipped = 0
+    let failed = 0
 
     for (const product of candidates) {
       const decision = await this.askModel(product)
-      if (!decision?.should_notify || !decision.title || !decision.body) {
+
+      // askModel devolve null quando a CHAMADA falhou (modelo fora do ar,
+      // chave invalida, timeout) -- diferente do modelo responder que a oferta
+      // e fraca. Contar os dois como "skipped" escondia falha de infra atras de
+      // uma decisao editorial: quando o llama-3.1-8b foi descontinuado em
+      // 26/08/2026 e passou a dar 410, o ciclo teria reportado "N descartados
+      // pelo modelo" com o modelo sequer existindo.
+      if (decision === null) {
+        failed += 1
+        continue
+      }
+      if (!decision.should_notify || !decision.title || !decision.body) {
         skipped += 1
         continue
       }
@@ -156,7 +176,9 @@ export class AiNotificationService {
       notified += 1
     }
 
-    this.logger.log(`Ciclo de notificacao IA: ${candidates.length} candidatos, ${notified} notificados, ${skipped} descartados pelo modelo.`)
-    return { candidates: candidates.length, notified, skipped }
+    const resumo = `Ciclo de notificacao IA: ${candidates.length} candidatos, ${notified} notificados, ${skipped} descartados pelo modelo, ${failed} com falha na chamada.`
+    if (failed > 0) this.logger.error(resumo)
+    else this.logger.log(resumo)
+    return { candidates: candidates.length, notified, skipped, failed }
   }
 }
