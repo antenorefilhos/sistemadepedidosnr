@@ -201,13 +201,17 @@ Por que ninguem percebeu, tres camadas de silencio empilhadas:
    sucesso generico de proposito (anti-enumeracao de conta) — entao o usuario
    final tambem nao ve diferenca entre enviado e engolido.
 
-**Pendencia aberta:** a conta do Resend nao tem dominio verificado, entao o
-remetente cai no `onboarding@resend.dev`, que so entrega para o e-mail dono da
-conta (`antenorefilhos@gmail.com`); qualquer outro destinatario recebe 403.
-O alerta do monitor foi apontado pra esse endereco e funciona. **A recuperacao
-de senha de cliente continua quebrada** — ela manda pra endereco arbitrario, o
-que so passa a funcionar depois de verificar `antenorefilhos.com.br` em
-resend.com/domains e setar `RESEND_FROM_EMAIL` nesse dominio.
+Segunda parte da mesma armadilha: `RESEND_FROM_EMAIL` tambem estava vazia, e
+o fallback e o `onboarding@resend.dev`, remetente de teste do Resend que **so
+entrega para o e-mail dono da conta** — qualquer outro destinatario leva 403.
+O dominio `antenorefilhos.com.br` ja estava verificado no Resend desde
+12/08/2026; faltava so apontar o remetente pra ele. Resolvido em 28/08/2026:
+`RESEND_FROM_EMAIL="Antenor & Filhos <nao-responda@antenorefilhos.com.br>"`.
+
+Nao confunda os dois: dominio verificado nao basta, o `from` precisa usar esse
+dominio. Com o `from` no remetente de teste, um dominio verificado nao serve
+pra nada — foi o que fez a recuperacao de senha de cliente (destinatario
+arbitrario) levar 403 mesmo com tudo "configurado".
 
 Regra: antes de dar por pronta qualquer feature que dependa de servico externo,
 confirme que a credencial existe **no ambiente que roda**, nao so no `.env`

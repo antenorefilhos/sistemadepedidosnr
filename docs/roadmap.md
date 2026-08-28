@@ -15,15 +15,15 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
-- [ ] **Verificar o dominio no Resend — recuperação de senha do cliente não
-      entrega.** Achado em 28/08/2026. A `RESEND_API_KEY` faltava no `.env` da
-      VPS (corrigido) e a conta ainda não tem domínio verificado, então o
-      remetente cai no `onboarding@resend.dev`, que **só entrega para o e-mail
-      dono da conta**. O alerta do monitor foi apontado para
-      `antenorefilhos@gmail.com` e funciona; a recuperação de senha do cliente
-      manda para endereço arbitrário e leva 403 — está quebrada em produção.
-      Fechar: verificar `antenorefilhos.com.br` em resend.com/domains (registros
-      DNS) e setar `RESEND_FROM_EMAIL` nesse domínio. Ver [CLAUDE.md](../CLAUDE.md).
+- [x] **E-mail transacional em produção.** (28/08/2026) A `RESEND_API_KEY`
+      faltava no `.env` da VPS e a `RESEND_FROM_EMAIL` estava vazia, caindo no
+      remetente de teste do Resend — que só entrega para o dono da conta. O
+      domínio `antenorefilhos.com.br` já estava verificado desde 12/08; faltava
+      apontar o remetente para ele. Com
+      `RESEND_FROM_EMAIL="Antenor & Filhos <nao-responda@antenorefilhos.com.br>"`
+      o envio para destinatário externo passou a dar 200, o que destrava a
+      **recuperação de senha do cliente e do admin** (quebradas em silêncio
+      desde sempre) além do alerta do monitor. Ver [CLAUDE.md](../CLAUDE.md).
 
 - [ ] **`Logger` do Nest é mudo em produção no backend inteiro.** `main.ts` cria
       a app com `logger: false`, então todo `this.logger.*` é descartado na VPS —
