@@ -86,6 +86,8 @@ export class NotificationsController {
       customerId?: string // se vazio, para todos
       imageUrl?: string
       productId?: string
+      /** Replica o destino do banner: o clique abre onde o botao dele abriria. */
+      bannerId?: string
     },
   ) {
     const customers = body.customerId
@@ -101,6 +103,7 @@ export class NotificationsController {
         customerId,
         imageUrl: body.imageUrl,
         productId: body.productId,
+        bannerId: body.bannerId,
       })
       created.push(notification)
     }

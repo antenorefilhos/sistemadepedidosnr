@@ -241,6 +241,37 @@ describe('paridade com o preview do admin', () => {
   })
 })
 
+// O backend precisa da MESMA resolucao de destino: a notificacao push que
+// aponta pra um banner tem que abrir onde o botao do banner abriria. Como
+// backend e storefront buildam em contextos Docker separados, a funcao esta
+// duplicada de proposito (ver o cabecalho de backend/.../banner-link.ts) --
+// este bloco e o que impede as duas de divergirem em silencio.
+describe('paridade com o resolvedor de link do backend', () => {
+  const CASOS: Array<[string | null | undefined, string | undefined]> = [
+    ['https://exemplo.com/promo', 'url'],
+    ['/promocoes', 'url'],
+    ['/vinhos', 'url'],
+    ['/adega-antenor', 'url'],
+    ['cmspojruc0038o6fepprl40hc', 'product'],
+    ['/produto/abc123', 'product'],
+    ['Açougue & Churrasco', 'category'],
+    ['ADEGA, VINHOS & ESPUMANTES', 'category'],
+    ['Frios e Laticínios', 'category'],
+    ['', 'url'],
+    [null, undefined],
+    [undefined, 'category'],
+    ['   ', 'category'],
+    ['bebidas', undefined],
+  ]
+
+  it('resolveBannerLink devolve a mesma rota nos dois pacotes', async () => {
+    const backend = await import('../../../backend/src/modules/cms/store-banners/banner-link')
+    for (const [valor, tipo] of CASOS) {
+      expect(backend.resolveBannerLink(valor, tipo)).toBe(resolveBannerLink(valor, tipo))
+    }
+  })
+})
+
 describe('bannerAppearsOnPage', () => {
   it('respeita a pagina escolhida no admin', () => {
     expect(bannerAppearsOnPage('home', 'home')).toBe(true)

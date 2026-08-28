@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+import { resolveBannerLink } from '../cms/store-banners/banner-link'
 import { PrismaService } from '../../common/prisma.service'
 import { PushNotificationService } from './push-notification.service'
 import { WhatsAppService } from './whatsapp.service'
@@ -11,6 +12,13 @@ export interface CreateNotificationDto {
   customerId?: string
   imageUrl?: string
   productId?: string
+  /**
+   * Aponta a notificacao pra um banner: o clique abre exatamente onde o botao
+   * daquele banner abriria (categoria, produto, busca ou URL), porque o destino
+   * e resolvido do proprio linkType/linkValue dele. Vence o productId quando os
+   * dois vierem.
+   */
+  bannerId?: string
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -40,6 +48,24 @@ export class NotificationsService {
   ) {}
 
   async create(dto: CreateNotificationDto) {
+    // Destino do banner resolvido AQUI, no envio, e nao no clique: o push
+    // carrega uma URL pronta, e a regra de resolucao e a mesma do storefront
+    // (ver banner-link.ts e o teste de paridade que guarda as duas copias).
+    let urlDoBanner: string | undefined
+    if (dto.bannerId) {
+      const banner = await this.prisma.storeBanner.findUnique({
+        where: { id: dto.bannerId },
+        select: { linkType: true, linkValue: true, desktopImageUrl: true },
+      })
+      if (!banner) throw new NotFoundException('Banner nao encontrado')
+      urlDoBanner = resolveBannerLink(banner.linkValue, banner.linkType)
+      // Sem imagem escolhida, usa a arte do proprio banner -- e o que o cliente
+      // ja viu na loja, entao a notificacao fica coerente com a campanha. Usa a
+      // versao desktop: e a unica obrigatoria no schema (mobileImageUrl e
+      // opcional) e o balao da notificacao e largo, nao estreito.
+      if (!dto.imageUrl) dto.imageUrl = banner.desktopImageUrl || undefined
+    }
+
     const notification = await this.prisma.notification.create({
       data: {
         type: dto.type,
@@ -56,7 +82,7 @@ export class NotificationsService {
         title: notification.title,
         body: notification.body,
         image: notification.imageUrl || undefined,
-        url: notification.productId ? `/produto/${notification.productId}` : '/',
+        url: urlDoBanner || (notification.productId ? `/produto/${notification.productId}` : '/'),
       })
     }
 

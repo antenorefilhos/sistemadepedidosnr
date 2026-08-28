@@ -1672,6 +1672,8 @@ export const notificationsAdminAPI = {
     imageUrl?: string
     /** Destino do clique: vira /produto/<id>. Sem ele, o clique abre a home. */
     productId?: string
+    /** Replica o destino do banner escolhido. Vence productId quando os dois vierem. */
+    bannerId?: string
   }) => api.post('/notifications/admin/broadcast', data),
   history: (params?: { limit?: number; type?: string }) =>
     api.get<NotificationDispatch[]>('/notifications/admin/history', { params }),

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { notificationsAdminAPI, productsAPI } from '../services/api'
+import { cmsAPI, notificationsAdminAPI, productsAPI } from '../services/api'
 
 export default function NotificationsBroadcast() {
   const [type, setType] = useState<'PROMO' | 'CAMPAIGN'>('PROMO')
@@ -18,6 +18,10 @@ export default function NotificationsBroadcast() {
   // A API ja aceitava productId/imageUrl desde sempre -- faltava a tela.
   const [produto, setProduto] = useState<{ id: string; name: string; imageUrl?: string } | null>(null)
   const [buscaProduto, setBuscaProduto] = useState('')
+  // Banner: o clique replica o destino programado nele (categoria, produto,
+  // busca ou URL). Exclusivo com produto -- dois destinos num clique so nao faz
+  // sentido, e o backend faz o banner vencer se os dois vierem.
+  const [bannerId, setBannerId] = useState('')
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [aiCycleResult, setAiCycleResult] = useState<string | null>(null)
   const queryClient = useQueryClient()
@@ -53,8 +57,26 @@ export default function NotificationsBroadcast() {
     enabled: buscaProduto.trim().length >= 3,
     queryFn: async () => {
       const res = await productsAPI.getAdmin({ search: buscaProduto.trim(), limit: 8 })
-      const d = res.data as { products?: Array<{ id: string; name: string; imageUrl?: string; image?: string }> }
-      return (d.products ?? []).map((p) => ({ id: p.id, name: p.name, imageUrl: p.imageUrl || p.image }))
+      // A resposta e { data, page, limit, total, totalPages } -- nao { products }.
+      const d = res.data as { data?: Array<{ id: string; name: string; ean?: string }> }
+      // O produto nao carrega campo de imagem: a foto vive por convencao em
+      // /uploads/products/<ean>.webp, mesma que o ciclo da IA ja usava.
+      return (d.data ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        imageUrl: p.ean ? `/uploads/products/${p.ean}.webp` : undefined,
+      }))
+    },
+  })
+
+  const { data: banners = [] } = useQuery({
+    queryKey: ['broadcast-banners'],
+    queryFn: async () => {
+      const res = await cmsAPI.storeBanners.getAll()
+      const lista = (res.data as Array<{ id: string; title?: string; name?: string; slot: string; active: boolean; linkType?: string; linkValue?: string }>) ?? []
+      // So banner ativo: apontar um aviso pra banner desligado manda o cliente
+      // pra uma campanha que nao esta no ar.
+      return lista.filter((b) => b.active)
     },
   })
 
@@ -70,8 +92,9 @@ export default function NotificationsBroadcast() {
         title: title.trim(),
         body: body.trim(),
         customerId: customerId.trim() || undefined,
-        productId: produto?.id,
-        imageUrl: produto?.imageUrl,
+        productId: bannerId ? undefined : produto?.id,
+        imageUrl: bannerId ? undefined : produto?.imageUrl,
+        bannerId: bannerId || undefined,
       }),
     onSuccess: (res) => {
       const count = (res.data as { count?: number })?.count ?? 0
@@ -81,6 +104,7 @@ export default function NotificationsBroadcast() {
       setCustomerId('')
       setProduto(null)
       setBuscaProduto('')
+      setBannerId('')
       queryClient.invalidateQueries({ queryKey: ['notification-history'] })
     },
     onError: () => {
@@ -114,6 +138,28 @@ export default function NotificationsBroadcast() {
             disabled={toggleAiMut.isPending}
             aria-label="Ligar notificação automática por IA"
           />
+        </div>
+
+        <div>
+          <Label htmlFor="notification-banner" className="block text-xs font-semibold text-gray-600 mb-1">
+            Ou aponte para um banner (opcional)
+          </Label>
+          <Select
+            id="notification-banner"
+            value={bannerId}
+            onChange={(e) => { setBannerId(e.target.value); if (e.target.value) setProduto(null) }}
+          >
+            <option value="">Nenhum</option>
+            {banners.map((b) => (
+              <option key={b.id} value={b.id}>
+                {(b.title || b.name || 'Sem título')} — {b.slot}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 text-xs text-gray-400">
+            O aviso abre exatamente onde o botão daquele banner abre, e usa a arte dele como imagem.
+            {bannerId ? ' Substitui o produto escolhido acima.' : ''}
+          </p>
         </div>
 
         <div className="flex items-center gap-3 pt-1">

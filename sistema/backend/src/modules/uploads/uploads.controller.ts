@@ -21,7 +21,15 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { v4 as uuidv4 } from 'uuid';
 
-const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+  'image/gif',
+  'image/tiff',
+  'image/bmp',
+]);
 // EAN so tem digitos; sem essa checagem, :ean vira parte literal de um path
 // (filename do multer e destino do sharp) e um staff comprometido/token vazado
 // poderia escrever fora de uploads/products via "../" no parametro da rota.
@@ -64,7 +72,7 @@ export class UploadsController {
       // gravado com nome unico e ficava orfao em ./uploads pra sempre.
       fileFilter: (req, file, callback) => {
         if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
-          callback(new BadRequestException('Formato de imagem inválido. Envie JPG, PNG ou WebP.'), false);
+          callback(new BadRequestException('Formato de imagem inválido. Envie JPG, PNG, WebP, AVIF, GIF, TIFF ou BMP.'), false);
           return;
         }
         callback(null, true);
@@ -123,7 +131,7 @@ export class UploadsController {
   ) {
     assertValidEan(ean);
     if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Formato de imagem inválido. Envie JPG, PNG ou WebP.');
+      throw new BadRequestException('Formato de imagem inválido. Envie JPG, PNG, WebP, AVIF, GIF, TIFF ou BMP.');
     }
 
     const tempPath = file.path;
@@ -140,12 +148,17 @@ export class UploadsController {
     const stagingPath = `${finalPath}.new`;
 
     try {
+      const metadata = await sharp(tempPath).metadata();
+      const canvasSize = Math.max(800, metadata.width ?? 800, metadata.height ?? 800);
+
       await sharp(tempPath)
-        .resize(800, 800, {
-          fit: 'inside',
-          withoutEnlargement: true,
+        .resize(canvasSize, canvasSize, {
+          // 800px é o mínimo. Imagens de origem maiores não são reduzidas;
+          // o canvas quadrado acompanha o maior lado para preservar detalhes.
+          fit: 'contain',
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
         })
-        .webp({ quality: 80 })
+        .webp({ quality: 90, effort: 6 })
         .toFile(stagingPath);
 
       fs.renameSync(stagingPath, finalPath);
