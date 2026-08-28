@@ -178,6 +178,41 @@ recebe "Quantidade do produto X deve respeitar o passo Y" mesmo com peso
 correto. `Checkout.tsx` corrigido pra multiplicar por `getProductStep()`
 antes de enviar ao criar o item no carrinho backend.
 
+## Armadilha: e-mail nunca saiu em producao (Resend sem chave, e log mudo)
+
+Descoberto em 28/08/2026 ao testar o alerta do monitor de produto sumido.
+`RESEND_API_KEY` **nao existia no `.env` da VPS** — o `docker-compose.yml`
+repassa a variavel certo (`RESEND_API_KEY: ${RESEND_API_KEY:-}`), mas o valor
+nunca foi definido lá, entao o container sempre subiu com string vazia.
+Causa raiz: o `.env.example`, que e a checklist de quem configura ambiente,
+**nao tinha bloco RESEND nenhum**. Corrigido — o bloco esta la agora.
+
+Efeito: `EmailService` era no-op em producao desde sempre. Atingia a
+recuperacao de senha do **admin** (`auth.service.ts:39`) e a do **cliente**
+(`auth.service.ts:76`) — as duas implementadas, testadas, e sem entregar nada.
+
+Por que ninguem percebeu, tres camadas de silencio empilhadas:
+1. Sem chave, `send()` retorna `false` e emite `logger.warn`.
+2. Esse warn nao sai: `main.ts` cria a app com `logger: false`, entao **todo
+   `Logger` do Nest e descartado em producao** (vale pro backend inteiro, nao
+   so aqui — varios schedulers logam por ele e sao mudos na VPS). O unico que
+   sai e o `winstonLogger` de `common/logger.ts`.
+3. Quem chama ignora o `false`, e a tela de "esqueci minha senha" responde
+   sucesso generico de proposito (anti-enumeracao de conta) — entao o usuario
+   final tambem nao ve diferenca entre enviado e engolido.
+
+**Pendencia aberta:** a conta do Resend nao tem dominio verificado, entao o
+remetente cai no `onboarding@resend.dev`, que so entrega para o e-mail dono da
+conta (`antenorefilhos@gmail.com`); qualquer outro destinatario recebe 403.
+O alerta do monitor foi apontado pra esse endereco e funciona. **A recuperacao
+de senha de cliente continua quebrada** — ela manda pra endereco arbitrario, o
+que so passa a funcionar depois de verificar `antenorefilhos.com.br` em
+resend.com/domains e setar `RESEND_FROM_EMAIL` nesse dominio.
+
+Regra: antes de dar por pronta qualquer feature que dependa de servico externo,
+confirme que a credencial existe **no ambiente que roda**, nao so no `.env`
+local — e nao confie em log do Nest pra descobrir que nao existe.
+
 ## Recuperação de senha do storefront (cliente)
 
 Existia só no admin (Resend). Implementado o mesmo fluxo pro cliente:

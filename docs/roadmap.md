@@ -15,6 +15,23 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
+- [ ] **Verificar o dominio no Resend — recuperação de senha do cliente não
+      entrega.** Achado em 28/08/2026. A `RESEND_API_KEY` faltava no `.env` da
+      VPS (corrigido) e a conta ainda não tem domínio verificado, então o
+      remetente cai no `onboarding@resend.dev`, que **só entrega para o e-mail
+      dono da conta**. O alerta do monitor foi apontado para
+      `antenorefilhos@gmail.com` e funciona; a recuperação de senha do cliente
+      manda para endereço arbitrário e leva 403 — está quebrada em produção.
+      Fechar: verificar `antenorefilhos.com.br` em resend.com/domains (registros
+      DNS) e setar `RESEND_FROM_EMAIL` nesse domínio. Ver [CLAUDE.md](../CLAUDE.md).
+
+- [ ] **`Logger` do Nest é mudo em produção no backend inteiro.** `main.ts` cria
+      a app com `logger: false`, então todo `this.logger.*` é descartado na VPS —
+      só o `winstonLogger` sai. Vários schedulers logam por ele e não aparecem no
+      log. O monitor de produto sumido já foi migrado; os demais não. Decidir:
+      migrar os schedulers restantes ou ligar um bridge do Logger do Nest para o
+      winston de uma vez.
+
 - [ ] **Espaços patrocinados: vender banner para fornecedor.** Ideia do
       Jonathan em 28/08/2026. A base já existe: `sponsorName` renderiza o selo
       no banner, e **impressão e clique já são contados** (ligados em
