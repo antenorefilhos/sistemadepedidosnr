@@ -1,5 +1,7 @@
+import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
+import { useBannerImpression } from '../hooks/useBannerImpression'
 import { Badge } from './ui/badge'
 import { buttonVariants } from './ui/button'
 import { surfaceClasses } from './ui/surface'
@@ -82,8 +84,11 @@ export function PromoBanner({
     if (bannerId) cmsAPI.storeBanners.registerClick(bannerId).catch(() => {})
   }
 
+  const cardRef = useRef<HTMLElement>(null)
+  useBannerImpression(bannerId, cardRef)
+
   return (
-    <section className="fade-in-section">
+    <section ref={cardRef} className="fade-in-section">
       {/* border-0 anula a borda que surfaceClasses traz por padrao -- a foto
           sangra ate a borda do card, e o filete dourado em volta lia como
           contorno solto. Mesmo tratamento do card do HeroSlider. */}

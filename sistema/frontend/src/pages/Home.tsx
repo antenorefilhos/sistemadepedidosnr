@@ -5,6 +5,7 @@ import {
   getCategoryHref,
   resolveBannerLink,
   buildOverlaySolid,
+  bannerAppearsOnPage,
 } from '../utils/homeCategories'
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
@@ -93,7 +94,7 @@ export default function Home() {
   const activeHeroSlides = useMemo<HeroSlideCMS[]>(
     () =>
       (storeBanners || [])
-        .filter((item) => item.active !== false && item.slot === 'hero' && item.desktopImageUrl)
+        .filter((item) => item.active !== false && item.slot === 'hero' && item.desktopImageUrl && bannerAppearsOnPage(item.pages, 'home'))
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         .map((item) => ({
           id: item.id,
@@ -231,7 +232,7 @@ export default function Home() {
     if (!Array.isArray(storeBanners) || storeBanners.length === 0) return []
 
     return storeBanners
-      .filter((item) => item.active !== false && item.slot === 'intercalado' && item.desktopImageUrl)
+      .filter((item) => item.active !== false && item.slot === 'intercalado' && item.desktopImageUrl && bannerAppearsOnPage(item.pages, 'home'))
       .sort((a, b) => (a.order || 0) - (b.order || 0))
       .map((item) => ({
         id: item.id,
@@ -256,7 +257,7 @@ export default function Home() {
   const tarjaBanner = useMemo<PromoBannerView | undefined>(() => {
     if (!Array.isArray(storeBanners) || storeBanners.length === 0) return undefined
     const item = storeBanners
-      .filter((b) => b.active !== false && b.slot === 'tarja' && b.desktopImageUrl)
+      .filter((b) => b.active !== false && b.slot === 'tarja' && b.desktopImageUrl && bannerAppearsOnPage(b.pages, 'home'))
       .sort((a, b) => (a.order || 0) - (b.order || 0))[0]
     if (!item) return undefined
     return {
@@ -277,7 +278,7 @@ export default function Home() {
   const popupBanner = useMemo<PromoBannerView | undefined>(() => {
     if (!Array.isArray(storeBanners) || storeBanners.length === 0) return undefined
     const item = storeBanners
-      .filter((b) => b.active !== false && b.slot === 'popup' && b.desktopImageUrl)
+      .filter((b) => b.active !== false && b.slot === 'popup' && b.desktopImageUrl && bannerAppearsOnPage(b.pages, 'home'))
       .sort((a, b) => (a.order || 0) - (b.order || 0))[0]
     if (!item) return undefined
     return {

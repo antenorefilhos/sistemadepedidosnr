@@ -428,6 +428,7 @@ export const cmsAPI = {
   storeBanners: {
     getAll: () => api.get('/cms/store-banners'),
     registerClick: (id: string) => api.post(`/cms/store-banners/${id}/click`),
+    registerImpression: (id: string) => api.post(`/cms/store-banners/${id}/impression`),
   },
   categories: {
     getAll: () => api.get('/cms/categories'),

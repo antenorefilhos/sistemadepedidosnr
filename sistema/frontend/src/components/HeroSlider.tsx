@@ -5,6 +5,7 @@ import { Badge } from './ui/badge'
 import { buttonVariants } from './ui/button'
 import { surfaceClasses } from './ui/surface'
 import { buildOverlayGradient } from '../utils/homeCategories'
+import { cmsAPI } from '../services/api'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 
 export type HeroSlideAlign = 'left' | 'center' | 'right'
@@ -107,6 +108,36 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
     setIndex(((next % slides.length) + slides.length) % slides.length)
     setInteractionTick((t) => t + 1)
   }
+
+  // Impressao por slide, com UM observer pra faixa toda (hook por item nao da:
+  // a lista de slides e' dinamica). Os slides fora de vista estao recortados
+  // pelo overflow-hidden do container, e o IntersectionObserver leva o recorte
+  // do ancestral em conta -- entao so conta o slide realmente visivel, e o
+  // vizinho so passa a contar quando o carrossel avanca ate ele.
+  const slideRefs = useRef(new Map<string, HTMLElement>())
+  const impressoesEnviadas = useRef(new Set<string>())
+
+  const registrarSlide = (id: string, el: HTMLElement | null) => {
+    if (el) slideRefs.current.set(id, el)
+    else slideRefs.current.delete(id)
+  }
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = [...slideRefs.current.entries()].find(([, el]) => el === entry.target)?.[0]
+          if (!id || !entry.isIntersecting || impressoesEnviadas.current.has(id)) continue
+          impressoesEnviadas.current.add(id)
+          cmsAPI.storeBanners.registerImpression(id).catch(() => {})
+        }
+      },
+      { threshold: 0.5 },
+    )
+    slideRefs.current.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [slides])
 
   // No iOS WebKit, PointerEvent com setPointerCapture dispara pointercancel
   // assim que o dedo move um pouco, cancelando o arrasto antes do threshold
@@ -282,6 +313,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
           return (
             <div
               key={slide.id}
+              ref={(el) => registrarSlide(slide.id, el)}
               role="group"
               aria-roledescription="slide"
               aria-label={`${i + 1} de ${slides.length}`}

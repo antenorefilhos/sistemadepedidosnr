@@ -5,6 +5,7 @@ import {
   buildOverlaySolid,
   findCategoryBanner,
   findWineCategoryBanner,
+  bannerAppearsOnPage,
 } from './homeCategories'
 
 describe('resolveBannerLink', () => {
@@ -237,5 +238,43 @@ describe('paridade com o preview do admin', () => {
       expect(admin.buildOverlaySolid(tone, 0.5)).toBe(buildOverlaySolid(tone, 0.5))
       expect(admin.buildOverlaySolid(tone, 1.5)).toBe(buildOverlaySolid(tone, 1.5))
     }
+  })
+})
+
+describe('bannerAppearsOnPage', () => {
+  it('respeita a pagina escolhida no admin', () => {
+    expect(bannerAppearsOnPage('home', 'home')).toBe(true)
+    expect(bannerAppearsOnPage('home', 'category')).toBe(false)
+    expect(bannerAppearsOnPage('category', 'category')).toBe(true)
+    expect(bannerAppearsOnPage('category', 'home')).toBe(false)
+  })
+
+  it('"Todas as paginas" vale em qualquer tela', () => {
+    expect(bannerAppearsOnPage('all', 'home')).toBe(true)
+    expect(bannerAppearsOnPage('all', 'category')).toBe(true)
+  })
+
+  // Ligar o filtro nao pode sumir com banner que ja estava no ar antes de o
+  // campo passar a ser respeitado.
+  it('banner sem pages definido continua aparecendo', () => {
+    expect(bannerAppearsOnPage(undefined, 'home')).toBe(true)
+    expect(bannerAppearsOnPage('', 'category')).toBe(true)
+  })
+})
+
+describe('findCategoryBanner + pages', () => {
+  const b = (over: Record<string, unknown> = {}) => ({
+    id: 'b1', slot: 'category', active: true, targetCategory: 'Acougue Churrasco',
+    desktopImageUrl: '/x.webp', order: 0, ...over,
+  })
+
+  it('banner de categoria marcado so pra home nao aparece na categoria', () => {
+    expect(findCategoryBanner([b({ pages: 'home' })], 'ACOUGUE_CHURRASCO')).toBeUndefined()
+  })
+
+  it('aparece com pages=category, all, ou sem valor', () => {
+    expect(findCategoryBanner([b({ pages: 'category' })], 'ACOUGUE_CHURRASCO')?.id).toBe('b1')
+    expect(findCategoryBanner([b({ pages: 'all' })], 'ACOUGUE_CHURRASCO')?.id).toBe('b1')
+    expect(findCategoryBanner([b()], 'ACOUGUE_CHURRASCO')?.id).toBe('b1')
   })
 })

@@ -216,11 +216,24 @@ type CategoryBannerLike = {
   active?: boolean
   targetCategory?: string | null
   desktopImageUrl?: string
+  pages?: string
   order?: number
 }
 
+/**
+ * `pages` diz em que tipo de tela o banner pode sair ("Página de publicação" no
+ * admin). `all` vale em qualquer uma. Banner antigo, salvo antes do campo
+ * passar a ser respeitado, pode nao ter valor -- nesse caso aparece, pra
+ * ligar o filtro nao sumir com o que ja estava no ar.
+ */
+export const bannerAppearsOnPage = (bannerPages: string | undefined, pageType: 'home' | 'category') =>
+  !bannerPages || bannerPages === 'all' || bannerPages === pageType
+
 const isDisplayableCategoryBanner = (banner: CategoryBannerLike) =>
-  banner.slot === 'category' && banner.active !== false && Boolean(banner.desktopImageUrl)
+  banner.slot === 'category' &&
+  banner.active !== false &&
+  Boolean(banner.desktopImageUrl) &&
+  bannerAppearsOnPage(banner.pages, 'category')
 
 // Empate resolvido pelo `order` do admin (mesma ordenacao das outras listas de
 // banner), pra dois banners na mesma categoria nao alternarem a cada render.

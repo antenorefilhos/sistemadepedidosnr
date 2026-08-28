@@ -87,6 +87,28 @@ Sem isto no ar, todo cliente cai no CEP.
 
 ## Fila (não bloqueiam o lançamento)
 
+- [ ] **Espaços patrocinados: vender banner para fornecedor.** Ideia do
+      Jonathan em 28/08/2026. A base já existe: `sponsorName` renderiza o selo
+      no banner, `clicksCount` e `impressionsCount` estão no schema, há vigência
+      por data e controle criativo (cor, alinhamento, CTA). A **coleta de
+      impressão foi ligada em 28/08/2026** — era a única parte irreversível
+      (dado não coletado não se recupera depois), então entrou antes do resto
+      para haver histórico quando a conversa comercial começar.
+      Falta, e **só faz sentido depois de haver tráfego**:
+      1. *Anunciante como entidade*, não texto livre. Hoje `sponsorName` é
+         string solta e não agrega — não dá para responder "quanto a Ambev teve
+         de impressão em agosto". Precisa de cadastro + vínculo banner→anunciante.
+      2. *Relatório por campanha/período*, que é o que se entrega ao fornecedor.
+      3. *Comercial*: preço do espaço, contrato, faturamento.
+      Cuidado de modelagem já identificado: **anunciante não é uma página**.
+      `pages` responde "onde aparece" e o caráter comercial é outro eixo — um
+      anúncio pode estar na home, na categoria ou no produto, e um banner de
+      categoria pode ser editorial ou patrocinado. Misturar os dois foi o que
+      deixou o campo `pages` confuso e sem uso até 28/08/2026.
+      Relacionado: a opção "Páginas de produto" saiu do formulário porque a
+      página de produto não tem espaço de banner. Criar esse espaço é
+      pré-requisito natural aqui — é inventário novo para vender.
+
 - [x] **Auditoria de segurança multi-agente (23 achados ALTA/MEDIA/BAIXA).**
       Corrigida em 19/08/2026 em duas levas (`8a822d1` e `0e4ad34`). Destaques
       ALTA: promoção `FREE_SHIPPING` descontava o frete duas vezes (cobrando

@@ -36,6 +36,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { FieldHint } from '@/components/ui/field-hint';
 import { buildOverlayGradient } from '../utils/bannerOverlay';
 
 /* ─── Types ─────────────────────────────────────────── */
@@ -133,12 +134,26 @@ const SLOT_OPTIONS: { value: BannerSlot; label: string; shortLabel: string; dims
   { value: 'popup', label: 'Popup', shortLabel: 'Popup', dims: 'Desktop até 900px · Mobile até 767px', icon: Layers },
 ];
 
+// 'product' fica de fora: a pagina de produto nao renderiza banner nenhum
+// hoje, entao oferecer a opcao seria prometer o que nao acontece. Volta
+// quando existir o espaco la (ver "espacos patrocinados" em docs/roadmap.md).
 const PAGES_OPTIONS: { value: BannerPages; label: string }[] = [
   { value: 'home', label: 'Página inicial' },
-  { value: 'all', label: 'Todas as páginas' },
   { value: 'category', label: 'Páginas de categoria' },
-  { value: 'product', label: 'Páginas de produto' },
+  { value: 'all', label: 'Todas as páginas' },
 ];
+
+// Onde cada slot naturalmente aparece. O campo "Página de publicação" segue o
+// slot automaticamente: banner de categoria criado com o default 'home'
+// ficaria salvo e invisivel, que e' a falha silenciosa que ja custou caro
+// neste projeto. Quem quiser em mais lugares troca pra "Todas as páginas".
+const DEFAULT_PAGES_BY_SLOT: Record<BannerSlot, BannerPages> = {
+  hero: 'home',
+  intercalado: 'home',
+  category: 'category',
+  tarja: 'home',
+  popup: 'home',
+};
 
 const SLOT_LABEL: Record<BannerSlot, string> = {
   hero: 'Hero',
@@ -909,6 +924,31 @@ export default function StoreBannersManager() {
   const [uploadingMobile, setUploadingMobile] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const advancedRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * A seção avançada abre abaixo da dobra do formulário: sem rolar junto, o
+   * clique não produz nenhuma mudança visível e a pessoa clica de novo achando
+   * que não funcionou. Rola até o conteúdo recém-aberto pra deixar claro que
+   * algo aconteceu.
+   *
+   * `block: 'nearest'` rola o mínimo necessário (não joga a seção pro topo,
+   * o que tiraria o próprio botão de vista). O scroll acontece depois do
+   * paint, senão o ref ainda é null no clique que abre.
+   */
+  const toggleAdvanced = () => {
+    const abrindo = !advancedOpen;
+    setAdvancedOpen(abrindo);
+    if (!abrindo) return;
+
+    const semAnimacao = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    requestAnimationFrame(() => {
+      advancedRef.current?.scrollIntoView({
+        behavior: semAnimacao ? 'auto' : 'smooth',
+        block: 'nearest',
+      });
+    });
+  };
   const [categories, setCategories] = useState<{ id: string; name: string; active: boolean }[]>([]);
   const [productQuery, setProductQuery] = useState('');
   const [productResults, setProductResults] = useState<{ id: string; name: string; ean: string }[]>([]);
@@ -987,6 +1027,10 @@ export default function StoreBannersManager() {
     setForm((prev) => ({
       ...prev,
       slot: template.slot,
+      // Mesma regra do setSlot: o modelo tambem troca o slot, entao a pagina
+      // de publicacao acompanha (senao o modelo de categoria nasceria com
+      // pages='home' e o banner nao apareceria).
+      pages: prev.pages === 'all' ? 'all' : DEFAULT_PAGES_BY_SLOT[template.slot],
       title: template.title,
       description: template.description,
       badgeText: template.badgeText,
@@ -1188,6 +1232,18 @@ export default function StoreBannersManager() {
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  // Trocar o slot reposiciona o banner, entao a pagina de publicacao acompanha.
+  // Sem isso um banner de categoria criado com o default ('Página inicial')
+  // ficaria salvo e invisivel -- cadastra, salva, nao aparece, ninguem avisa.
+  // "Todas as páginas" e' preservado: e' escolha deliberada de quem quer o
+  // banner em mais de um lugar.
+  const setSlot = (slot: BannerSlot) =>
+    setForm((prev) => ({
+      ...prev,
+      slot,
+      pages: prev.pages === 'all' ? 'all' : DEFAULT_PAGES_BY_SLOT[slot],
+    }));
 
   const dimHint = SLOT_OPTIONS.find((t) => t.value === form.slot)?.dims ?? '';
   const artGuide = ART_GUIDE[form.slot];
@@ -1499,7 +1555,7 @@ export default function StoreBannersManager() {
                 <div>
                   <Label className="block text-xs font-medium text-gray-600 mb-1">
                     Nome do banner <span className="text-red-400">*</span>
-                    <span className="ml-1 font-normal text-gray-400">(texto ALT da imagem — SEO)</span>
+                    <span className="ml-1 font-normal text-gray-400">(texto ALT da imagem — SEO)</span><FieldHint>Só para você achar o banner nesta lista. O cliente nunca vê este nome — o que aparece na loja é o Título.</FieldHint>
                   </Label>
                   <Input
                     type="text"
@@ -1513,7 +1569,7 @@ export default function StoreBannersManager() {
 
                 {/* Onde vai aparecer? -- cards visuais */}
                 <div>
-                  <Label className="block text-xs font-medium text-gray-600 mb-2">Onde vai aparecer?</Label>
+                  <Label className="block text-xs font-medium text-gray-600 mb-2">Onde vai aparecer?<FieldHint>O formato e o lugar do banner. Hero é o carrossel grande do topo; Intercalado fica entre as prateleiras; Categoria abre na página do departamento; Tarja é a faixa fina; Popup abre sobre a tela.</FieldHint></Label>
                   <div className="grid grid-cols-2 gap-2">
                     {SLOT_OPTIONS.map((opt) => {
                       const Icon = opt.icon;
@@ -1522,7 +1578,7 @@ export default function StoreBannersManager() {
                         <button
                           key={opt.value}
                           type="button"
-                          onClick={() => set('slot', opt.value)}
+                          onClick={() => setSlot(opt.value)}
                           className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center transition-colors ${
                             isActive
                               ? 'border-gray-900 bg-gray-900 text-white'
@@ -1545,7 +1601,7 @@ export default function StoreBannersManager() {
                 {/* Target category — only for slot=category */}
                 {form.slot === 'category' && (
                   <div>
-                    <Label className="block text-xs font-medium text-gray-600 mb-1">Qual categoria?</Label>
+                    <Label className="block text-xs font-medium text-gray-600 mb-1">Qual categoria?<FieldHint>Em qual departamento este banner aparece. Obrigatório no banner de Categoria — sem isso ele não tem onde ser exibido.</FieldHint></Label>
                     <Select
                       value={form.targetCategory}
                       onChange={(e) => set('targetCategory', e.target.value)}
@@ -1768,7 +1824,8 @@ export default function StoreBannersManager() {
               <section className="border-t border-gray-100 pt-4">
                 <button
                   type="button"
-                  onClick={() => setAdvancedOpen((v) => !v)}
+                  onClick={() => toggleAdvanced()}
+                  aria-expanded={advancedOpen}
                   className="flex w-full items-center justify-between text-sm font-semibold text-gray-700"
                 >
                   Opções avançadas
@@ -1776,7 +1833,7 @@ export default function StoreBannersManager() {
                 </button>
 
                 {advancedOpen && (
-                  <div className="mt-4 space-y-4">
+                  <div ref={advancedRef} className="mt-4 space-y-4">
                     {/* Sponsor */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
@@ -1801,7 +1858,7 @@ export default function StoreBannersManager() {
 
                     {/* Pages */}
                     <div>
-                      <Label className="block text-xs font-medium text-gray-600 mb-1">Página de publicação</Label>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">Página de publicação<FieldHint>Em que telas este banner pode sair. Acompanha sozinho o tipo escolhido acima; troque para "Todas as páginas" só se quiser o mesmo banner na home e nas categorias.</FieldHint></Label>
                       <Select
                         value={form.pages}
                         onChange={(e) => set('pages', e.target.value as BannerPages)}
@@ -1816,7 +1873,7 @@ export default function StoreBannersManager() {
                     {/* Link target — only for url links */}
                     {form.linkType === 'url' && form.linkValue.trim() && (
                       <div>
-                        <Label className="block text-xs font-medium text-gray-600 mb-1">Quando clicar no link</Label>
+                        <Label className="block text-xs font-medium text-gray-600 mb-1">Quando clicar no link<FieldHint>Mesma janela mantém o cliente na loja. Nova janela é para link de fora (site de fornecedor), pra não perder o carrinho.</FieldHint></Label>
                         <div className="flex gap-2">
                           {[
                             { value: '_self', label: 'Mesma janela' },
@@ -1995,7 +2052,7 @@ export default function StoreBannersManager() {
                         na imagem, onde faz sentido escolher onde o bloco fica ancorado. */}
                     {(form.slot === 'hero' || form.slot === 'intercalado') && (
                       <div>
-                        <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do conteúdo</Label>
+                        <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do conteúdo<FieldHint>De que lado ficam título, texto e botão. O escurecimento da foto acompanha: alinhou à direita, a sombra vai pra direita e libera o outro lado pra imagem aparecer.</FieldHint></Label>
                         <div className="flex gap-2">
                           {[
                             { value: 'left', label: 'Esquerda' },
