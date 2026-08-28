@@ -25,12 +25,33 @@ que fecha desce para o histórico com a data e o commit.
       **recuperação de senha do cliente e do admin** (quebradas em silêncio
       desde sempre) além do alerta do monitor. Ver [CLAUDE.md](../CLAUDE.md).
 
-- [ ] **`Logger` do Nest é mudo em produção no backend inteiro.** `main.ts` cria
-      a app com `logger: false`, então todo `this.logger.*` é descartado na VPS —
-      só o `winstonLogger` sai. Vários schedulers logam por ele e não aparecem no
-      log. O monitor de produto sumido já foi migrado; os demais não. Decidir:
-      migrar os schedulers restantes ou ligar um bridge do Logger do Nest para o
-      winston de uma vez.
+- [x] **`Logger` do Nest religado.** (28/08/2026) `main.ts` criava a app com
+      `logger: false`, então todo `this.logger.*` do backend era descartado em
+      produção — foi o que escondeu por meses o aviso de que a `RESEND_API_KEY`
+      não estava configurada. Resolvido por **bridge** para o winston
+      (`common/nest-winston-logger.ts`) em vez de migrar centenas de call sites:
+      conserta o backend inteiro e vale para código futuro. O ruído de boot que
+      motivou o `logger: false` original continua filtrado, mas só em
+      `log`/`debug` — warn e error passam sempre, inclusive no boot.
+
+- [ ] **Senha do Postgres de produção é o default do `docker-compose.yml`.**
+      Achado em 28/08/2026: `POSTGRES_PASSWORD_URLENC` nunca entrou no `.env`
+      da VPS, então a `DATABASE_URL` sempre caiu no fallback commitado — e o
+      banco aceita, ou seja, foi inicializado com ele. A seção do
+      [CLAUDE.md](../CLAUDE.md) sobre "a senha oficial tem `@` e `*`" descreve
+      uma senha que nunca valeu em produção. Risco contido (a porta do Postgres
+      não é publicada, só o proxy alcança a rede interna), mas é credencial
+      conhecida por quem tem acesso ao repo. Trocar exige `ALTER USER` no
+      container + as duas variáveis no `.env` + restart coordenado.
+      **Jonathan decidiu em 28/08/2026 deixar como está por enquanto.**
+
+- [ ] **Ciclo de notificação por IA nunca foi disparado de verdade.** A chave
+      `NVIDIA_API_KEY` foi configurada na VPS em 28/08/2026 e o módulo está
+      ligado no banco, mas `POST /notifications/admin/ai-cycle/run` envia para
+      **todos** os clientes de uma vez — não é dirigido — e só age se houver
+      produto com preço promocional alterado nas últimas 6h e sem aviso nas
+      últimas 20h. Sem candidato ele roda e não envia nada, o que parece falha
+      e não é. Precisa de uma execução acompanhada antes de virar rotina.
 
 - [ ] **Espaços patrocinados: vender banner para fornecedor.** Ideia do
       Jonathan em 28/08/2026. A base já existe: `sponsorName` renderiza o selo

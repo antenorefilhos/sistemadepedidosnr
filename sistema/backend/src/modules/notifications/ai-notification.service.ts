@@ -40,6 +40,19 @@ const SEND_NOTIFICATION_TOOL = {
   },
 }
 
+/**
+ * Parametros do ciclo. Eram argumentos opcionais de `runCycle(opts)`, mas nem o
+ * scheduler nem o endpoint do admin passavam nada -- porta que ninguem abria, e
+ * que dava a impressao de serem ajustaveis sem serem. Viraram constantes ate
+ * existir tela que as configure de verdade.
+ */
+/** So olha produto cujo preco mudou nesta janela -- promocao velha nao e noticia. */
+const JANELA_HORAS = 6
+/** Nao repete o mesmo produto antes disso, mesmo se o preco mexer de novo. */
+const COOLDOWN_HORAS = 20
+/** Teto por ciclo: 3 ciclos ao dia x 5 = no maximo 15 avisos, ja e bastante. */
+const MAX_POR_CICLO = 5
+
 const SYSTEM_PROMPT = `Voce escreve notificacoes push para o Antenor & Filhos, um mercado online. O estilo e o de apps como Shopee e Mercado Livre: titulo curto com emoji + gancho chamativo, corpo de 1-2 linhas com o detalhe concreto da oferta (preco antes/depois, percentual, ou o que torna aquele produto especial agora). Tom direto, sem exagero de pontuacao, em portugues do Brasil. Nunca invente desconto ou informacao que nao foi dada. Se a oferta for fraca (queda de preco pequena, ja tinha sido notificada, ou nao ha nada realmente novo pra dizer), retorne should_notify=false -- e melhor nao notificar do que notificar sem motivo forte. Sempre responda chamando a funcao send_notification.`
 
 type CandidateProduct = {
@@ -130,14 +143,10 @@ export class AiNotificationService {
    * notificacoes aprovadas. Retorna um resumo pra log/observabilidade --
    * nunca lanca excecao (chamado direto pelo scheduler).
    */
-  async runCycle(opts: { windowHours?: number; cooldownHours?: number; limit?: number } = {}) {
+  async runCycle() {
     if (!this.enabled) return { skipped: true, reason: 'NVIDIA_API_KEY nao configurada' }
 
-    const windowHours = opts.windowHours ?? 6
-    const cooldownHours = opts.cooldownHours ?? 20
-    const limit = opts.limit ?? 5
-
-    const candidates = await this.findCandidates(windowHours, cooldownHours, limit)
+    const candidates = await this.findCandidates(JANELA_HORAS, COOLDOWN_HORAS, MAX_POR_CICLO)
     let notified = 0
     let skipped = 0
     let failed = 0

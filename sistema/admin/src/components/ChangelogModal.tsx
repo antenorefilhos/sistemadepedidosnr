@@ -14,6 +14,27 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.3.0',
+    date: '28/08/2026',
+    title: 'Avisos aos Clientes, E-mail Voltando a Sair e Vitrine Vigiada',
+    highlights: [
+      { type: 'fix', description: 'E-mail de "esqueci minha senha" nunca saía — nem o seu, nem o do cliente. A configuração de envio nunca chegou ao servidor. Corrigido e testado: agora sai de nao-responda@antenorefilhos.com.br.' },
+      { type: 'feat', description: 'A lista de clientes ganhou a coluna "Avisos": mostra quem aceitou receber notificação no navegador. Antes não dava pra saber quantas pessoas um disparo alcançaria.' },
+      { type: 'fix', description: 'O botão "Ativar notificações" da loja sumia quando o cliente passava o mouse em cima. Ele continuava funcionando, mas ninguém clica no que não vê — é provável que seja por isso que ninguém tinha ativado.' },
+      { type: 'fix', description: 'As notificações chegavam com o logo apagado, se empilhavam uma sobre a outra e abriam uma aba nova a cada clique, fazendo o carrinho do cliente parecer perdido. As três coisas foram ajustadas.' },
+      { type: 'fix', description: 'Quem fechava o aviso de notificação sem responder recebia "permissão bloqueada" e a instrução de mexer nas configurações do navegador — quando bastava tocar de novo. No celular Android isso era o caso comum, porque o Chrome mostra a pergunta como um sininho discreto que passa despercebido.' },
+      { type: 'fix', description: 'A instrução para desbloquear notificação mandava procurar um "cadeado" que não existe no celular. Agora o texto muda conforme o aparelho.' },
+      { type: 'fix', description: 'A geração automática de textos por IA tinha parado de funcionar: o modelo usado foi descontinuado pelo fornecedor em 26/08. Trocado por um atual, e agora uma falha dessas aparece como erro em vez de passar por "a IA decidiu não avisar".' },
+      { type: 'feat', description: 'A loja passou a ser vigiada: se um produto marcado como SEMPRE no Solidcom sumir da vitrine, você recebe um e-mail de madrugada com a lista. Foi o que aconteceu com o "Limão kg".' },
+      { type: 'fix', description: 'Produto marcado como SEMPRE no Solidcom sumia da vitrine e da busca sozinho, voltando só no dia seguinte. Eram 22 itens escondidos por engano (banana, tomate, melancia, laranja, couve, músculo, patinho, alcatra moída). Corrigido na raiz.' },
+      { type: 'perf', description: 'Preço e estoque do Solidcom passam a ser atualizados 4 vezes por dia, em vez de só uma. A sincronização de encartes e promoções, que estava desligada, foi ligada.' },
+      { type: 'feat', description: 'Banners agora aceitam uma foto separada para celular, e a foto se ajusta ao lado onde o texto está, para não cobrir o produto.' },
+      { type: 'feat', description: 'Os banners passaram a contar quantas vezes foram vistos, não só quantas vezes foram clicados.' },
+      { type: 'feat', description: 'A tela de banners ganhou explicações em cada campo, e o campo "Página de publicação" passou a funcionar de verdade — antes era salvo e ignorado.' },
+      { type: 'fix', description: 'Alteração de banner no painel aparecia na loja só depois de limpar o cache do navegador. Agora aparece na hora.' },
+    ],
+  },
+  {
     version: '1.2.8',
     date: '27/08/2026',
     title: 'Banner de Categoria na Loja e Ajustes de Navegação',
