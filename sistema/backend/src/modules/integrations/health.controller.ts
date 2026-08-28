@@ -5,6 +5,7 @@ import net from 'net'
 import { join } from 'path'
 import { PrismaService } from '../../common/prisma.service'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
+import { requireEnv } from '../../common/require-env'
 
 interface ServiceStatus {
   status: 'ok' | 'degraded' | 'down'
@@ -122,7 +123,9 @@ export class HealthController {
 
   private async checkSolidcom(): Promise<ServiceStatus> {
     const start = Date.now()
-    const url = process.env.SOLIDCOM_API_URL || process.env.ERP_API_URL || 'http://45.239.193.56:5000'
+    // requireEnv aqui dentro (nao no boot): faltando a config, o health check
+    // reporta o Solidcom como indisponivel em vez de derrubar a API inteira.
+    const url = requireEnv('SOLIDCOM_API_URL', process.env.ERP_API_URL)
     try {
       // GetProdutos e um endpoint pesado do Solidcom (ver docs/solidcom-api.md) --
       // mesmo com limit=1 respondeu ~9.7s a partir da VPS de producao. 5s

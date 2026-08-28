@@ -10,6 +10,13 @@ import { SolidcomERPService } from './solidcom-erp.service';
  * (a regra e "SEMPRE, ou ESTOQUE com estoque > 0"). Foi o que tirou o
  * "LIMAO kg" do ar: estoque -95 e syncOption rebaixado pra ESTOQUE.
  */
+// O construtor exige estas por `requireEnv`, sem valor embutido -- e' o que
+// impede producao de rodar contra o CNPJ/endereco errado calada. Valores
+// ficticios aqui de proposito: nenhum teste deste arquivo fala com o ERP.
+process.env.SOLIDCOM_API_URL = process.env.SOLIDCOM_API_URL || 'http://erp.invalido:5000';
+process.env.SOLIDCOM_CNPJ = process.env.SOLIDCOM_CNPJ || '11111111111111';
+process.env.SOLIDCOM_CODECOM = process.env.SOLIDCOM_CODECOM || '1';
+
 describe('SolidcomERPService — syncOption', () => {
   const service = new SolidcomERPService({} as never);
   // normalizeProduct e privado; o teste exercita o caminho real de entrada.

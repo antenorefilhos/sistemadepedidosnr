@@ -19,9 +19,15 @@ const SINGLETON_ID = 'singleton';
 
 // Dados oficiais de cadastro da empresa -- fixos, nao mudam com frequencia e
 // nao tem tela de admin dedicada (ver TASK_DEV_FOOTER_LEGAL_PAGES_REFINED.md).
-// CNPJ com 14 digitos (05147995000131); o fallback historico em
-// integrations.service.ts tem so 13 (sem o zero a esquerda) -- ver nota no
-// commit, e um problema separado da emissao fiscal, fora do escopo desta task.
+// O CNPJ fica aqui de proposito, diferente dos identificadores de integracao
+// (SOLIDCOM_CNPJ e SOLIDCOM_BALCAO_CPF), que em 28/08/2026 passaram a ser
+// obrigatorios via ambiente e sem valor embutido. A diferenca: estes dados sao
+// publicados pela propria loja no rodape e nas paginas legais -- publica-los
+// nao vaza nada, e exigir env aqui derrubaria o storefront por uma constante
+// de exibicao. Regra de bolso: identificador que autentica ou enderecca uma
+// integracao vai pro ambiente; dado que o site ja mostra ao mundo, nao.
+// Aqui o CNPJ tem 14 digitos (com o zero a esquerda); o SOLIDCOM_CNPJ usa 13,
+// porque o ERP deles espera numero.
 const LEGAL_INFO = {
   cnpj: '05147995000131',
   legalName: 'Nova Real Comércio de Produtos Alimentícios LTDA',

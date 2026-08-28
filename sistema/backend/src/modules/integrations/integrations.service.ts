@@ -12,6 +12,7 @@ import { ChargeContract, ChargePreviewResponse } from './dto/charge-contract.dto
 import { IntegrationModuleKey, IntegrationModulesService } from './integration-modules.service'
 import { CreatePaymentTransactionDto, CreateRefundDto, ReconcilePaymentsDto, RegisterChargebackDto } from './dto/payment-ledger.dto'
 import { CreateIntegrationConnectorDto, EnqueueOutboxEventDto } from './dto/integration-outbox.dto'
+import { requireEnv } from '../../common/require-env'
 
 type SyncFailureAction = 'SYNC_ORDER_FAILED' | 'SYNC_ORDER_RETRY_FAILED'
 
@@ -299,7 +300,7 @@ export class IntegrationsService {
       return { found: false, orderId }
     }
 
-    const cnpjEmitente = process.env.NFE_CNPJ_EMITENTE || process.env.SOLIDCOM_CNPJ || '5147995000131'
+    const cnpjEmitente = process.env.NFE_CNPJ_EMITENTE || requireEnv('SOLIDCOM_CNPJ')
 
     const itens: FiscalDocumentItemContract[] = order.items.map((item) => ({
       productId: item.productId,

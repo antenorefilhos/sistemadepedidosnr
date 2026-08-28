@@ -5,6 +5,7 @@ import { SolidcomPedidoDto } from './dto/solidcom-order.dto'
 import { SolidcomERPService } from './solidcom-erp.service'
 import { IntegrationModulesService } from './integration-modules.service'
 import { IntegrationOutboxService } from './integration-outbox.service'
+import { requireEnv } from '../../common/require-env'
 
 interface ScaleBarcodeParsingResult {
   productCode: number
@@ -14,9 +15,13 @@ interface ScaleBarcodeParsingResult {
 @Injectable()
 export class OrderOrchestrationService {
   private readonly logger = new Logger(OrderOrchestrationService.name)
-  private readonly defaultCnpj = Number(process.env.SOLIDCOM_CNPJ || '5147995000131')
-  private readonly defaultCodEcom = Number(process.env.SOLIDCOM_CODECOM || '19')
-  private readonly defaultBalcaoCpf = Number(process.env.SOLIDCOM_BALCAO_CPF || '23715771704')
+  private readonly defaultCnpj = Number(requireEnv('SOLIDCOM_CNPJ'))
+  private readonly defaultCodEcom = Number(requireEnv('SOLIDCOM_CODECOM'))
+  // CPF de balcao usado no pedido enviado ao ERP. Tinha o valor hardcoded aqui
+  // -- CPF e' dado pessoal, e a regra do projeto proibe commitar (CLAUDE.md).
+  // Sem default: faltando a variavel, estoura no boot em vez de mandar pedido
+  // com o CPF de outra pessoa.
+  private readonly defaultBalcaoCpf = Number(requireEnv('SOLIDCOM_BALCAO_CPF'))
 
   constructor(
     private readonly solidcomERPService: SolidcomERPService,

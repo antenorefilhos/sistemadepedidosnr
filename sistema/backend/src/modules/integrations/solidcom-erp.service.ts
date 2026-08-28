@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import axios from 'axios'
 import { SolidcomPedidoDto } from './dto/solidcom-order.dto'
 import { RetryService } from '../../common/services/retry.service'
+import { requireEnv } from '../../common/require-env'
 
 export interface ERPProduct {
   ean: string
@@ -44,12 +45,21 @@ export interface ERPCampaign {
 @Injectable()
 export class SolidcomERPService {
   private readonly logger = new Logger(SolidcomERPService.name)
-  private readonly SOLIDCOM_API_URL =
-    process.env.SOLIDCOM_API_URL || process.env.ERP_API_URL || 'http://45.239.193.56:5000'
+  // Endereco e identificadores do ERP vem do ambiente, sem valor embutido.
+  // Ate 28/08/2026 tinham fallback hardcoded aqui -- incluindo o CNPJ da loja,
+  // contra a regra de zero segredos no repo (CLAUDE.md). Pior que o vazamento:
+  // como o docker-compose.yml nao repassava nenhuma delas, o fallback era o que
+  // valia em producao, e mudar o .env nao tinha efeito nenhum.
+  //
+  // Sem default de proposito: faltando a variavel, isto estoura no boot em vez
+  // de sincronizar contra o ERP errado calado. Trocar "funciona errado em
+  // silencio" por "quebra na cara" e a decisao deliberada aqui.
+  private readonly SOLIDCOM_API_URL = requireEnv('SOLIDCOM_API_URL', process.env.ERP_API_URL)
+  /** Opcional de verdade: a API deles nao exige chave hoje. */
   private readonly SOLIDCOM_API_KEY =
     process.env.SOLIDCOM_API_KEY || process.env.ERP_API_KEY || ''
-  private readonly defaultCnpj = Number(process.env.SOLIDCOM_CNPJ || '5147995000131')
-  private readonly defaultCodEcom = Number(process.env.SOLIDCOM_CODECOM || '19')
+  private readonly defaultCnpj = Number(requireEnv('SOLIDCOM_CNPJ'))
+  private readonly defaultCodEcom = Number(requireEnv('SOLIDCOM_CODECOM'))
 
   constructor(private readonly retryService: RetryService) {}
 
