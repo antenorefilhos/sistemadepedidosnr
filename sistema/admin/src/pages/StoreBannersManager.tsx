@@ -38,12 +38,12 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldHint } from '@/components/ui/field-hint';
 import { buildOverlayGradient } from '../utils/bannerOverlay';
+import { FIELD_LIMITS, resolvePagesForSlot } from '../utils/bannerRules';
+import type { BannerPages, BannerSlot } from '../utils/bannerRules';
 
 /* ─── Types ─────────────────────────────────────────── */
 
-type BannerSlot = 'hero' | 'intercalado' | 'category' | 'tarja' | 'popup';
 type LinkType = 'url' | 'category' | 'product' | 'search';
-type BannerPages = 'home' | 'all' | 'category' | 'product';
 type LinkTarget = '_self' | '_blank';
 
 interface StoreBanner {
@@ -142,18 +142,6 @@ const PAGES_OPTIONS: { value: BannerPages; label: string }[] = [
   { value: 'category', label: 'Páginas de categoria' },
   { value: 'all', label: 'Todas as páginas' },
 ];
-
-// Onde cada slot naturalmente aparece. O campo "Página de publicação" segue o
-// slot automaticamente: banner de categoria criado com o default 'home'
-// ficaria salvo e invisivel, que e' a falha silenciosa que ja custou caro
-// neste projeto. Quem quiser em mais lugares troca pra "Todas as páginas".
-const DEFAULT_PAGES_BY_SLOT: Record<BannerSlot, BannerPages> = {
-  hero: 'home',
-  intercalado: 'home',
-  category: 'category',
-  tarja: 'home',
-  popup: 'home',
-};
 
 const SLOT_LABEL: Record<BannerSlot, string> = {
   hero: 'Hero',
@@ -522,14 +510,6 @@ function bannerOverlayStyle(overlayColor?: string | null, align?: 'left' | 'cent
 // Limites alinhados com o que cabe no banner sem estourar/truncar: titulo tem
 // line-clamp-2 e descricao line-clamp-3 no storefront, entao acima disso o
 // texto e cortado na exibicao em vez de simplesmente ficar menor.
-const FIELD_LIMITS = {
-  title: 60,
-  description: 160,
-  badgeText: 25,
-  sponsorName: 30,
-  ctaLabel: 25,
-} as const;
-
 function CharCounter({ value, max }: { value: string; max: number }) {
   const used = value.length;
   return (
@@ -1044,7 +1024,7 @@ export default function StoreBannersManager() {
       // Mesma regra do setSlot: o modelo tambem troca o slot, entao a pagina
       // de publicacao acompanha (senao o modelo de categoria nasceria com
       // pages='home' e o banner nao apareceria).
-      pages: prev.pages === 'all' ? 'all' : DEFAULT_PAGES_BY_SLOT[template.slot],
+      pages: resolvePagesForSlot(prev.pages, template.slot),
       title: template.title,
       description: template.description,
       badgeText: template.badgeText,
@@ -1256,7 +1236,7 @@ export default function StoreBannersManager() {
     setForm((prev) => ({
       ...prev,
       slot,
-      pages: prev.pages === 'all' ? 'all' : DEFAULT_PAGES_BY_SLOT[slot],
+      pages: resolvePagesForSlot(prev.pages, slot),
     }));
 
   const dimHint = SLOT_OPTIONS.find((t) => t.value === form.slot)?.dims ?? '';

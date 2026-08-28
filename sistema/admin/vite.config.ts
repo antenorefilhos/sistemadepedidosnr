@@ -15,6 +15,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Testes das regras puras do formulario de banner (src/utils/*.test.ts).
+  // Ambiente 'node': nao ha componente montado aqui, jsdom seria peso morto.
+  test: {
+    environment: 'node',
+    globals: true,
+    include: ['src/**/*.test.ts'],
+  },
   server: {
     port: 3002,
     host: true,

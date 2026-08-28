@@ -36,21 +36,34 @@ que fecha desce para o histórico com a data e o commit.
       Ela não renderiza banner nenhum hoje, e por isso a opção "Páginas de
       produto" saiu do formulário — é inventário novo para vender.
 
-- [ ] **`DeliveryArea` continua sem tela e sem uso.** O model existe com CRUD
-      completo no backend e `DeliveryService.calculate()` já dá prioridade a
-      ele, mas a tabela tem zero linhas e nenhum componente do admin chama
-      `createArea`/`updateArea`/`deleteArea` — quem cria zona de verdade é a
-      tela "Taxas de Entrega", que grava em `DeliveryZone`. Decidir: dar tela
-      ao sistema novo e migrar, ou remover o model para parar de convidar ao
-      erro. Já causou bug real (18-19/08/2026, consulta no model errado que
-      compila e nunca acha nada). Ver a armadilha no [CLAUDE.md](../CLAUDE.md).
+- [x] **`DeliveryArea` removido.** (28/08/2026) Decidido remover em vez de dar
+      tela: zero linhas em produção desde sempre, enquanto a checagem morta
+      rodava antes das zonas reais em toda requisição de frete e já tinha
+      causado um bug (consulta no model errado, que compila e nunca acha nada).
+      Saíram o model, as rotas `admin/fulfillment/areas`, `findMatchingArea` e
+      o aviso somente-leitura na tela de zonas; `calculateLegacyZone` virou o
+      próprio `calculate()`. Migration `20260828000000_drop_delivery_areas`.
+      Sobrou documentada a armadilha da coluna `orders."deliveryAreaId"`, que
+      apesar do nome guarda id de **zona** — ver [CLAUDE.md](../CLAUDE.md).
 
-- [ ] **Admin sem framework de teste.** `sistema/admin` não tem vitest nem
-      nenhum teste — o storefront e o backend têm. A lógica pesada do admin
-      (preview de banner, parsing de overlay, regras de formulário) só é
-      verificada abrindo a tela. A paridade do overlay entre admin e storefront
-      hoje é garantida por um teste que mora no storefront e importa o arquivo
-      do admin por caminho relativo; funciona, mas é contorno.
+- [x] **Admin com framework de teste.** (28/08/2026) `vitest` instalado em
+      `sistema/admin` (`npm run test:unit`), ambiente `node` — as regras
+      cobertas são puras, jsdom seria peso morto. As regras do formulário de
+      banner saíram de dentro do `StoreBannersManager.tsx` para
+      `src/utils/bannerRules.ts` e ganharam teste; no caminho apareceu que a
+      regra de `pages` estava **escrita duas vezes** (seletor de slot e aplicar
+      modelo), agora unificada em `resolvePagesForSlot`.
+      O teste de paridade do overlay **continua morando no storefront** de
+      propósito: movê-lo para o admin só inverteria qual pacote faz o import
+      cruzado, sem eliminar a assimetria.
+
+- [x] **Monitor de produto sumido.** (28/08/2026) Rede de segurança para a
+      classe de bug do "Limão kg": cruza o `syncOption` do banco com o do ERP e
+      alerta por e-mail quando um produto marcado `SEMPRE` no Solidcom não está
+      aparecendo na loja. Roda 03:30, de propósito **antes** do sync completo
+      das 04:00 — é o sync completo que corrige o dado, então checar depois dele
+      nunca acharia nada. Precisa de `MISSING_PRODUCTS_ALERT_EMAIL` no `.env`;
+      sem isso o alerta fica só no log, onde ninguém olha.
 
 ## Histórico — plano de lançamento (concluído)
 
