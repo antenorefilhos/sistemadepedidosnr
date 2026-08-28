@@ -178,6 +178,32 @@ recebe "Quantidade do produto X deve respeitar o passo Y" mesmo com peso
 correto. `Checkout.tsx` corrigido pra multiplicar por `getProductStep()`
 antes de enviar ao criar o item no carrinho backend.
 
+## Configuracao: identificador de integracao vai pro ambiente, sem default
+
+Ate 28/08/2026 o CNPJ da loja, o CPF de balcao e o endereco do ERP tinham valor
+hardcoded como fallback no fonte (`solidcom-erp.service.ts`,
+`order-orchestration.service.ts`, `health.controller.ts`,
+`integrations.service.ts`). Alem de violar a regra de zero segredos no repo — o
+CPF e dado pessoal, nao identificador publico —, o efeito pratico era pior: como
+o `docker-compose.yml` nao repassava nenhuma dessas variaveis, **o fallback era
+a configuracao real de producao**, e mexer no `.env` nao tinha efeito nenhum.
+
+Agora vem de `requireEnv()` (`common/require-env.ts`), **sem default**: faltando
+a variavel, a API estoura no boot em vez de sincronizar contra o ERP errado
+calada. E deliberado — a familia de bug mais cara desta base e configuracao que
+parece existir e nao existe.
+
+**Regra de bolso:** identificador que autentica ou enderecca uma integracao vai
+pro ambiente e e obrigatorio. Dado que o site ja publica (CNPJ e razao social do
+rodape, em `brand.service.ts`) fica no codigo — publicar o que a loja ja mostra
+nao vaza nada, e exigir env ali derrubaria o storefront por constante de vitrine.
+
+Antes de dar por configurada qualquer variavel nova, rode
+`node sistema/scripts/check-env.js`: ele compara `.env.example`, `.env` e
+`docker-compose.yml`, e sai com codigo 1 na divergencia. Sem `env_file` no
+servico `api`, **so o que esta listado em `environment:` chega no container** —
+documentar no `.env.example` e preencher o `.env` nao basta.
+
 ## Armadilha: e-mail nunca saiu em producao (Resend sem chave, e log mudo)
 
 Descoberto em 28/08/2026 ao testar o alerta do monitor de produto sumido.
