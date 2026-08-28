@@ -496,6 +496,10 @@ model Product {
   @@index([tenantId, storeId, active])
   @@index([tenantId, storeId, category])
   @@index([tenantId, erpProductId])
+  // Indice GIN criado a mao em producao pra busca por EAN secundario. Estava so
+  // no banco: o `migrate diff` pedia pra derrubar por nao constar aqui. Declarar
+  // e o certo -- o schema tem que dizer a verdade sobre o banco.
+  @@index([secondaryEans(ops: ArrayOps)], type: Gin)
   @@map("products")
 }
 
@@ -1463,6 +1467,8 @@ model StoreBanner {
   updatedAt       DateTime  @updatedAt
 
   @@index([tenantId, storeId, slot, active, order])
+  // Tambem so existia no banco -- ver a nota do indice GIN em Product.
+  @@index([campaignErpId])
   @@map("store_banners_cms")
 }
 
