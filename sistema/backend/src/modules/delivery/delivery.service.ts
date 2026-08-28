@@ -465,19 +465,42 @@ export class DeliveryService {
       where: { id: slotId, tenantId: scoped.tenantId, storeId: scoped.storeId },
     })
     if (!slot) {
-      // 'ASAP' e o marcador que o storefront manda quando o cliente nao
-      // escolheu (nem existe) uma janela real -- ver createFallbackDeliverySlot
-      // no frontend. Enquanto a loja nao cadastrar FulfillmentSlot nenhum,
-      // nao ha capacidade pra checar: deixa passar em vez de bloquear todo
-      // checkout de entrega por um recurso que ainda nao esta em uso.
+      // 'ASAP' e o marcador que o storefront manda quando NENHUMA janela
+      // utilizavel existe -- ele escolhe sozinho quando ha uma (nao existe
+      // seletor manual), entao ASAP significa "nao havia o que escolher".
+      // Ver createFallbackDeliverySlot e o useMemo de Checkout.tsx.
+      //
+      // A checagem era `anyConfigured === 0`, e isso era um penhasco: bastava a
+      // loja cadastrar janelas uma vez e deixar vencer (corte passado, lotadas,
+      // ou simplesmente esquecer de criar as de amanha) que o storefront
+      // voltava a mandar ASAP, o backend recusava com SLOT_NOT_FOUND, e a loja
+      // parava de vender exibindo "janela de entrega/retirada invalida" -- sem
+      // ninguem ter errado nada e sem o cliente ter como agir.
+      //
+      // Agora o que vale e haver janela UTILIZAVEL, nao janela cadastrada.
+      // Perder a venda porque o calendario de janelas caducou e pior do que
+      // aceitar um pedido sem janela definida.
       if (slotId === 'ASAP') {
         const normalizedType = type.toUpperCase() === 'RETIRADA' ? 'PICKUP' : type.toUpperCase()
-        const anyConfigured = await this.prisma.fulfillmentSlot.count({
-          where: { tenantId: scoped.tenantId, storeId: scoped.storeId, type: normalizedType, status: 'ACTIVE' },
+        const candidatas = await this.prisma.fulfillmentSlot.findMany({
+          where: {
+            tenantId: scoped.tenantId,
+            storeId: scoped.storeId,
+            type: normalizedType,
+            status: 'ACTIVE',
+            startsAt: { gt: new Date() },
+          },
         })
-        if (anyConfigured === 0) {
+        const utilizaveis = candidatas.filter((candidata) => {
+          const ocupacao = this.slotOccupancy(candidata)
+          return !ocupacao.cutoffExpired && ocupacao.availableOrders >= 1
+        })
+        if (utilizaveis.length === 0) {
           return { valid: true, reason: null, slot: null, occupancy: null }
         }
+        // Ha janela boa e o cliente nao veio com nenhuma: a resposta honesta e
+        // "escolha uma", nao "a janela nao existe".
+        return { valid: false, reason: 'SLOT_REQUIRED', slot: null, occupancy: null }
       }
       return { valid: false, reason: 'SLOT_NOT_FOUND', slot: null, occupancy: null }
     }
