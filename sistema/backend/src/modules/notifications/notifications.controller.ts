@@ -108,6 +108,15 @@ export class NotificationsController {
     return { count: created.length, notifications: created }
   }
 
+  @Get('admin/history')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Historico de disparos, pra auditoria (o que foi enviado, quando, alcance e leituras)' })
+  async listDispatches(@Query('limit') limit?: string, @Query('type') type?: string) {
+    return this.notificationsService.listDispatches(limit ? Number(limit) : 50, type)
+  }
+
   @Get('admin/ai-cycle/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')

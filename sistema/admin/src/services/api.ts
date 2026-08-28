@@ -1648,13 +1648,33 @@ export interface AdminNotification {
   createdAt: string
 }
 
+export interface NotificationDispatch {
+  title: string
+  body: string
+  type: string
+  productId: string | null
+  imageUrl: string | null
+  sentAt: string
+  /** Quantos clientes receberam a notificacao no app. */
+  recipients: number
+  reads: number
+  /** Leitura no app -- NAO e entrega do push, que hoje nao e registrada. */
+  readRate: number
+}
+
 export const notificationsAdminAPI = {
   broadcast: (data: {
     type: 'PROMO' | 'CAMPAIGN'
     title: string
     body: string
     customerId?: string
+    /** Foto grande no balao da notificacao. */
+    imageUrl?: string
+    /** Destino do clique: vira /produto/<id>. Sem ele, o clique abre a home. */
+    productId?: string
   }) => api.post('/notifications/admin/broadcast', data),
+  history: (params?: { limit?: number; type?: string }) =>
+    api.get<NotificationDispatch[]>('/notifications/admin/history', { params }),
   getAiCycleStatus: () => api.get<{ enabled: boolean }>('/notifications/admin/ai-cycle/status'),
   toggleAiCycle: (enabled: boolean) => api.post('/notifications/admin/ai-cycle/toggle', { enabled }),
   runAiCycleNow: () => api.post('/notifications/admin/ai-cycle/run'),

@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { PushNotificationService } from './push-notification.service'
 import { WhatsAppService } from './whatsapp.service'
@@ -60,6 +61,65 @@ export class NotificationsService {
     }
 
     return notification
+  }
+
+  /**
+   * Historico de disparos, pra auditoria: o que foi enviado, quando, pra
+   * quantos e quantos abriram.
+   *
+   * Nao existe entidade "disparo" no schema -- cada envio grava uma linha por
+   * cliente, soltas. O agrupamento e reconstruido por (titulo, corpo, minuto),
+   * que funciona porque as linhas de um mesmo envio nascem no mesmo segundo.
+   * Nao e vinculo real: dois envios identicos dentro do mesmo minuto contariam
+   * como um. Na pratica isso nao acontece (o ciclo da IA tem cooldown de 20h
+   * por produto), e a alternativa exigiria migration com batchId. Se um dia
+   * precisar de precisao -- relatorio por campanha pra anunciante, por
+   * exemplo -- e ai que vale criar a coluna.
+   */
+  async listDispatches(limit = 50, type?: string) {
+    // Sem filtro, os avisos de pedido (ORDER_UPDATE, um por mudanca de status)
+    // afogam as campanhas -- sao muitos e nao e o que se audita aqui.
+    const filtro = type ? Prisma.sql`WHERE type = ${type}` : Prisma.empty
+    const rows = await this.prisma.$queryRaw<Array<{
+      title: string
+      body: string
+      type: string
+      productId: string | null
+      imageUrl: string | null
+      sentAt: Date
+      recipients: bigint
+      reads: bigint
+    }>>`
+      SELECT
+        title,
+        body,
+        MIN(type) AS type,
+        MIN("productId") AS "productId",
+        MIN("imageUrl") AS "imageUrl",
+        MIN("createdAt") AS "sentAt",
+        COUNT(*) AS recipients,
+        COUNT(*) FILTER (WHERE read) AS reads
+      FROM notifications
+      ${filtro}
+      GROUP BY title, body, date_trunc('minute', "createdAt")
+      ORDER BY MIN("createdAt") DESC
+      LIMIT ${Math.min(limit, 200)}
+    `
+
+    return rows.map((r) => ({
+      title: r.title,
+      body: r.body,
+      type: r.type,
+      productId: r.productId,
+      imageUrl: r.imageUrl,
+      sentAt: r.sentAt,
+      recipients: Number(r.recipients),
+      reads: Number(r.reads),
+      // Taxa de leitura da notificacao in-app. NAO e taxa de entrega do push:
+      // o retorno do envio (sent/failed) nao e persistido hoje, entao ninguem
+      // sabe se o aviso chegou no aparelho -- so se foi gravado e lido aqui.
+      readRate: Number(r.recipients) > 0 ? Number(r.reads) / Number(r.recipients) : 0,
+    }))
   }
 
   async findByCustomer(customerId: string, limit = 50) {
