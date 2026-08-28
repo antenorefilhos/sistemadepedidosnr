@@ -36,7 +36,7 @@ function isStandalone() {
 
 export function useNotifications() {
   const [pushStatus, setPushStatus] = useState<
-    'idle' | 'enabled' | 'denied' | 'unsupported' | 'insecure-context' | 'ios-needs-install' | 'ios-outdated' | 'missing-key' | 'error'
+    'idle' | 'enabled' | 'denied' | 'dismissed' | 'unsupported' | 'insecure-context' | 'ios-needs-install' | 'ios-outdated' | 'missing-key' | 'error'
   >('idle')
   // PushManager/serviceWorker exigem contexto seguro (HTTPS ou localhost) --
   // navegador Windows/desktop reporta as APIs como presentes mesmo assim,
@@ -113,8 +113,18 @@ export function useNotifications() {
       }
 
       const permission = await Notification.requestPermission()
-      if (permission !== 'granted') {
+      // 'default' NAO e 'denied'. O navegador devolve 'default' quando o
+      // usuario dispensa o aviso sem escolher -- e no Chrome do Android isso e
+      // o caso comum, porque ele usa o aviso "silencioso" (um sininho na barra
+      // de endereco em vez de um dialogo), entao muita gente nem chega a ver a
+      // pergunta. Tratar os dois como bloqueado mandava o cliente cavar as
+      // configuracoes do navegador quando bastava tocar de novo no botao.
+      if (permission === 'denied') {
         setPushStatus('denied')
+        return false
+      }
+      if (permission !== 'granted') {
+        setPushStatus('dismissed')
         return false
       }
 

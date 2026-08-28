@@ -33,6 +33,9 @@ export default function NotificationBell() {
     }
   }, [open])
 
+  // Instrucao de desbloqueio muda de lugar entre desktop e Android; mandar o
+  // cliente procurar um "cadeado" no celular e mandar procurar o que nao existe.
+  const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent)
   const pushEnabled = pushStatus === 'enabled'
   const pushGranted = pushPermission === 'granted'
   const pushDenied = pushStatus === 'denied' || pushPermission === 'denied'
@@ -40,7 +43,15 @@ export default function NotificationBell() {
   const pushMessage = (() => {
     if (pushEnabled) return 'Notificações ativas neste navegador.'
     if (pushGranted) return 'Permissão concedida; conclua a ativação.'
-    if (pushDenied) return 'Permissão bloqueada no navegador. Para reativar: clique no cadeado/ícone ao lado do endereço do site e mude "Notificações" para Permitir.'
+    if (pushDenied) return isAndroid
+      ? 'Permissão bloqueada neste navegador. Para reativar: toque no ícone à esquerda do endereço do site, depois em Permissões e mude "Notificações" para Permitir.'
+      : 'Permissão bloqueada no navegador. Para reativar: clique no cadeado/ícone ao lado do endereço do site e mude "Notificações" para Permitir.'
+    // Dispensou sem escolher -- da pra perguntar de novo, nao precisa mexer em
+    // configuracao nenhuma. No Android o aviso costuma vir como um sininho
+    // discreto na barra de endereco, entao vale dizer onde olhar.
+    if (pushStatus === 'dismissed') return isAndroid
+      ? 'O aviso foi fechado sem resposta. Toque em Ativar de novo e escolha Permitir — no Android, a pergunta pode aparecer como um sininho na barra de endereço.'
+      : 'O aviso foi fechado sem resposta. Toque em Ativar notificações de novo e escolha Permitir.'
     if (pushStatus === 'ios-needs-install') return 'No iPhone/iPad, toque em Compartilhar e depois em "Adicionar à Tela de Início" para poder ativar notificações — o Safari não permite isso numa aba comum.'
     if (pushStatus === 'ios-outdated') return 'Atualize o iOS para a versão 16.4 ou mais recente para ativar notificações.'
     if (pushStatus === 'insecure-context') return 'Notificações só funcionam em conexão segura (https). Acesse o site pelo endereço oficial para ativar.'
