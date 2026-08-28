@@ -246,6 +246,39 @@ consulta `DeliveryZone` diretamente (como `isFreeShippingEarnedByZone` em
 `orders.service.ts`) vai parar de reconhecer zonas cadastradas só no sistema
 novo. Ver `sistema/backend/src/modules/delivery/delivery.service.ts`.
 
+## Armadilha: nem todo endpoint do Solidcom traz `tipoIntegracao`
+
+`tipoIntegracao` (a coluna **"Internet"** no cadastro do produto no Solidcom,
+com SEMPRE/NUNCA/ESTOQUE) é o que vira `syncOption` e decide se o produto
+aparece na vitrine. **Só o `GetProdutos` manda esse campo.** O
+`GetProdutosAlterados` (sync incremental, de hora em hora) e o
+`GetProdutosEAN` (reconciliação por EAN) devolvem exatamente a mesma lista de
+campos, *menos* esse.
+
+Enquanto `resolveSyncOption` tratava ausente como `ESTOQUE` (o `return` final,
+sem distinguir "não veio" de "veio inválido"), cada sync incremental
+rebaixava o valor que o sync completo tinha gravado certo. Efeito: produto
+marcado SEMPRE com estoque negativo — item de peso e produção própria, que
+sempre carrega estoque negativo no ERP — **sumia da vitrine e da busca até o
+próximo sync completo**, e voltava a sumir na hora seguinte. Achado em
+28/08/2026 com o "LIMAO kg"; a auditoria mostrou 67 produtos divergentes, 22
+ocultos indevidamente (banana, tomate, melancia, laranja, couve, músculo,
+patinho, alcatra moída).
+
+Corrigido em `87c2e44`: campo ausente vira `undefined` e o upsert só escreve
+`syncOption` quando o ERP realmente opinou — produto novo nasce `ESTOQUE`,
+produto existente preserva o valor. Regra geral: **antes de mapear um campo
+do Solidcom, confirme em QUAL endpoint ele existe** — os três retornam
+formatos parecidos e a diferença só aparece em produção.
+
+Pra conferir se voltou a divergir:
+`node scripts/audit-sync-option.js` (com `--aplicar` para corrigir).
+
+Depois de corrigir, **reindexe a busca**: ela lê do MeiliSearch, não do banco
+(`POST /products/admin/reindex-search`). Sem isso o produto reaparece na
+navegação por categoria e continua sumido na busca — foi o que aconteceu no
+diagnóstico.
+
 ## Armadilha: tela completa no admin sem nenhum consumidor no storefront
 
 `DeliveryArea` (acima) não é caso isolado. O mesmo padrão já apareceu no slot
