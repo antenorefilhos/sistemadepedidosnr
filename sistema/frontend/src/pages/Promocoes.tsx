@@ -36,7 +36,7 @@ export default function Promocoes() {
           <h1 className="text-base font-bold tracking-tight">Promoções</h1>
         </div>
         {user && (
-          <div className="[&_button]:text-white [&_button]:hover:bg-white/10">
+          <div className="[&_[data-bell-trigger]]:text-white [&_[data-bell-trigger]]:hover:bg-white/10">
             <NotificationBell />
           </div>
         )}

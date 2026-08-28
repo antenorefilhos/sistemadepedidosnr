@@ -170,7 +170,7 @@ export default function WinePage() {
               )}
             </Link>
             {user && (
-              <div className="[&_button]:text-[#D2BB8A] [&_button]:hover:bg-white/10">
+              <div className="[&_[data-bell-trigger]]:text-[#D2BB8A] [&_[data-bell-trigger]]:hover:bg-white/10">
                 <NotificationBell />
               </div>
             )}

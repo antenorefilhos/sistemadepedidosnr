@@ -445,7 +445,7 @@ export default function Home() {
                 )}
               </Link>
               {user ? (
-                <div className="[&_button]:text-white [&_button]:hover:bg-white/10 [&_button_svg]:text-white [&_button_span]:bg-[#D2BB8A] [&_button_span]:text-[#5D082A]">
+                <div className="[&_[data-bell-trigger]]:text-white [&_[data-bell-trigger]]:hover:bg-white/10 [&_[data-bell-trigger]_svg]:text-white [&_[data-bell-trigger]_span]:bg-[#D2BB8A] [&_[data-bell-trigger]_span]:text-[#5D082A]">
                   <NotificationBell />
                 </div>
               ) : (
@@ -596,7 +596,7 @@ export default function Home() {
               )}
             </Link>
             {user ? (
-              <div className="[&_button]:text-white [&_button]:hover:bg-white/10 [&_button_svg]:text-white [&_button_span]:bg-[#D2BB8A] [&_button_span]:text-[#5D082A]">
+              <div className="[&_[data-bell-trigger]]:text-white [&_[data-bell-trigger]]:hover:bg-white/10 [&_[data-bell-trigger]_svg]:text-white [&_[data-bell-trigger]_span]:bg-[#D2BB8A] [&_[data-bell-trigger]_span]:text-[#5D082A]">
                 <NotificationBell />
               </div>
             ) : (

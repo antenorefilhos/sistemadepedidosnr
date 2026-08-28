@@ -52,12 +52,18 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={containerRef}>
+      {/* data-bell-trigger existe pra quem envolve este componente conseguir
+          recolorir SO o sino, sem atingir os botoes do painel. Quem usava
+          `[&_button]` (descendente) pintava tambem o "Ativar notificacoes", que
+          vive num painel branco: dava texto branco em fundo branco no hover --
+          o botao sumia e continuava clicavel. Ver Home/Promocoes/WinePage. */}
       <Button
         onClick={() => setOpen(!open)}
         variant="ghost"
         size="icon"
         className="relative"
         aria-label="Notificações"
+        data-bell-trigger
       >
         <Bell size={20} />
         {unreadCount > 0 && (
