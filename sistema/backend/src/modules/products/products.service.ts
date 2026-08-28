@@ -1393,7 +1393,9 @@ export class ProductsService {
           fractionStep: item.fractionStep ?? null,
           unit: item.unit || 'un',
           category: categoryCode,
-          syncOption: item.syncOption || 'ESTOQUE',
+          // syncOption fica FORA de `fields`: no update ele so pode ser escrito
+          // quando o ERP realmente mandou o campo (ver comentario em
+          // solidcom-erp.service.ts). Aplicado logo abaixo, por branch.
           badges: item.badges,
           origin: item.origin,
           active: item.active !== false,
@@ -1416,13 +1418,29 @@ export class ProductsService {
             where: { tenantId: DEFAULT_TENANT_ID, ean: { in: groupEans } },
           }))
 
+        // Produto novo precisa de um valor; ESTOQUE e o default seguro (so
+        // vende com estoque). Produto que ja existe so tem o syncOption tocado
+        // se o ERP mandou o campo -- senao preserva o que esta gravado, que
+        // veio do ultimo sync completo ou de ajuste manual no admin.
         const product = existing
           ? await this.prisma.product.update({
               where: { id: existing.id },
-              data: { ...fields, ean: mainEan, erpProductId, secondaryEans },
+              data: {
+                ...fields,
+                ean: mainEan,
+                erpProductId,
+                secondaryEans,
+                ...(item.syncOption ? { syncOption: item.syncOption } : {}),
+              },
             })
           : await this.prisma.product.create({
-              data: { ...fields, ean: mainEan, erpProductId, secondaryEans },
+              data: {
+                ...fields,
+                ean: mainEan,
+                erpProductId,
+                secondaryEans,
+                syncOption: item.syncOption || 'ESTOQUE',
+              },
             })
 
         await this.ensureProductMasterFromLegacyProduct(product)

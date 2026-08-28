@@ -221,7 +221,14 @@ export class SolidcomERPService {
     const classification04 = this.readString(row, ['classificacao04'])
     const rawCategory = this.readString(row, ['categoria', 'category', 'categoria_ecommerce', 'departamento', 'secao'])
     const category = this.resolveCategory(classification01, classification02, rawCategory)
-    const syncOption = this.resolveSyncOption(this.readString(row, ['tipoIntegracao', 'internet']))
+    // Só os endpoints que REALMENTE mandam `tipoIntegracao` definem esse campo.
+    // GetProdutos (sync completo) manda; GetProdutosAlterados (incremental, de
+    // hora em hora) e GetProdutosEAN nao mandam. Tratar ausente como ESTOQUE
+    // fazia o incremental sobrescrever o SEMPRE/NUNCA que o completo tinha
+    // gravado certo, e o produto sumia da vitrine ate o proximo sync completo.
+    // undefined aqui = "o ERP nao opinou", e o upsert preserva o valor atual.
+    const rawSyncOption = this.readString(row, ['tipoIntegracao', 'internet'])
+    const syncOption = rawSyncOption ? this.resolveSyncOption(rawSyncOption) : undefined
     const origin = this.readString(row, ['origem', 'origin', 'procedencia', 'pais_origem'])
 
     if (!ean || !name || Number.isNaN(price)) {
@@ -250,7 +257,7 @@ export class SolidcomERPService {
     if (classification03) normalized.classification03 = classification03
     if (classification04) normalized.classification04 = classification04
     if (category) normalized.category = category
-    normalized.syncOption = syncOption
+    if (syncOption) normalized.syncOption = syncOption
     if (origin) normalized.origin = origin
 
     return normalized
