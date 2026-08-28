@@ -30,6 +30,21 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/tiff',
   'image/bmp',
 ]);
+/**
+ * Teto do lado do canvas de saida. A vitrine exibe a ~800px; 2000 da folga pra
+ * zoom e telas densas sem deixar o custo de memoria ser escolhido por quem faz
+ * o upload.
+ */
+const MAX_CANVAS_PX = 2000;
+/** Teto de bytes do upload. Foto de produto de 25 MB ja e generosa. */
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+/**
+ * Teto de pixels na ENTRADA, checado pelo sharp antes de decodificar. Limite de
+ * bytes nao protege disso: um PNG de poucos KB pode descomprimir pra centenas
+ * de megapixels (decompression bomb). 40MP cobre qualquer camera real.
+ */
+const MAX_INPUT_PIXELS = 40_000_000;
+
 // EAN so tem digitos; sem essa checagem, :ean vira parte literal de um path
 // (filename do multer e destino do sharp) e um staff comprometido/token vazado
 // poderia escrever fora de uploads/products via "../" no parametro da rota.
@@ -60,6 +75,9 @@ export class UploadsController {
   @Roles('admin')
   @UseInterceptors(
     FileInterceptor('file', {
+      // Sem limite, o multer grava o arquivo inteiro em disco ANTES de qualquer
+      // checagem -- upload de 2 GB enche o volume mesmo sendo recusado depois.
+      limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
       storage: diskStorage({
         destination: './uploads',
         filename: (req, file, callback) => {
@@ -101,6 +119,9 @@ export class UploadsController {
   @Roles('admin')
   @UseInterceptors(
     FileInterceptor('file', {
+      // Sem limite, o multer grava o arquivo inteiro em disco ANTES de qualquer
+      // checagem -- upload de 2 GB enche o volume mesmo sendo recusado depois.
+      limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
       storage: diskStorage({
         destination: './uploads/products',
         filename: (req, file, callback) => {
@@ -148,13 +169,23 @@ export class UploadsController {
     const stagingPath = `${finalPath}.new`;
 
     try {
-      const metadata = await sharp(tempPath).metadata();
-      const canvasSize = Math.max(800, metadata.width ?? 800, metadata.height ?? 800);
+      const metadata = await sharp(tempPath, { limitInputPixels: MAX_INPUT_PIXELS }).metadata();
+      // 800px e o minimo e MAX_CANVAS_PX o teto. Imagem de origem maior nao e
+      // reduzida ate o teto; o canvas quadrado acompanha o maior lado pra
+      // preservar detalhe.
+      //
+      // O teto NAO e detalhe de gosto: sem ele o canvas passa a ser ditado pelo
+      // arquivo enviado. Um TIFF de camera (8000x6000 -- e TIFF e um dos
+      // formatos aceitos aqui) geraria um canvas 8000x8000, ~256 MB so no
+      // buffer de saida, derrubando o container da API. E a API e o backend
+      // inteiro: loja, admin, separacao e entrega caem juntos.
+      const canvasSize = Math.min(
+        MAX_CANVAS_PX,
+        Math.max(800, metadata.width ?? 800, metadata.height ?? 800),
+      );
 
-      await sharp(tempPath)
+      await sharp(tempPath, { limitInputPixels: MAX_INPUT_PIXELS })
         .resize(canvasSize, canvasSize, {
-          // 800px é o mínimo. Imagens de origem maiores não são reduzidas;
-          // o canvas quadrado acompanha o maior lado para preservar detalhes.
           fit: 'contain',
           background: { r: 255, g: 255, b: 255, alpha: 1 },
         })
