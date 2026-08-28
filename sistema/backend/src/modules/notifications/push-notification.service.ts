@@ -18,6 +18,12 @@ interface PushNotification {
   icon?: string
   image?: string
   url?: string
+  /**
+   * Agrupa notificacoes do mesmo assunto: a nova substitui a anterior de mesma
+   * tag em vez de empilhar mais um balao. Sem isso, uma campanha com varios
+   * produtos enterra o cliente em toasts. Omitido = cai no grupo geral.
+   */
+  tag?: string
 }
 
 interface BrowserPushSubscriptionPayload {
@@ -135,9 +141,13 @@ export class PushNotificationService {
         JSON.stringify({
           title: notification.title,
           body: notification.body,
-          icon: notification.icon || '/branding/logo-branco.png',
+          // Quadrado da marca, nao o logo branco em transparente -- aquele
+          // some no balao do Windows/Chrome. Ver o comentario no
+          // frontend/public/service-worker.js.
+          icon: notification.icon || '/branding/pwa-icon-192.png',
           image: notification.image,
           url: notification.url || '/',
+          tag: notification.tag,
         }),
       )
 
