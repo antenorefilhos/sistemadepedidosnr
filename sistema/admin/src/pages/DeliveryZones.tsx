@@ -304,18 +304,6 @@ export default function DeliveryZones() {
   })
 
   /**
-   * Areas de fulfillment sao um segundo sistema de cobertura que roda ANTES das
-   * zonas em `DeliveryService.calculate()`: se uma area casar com o endereco, ela
-   * vence e as zonas desta tela nem sao consultadas. Enquanto nao houver area
-   * cadastrada nada muda — mas a sobreposicao precisa ser visivel, senao a taxa
-   * cobrada deixa de ser a que esta aqui e ninguem entende por que.
-   */
-  const { data: areas = [] } = useQuery({
-    queryKey: ['fulfillment-areas-overlap'],
-    queryFn: async () => (await fulfillmentAPI.listAreas()).data,
-  })
-
-  /**
    * A loja so consegue fechar pedido com DUAS coisas ao mesmo tempo: uma zona
    * ativa que cubra o endereco e uma janela de entrega futura com vaga. Faltando
    * qualquer uma, o checkout trava — e antes disso a tela nao dava nenhum sinal.
@@ -1027,29 +1015,6 @@ export default function DeliveryZones() {
       )}
 
       {/* Areas de fulfillment tem precedencia sobre estas zonas — precisa ser explicito. */}
-      {areas.filter((area) => area.status === 'ACTIVE').length > 0 && (
-        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle size={20} className="text-amber-700 shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <p className="font-semibold text-amber-800">
-                {areas.filter((area) => area.status === 'ACTIVE').length} area(s) de fulfillment tem prioridade sobre estas zonas
-              </p>
-              <p className="text-sm text-amber-700 mt-1">
-                O calculo do frete consulta as areas primeiro. Onde uma area cobrir o endereco do cliente,
-                a taxa cobrada sera a dela — nao a configurada aqui.
-              </p>
-              <p className="text-xs text-amber-700 mt-2">
-                {areas
-                  .filter((area) => area.status === 'ACTIVE')
-                  .map((area) => `${area.name} (${formatFee(area.fee)})`)
-                  .join(' · ')}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6">
         {[

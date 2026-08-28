@@ -25,11 +25,9 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 import {
   AddDeliveryStopDto,
-  CreateDeliveryAreaDto,
   CreateDeliveryRouteDto,
   CreateDriverDto,
   CreateFulfillmentSlotDto,
-  UpdateDeliveryAreaDto,
   UpdateDeliveryStopStatusDto,
   UpdateFulfillmentSlotDto,
 } from './dto/fulfillment.dto'
@@ -164,31 +162,6 @@ export class DeliveryController {
 @Controller('admin/fulfillment')
 export class AdminFulfillmentController {
   constructor(private readonly deliveryService: DeliveryService) {}
-
-  @Get('areas')
-  @ApiOperation({ summary: 'Listar areas de entrega por loja' })
-  listAreas(@Req() req: TenantContextRequest) {
-    return this.deliveryService.listAreas(getTenantContext(req))
-  }
-
-  @Post('areas')
-  @ApiOperation({ summary: 'Criar area de entrega com regra server-side' })
-  createArea(@Req() req: TenantContextRequest, @Body() dto: CreateDeliveryAreaDto) {
-    return this.deliveryService.createArea(getTenantContext(req), dto)
-  }
-
-  @Patch('areas/:id')
-  @ApiOperation({ summary: 'Atualizar area de entrega' })
-  updateArea(@Param('id') id: string, @Req() req: TenantContextRequest, @Body() dto: UpdateDeliveryAreaDto) {
-    return this.deliveryService.updateArea(id, getTenantContext(req), dto)
-  }
-
-  @Delete('areas/:id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remover area de entrega' })
-  deleteArea(@Param('id') id: string, @Req() req: TenantContextRequest) {
-    return this.deliveryService.deleteArea(id, getTenantContext(req))
-  }
 
   @Get('slots')
   @ApiOperation({ summary: 'Listar janelas e ocupacao' })

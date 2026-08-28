@@ -682,6 +682,11 @@ model Order {
   deliveryInstructions String?
   deviceId  String?
   clientIp  String?
+  /// ATENCAO: guarda o id de uma DeliveryZone, nao de "area". O model
+  /// DeliveryArea foi removido em 28/08/2026 (nunca teve tela, zero linhas);
+  /// esta coluna continua porque o checkout grava `quote.delivery.zoneId` aqui
+  /// e pedidos antigos dependem dela. Nao tem FK. Renomear exige migrar dado
+  /// e mexer no contrato do ERP (`order-contract.dto.ts`).
   deliveryAreaId String?
   fulfillmentSlotId String?
   fulfillmentSlotItemCount Int?
@@ -2011,26 +2016,6 @@ model DeliveryZone {
 
   @@index([tenantId, storeId, active, priority])
   @@map("delivery_zones")
-}
-
-model DeliveryArea {
-  id           String   @id @default(cuid())
-  tenantId     String   @default("tenant_default")
-  storeId      String   @default("store_default")
-  name         String
-  type         String   @default("CEP_RANGE")
-  rule         Json
-  fee          Decimal  @db.Decimal(10, 2)
-  minimumOrder Decimal? @db.Decimal(10, 2)
-  freeAbove    Decimal? @db.Decimal(10, 2)
-  priority     Int      @default(0)
-  status       String   @default("ACTIVE")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@index([tenantId, storeId, status, priority])
-  @@index([tenantId, storeId, type])
-  @@map("delivery_areas")
 }
 
 model FulfillmentSlot {

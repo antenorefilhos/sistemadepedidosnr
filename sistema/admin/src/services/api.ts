@@ -1500,20 +1500,6 @@ export interface DeliveryZonePayload {
   priority?: number
 }
 
-export interface DeliveryArea {
-  id: string
-  name: string
-  type: 'CEP_RANGE' | 'POLYGON' | 'GEO_POLYGON'
-  rule: Record<string, unknown>
-  fee: number | string
-  minimumOrder?: number | string | null
-  freeAbove?: number | string | null
-  priority: number
-  status: 'ACTIVE' | 'INACTIVE'
-  createdAt: string
-  updatedAt: string
-}
-
 export interface FulfillmentSlotOccupancy {
   id: string
   type: 'DELIVERY' | 'PICKUP'
@@ -1583,12 +1569,6 @@ export const deliveryAPI = {
 }
 
 export const fulfillmentAPI = {
-  listAreas: () => api.get<DeliveryArea[]>('/admin/fulfillment/areas'),
-  createArea: (data: Omit<DeliveryArea, 'id' | 'createdAt' | 'updatedAt'>) =>
-    api.post<DeliveryArea>('/admin/fulfillment/areas', data),
-  updateArea: (id: string, data: Partial<Omit<DeliveryArea, 'id' | 'createdAt' | 'updatedAt'>>) =>
-    api.patch<DeliveryArea>(`/admin/fulfillment/areas/${id}`, data),
-  deleteArea: (id: string) => api.delete(`/admin/fulfillment/areas/${id}`),
   listSlots: (params?: { type?: 'DELIVERY' | 'PICKUP'; from?: string; to?: string; status?: string }) =>
     api.get<FulfillmentSlotOccupancy[]>('/admin/fulfillment/slots', { params }),
   createSlot: (data: FulfillmentSlotPayload) => api.post<FulfillmentSlotOccupancy>('/admin/fulfillment/slots', data),

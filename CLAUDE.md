@@ -216,35 +216,36 @@ estoque negativo no ERP passava na vitrine mas travava no fechamento do
 pedido com "alguns itens ficaram indisponíveis". Corrigido: os dois agora
 tratam `syncOption='SEMPRE'` como sempre disponível, igual à vitrine.
 
-## Armadilha: dois models de zona de entrega no schema, só um está vivo
+## Zona de entrega: `DeliveryZone` e o unico model (o segundo foi removido)
 
-`DeliveryZone` (tabela `delivery_zones`) é onde a zona real ("Chafariz",
-fee/freeAbove) vive — criada pela tela "Taxas de Entrega" do admin, é o que
-`DeliveryService.calculate()` usa de verdade no fallback `calculateLegacyZone`.
+`DeliveryZone` (tabela `delivery_zones`, 34 linhas) e onde a zona real
+("Chafariz", fee/freeAbove) vive — criada pela tela "Taxas de Entrega" do
+admin, e o que `DeliveryService.calculate()` usa.
 
-`DeliveryArea` (tabela `delivery_areas`) é um sistema mais novo e mais genérico
-(regra em JSON, prioridade, admin CRUD completo no backend) que foi projetado
-pra substituir o `DeliveryZone` — mas **nunca ganhou tela no admin**. Tem rota
-REST completa (`listAreas`/`createArea`/`updateArea`/`deleteArea`), mas nenhum
-componente do admin chama `createArea`/`updateArea`/`deleteArea`; a única
-aparição na UI é um aviso somente-leitura ("N área(s) tem prioridade sobre
-estas zonas") na tela de zonas. Resultado: `delivery_areas` está com **zero
-linhas** em produção, sempre foi.
+Existia um segundo model, `DeliveryArea` (`delivery_areas`), mais generico
+(regra em JSON, prioridade) e projetado pra substituir o primeiro. Ganhou CRUD
+completo no backend e **nunca ganhou tela no admin**: ficou com zero linhas em
+producao a vida toda, enquanto `calculate()` consultava ele **antes** das zonas
+de verdade em toda requisicao de frete.
 
-Isso já causou um bug real (18-19/08/2026): a correção do antifraude de frete
-grátis consultou `this.prisma.deliveryArea` em vez de `deliveryZone` — sintaxe
-válida, sempre compila, sempre roda, só que a query nunca acha nada porque a
-tabela está vazia. Nenhum erro, nenhum teste falha (o mock do spec também
-usava o model errado) — só o comportamento fica sempre "zona não encontrada".
+Isso custou um bug real (18-19/08/2026): a correcao do antifraude de frete
+gratis consultou `this.prisma.deliveryArea` em vez de `deliveryZone` — sintaxe
+valida, compila, roda, e a query nunca acha nada porque a tabela esta vazia.
+Nenhum erro, nenhum teste vermelho (o mock do spec usava o model errado
+tambem) — so o comportamento fica sempre "zona nao encontrada".
 
-Se for mexer em qualquer lógica de zona/frete: confirme em qual tabela o dado
-realmente está antes de escrever a query (`SELECT * FROM delivery_zones` — não
-`delivery_areas`). Se algum dia `DeliveryArea` ganhar uma tela e passar a ter
-linhas, `DeliveryService.calculate()` já dá prioridade a ele automaticamente
-(`findMatchingArea` roda antes do fallback) — mas qualquer código que hoje
-consulta `DeliveryZone` diretamente (como `isFreeShippingEarnedByZone` em
-`orders.service.ts`) vai parar de reconhecer zonas cadastradas só no sistema
-novo. Ver `sistema/backend/src/modules/delivery/delivery.service.ts`.
+Removido em 28/08/2026 (migration `20260828000000_drop_delivery_areas`): model,
+rotas `admin/fulfillment/areas`, `findMatchingArea` e o aviso somente-leitura na
+tela de zonas. `calculateLegacyZone` virou o proprio `calculate()`.
+
+**O que sobrou de armadilha:** a coluna `orders."deliveryAreaId"` continua no
+banco e, apesar do nome, guarda o id de uma **DeliveryZone** — o checkout grava
+`quote.delivery.zoneId` ali (`checkout.service.ts`). Nunca houve FK. Nao da pra
+renomear sem migrar dado e mexer no contrato do ERP (`order-contract.dto.ts`).
+
+Licao geral: tela completa no backend sem nenhum consumidor no frontend nao e
+codigo inofensivo esperando uso — e uma checagem morta na frente do caminho que
+funciona, e o proximo dev vai escrever a query contra o model errado.
 
 ## Armadilha: nem todo endpoint do Solidcom traz `tipoIntegracao`
 

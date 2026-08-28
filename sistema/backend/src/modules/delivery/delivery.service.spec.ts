@@ -2,13 +2,6 @@ import { DeliveryService } from './delivery.service'
 import { PrismaService } from '../../common/prisma.service'
 
 const mockPrisma = {
-  deliveryArea: {
-    findMany: jest.fn(),
-    findFirst: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  },
   deliveryZone: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -72,7 +65,6 @@ describe('DeliveryService', () => {
   })
 
   it('returns outOfArea when there are no active zones', async () => {
-    mockPrisma.deliveryArea.findMany.mockResolvedValue([])
     mockPrisma.deliveryZone.findMany.mockResolvedValue([])
 
     await expect(service.calculate({ cep: '01001-000' })).resolves.toEqual({
@@ -89,7 +81,6 @@ describe('DeliveryService', () => {
   })
 
   it('returns outOfArea when CEP does not match any active zone', async () => {
-    mockPrisma.deliveryArea.findMany.mockResolvedValue([])
     mockPrisma.deliveryZone.findMany.mockResolvedValue([
       {
         id: 'zone-1',
@@ -114,7 +105,6 @@ describe('DeliveryService', () => {
   })
 
   it('prefers a higher-priority specific CEP zone over a wide-range base zone (CEP fora da planilha de balcao, so zonas do admin)', async () => {
-    mockPrisma.deliveryArea.findMany.mockResolvedValue([])
     // CEP inventado (fora de delivery-rates-balcao.json) pra testar so a
     // prioridade das zonas do banco, sem a planilha de balcao interferir --
     // ela e checada antes e teria prioridade sobre qualquer zona do banco.
@@ -157,7 +147,6 @@ describe('DeliveryService', () => {
 
   describe('planilha de taxas de balcao (sistema hibrido de localidades)', () => {
     it('CEP com multiplos pontos sem locality informada retorna availableLocalities pra escolha do cliente', async () => {
-      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
       mockPrisma.deliveryZone.findMany.mockResolvedValue([])
 
       const result = await service.calculate({ cep: '25750-222' })
@@ -172,7 +161,6 @@ describe('DeliveryService', () => {
     })
 
     it('CEP com multiplos pontos + locality CHAFARIZ aplica a taxa exata daquele ponto', async () => {
-      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
       mockPrisma.deliveryZone.findMany.mockResolvedValue([])
 
       const result = await service.calculate({ cep: '25750-222', locality: 'Chafariz' })
@@ -190,7 +178,6 @@ describe('DeliveryService', () => {
     })
 
     it('CEP com multiplos pontos + locality Condominio Bosque das Mangueiras aplica a taxa do condominio, nao a do vizinho', async () => {
-      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
       mockPrisma.deliveryZone.findMany.mockResolvedValue([])
 
       const result = await service.calculate({ cep: '25750-222', locality: 'Condomínio Bosque das Mangueiras' })
@@ -207,7 +194,6 @@ describe('DeliveryService', () => {
     })
 
     it('CEP com um so ponto na planilha aplica a taxa direto, sem pedir selecao', async () => {
-      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
       mockPrisma.deliveryZone.findMany.mockResolvedValue([])
 
       // 25720170 -- RIBEIRAO, unico ponto pra esse CEP na planilha.
@@ -224,7 +210,6 @@ describe('DeliveryService', () => {
     })
 
     it('CEP sem ponto na planilha cai pro fallback de DeliveryZone (zona base regional)', async () => {
-      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
       mockPrisma.deliveryZone.findMany.mockResolvedValue([
         {
           id: 'zone-base',
@@ -247,7 +232,6 @@ describe('DeliveryService', () => {
     })
 
     it('GPS dentro de poligono ativo mantem prioridade espacial maxima, ignora CEP e a planilha de balcao', async () => {
-      mockPrisma.deliveryArea.findMany.mockResolvedValue([])
       mockPrisma.deliveryZone.findMany.mockResolvedValue([
         {
           id: 'zone-chafariz-poligono',
@@ -281,35 +265,6 @@ describe('DeliveryService', () => {
     })
   })
 
-  it('uses DeliveryArea rules before legacy zones', async () => {
-    mockPrisma.deliveryArea.findMany.mockResolvedValue([
-      {
-        id: 'area-1',
-        name: 'Centro premium',
-        type: 'CEP_RANGE',
-        rule: { cepStart: '01000-000', cepEnd: '01099-999' },
-        fee: 12,
-        freeAbove: 100,
-        minimumOrder: 40,
-        priority: 10,
-      },
-    ])
-    mockPrisma.deliveryZone.findMany.mockResolvedValue([])
-
-    await expect(service.calculate({ cep: '01001-000', subtotal: 120 })).resolves.toEqual(
-      expect.objectContaining({
-        fee: 0,
-        rawFee: 12,
-        freeAbove: 100,
-        minimumOrder: 40,
-        minimumOrderMet: true,
-        zoneName: 'Centro premium',
-        zoneId: 'area-1',
-        isFree: true,
-        outOfArea: false,
-      }),
-    )
-  })
 
   it('blocks a full fulfillment slot', async () => {
     mockPrisma.fulfillmentSlot.findFirst.mockResolvedValue({

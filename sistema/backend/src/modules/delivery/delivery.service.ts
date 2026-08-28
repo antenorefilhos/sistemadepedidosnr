@@ -12,11 +12,9 @@ import { resolveDateRange } from '../../common/date-range.util'
 import { CreateDeliveryZoneDto, UpdateDeliveryZoneDto } from './dto/delivery-zone.dto'
 import {
   AddDeliveryStopDto,
-  CreateDeliveryAreaDto,
   CreateDeliveryRouteDto,
   CreateDriverDto,
   CreateFulfillmentSlotDto,
-  UpdateDeliveryAreaDto,
   UpdateDeliveryStopStatusDto,
   UpdateFulfillmentSlotDto,
 } from './dto/fulfillment.dto'
@@ -283,61 +281,6 @@ export class DeliveryService {
   async deleteZone(id: string) {
     await this.findZoneOrThrow(id)
     await this.prisma.deliveryZone.delete({ where: { id } })
-  }
-
-  async listAreas(context?: Partial<FulfillmentContext>) {
-    return this.prisma.deliveryArea.findMany({
-      where: {
-        ...tenantStoreWhere(context),
-      },
-      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
-    })
-  }
-
-  async createArea(context: Partial<FulfillmentContext> | undefined, dto: CreateDeliveryAreaDto) {
-    const scoped = this.resolveContext(context)
-    return this.prisma.deliveryArea.create({
-      data: {
-        tenantId: scoped.tenantId,
-        storeId: scoped.storeId,
-        name: dto.name,
-        type: this.normalizeAreaType(dto.type),
-        rule: this.toJsonPayload(dto.rule),
-        fee: this.decimal2(dto.fee),
-        minimumOrder: dto.minimumOrder == null ? null : this.decimal2(dto.minimumOrder),
-        freeAbove: dto.freeAbove == null ? null : this.decimal2(dto.freeAbove),
-        priority: dto.priority ?? 0,
-        status: dto.status || 'ACTIVE',
-      },
-    })
-  }
-
-  async updateArea(id: string, context: Partial<FulfillmentContext> | undefined, dto: UpdateDeliveryAreaDto) {
-    await this.findAreaOrThrow(id, context)
-    return this.prisma.deliveryArea.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.type !== undefined ? { type: this.normalizeAreaType(dto.type) } : {}),
-        ...(dto.rule !== undefined ? { rule: this.toJsonPayload(dto.rule) } : {}),
-        ...(dto.fee !== undefined ? { fee: this.decimal2(dto.fee) } : {}),
-        ...(dto.minimumOrder !== undefined ? { minimumOrder: dto.minimumOrder == null ? null : this.decimal2(dto.minimumOrder) } : {}),
-        ...(dto.freeAbove !== undefined ? { freeAbove: dto.freeAbove == null ? null : this.decimal2(dto.freeAbove) } : {}),
-        ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
-        ...(dto.status !== undefined ? { status: dto.status } : {}),
-      },
-    })
-  }
-
-  async deleteArea(id: string, context?: Partial<FulfillmentContext>) {
-    await this.findAreaOrThrow(id, context)
-    await this.prisma.deliveryArea.delete({ where: { id } })
-  }
-
-  async calculate({ tenantId, storeId, cep, lat, lng, subtotal, locality, deliveryPointCode }: DeliveryLookup): Promise<DeliveryCalculation> {
-    const area = await this.findMatchingArea({ tenantId, storeId, cep, lat, lng })
-    if (area) return this.areaToCalculation(area, subtotal)
-    return this.calculateLegacyZone({ tenantId, storeId, cep, lat, lng, subtotal, locality, deliveryPointCode })
   }
 
   /** Resolve o fee pela planilha de taxas de balcao (ponto exato por CEP,
@@ -909,20 +852,15 @@ export class DeliveryService {
     return this.markRouteCompleted(routeId, scoped, actor)
   }
 
-  private async findMatchingArea({ tenantId, storeId, cep, lat, lng }: DeliveryLookup) {
-    const scoped = this.resolveContext({ tenantId, storeId })
-    const areas = await this.prisma.deliveryArea.findMany({
-      where: {
-        status: 'ACTIVE',
-        tenantId: scoped.tenantId,
-        storeId: scoped.storeId,
-      },
-      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
-    })
-    return areas.find((area) => this.areaMatches(area, { cep, lat, lng })) || null
-  }
-
-  private async calculateLegacyZone({
+  /**
+   * Resolve a taxa de entrega pelo endereco. Unico caminho de calculo desde
+   * 28/08/2026 -- antes rodava atras de `findMatchingArea`, que consultava o
+   * model `DeliveryArea`. Esse segundo sistema foi removido: nunca ganhou tela
+   * no admin, ficou com zero linhas em producao a vida toda e a checagem morta
+   * na frente ja tinha causado um bug (query no model errado, sempre vazia,
+   * sem erro nenhum). Ver CLAUDE.md.
+   */
+  async calculate({
     tenantId,
     storeId,
     cep,
@@ -978,50 +916,6 @@ export class DeliveryService {
     })
 
     return matched ? this.zoneToCalculation(matched, subtotal) : this.outOfAreaCalculation()
-  }
-
-  private areaMatches(area: { type: string; rule: Prisma.JsonValue }, lookup: { cep?: string; lat?: number; lng?: number }) {
-    const rule = this.asObject(area.rule)
-    const type = this.normalizeAreaType(area.type)
-
-    if (type === 'CEP_RANGE' && lookup.cep) {
-      const start = this.cepToNumber(this.ruleString(rule, ['cepStart', 'start', 'from']))
-      const end = this.cepToNumber(this.ruleString(rule, ['cepEnd', 'end', 'to']))
-      const cepNum = this.cepToNumber(lookup.cep)
-      return start !== null && end !== null && cepNum !== null && cepNum >= start && cepNum <= end
-    }
-
-    if ((type === 'POLYGON' || type === 'GEO_POLYGON') && typeof lookup.lat === 'number' && typeof lookup.lng === 'number') {
-      const raw = rule.polygonGeoJSON ?? rule.geoJSON ?? rule.geojson ?? rule.polygon
-      const polygonFeature = this.parsePolygonFeature(raw)
-      if (!polygonFeature) return false
-      return booleanPointInPolygon(point([lookup.lng, lookup.lat]), polygonFeature)
-    }
-
-    return false
-  }
-
-  private areaToCalculation(
-    area: { id: string; name: string; fee: Prisma.Decimal; freeAbove: Prisma.Decimal | null; minimumOrder: Prisma.Decimal | null },
-    subtotal?: number,
-  ): DeliveryCalculation {
-    const rawFee = Number(area.fee)
-    const freeAbove = area.freeAbove == null ? null : Number(area.freeAbove)
-    const minimumOrder = area.minimumOrder == null ? null : Number(area.minimumOrder)
-    const isFree = freeAbove != null && subtotal != null && subtotal >= freeAbove
-    const minimumOrderMet = minimumOrder == null || subtotal == null || subtotal >= minimumOrder
-
-    return {
-      fee: isFree ? 0 : rawFee,
-      rawFee,
-      freeAbove,
-      minimumOrder,
-      minimumOrderMet,
-      zoneName: area.name,
-      zoneId: area.id,
-      isFree,
-      outOfArea: false,
-    }
   }
 
   private zoneToCalculation(
@@ -1096,14 +990,6 @@ export class DeliveryService {
     const zone = await this.prisma.deliveryZone.findUnique({ where: { id } })
     if (!zone) throw new NotFoundException('Zona de entrega nao encontrada')
     return zone
-  }
-
-  private async findAreaOrThrow(id: string, context?: Partial<FulfillmentContext>) {
-    const area = await this.prisma.deliveryArea.findFirst({
-      where: { id, ...tenantStoreWhere(context) },
-    })
-    if (!area) throw new NotFoundException('Area de entrega nao encontrada')
-    return area
   }
 
   private async findSlotOrThrow(id: string, context?: Partial<FulfillmentContext>) {
@@ -1232,11 +1118,6 @@ export class DeliveryService {
     }
   }
 
-  private normalizeAreaType(type?: string) {
-    const normalized = String(type || 'CEP_RANGE').trim().toUpperCase()
-    return normalized === 'GEO_POLYGON' ? 'POLYGON' : normalized
-  }
-
   private parsePolygonFeature(raw: unknown) {
     try {
       const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
@@ -1254,20 +1135,6 @@ export class DeliveryService {
     } catch {
       return null
     }
-  }
-
-  private asObject(value: Prisma.JsonValue): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-    return value as Record<string, unknown>
-  }
-
-  private ruleString(rule: Record<string, unknown>, keys: string[]) {
-    for (const key of keys) {
-      const value = rule[key]
-      if (typeof value === 'string' && value.trim()) return value
-      if (typeof value === 'number') return String(value)
-    }
-    return ''
   }
 
   private cleanCep(value?: string | null) {
