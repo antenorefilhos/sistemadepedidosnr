@@ -6,6 +6,7 @@ import { buttonVariants } from './ui/button'
 import { surfaceClasses } from './ui/surface'
 import { buildOverlayGradient } from '../utils/homeCategories'
 import { cmsAPI } from '../services/api'
+import { BannerImage } from './BannerImage'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 
 export type HeroSlideAlign = 'left' | 'center' | 'right'
@@ -17,6 +18,8 @@ export interface HeroSlideCMS {
   description?: string | null
   ctaLabel?: string | null
   imageUrl: string
+  /** Arte alternativa para telas < 768px. Sem ela, usa a de desktop. */
+  mobileImageUrl?: string | null
   link?: string | null
   sponsorName?: string | null
   overlayColor?: string | null
@@ -332,11 +335,11 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                   esticava junto com a imagem em vez de cobrir o card inteiro
                   -- em card largo com foto estreita sobrava borda sem tinta. */}
               {slide.imageUrl && (
-                <img
-                  src={slide.imageUrl}
+                <BannerImage
+                  desktopUrl={slide.imageUrl}
+                  mobileUrl={slide.mobileImageUrl}
                   alt=""
-                  aria-hidden="true"
-                  className="absolute inset-0 h-full w-full object-cover"
+                  align={align}
                   loading={i === 0 ? 'eager' : 'lazy'}
                   fetchPriority={i === 0 ? 'high' : 'auto'}
                   draggable={false}

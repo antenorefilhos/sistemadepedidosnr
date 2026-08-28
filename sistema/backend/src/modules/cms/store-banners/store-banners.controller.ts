@@ -5,10 +5,19 @@ import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { RelaxedThrottle } from '../../../common/decorators/relaxed-throttle.decorator'
 
-// Rota publica, sem auth, chamada em toda carga da Home -- banner muda pouco
-// (edicao manual no admin), entao um cache curto de CDN/browser tira carga
-// do banco sem deixar uma alteracao recem-salva demorar pra aparecer.
-const PUBLIC_CACHE_HEADER = 'public, max-age=60, stale-while-revalidate=300';
+// Rota publica, sem auth, chamada em toda carga da Home.
+//
+// Era `public, max-age=60, stale-while-revalidate=300`, e na pratica o
+// operador editava um banner no admin e precisava limpar o cache do navegador
+// pra ver na loja: 60s servindo a copia antiga direto, e ate 5 min a mais
+// servindo a versao velha enquanto revalidava em segundo plano.
+//
+// `no-cache` NAO desliga o cache -- ele guarda a resposta e revalida antes de
+// usar. Como a rota ja responde com ETag, a revalidacao vira um 304 vazio
+// quando nada mudou, entao o custo em banda e banco continua perto de zero e
+// o que foi salvo aparece na hora. `must-revalidate` fecha a porta pra proxy
+// intermediario decidir servir stale por conta propria.
+const PUBLIC_CACHE_HEADER = 'public, no-cache, must-revalidate';
 
 @RelaxedThrottle()
 @Controller('cms/store-banners')

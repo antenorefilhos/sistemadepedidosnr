@@ -171,12 +171,26 @@ const SLOT_COLOR: Record<BannerSlot, string> = {
   popup: 'bg-rose-100 text-rose-700',
 };
 
+/**
+ * Medidas derivadas da proporção REAL do card em cada tela (medido em
+ * 28/08/2026 na loja em produção, 390px e 1440px), em 2x para tela retina:
+ *
+ *   hero        mobile 1.49:1   desktop 3.67:1
+ *   category    mobile 1.53:1   desktop 3.67:1   (largura cheia, igual ao hero)
+ *   intercalado mobile 1.49:1   desktop 1.81:1   (meia largura no desktop)
+ *   tarja       mobile 7.2:1    desktop 22.3:1
+ *
+ * As anteriores estavam chutadas: hero mobile pedia 1080x1350 (retrato) para
+ * um card deitado, e categoria repetia a medida do intercalado sendo que ela
+ * ocupa a largura toda. Arte na proporção errada não quebra — o object-cover
+ * corta —, mas o operador perde justamente a parte que quis mostrar.
+ */
 const ART_GUIDE: Record<BannerSlot, { desktop: string; desktopKb: number; mobile: string; mobileKb: number }> = {
-  hero: { desktop: '1920x720', desktopKb: 350, mobile: '1080x1350', mobileKb: 220 },
-  tarja: { desktop: '1920x420', desktopKb: 280, mobile: '1080x560', mobileKb: 180 },
-  intercalado: { desktop: '850x520', desktopKb: 220, mobile: '1080x700', mobileKb: 180 },
-  category: { desktop: '850x520', desktopKb: 220, mobile: '1080x700', mobileKb: 180 },
-  popup: { desktop: '900x600', desktopKb: 220, mobile: '900x1200', mobileKb: 180 },
+  hero: { desktop: '1920x520', desktopKb: 350, mobile: '800x540', mobileKb: 180 },
+  category: { desktop: '1920x520', desktopKb: 350, mobile: '800x540', mobileKb: 180 },
+  intercalado: { desktop: '1240x686', desktopKb: 260, mobile: '800x540', mobileKb: 180 },
+  tarja: { desktop: '1920x88', desktopKb: 180, mobile: '800x110', mobileKb: 120 },
+  popup: { desktop: '900x600', desktopKb: 220, mobile: '900x600', mobileKb: 180 },
 };
 
 const MAX_IMAGE_SIZE_MB = 5;

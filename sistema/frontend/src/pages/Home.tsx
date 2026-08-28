@@ -13,6 +13,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
 import { PromoBanner, type PromoBannerView } from '../components/PromoBanner'
+import { BannerImage } from '../components/BannerImage'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
 import { useBrand } from '../hooks/useBrand'
@@ -103,6 +104,7 @@ export default function Home() {
           description: item.description || undefined,
           ctaLabel: item.ctaLabel || undefined,
           imageUrl: resolveApiUrl(item.desktopImageUrl),
+          mobileImageUrl: item.mobileImageUrl ? resolveApiUrl(item.mobileImageUrl) : undefined,
           link: resolveBannerLink(item.linkValue, item.linkType),
           sponsorName: item.sponsorName || undefined,
           overlayColor: item.overlayColor || undefined,
@@ -242,6 +244,7 @@ export default function Home() {
         highlightedProduct: item.highlightedProduct || undefined,
         description: item.description || undefined,
         image: resolveApiUrl(item.desktopImageUrl),
+        mobileImage: item.mobileImageUrl ? resolveApiUrl(item.mobileImageUrl) : undefined,
         ctaLabel: item.ctaLabel || 'Aproveitar',
         ctaTo: resolveBannerLink(item.linkValue, item.linkType),
         align: item.align || 'left',
@@ -266,6 +269,7 @@ export default function Home() {
       badge: item.badgeText || undefined,
       description: item.description || undefined,
       image: resolveApiUrl(item.desktopImageUrl),
+      mobileImage: item.mobileImageUrl ? resolveApiUrl(item.mobileImageUrl) : undefined,
       ctaLabel: item.ctaLabel || undefined,
       ctaTo: resolveBannerLink(item.linkValue, item.linkType),
       overlayColor: item.overlayColor || undefined,
@@ -287,6 +291,7 @@ export default function Home() {
       badge: item.badgeText || undefined,
       description: item.description || undefined,
       image: resolveApiUrl(item.desktopImageUrl),
+      mobileImage: item.mobileImageUrl ? resolveApiUrl(item.mobileImageUrl) : undefined,
       ctaLabel: item.ctaLabel || 'Aproveitar',
       ctaTo: resolveBannerLink(item.linkValue, item.linkType),
       overlayColor: item.overlayColor || undefined,
@@ -1027,7 +1032,7 @@ function TarjaStrip({ banner, onDismiss }: { banner: PromoBannerView; onDismiss:
   }
   return (
     <div className="relative w-full overflow-hidden">
-      <img src={banner.image} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+      <BannerImage desktopUrl={banner.image} mobileUrl={banner.mobileImage} alt="" />
       <div className="absolute inset-0" style={{ background: buildOverlaySolid(banner.overlayColor || '#231F20') }} />
       <div className="relative z-10 mx-auto flex min-h-[52px] w-full max-w-7xl items-center justify-between gap-3 px-4 py-2 md:min-h-[64px] md:px-6">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
@@ -1097,7 +1102,7 @@ function PopupBanner({ banner, onDismiss }: { banner: PromoBannerView; onDismiss
           <X size={16} />
         </button>
         <div className="relative aspect-[3/2] w-full">
-          <img src={banner.image} alt={banner.title} className="absolute inset-0 h-full w-full object-cover" />
+          <BannerImage desktopUrl={banner.image} mobileUrl={banner.mobileImage} alt={banner.title} />
           <div className="absolute inset-0" style={{ background: buildOverlaySolid(banner.overlayColor || '#231F20', 0.35) }} />
         </div>
         <div className="space-y-2 p-5 text-left">
@@ -1162,6 +1167,7 @@ function PromoBannerPair({ banners, className }: { banners?: PromoBannerView[]; 
             <PromoBanner
               bannerId={banner.id}
               image={banner.image}
+              mobileImage={banner.mobileImage}
               alt={banner.title}
               badge={banner.badge}
               highlightNote={banner.highlightNote}

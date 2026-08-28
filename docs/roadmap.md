@@ -1,12 +1,58 @@
-# Roadmap de lançamento
+# Roadmap
 
-Prazo: sistema completo no ar **antes da temporada de fim de ano**, para operar com
-ele durante a alta demanda. Planejado em 08/2026 com janela de ~1 mês de trabalho.
-
-Regra que vale para tudo abaixo: **nada entra sem ser testado em mobile e desktop.**
+Regra que vale para tudo aqui: **nada entra sem ser testado em mobile e desktop.**
 O cliente chega por WhatsApp e Facebook Ads — mobile é o caminho principal, não o
 secundário. Sem barreira de entrada, sem passo confuso para quem nunca usou um app
 de mercado.
+
+O plano original era de lançamento, com prazo de ~1 mês (08/2026) para estar no ar
+antes da temporada de fim de ano. **Esse plano foi concluído** — as quatro semanas
+estão fechadas e ficaram abaixo, em [Histórico](#histórico--plano-de-lançamento-concluído),
+porque o detalhe de cada correção segue valendo como memória do projeto.
+
+Daqui em diante o documento é **lista viva**: o que está aberto fica no topo, e o
+que fecha desce para o histórico com a data e o commit.
+
+## Em aberto
+
+- [ ] **Espaços patrocinados: vender banner para fornecedor.** Ideia do
+      Jonathan em 28/08/2026. A base já existe: `sponsorName` renderiza o selo
+      no banner, e **impressão e clique já são contados** (ligados em
+      28/08/2026 — a coleta era a única parte irreversível, porque dado não
+      coletado não se recupera depois). Há vigência por data e controle
+      criativo (cor, alinhamento, CTA).
+      Falta, e **só faz sentido depois de haver tráfego**:
+      1. *Anunciante como entidade*, não texto livre. Hoje `sponsorName` é
+         string solta e não agrega — não dá para responder "quanto a Ambev teve
+         de impressão em agosto". Precisa de cadastro + vínculo banner→anunciante.
+      2. *Relatório por campanha/período*, que é o que se entrega ao fornecedor.
+      3. *Comercial*: preço do espaço, contrato, faturamento.
+      Cuidado de modelagem já identificado: **anunciante não é uma página**.
+      `pages` responde "onde aparece" e o caráter comercial é outro eixo — um
+      anúncio pode estar na home, na categoria ou no produto, e um banner de
+      categoria pode ser editorial ou patrocinado. Misturar os dois foi o que
+      deixou o campo `pages` confuso e sem uso até 28/08/2026.
+      Pré-requisito natural: **criar espaço de banner na página de produto**.
+      Ela não renderiza banner nenhum hoje, e por isso a opção "Páginas de
+      produto" saiu do formulário — é inventário novo para vender.
+
+- [ ] **`DeliveryArea` continua sem tela e sem uso.** O model existe com CRUD
+      completo no backend e `DeliveryService.calculate()` já dá prioridade a
+      ele, mas a tabela tem zero linhas e nenhum componente do admin chama
+      `createArea`/`updateArea`/`deleteArea` — quem cria zona de verdade é a
+      tela "Taxas de Entrega", que grava em `DeliveryZone`. Decidir: dar tela
+      ao sistema novo e migrar, ou remover o model para parar de convidar ao
+      erro. Já causou bug real (18-19/08/2026, consulta no model errado que
+      compila e nunca acha nada). Ver a armadilha no [CLAUDE.md](../CLAUDE.md).
+
+- [ ] **Admin sem framework de teste.** `sistema/admin` não tem vitest nem
+      nenhum teste — o storefront e o backend têm. A lógica pesada do admin
+      (preview de banner, parsing de overlay, regras de formulário) só é
+      verificada abrindo a tela. A paridade do overlay entre admin e storefront
+      hoje é garantida por um teste que mora no storefront e importa o arquivo
+      do admin por caminho relativo; funciona, mas é contorno.
+
+## Histórico — plano de lançamento (concluído)
 
 ## Semana 1 — a jornada do cliente não pode falhar ✅
 
@@ -86,28 +132,6 @@ Sem isto no ar, todo cliente cai no CEP.
       com a homologação física de ponta a ponta (storefront → picking → PDV).
 
 ## Fila (não bloqueiam o lançamento)
-
-- [ ] **Espaços patrocinados: vender banner para fornecedor.** Ideia do
-      Jonathan em 28/08/2026. A base já existe: `sponsorName` renderiza o selo
-      no banner, `clicksCount` e `impressionsCount` estão no schema, há vigência
-      por data e controle criativo (cor, alinhamento, CTA). A **coleta de
-      impressão foi ligada em 28/08/2026** — era a única parte irreversível
-      (dado não coletado não se recupera depois), então entrou antes do resto
-      para haver histórico quando a conversa comercial começar.
-      Falta, e **só faz sentido depois de haver tráfego**:
-      1. *Anunciante como entidade*, não texto livre. Hoje `sponsorName` é
-         string solta e não agrega — não dá para responder "quanto a Ambev teve
-         de impressão em agosto". Precisa de cadastro + vínculo banner→anunciante.
-      2. *Relatório por campanha/período*, que é o que se entrega ao fornecedor.
-      3. *Comercial*: preço do espaço, contrato, faturamento.
-      Cuidado de modelagem já identificado: **anunciante não é uma página**.
-      `pages` responde "onde aparece" e o caráter comercial é outro eixo — um
-      anúncio pode estar na home, na categoria ou no produto, e um banner de
-      categoria pode ser editorial ou patrocinado. Misturar os dois foi o que
-      deixou o campo `pages` confuso e sem uso até 28/08/2026.
-      Relacionado: a opção "Páginas de produto" saiu do formulário porque a
-      página de produto não tem espaço de banner. Criar esse espaço é
-      pré-requisito natural aqui — é inventário novo para vender.
 
 - [x] **Auditoria de segurança multi-agente (23 achados ALTA/MEDIA/BAIXA).**
       Corrigida em 19/08/2026 em duas levas (`8a822d1` e `0e4ad34`). Destaques

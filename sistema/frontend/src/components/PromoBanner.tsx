@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { useBannerImpression } from '../hooks/useBannerImpression'
+import { BannerImage } from './BannerImage'
 import { Badge } from './ui/badge'
 import { buttonVariants } from './ui/button'
 import { surfaceClasses } from './ui/surface'
@@ -25,6 +26,7 @@ export type PromoBannerView = {
   highlightedProduct?: Product
   description?: string
   image: string
+  mobileImage?: string
   ctaLabel?: string
   ctaTo?: string
   align?: 'left' | 'center' | 'right'
@@ -35,6 +37,7 @@ export type PromoBannerView = {
 
 export function PromoBanner({
   image,
+  mobileImage,
   alt,
   badge,
   highlightNote,
@@ -50,6 +53,8 @@ export function PromoBanner({
   bannerId,
 }: {
   image: string
+  /** Arte alternativa para telas < 768px. Sem ela, usa a de desktop. */
+  mobileImage?: string
   alt: string
   badge?: string
   highlightNote?: string
@@ -93,7 +98,7 @@ export function PromoBanner({
           sangra ate a borda do card, e o filete dourado em volta lia como
           contorno solto. Mesmo tratamento do card do HeroSlider. */}
       <div className={surfaceClasses({ tone: 'warm', className: 'relative min-h-[230px] overflow-hidden border-0 bg-[#F7F0E4] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[340px]' })}>
-        <img src={image} alt={alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+        <BannerImage desktopUrl={image} mobileUrl={mobileImage} alt={alt} align={align} />
         <div
           className="absolute inset-0"
           style={{ background: buildOverlayGradient(tone, align) }}
