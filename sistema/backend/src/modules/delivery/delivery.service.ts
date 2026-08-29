@@ -696,6 +696,106 @@ export class DeliveryService {
     }
   }
 
+  /**
+   * Fila compartilhada de entregas: pedidos que sairam da separacao e ainda nao
+   * foram pegos por ninguem. Todo entregador ve a mesma lista.
+   *
+   * Desenho pedido pelo Jonathan: a operacao evita computador de proposito --
+   * o unico passo em PC e puxar o pedido no PDV. Exigir que alguem monte rota
+   * no admin criava um gargalo bem no meio do fluxo. Aqui o proprio entregador
+   * se serve pelo celular e a rota se monta sozinha atras disso.
+   */
+  async listAvailableDeliveries(context: Partial<FulfillmentContext> | undefined) {
+    const scoped = this.resolveContext(context)
+    return this.prisma.order.findMany({
+      where: {
+        tenantId: scoped.tenantId,
+        storeId: scoped.storeId,
+        fulfillmentType: { not: 'PICKUP' },
+        status: { in: ['READY_FOR_CHECKOUT', 'READY_FOR_DELIVERY'] },
+        // `stops` vazio = ninguem pegou ainda. E o que torna a fila
+        // "compartilhada": some da lista de todos assim que um pega.
+        deliveryStops: { none: {} },
+      },
+      select: {
+        id: true,
+        total: true,
+        createdAt: true,
+        deliveryInstructions: true,
+        addressSnapshot: true,
+        customer: { select: { name: true, whatsapp: true } },
+        _count: { select: { items: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+  }
+
+  /**
+   * O entregador pega um pedido da fila pra si.
+   *
+   * Atomico de proposito: dois entregadores tocando no mesmo pedido ao mesmo
+   * tempo e o caso normal numa fila compartilhada, nao a excecao. A unicidade
+   * do schema e `[routeId, orderId]`, que impede o mesmo pedido duas vezes na
+   * MESMA rota mas nao em rotas diferentes -- entao sem trava os dois levariam
+   * o pedido. `FOR UPDATE` na linha do pedido serializa: o segundo espera o
+   * primeiro e recebe "ja foi pego" em vez de uma parada duplicada.
+   */
+  async takeDelivery(
+    context: Partial<FulfillmentContext> | undefined,
+    orderId: string,
+    driverId: string,
+    actor?: { actorType?: string; actorId?: string },
+  ) {
+    const scoped = this.resolveContext(context)
+
+    const routeId = await this.prisma.$transaction(async (tx) => {
+      const travadas = await tx.$queryRaw<Array<{ id: string; status: string; fulfillmentType: string | null }>>`
+        SELECT id, status, "fulfillmentType" FROM orders
+        WHERE id = ${orderId} AND "tenantId" = ${scoped.tenantId} AND "storeId" = ${scoped.storeId}
+        FOR UPDATE
+      `
+      const pedido = travadas[0]
+      if (!pedido) throw new NotFoundException('Pedido nao encontrado.')
+      if (pedido.fulfillmentType === 'PICKUP') {
+        throw new BadRequestException('Pedido de retirada nao entra em rota de entrega.')
+      }
+      if (!['READY_FOR_CHECKOUT', 'READY_FOR_DELIVERY'].includes(pedido.status)) {
+        throw new BadRequestException('Pedido nao esta pronto para entrega.')
+      }
+
+      const jaPego = await tx.deliveryStop.findFirst({ where: { orderId } })
+      if (jaPego) throw new BadRequestException('Outro entregador ja pegou este pedido.')
+
+      // Reaproveita a rota aberta do entregador; so cria uma quando nao ha.
+      // Sem isso, cada pedido viraria uma rota de uma parada so e o app
+      // mostraria uma lista de rotas em vez de uma entrega com varias paradas.
+      let rota = await tx.deliveryRoute.findFirst({
+        where: { driverId, tenantId: scoped.tenantId, storeId: scoped.storeId, status: { in: ['PLANNED', 'READY'] } },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (!rota) {
+        rota = await tx.deliveryRoute.create({
+          data: { tenantId: scoped.tenantId, storeId: scoped.storeId, driverId },
+        })
+      }
+
+      const paradas = await tx.deliveryStop.count({ where: { routeId: rota.id } })
+      await tx.deliveryStop.create({
+        data: {
+          tenantId: scoped.tenantId,
+          storeId: scoped.storeId,
+          routeId: rota.id,
+          orderId,
+          sequence: paradas + 1,
+        },
+      })
+      return rota.id
+    })
+
+    await this.recordOrderEvent(scoped, orderId, 'order.taken_by_driver', { routeId }, actor)
+    return this.findRouteOrThrow(routeId, scoped)
+  }
+
   async createRoute(context: Partial<FulfillmentContext> | undefined, dto: CreateDeliveryRouteDto, actor?: { actorType?: string; actorId?: string }) {
     const scoped = this.resolveContext(context)
     if (dto.driverId) await this.findDriverOrThrow(dto.driverId, scoped)

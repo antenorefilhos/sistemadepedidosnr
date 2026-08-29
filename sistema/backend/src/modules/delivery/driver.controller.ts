@@ -35,6 +35,27 @@ export class DriverController {
     }
   }
 
+  @Get('available')
+  @ApiOperation({ summary: 'Fila compartilhada: entregas prontas que ninguem pegou ainda' })
+  async listAvailable(@Req() req: TenantContextRequest) {
+    // Nao exige perfil de motorista pra LER a fila -- so pra pegar. Ver a fila
+    // e inofensivo, e quem acabou de ganhar acesso ao modulo consegue entender
+    // a tela antes de o perfil existir.
+    return this.deliveryService.listAvailableDeliveries(getTenantContext(req))
+  }
+
+  @Post('available/:orderId/take')
+  @ApiOperation({ summary: 'Pega uma entrega da fila pra si (monta a rota sozinho)' })
+  async takeDelivery(@Param('orderId') orderId: string, @Req() req: TenantContextRequest) {
+    const driver = await this.findDriverByAdmin(req)
+    return this.deliveryService.takeDelivery(
+      getTenantContext(req),
+      orderId,
+      driver.id,
+      this.actorFromRequest(req),
+    )
+  }
+
   @Get('routes')
   @ApiOperation({ summary: 'Listar minhas rotas' })
   async listMyRoutes(@Req() req: TenantContextRequest) {

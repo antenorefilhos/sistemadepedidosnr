@@ -59,7 +59,30 @@ export interface DeliveryRoute {
   stops: DeliveryStop[]
 }
 
+/** Pedido na fila compartilhada -- ainda sem dono. */
+export interface AvailableDelivery {
+  id: string
+  total: number
+  createdAt: string
+  deliveryInstructions: string | null
+  addressSnapshot?: {
+    street?: string
+    number?: string
+    neighborhood?: string
+    city?: string
+    complement?: string
+  } | null
+  customer?: { name: string; whatsapp: string | null } | null
+  _count?: { items: number }
+}
+
 export const driverApi = {
+  /** Fila que TODOS os entregadores veem. Some da lista de todos quando alguem pega. */
+  listAvailable: () => api.get<AvailableDelivery[]>('/driver/available'),
+
+  takeDelivery: (orderId: string) =>
+    api.post<DeliveryRoute>(`/driver/available/${orderId}/take`),
+
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
 
