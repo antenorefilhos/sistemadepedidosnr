@@ -178,3 +178,37 @@ Achado crítico: o fechamento no PDV emite NFC-e real (comunicação com a
 SEFAZ) — não dá, e não é seguro, simular isso via escrita direta em banco.
 O bypass, se existir, é só na etapa de separação, nunca no fechamento
 fiscal.
+
+## ACHADO CRITICO (29/08/2026): nossos pedidos nunca saem do status 1
+
+Consulta direta ao banco `DORSAL` (SQL Server `10.13.0.2`, credencial em
+`sistema/.env` como `DORSAL_DB_*` — valor real nunca em doc versionada):
+
+| Origem | st 1 | 4 | 5 | 6 | 8 | 99 |
+|---|---|---|---|---|---|---|
+| **Nossos pedidos** (`cdEcom = 19`) | **21** | 0 | 0 | **0** | 0 | 0 |
+| Fluxo da loja (`cdEcom` nulo) | 1 | 9 | 57 | 549 | 1296 | 97 |
+
+`EcommerceSolidconStatus` e o sinal de faturamento: `5` = aguardando o caixa,
+`6` = venda fechada (confirmado passo a passo no vault,
+`pipeline/solidcom-dorsal-banco-direto.md`).
+
+**Nenhum pedido nosso jamais chegou a 5 nem a 6.** Todos ficam em `1` e a
+maioria termina com `inCancelado = true` — ou seja, os DAVs que criamos vem
+sendo cancelados, nao faturados. O pedido de teste que o vault registrou indo
+ate `6` (`cdPedido = 2023`) tem `cdEcomPedido = 444447`, de 6 digitos: foi
+criado por outro caminho, nao pelo nosso `PostPedido`.
+
+O que separa os dois grupos e `cdEcom`: os nossos tem `19`
+(`SOLIDCOM_CODECOM`), os que fluem tem nulo.
+
+**Consequencia pratica:** qualquer automacao baseada em "detectar
+`EcommerceSolidconStatus = 6`" nunca dispara enquanto isso nao for resolvido.
+A pergunta pro suporte deles e: **o que move um pedido com `cdEcom = 19` de
+`1` para `5`?** Sem isso, o pedido entra no ERP num estado que o processo
+deles aparentemente ignora.
+
+**Alcance de rede:** a VPS de producao NAO chega em `10.13.0.2` (testado). Só
+maquina dentro da rede da loja. Automacao que dependa do banco precisa rodar
+num agente local — o `Notificador/` ja e um candidato natural, roda no Windows
+do separador e ja fala com a nossa API.
