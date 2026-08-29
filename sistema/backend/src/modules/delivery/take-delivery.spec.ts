@@ -10,7 +10,10 @@ import { DeliveryService } from './delivery.service'
  * diferentes -- entao sem a checagem os dois levariam o pedido, e o cliente
  * receberia duas entregas.
  */
-const PEDIDO_OK = { id: 'ord1', status: 'READY_FOR_CHECKOUT', fulfillmentType: 'DELIVERY' }
+// READY_FOR_DELIVERY = ja passou pelo PDV. READY_FOR_CHECKOUT e o estado
+// "esperando o caixa" e NAO pode ser pego -- entregar antes de faturar e
+// problema fiscal, nao so de processo.
+const PEDIDO_OK = { id: 'ord1', status: 'READY_FOR_DELIVERY', fulfillmentType: 'DELIVERY' }
 
 const build = (opts: {
   pedido?: Record<string, unknown> | null
@@ -59,6 +62,11 @@ describe('takeDelivery — fila compartilhada', () => {
 
   it('recusa pedido que ainda nao saiu da separacao', async () => {
     const { service } = build({ pedido: { ...PEDIDO_OK, status: 'PICKING' } })
+    await expect(service.takeDelivery(undefined, 'ord1', 'drv1')).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('recusa pedido que saiu da separacao mas ainda nao foi faturado no PDV', async () => {
+    const { service } = build({ pedido: { ...PEDIDO_OK, status: 'READY_FOR_CHECKOUT' } })
     await expect(service.takeDelivery(undefined, 'ord1', 'drv1')).rejects.toBeInstanceOf(BadRequestException)
   })
 

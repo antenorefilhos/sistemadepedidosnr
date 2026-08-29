@@ -712,7 +712,14 @@ export class DeliveryService {
         tenantId: scoped.tenantId,
         storeId: scoped.storeId,
         fulfillmentType: { not: 'PICKUP' },
-        status: { in: ['READY_FOR_CHECKOUT', 'READY_FOR_DELIVERY'] },
+        // SO READY_FOR_DELIVERY. Regra do Jonathan (29/08/2026): o pedido so
+        // libera pro entregador depois de finalizado no PDV Solidcom -- antes
+        // disso ele nem foi faturado, e entregar mercadoria sem venda fechada
+        // e problema fiscal, nao so de processo.
+        //
+        // READY_FOR_CHECKOUT (o separador mandou pro caixa) NAO entra: e
+        // exatamente o estado "esperando o PDV".
+        status: 'READY_FOR_DELIVERY',
         // `stops` vazio = ninguem pegou ainda. E o que torna a fila
         // "compartilhada": some da lista de todos assim que um pega.
         deliveryStops: { none: {} },
@@ -759,8 +766,8 @@ export class DeliveryService {
       if (pedido.fulfillmentType === 'PICKUP') {
         throw new BadRequestException('Pedido de retirada nao entra em rota de entrega.')
       }
-      if (!['READY_FOR_CHECKOUT', 'READY_FOR_DELIVERY'].includes(pedido.status)) {
-        throw new BadRequestException('Pedido nao esta pronto para entrega.')
+      if (pedido.status !== 'READY_FOR_DELIVERY') {
+        throw new BadRequestException('Pedido ainda nao foi finalizado no PDV.')
       }
 
       const jaPego = await tx.deliveryStop.findFirst({ where: { orderId } })

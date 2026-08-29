@@ -17,8 +17,9 @@ import { fulfillmentAPI, ordersAPI } from '../../services/api'
  * motorista, com o fluxo de entrega nunca tendo rodado uma unica vez.
  */
 
-/** Status de pedido que ja pode entrar numa rota (saiu da separacao). */
-const PRONTOS_PARA_ROTA = ['READY_FOR_CHECKOUT', 'READY_FOR_DELIVERY']
+/** Só entra em rota depois de faturado no PDV Solidcom -- READY_FOR_CHECKOUT
+ * e o estado "esperando o caixa" e nao pode ser entregue. */
+const PRONTOS_PARA_ROTA = ['READY_FOR_DELIVERY']
 
 // Valores reais do backend (schema.prisma + delivery.service.ts). Eu tinha
 // chutado PENDING/IN_PROGRESS aqui e estava errado: rota nasce PLANNED e vai
