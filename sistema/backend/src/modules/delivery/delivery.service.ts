@@ -950,6 +950,8 @@ export class DeliveryService {
       this.notificationsService.notifyOrderStatusChange(stop.orderId, 'FAILED_DELIVERY').catch(() => {})
     }
 
+    await this.syncRouteStatusFromStops(routeId, scoped, actor)
+
     await this.recordFulfillmentEvent({
       tenantId: scoped.tenantId,
       storeId: scoped.storeId,
@@ -1168,6 +1170,67 @@ export class DeliveryService {
       actor,
     })
     return route
+  }
+
+  /**
+   * Mantem o status da rota coerente com o das paradas dela.
+   *
+   * Sem isso a rota ficava PLANNED pra sempre: o entregador avanca as paradas
+   * pelo app (updateStopStatus), que mexia na parada, no pedido e na
+   * notificacao -- e nunca na rota. Resultado observado em producao em
+   * 29/08/2026: rota "Montando" com as duas paradas ja em transito, e a tela do
+   * admin ainda oferecendo "Liberar", que re-dispararia order.out_for_delivery
+   * em todos os pedidos.
+   *
+   * Vale mais ainda no fluxo de fila compartilhada, onde ninguem passa pelo
+   * admin: `startRoute` simplesmente nunca e chamado, entao a rota SO tem como
+   * mudar de status por aqui.
+   */
+  private async syncRouteStatusFromStops(
+    routeId: string,
+    scoped: FulfillmentContext,
+    actor?: { actorType?: string; actorId?: string },
+  ) {
+    const route = await this.prisma.deliveryRoute.findFirst({
+      where: { id: routeId, tenantId: scoped.tenantId, storeId: scoped.storeId },
+      include: { stops: true },
+    })
+    if (!route || route.status === 'CANCELLED') return
+
+    const terminais = ['DELIVERED', 'FAILED']
+    const todasFinalizadas = route.stops.length > 0 && route.stops.every((s) => terminais.includes(s.status))
+    const algumaSaiu = route.stops.some((s) => s.status !== 'PENDING')
+
+    if (todasFinalizadas && route.status !== 'COMPLETED') {
+      await this.prisma.deliveryRoute.update({
+        where: { id: routeId },
+        data: { status: 'COMPLETED', completedAt: new Date() },
+      })
+      await this.recordFulfillmentEvent({
+        tenantId: scoped.tenantId,
+        storeId: scoped.storeId,
+        routeId,
+        type: 'route.completed',
+        payload: { stopCount: route.stops.length, auto: true },
+        actor,
+      })
+      return
+    }
+
+    if (algumaSaiu && ['PLANNED', 'READY'].includes(route.status)) {
+      await this.prisma.deliveryRoute.update({
+        where: { id: routeId },
+        data: { status: 'OUT_FOR_DELIVERY', startsAt: route.startsAt || new Date() },
+      })
+      await this.recordFulfillmentEvent({
+        tenantId: scoped.tenantId,
+        storeId: scoped.storeId,
+        routeId,
+        type: 'route.out_for_delivery',
+        payload: { stopCount: route.stops.length, auto: true },
+        actor,
+      })
+    }
   }
 
   private async updateOrderFulfillmentStatus(
