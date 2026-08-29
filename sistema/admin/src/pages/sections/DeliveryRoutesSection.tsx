@@ -20,15 +20,19 @@ import { fulfillmentAPI, ordersAPI } from '../../services/api'
 /** Status de pedido que ja pode entrar numa rota (saiu da separacao). */
 const PRONTOS_PARA_ROTA = ['READY_FOR_CHECKOUT', 'READY_FOR_DELIVERY']
 
+// Valores reais do backend (schema.prisma + delivery.service.ts). Eu tinha
+// chutado PENDING/IN_PROGRESS aqui e estava errado: rota nasce PLANNED e vai
+// pra OUT_FOR_DELIVERY ao ser liberada.
 const STATUS_ROTA: Record<string, { label: string; classe: string }> = {
-  PENDING: { label: 'Montando', classe: 'bg-amber-50 text-amber-700' },
-  IN_PROGRESS: { label: 'Em rota', classe: 'bg-blue-50 text-blue-700' },
+  PLANNED: { label: 'Montando', classe: 'bg-amber-50 text-amber-700' },
+  READY: { label: 'Pronta', classe: 'bg-sky-50 text-sky-700' },
+  OUT_FOR_DELIVERY: { label: 'Em rota', classe: 'bg-blue-50 text-blue-700' },
   COMPLETED: { label: 'Concluída', classe: 'bg-emerald-50 text-emerald-700' },
 }
 
 const STATUS_PARADA: Record<string, string> = {
-  PENDING: 'Pendente',
-  IN_TRANSIT: 'A caminho',
+  PENDING: 'Aguardando',
+  OUT_FOR_DELIVERY: 'A caminho',
   DELIVERED: 'Entregue',
   FAILED: 'Falhou',
 }
@@ -213,7 +217,7 @@ export default function DeliveryRoutesSection() {
                       {entregues}/{rota.stops.length} entregue(s)
                     </span>
                     <div className="ml-auto flex gap-2">
-                      {rota.status === 'PENDING' && (
+                      {(rota.status === 'PLANNED' || rota.status === 'READY') && (
                         <Button
                           type="button"
                           size="sm"
@@ -230,7 +234,7 @@ export default function DeliveryRoutesSection() {
                           <Play size={13} /> Liberar
                         </Button>
                       )}
-                      {rota.status === 'IN_PROGRESS' && (
+                      {rota.status === 'OUT_FOR_DELIVERY' && (
                         <Button type="button" size="sm" variant="outline" onClick={() => concluirRota.mutate(rota.id)} disabled={concluirRota.isPending}>
                           <CheckCircle2 size={13} /> Concluir
                         </Button>
