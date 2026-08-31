@@ -25,7 +25,7 @@ import * as path from 'path'
 import sharp from 'sharp'
 import { PrismaClient } from '@prisma/client'
 
-const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp'])
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif', '.gif', '.tif', '.tiff', '.bmp'])
 const FUZZY_SCORE_THRESHOLD = 0.86
 const FUZZY_MARGIN_THRESHOLD = 0.05
 const EAN_PREFIX_RE = /^(\d{8,14})([-_].*)?$/
