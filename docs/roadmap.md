@@ -15,6 +15,26 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
+- [ ] **Ligar o gatilho de faturamento do PDV.** Resolvido em 02/09/2026 *qual*
+      é o sinal: `hrRegistro` na `tbPedido` do banco `DORSAL` — preenchido em
+      386 de 386 pedidos fechados e em nenhum não-fechado.
+      `EcommerceSolidconStatus` **não serve** no nosso caminho (o pedido 2038
+      está faturado e continua em `1`, porque a transição `5 → 6` pertence à
+      esteira do app coletor, que a gente pula de propósito). Falta decidir
+      **onde o polling roda**: a VPS de produção não alcança `10.13.0.2`
+      (testado) — precisa de agente dentro da rede da loja, e o `Notificador/`
+      é o candidato natural, já roda no Windows do separador e já fala com a
+      nossa API. Sem isso, nada move o pedido de `READY_FOR_CHECKOUT` para
+      `READY_FOR_DELIVERY` e a fila do entregador fica sempre vazia.
+      Ver [solidcom-api.md](solidcom-api.md).
+
+- [ ] **Fluxo de entrega nunca rodou ponta a ponta.** A infraestrutura ficou
+      pronta em 02/09/2026 — motorista vinculado, fila compartilhada no app,
+      rota se montando sozinha, status sincronizando, notificação ao cliente em
+      cada parada. Mas nenhum pedido percorreu o caminho inteiro até
+      `DELIVERED`. Enquanto isso não acontecer com um pedido real, a metade da
+      operação que o cliente mais julga segue sem validação.
+
 - [ ] **Auditoria de aprovação B2B não aparece em lugar nenhum.** O
       `businessApprovalStatus` é exibido em `BusinessAccountsSection`, mas
       `businessApprovedBy` e `businessApprovedAt` (quem aprovou e quando) não —
@@ -55,13 +75,13 @@ que fecha desce para o histórico com a data e o commit.
       container + as duas variáveis no `.env` + restart coordenado.
       **Jonathan decidiu em 28/08/2026 deixar como está por enquanto.**
 
-- [ ] **Ciclo de notificação por IA nunca foi disparado de verdade.** A chave
-      `NVIDIA_API_KEY` foi configurada na VPS em 28/08/2026 e o módulo está
-      ligado no banco, mas `POST /notifications/admin/ai-cycle/run` envia para
-      **todos** os clientes de uma vez — não é dirigido — e só age se houver
-      produto com preço promocional alterado nas últimas 6h e sem aviso nas
-      últimas 20h. Sem candidato ele roda e não envia nada, o que parece falha
-      e não é. Precisa de uma execução acompanhada antes de virar rotina.
+- [x] **Ciclo de notificação por IA validado.** (28/08/2026) Rodou cinco vezes
+      no dia, com textos gerados de verdade a partir de produtos em promoção
+      reais, e o histórico de disparos na tela de Notificações comprova. No
+      caminho descobriu-se que o modelo em uso tinha sido descontinuado pelo
+      fornecedor em 26/08 — a falha aparecia como "a IA decidiu não avisar",
+      porque falha de chamada e recusa editorial eram contadas juntas. Corrigido
+      com contador separado.
 
 - [ ] **Espaços patrocinados: vender banner para fornecedor.** Ideia do
       Jonathan em 28/08/2026. A base já existe: `sponsorName` renderiza o selo

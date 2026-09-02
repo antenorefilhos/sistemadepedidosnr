@@ -14,6 +14,23 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.4.0',
+    date: '02/09/2026',
+    title: 'Entregas no Ar, Loja Destravada e Avisos ao Separador',
+    highlights: [
+      { type: 'fix', description: 'A loja pararia de vender assim que as janelas de entrega vencessem — bastava esquecer de cadastrar as de amanhã e todo cliente veria "janela de entrega inválida" no fechamento do pedido. Corrigido antes de acontecer.' },
+      { type: 'fix', description: 'O aplicativo do entregador estava completamente quebrado: dava erro logo depois do login, sempre. Faltava uma coluna no banco que o sistema esperava desde o início.' },
+      { type: 'feat', description: 'Nova tela "Entregas" em Operações: mostra os pedidos prontos esperando, monta a rota e libera para o entregador. Antes o pedido parava no caixa e ninguém conseguia passá-lo adiante.' },
+      { type: 'feat', description: 'O entregador agora pega a entrega pelo próprio celular: vê a fila de pedidos prontos e toca em "pegar". A rota se monta sozinha, sem precisar de computador. Se dois entregadores tocarem no mesmo pedido, só um leva.' },
+      { type: 'feat', description: 'O pedido só aparece para o entregador depois de finalizado no PDV — entregar mercadoria antes de faturar não é mais possível.' },
+      { type: 'fix', description: 'A rota ficava marcada como "Montando" para sempre, mesmo com o entregador já na rua. Agora acompanha as paradas e fecha sozinha quando a última é entregue.' },
+      { type: 'feat', description: 'O separador passa a ver quais itens o cliente NÃO aceita trocar. Antes ele decidia no escuro se podia substituir um produto em falta — e é ele quem fala com o cliente.' },
+      { type: 'fix', description: 'Na confirmação de envio ao caixa, os botões apareciam espremidos num canto. Corrigidos, e com "Confirmar Envio" à esquerda e "Cancelar" à direita de propósito: toque duplo sem querer agora cai no Cancelar, não no envio, que é irreversível.' },
+      { type: 'feat', description: 'A tela de Notificações ganhou histórico: o que foi disparado, quando, para quantos clientes e quantos leram.' },
+      { type: 'feat', description: 'Ao disparar uma notificação dá para anexar um produto (com foto e link) ou apontar para um banner — o aviso abre exatamente onde aquele banner abre.' },
+    ],
+  },
+  {
     version: '1.3.0',
     date: '28/08/2026',
     title: 'Avisos aos Clientes, E-mail Voltando a Sair e Vitrine Vigiada',
