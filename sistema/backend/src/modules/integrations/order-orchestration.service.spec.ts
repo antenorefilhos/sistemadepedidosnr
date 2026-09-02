@@ -5,6 +5,7 @@ import { OrderOrchestrationService } from './order-orchestration.service'
 import { SolidcomERPService } from './solidcom-erp.service'
 import { IntegrationModulesService } from './integration-modules.service'
 import { IntegrationOutboxService } from './integration-outbox.service'
+import { NotificationsService } from '../notifications/notifications.service'
 
 const mockSolidcomERPService = {
   syncOrder: jest.fn(),
@@ -42,6 +43,9 @@ describe('OrderOrchestrationService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: IntegrationModulesService, useValue: mockIntegrationModulesService },
         { provide: IntegrationOutboxService, useValue: mockIntegrationOutboxService },
+        // Injetado pelo gatilho de faturamento (markInvoiced avisa o cliente
+        // quando o PDV fecha a venda).
+        { provide: NotificationsService, useValue: { notifyOrderStatusChange: jest.fn() } },
       ],
     }).compile()
 

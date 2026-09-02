@@ -25,6 +25,42 @@ export class IntegrationsController {
     private readonly orderOrchestrationService: OrderOrchestrationService,
   ) {}
 
+  // --- Gatilho de faturamento do PDV ---------------------------------------
+  //
+  // Estes dois endpoints sao consumidos por um agente que roda DENTRO da rede
+  // da loja (o `Notificador/`, no Windows do separador): a VPS de producao nao
+  // alcanca o SQL Server deles (10.13.0.2), testado em 29/08/2026.
+  //
+  // Fluxo: o agente pergunta aqui quais pedidos esperam o caixa, consulta o
+  // `hrRegistro` no banco DORSAL so por esses DAVs, e reporta de volta os que
+  // foram faturados. `hrRegistro` e o sinal certo -- `EcommerceSolidconStatus`
+  // fica em `1` mesmo com o pedido faturado no nosso caminho, porque a
+  // transicao `5 -> 6` pertence a esteira do app coletor, que a gente pula.
+  // Ver docs/solidcom-api.md.
+  //
+  // `picker` alem de `admin` porque o agente autentica com a conta do
+  // separador -- e a mesma pessoa que opera o PDV.
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'picker')
+  @ApiBearerAuth()
+  @Get('solidcom/pending-invoice')
+  @ApiOperation({ summary: 'Pedidos aguardando faturamento no PDV (com o DAV pra consultar no ERP)' })
+  listPendingInvoice() {
+    return this.orderOrchestrationService.listPendingInvoice()
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'picker')
+  @ApiBearerAuth()
+  @Post('solidcom/orders/:id/invoiced')
+  @ApiOperation({ summary: 'Marca o pedido como faturado no PDV e libera pra entrega/retirada' })
+  markInvoiced(
+    @Param('id') id: string,
+    @Body() body: { hrRegistro?: string; coo?: number; nrCupom?: number },
+  ) {
+    return this.orderOrchestrationService.markInvoiced(undefined, id, body || {})
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get('modules')

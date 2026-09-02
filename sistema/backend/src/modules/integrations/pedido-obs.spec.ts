@@ -14,7 +14,7 @@ import { OrderOrchestrationService } from './order-orchestration.service'
  * substituir quando o cliente aceitava perde a venda do item.
  */
 const build = () =>
-  new OrderOrchestrationService({} as never, {} as never, {} as never, {} as never)
+  new OrderOrchestrationService({} as never, {} as never, {} as never, {} as never, {} as never)
 
 const obs = (service: OrderOrchestrationService, payload: unknown) =>
   (service as unknown as { buildPedidoObs: (p: unknown) => string }).buildPedidoObs(payload)

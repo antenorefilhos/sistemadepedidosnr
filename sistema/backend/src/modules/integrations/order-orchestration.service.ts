@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
 import { InternalOrderAddressContract, InternalOrderContract } from './dto/order-contract.dto'
 import { SolidcomPedidoDto } from './dto/solidcom-order.dto'
@@ -6,6 +6,9 @@ import { SolidcomERPService } from './solidcom-erp.service'
 import { IntegrationModulesService } from './integration-modules.service'
 import { IntegrationOutboxService } from './integration-outbox.service'
 import { requireEnv } from '../../common/require-env'
+import { NotificationsService } from '../notifications/notifications.service'
+import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
+import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 
 interface ScaleBarcodeParsingResult {
   productCode: number
@@ -28,6 +31,7 @@ export class OrderOrchestrationService {
     private readonly prisma: PrismaService,
     private readonly integrationModules: IntegrationModulesService,
     private readonly integrationOutbox: IntegrationOutboxService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async syncCreatedOrder(payload: InternalOrderContract): Promise<void> {
@@ -558,6 +562,93 @@ export class OrderOrchestrationService {
         changes: JSON.stringify(changes),
       },
     })
+  }
+
+  /**
+   * Pedidos esperando o caixa, pro agente da loja consultar no banco deles.
+   *
+   * Lista curta de proposito: o agente pergunta AQUI primeiro e so entao
+   * consulta o `DORSAL` por esses DAVs. O inverso -- varrer a `tbPedido` deles
+   * por janela de tempo -- obrigaria a raciocinar sobre janela, fuso e pedido
+   * antigo, e cada um desses e um jeito de errar.
+   *
+   * `erpDav` obrigatorio porque e a chave da consulta la (`nrSeqPAF`); pedido
+   * que nao sincronizou nao tem DAV e tambem nao existe no PDV pra ser
+   * faturado.
+   */
+  async listPendingInvoice(context?: Partial<TenantContext>) {
+    return this.prisma.order.findMany({
+      where: {
+        ...tenantStoreWhere(context),
+        status: 'READY_FOR_CHECKOUT',
+        erpDav: { not: null },
+      },
+      select: { id: true, erpDav: true, fulfillmentType: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    })
+  }
+
+  /**
+   * O PDV faturou: libera o pedido pra proxima etapa e avisa o cliente.
+   *
+   * O sinal e `hrRegistro` da `DORSAL.tbPedido` -- preenchido no fechamento em
+   * 386 de 386 pedidos fechados e em nenhum nao-fechado.
+   * `EcommerceSolidconStatus` NAO serve no nosso caminho: pedido nosso fica em
+   * `1` mesmo faturado, porque a transicao `5 -> 6` pertence a esteira do app
+   * coletor, que a gente pula de proposito. Ver docs/solidcom-api.md.
+   *
+   * Idempotente: o agente roda em loop e pode reportar o mesmo pedido duas
+   * vezes (reenvio, retry, duas instancias abertas). Chamar de novo depois de
+   * ja ter avancado e no-op, nao erro -- senao o agente ficaria logando falha
+   * pra sempre no mesmo pedido.
+   */
+  async markInvoiced(
+    context: Partial<TenantContext> | undefined,
+    orderId: string,
+    dados: { hrRegistro?: string; coo?: number; nrCupom?: number },
+  ) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...tenantStoreWhere(context) },
+      select: { id: true, status: true, fulfillmentType: true, erpDav: true },
+    })
+    if (!order) throw new NotFoundException('Pedido nao encontrado.')
+
+    // Retirada nao vira "pronto pra entrega": o cliente e quem busca, e o
+    // aviso que ele recebe e outro.
+    const proximo = order.fulfillmentType === 'PICKUP' ? 'READY_FOR_PICKUP' : 'READY_FOR_DELIVERY'
+
+    if (order.status === proximo) {
+      return { orderId, status: order.status, jaEstava: true }
+    }
+    if (order.status !== 'READY_FOR_CHECKOUT') {
+      throw new BadRequestException(
+        `Pedido em ${order.status}: so pedido aguardando o caixa pode ser marcado como faturado.`,
+      )
+    }
+
+    await this.prisma.order.update({ where: { id: orderId }, data: { status: proximo } })
+    await this.prisma.orderEvent.create({
+      data: {
+        tenantId: context?.tenantId || DEFAULT_TENANT_ID,
+        storeId: context?.storeId || DEFAULT_STORE_ID,
+        orderId,
+        type: 'order.invoiced',
+        payload: {
+          status: proximo,
+          dav: order.erpDav,
+          hrRegistro: dados.hrRegistro ?? null,
+          coo: dados.coo ?? null,
+          nrCupom: dados.nrCupom ?? null,
+        },
+        actorType: 'SYSTEM',
+      },
+    })
+
+    // Nao bloqueia a resposta: falha de push nao pode impedir o pedido de
+    // avancar, senao o agente reprocessa em loop por causa de notificacao.
+    this.notificationsService.notifyOrderStatusChange(orderId, proximo).catch(() => {})
+
+    return { orderId, status: proximo, jaEstava: false }
   }
 
   private async resolveExternalOrderNumber(orderId: string, payload?: InternalOrderContract): Promise<number> {

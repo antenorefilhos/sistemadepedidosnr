@@ -15,9 +15,10 @@ import { WebhookGuard } from './webhook.guard'
 import { RetryService } from '../../common/services/retry.service'
 import { IntegrationModulesService } from './integration-modules.service'
 import { PublicApiModule } from '../public-api/public-api.module'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
-  imports: [PublicApiModule],
+  imports: [PublicApiModule, NotificationsModule],
   controllers: [IntegrationsController, HealthController],
   providers: [
     SolidcomERPService,
