@@ -219,6 +219,17 @@ pra "pedido faturado, liberar pro entregador".**
 Nao e travamento: sao testes que foram **cancelados** em vez de fechados. O
 unico que alguem levou ate o fim (2038) fechou sem problema.
 
+### Armadilha de conciliacao: a forma de pagamento do storefront nao vale
+
+No `2038`, a `Obs` do pedido dizia `Pgto: PIX` e a venda **fechou em
+DINHEIRO** (confirmado no cupom 203255, aba Modalidades). A forma de pagamento
+escolhida no storefront vira so um recado na observacao do pedido — quem
+decide de fato e o operador no PDV.
+
+**`orders.paymentMethod` do nosso banco NAO e fonte de verdade do que foi
+cobrado.** Qualquer relatorio financeiro nosso que trate esse campo como
+realizado vai divergir do caixa.
+
 ### Correcoes de leituras anteriores minhas (29/08/2026)
 
 Escrevi aqui, e estava errado nas duas vezes:
