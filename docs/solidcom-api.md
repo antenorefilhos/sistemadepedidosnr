@@ -179,34 +179,54 @@ SEFAZ) — não dá, e não é seguro, simular isso via escrita direta em banco.
 O bypass, se existir, é só na etapa de separação, nunca no fechamento
 fiscal.
 
-## ACHADO CRITICO (29/08/2026): nossos pedidos nunca saem do status 1
+## ACHADO CRITICO (29/08/2026): pedido com `cdEcom` preenchido nunca avanca
 
 Consulta direta ao banco `DORSAL` (SQL Server `10.13.0.2`, credencial em
-`sistema/.env` como `DORSAL_DB_*` — valor real nunca em doc versionada):
+`sistema/.env` como `DORSAL_DB_*` — valor real nunca em doc versionada).
 
-| Origem | st 1 | 4 | 5 | 6 | 8 | 99 |
-|---|---|---|---|---|---|---|
-| **Nossos pedidos** (`cdEcom = 19`) | **21** | 0 | 0 | **0** | 0 | 0 |
-| Fluxo da loja (`cdEcom` nulo) | 1 | 9 | 57 | 549 | 1296 | 97 |
+`EcommerceSolidconStatus` e o sinal do fluxo: `1` = recem-chegado (nunca
+separado), `5` = pronto aguardando o caixa, `6` = venda fechada, `8` =
+provavel pos-entrega, `99` = cancelado. Ver o vault
+(`pipeline/solidcom-dorsal-banco-direto.md`) pro rastreio passo a passo.
 
-`EcommerceSolidconStatus` e o sinal de faturamento: `5` = aguardando o caixa,
-`6` = venda fechada (confirmado passo a passo no vault,
-`pipeline/solidcom-dorsal-banco-direto.md`).
+Cruzando status com `cdEcom` (todos os pedidos de 2026):
 
-**Nenhum pedido nosso jamais chegou a 5 nem a 6.** Todos ficam em `1` e a
-maioria termina com `inCancelado = true` — ou seja, os DAVs que criamos vem
-sendo cancelados, nao faturados. O pedido de teste que o vault registrou indo
-ate `6` (`cdPedido = 2023`) tem `cdEcomPedido = 444447`, de 6 digitos: foi
-criado por outro caminho, nao pelo nosso `PostPedido`.
+| `cdEcom` | st 1 | 4 | 5 | 6 | 99 |
+|---|---|---|---|---|---|
+| **`19`** | **22** | 0 | **0** | **0** | 0 |
+| nulo | 0 | 3 | 14 | 386 | 11 |
 
-O que separa os dois grupos e `cdEcom`: os nossos tem `19`
-(`SOLIDCOM_CODECOM`), os que fluem tem nulo.
+**Todo pedido com `cdEcom = 19` esta parado em `1`, e nenhum jamais chegou a
+`5`.** A separacao e limpa: e o `cdEcom` que divide as duas faixas, nao a
+origem e-commerce (`EcommerceSolidcon = 1` vale pra tabela inteira, nao
+discrimina nada).
 
-**Consequencia pratica:** qualquer automacao baseada em "detectar
-`EcommerceSolidconStatus = 6`" nunca dispara enquanto isso nao for resolvido.
-A pergunta pro suporte deles e: **o que move um pedido com `cdEcom = 19` de
-`1` para `5`?** Sem isso, o pedido entra no ERP num estado que o processo
-deles aparentemente ignora.
+**Hipotese descartada no caminho:** "o campo e limpo no fechamento". Os 14
+pedidos parados em `5` — que ainda NAO fecharam — ja tem `cdEcom` nulo. O
+campo nasce nulo no fluxo da loja.
+
+**Correcao de uma leitura anterior minha:** cheguei a escrever aqui que o
+pedido `2023` (DAV 102013, o unico nosso que chegou a `6`) "foi criado por
+outro caminho". Errado — o vault e o Jonathan confirmam que foi pedido de
+teste feito no storefront, pelo `PostPedido` normal. O que ele tem de
+diferente e `cdEcom` nulo, como todo o resto que flui.
+
+### O que provavelmente acontece
+
+O vault registra que a tela do CRM Ecommerce
+(`crm.solidcon.com.br/Ecommerce/EcomPedido/Lista`) mostra o pedido com status
+inicial **"Transmitido para Loja"** — que casa com o `1` do banco. Ou seja:
+pedido com `cdEcom` preenchido cai numa esteira propria do modulo e-commerce
+deles, e provavelmente precisa ser liberado/aceito ali antes de entrar na fila
+do coletor. Nosso fluxo nunca faz essa etapa.
+
+**Pergunta pro suporte:** o que promove um pedido com `cdEcom = 19` de
+"Transmitido para Loja" (`1`) para a fila de separacao (`5`)? Ha acao no CRM,
+endpoint de API, ou o `codEcom` deveria ser omitido no `PostPedido`?
+
+**Consequencia pratica:** qualquer automacao baseada em detectar
+`EcommerceSolidconStatus = 6` nunca dispara enquanto isso nao for resolvido —
+e nenhum pedido real chega a ser faturado, so cancelado.
 
 **Alcance de rede:** a VPS de producao NAO chega em `10.13.0.2` (testado). Só
 maquina dentro da rede da loja. Automacao que dependa do banco precisa rodar
