@@ -877,7 +877,7 @@ function ItemCard({
   product, orderItem, expanded, onToggle, onScan, onEan, onManual, onMissing, disabled,
 }: {
   product?: { id: string; name: string; ean: string | null; imageUrl: string | null; unit: string | null } | null
-  orderItem?: { quantity: number; requestedQuantity: number | null } | null
+  orderItem?: { quantity: number; requestedQuantity: number | null; substitutionPolicy?: string } | null
   expanded: boolean
   onToggle: () => void
   onScan: () => void
@@ -887,6 +887,10 @@ function ItemCard({
   disabled: boolean
 }) {
   const qty = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)
+  // So a EXCECAO aparece: ALLOW e o padrao e viraria ruido em todo item. O
+  // backend ja respeita a escolha (picking.service decide requestSubstitution
+  // a partir dela), mas o separador nao via -- e quem fala com o cliente e ele.
+  const naoAceitaTroca = orderItem?.substitutionPolicy === 'DENY'
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -900,6 +904,11 @@ function ItemCard({
             {qty} {product?.unit || 'un'}
             {product?.ean && <span className="ml-2 text-gray-400">EAN: {product.ean}</span>}
           </p>
+          {naoAceitaTroca && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+              Não aceita troca
+            </span>
+          )}
         </div>
         {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
       </button>

@@ -31,6 +31,9 @@ export interface OrderItem {
   requestedQuantity: number | null
   fulfilledQuantity: number | null
   status: string
+  /** `ALLOW` (padrao) | `DENY` -- escolha do cliente no carrinho, item a item.
+   *  Ja vinha na resposta da API; faltava so declarar e mostrar. */
+  substitutionPolicy?: string
   product?: {
     id: string
     name: string
