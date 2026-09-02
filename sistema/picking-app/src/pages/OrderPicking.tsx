@@ -850,13 +850,17 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 </div>
               </>
             ) : (
-              <>
-                <button
-                  onClick={() => setSendConfirm(false)}
-                  className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium"
-                >
-                  Cancelar
-                </button>
+              // Faltava o wrapper flex que o outro estado tem: sem pai flex, o
+              // `flex-1` dos botoes nao faz nada e eles caem empilhados e
+              // estreitos dentro do `space-y-2` do container.
+              <div className="flex gap-2">
+                {/* Confirmar a ESQUERDA e cancelar a DIREITA, invertendo a
+                    convencao de proposito. O polegar cai naturalmente na
+                    direita no uso com uma mao, entao toque duplo acidental
+                    acerta o Cancelar -- que so volta pra tela anterior. Enviar
+                    ao caixa e irreversivel: grava o pedido no Solidcom, e dali
+                    em diante so da pra finalizar no PDV ou cancelar por
+                    inteiro. Aqui o erro barato tem que ser o mais provavel. */}
                 <button
                   onClick={handleSendToCashier}
                   disabled={actionLoading}
@@ -864,7 +868,13 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 >
                   {actionLoading ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar Envio'}
                 </button>
-              </>
+                <button
+                  onClick={() => setSendConfirm(false)}
+                  className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium"
+                >
+                  Cancelar
+                </button>
+              </div>
             )}
           </div>
         </div>
