@@ -179,56 +179,55 @@ SEFAZ) — não dá, e não é seguro, simular isso via escrita direta em banco.
 O bypass, se existir, é só na etapa de separação, nunca no fechamento
 fiscal.
 
-## ACHADO CRITICO (29/08/2026): pedido com `cdEcom` preenchido nunca avanca
+## RESOLVIDO (29/08/2026): o sinal de faturamento e `hrRegistro`, nao o status
 
 Consulta direta ao banco `DORSAL` (SQL Server `10.13.0.2`, credencial em
 `sistema/.env` como `DORSAL_DB_*` — valor real nunca em doc versionada).
 
-`EcommerceSolidconStatus` e o sinal do fluxo: `1` = recem-chegado (nunca
-separado), `5` = pronto aguardando o caixa, `6` = venda fechada, `8` =
-provavel pos-entrega, `99` = cancelado. Ver o vault
-(`pipeline/solidcom-dorsal-banco-direto.md`) pro rastreio passo a passo.
+### O bypass da separacao existe naturalmente — confirmado com dado
 
-Cruzando status com `cdEcom` (todos os pedidos de 2026):
+O `cdPedido = 2038` (DAV 102028, nosso, `cdEcom = 19`) **foi puxado e fechado
+no PDV sem nunca passar pelo app coletor da Solidcom**: `COO = 202030`,
+`nrCupom = 203255`, `hrRegistro = 2026-08-19 18:27:12`, nao cancelado.
 
-| `cdEcom` | st 1 | 4 | 5 | 6 | 99 |
-|---|---|---|---|---|---|
-| **`19`** | **22** | 0 | **0** | **0** | 0 |
-| nulo | 0 | 3 | 14 | 386 | 11 |
+Ou seja: **nao e preciso bypass nenhum.** Nosso `picking-app` separa por fora,
+o PDV puxa pelo DAV normalmente, e o fechamento acontece. Nao ha necessidade
+de escrever no banco deles — o que era o plano B documentado no vault.
 
-**Todo pedido com `cdEcom = 19` esta parado em `1`, e nenhum jamais chegou a
-`5`.** A separacao e limpa: e o `cdEcom` que divide as duas faixas, nao a
-origem e-commerce (`EcommerceSolidcon = 1` vale pra tabela inteira, nao
-discrimina nada).
+### O `EcommerceSolidconStatus` NAO serve de sinal no nosso fluxo
 
-**Hipotese descartada no caminho:** "o campo e limpo no fechamento". Os 14
-pedidos parados em `5` — que ainda NAO fecharam — ja tem `cdEcom` nulo. O
-campo nasce nulo no fluxo da loja.
+O 2038 foi fechado e **continua em status `1`**. A transicao `5 → 6` pertence
+a esteira do coletor: quem passa por ela chega a `5` e vira `6` no fechamento;
+quem pula (nos) fica em `1` pra sempre, mesmo faturado.
 
-**Correcao de uma leitura anterior minha:** cheguei a escrever aqui que o
-pedido `2023` (DAV 102013, o unico nosso que chegou a `6`) "foi criado por
-outro caminho". Errado — o vault e o Jonathan confirmam que foi pedido de
-teste feito no storefront, pelo `PostPedido` normal. O que ele tem de
-diferente e `cdEcom` nulo, como todo o resto que flui.
+O sinal confiavel e `hrRegistro` (e, junto, `COO` / `nrCupom`), preenchidos no
+fechamento em qualquer caminho:
 
-### O que provavelmente acontece
+| status | pedidos | com `hrRegistro` | com `COO` |
+|---|---|---|---|
+| 6 | 386 | **386** | 386 |
+| 5 | 14 | 0 | 0 |
+| 4 | 3 | 0 | 0 |
+| 99 | 11 | 0 | 0 |
+| **1** | 22 | **1** (o nosso 2038) | 1 |
 
-O vault registra que a tela do CRM Ecommerce
-(`crm.solidcon.com.br/Ecommerce/EcomPedido/Lista`) mostra o pedido com status
-inicial **"Transmitido para Loja"** — que casa com o `1` do banco. Ou seja:
-pedido com `cdEcom` preenchido cai numa esteira propria do modulo e-commerce
-deles, e provavelmente precisa ser liberado/aceito ali antes de entrar na fila
-do coletor. Nosso fluxo nunca faz essa etapa.
+100% dos fechados tem `hrRegistro`; nenhum nao-fechado tem. **E o gatilho certo
+pra "pedido faturado, liberar pro entregador".**
 
-**Pergunta pro suporte:** o que promove um pedido com `cdEcom = 19` de
-"Transmitido para Loja" (`1`) para a fila de separacao (`5`)? Ha acao no CRM,
-endpoint de API, ou o `codEcom` deveria ser omitido no `PostPedido`?
+### Por que 21 pedidos nossos estao em `1` sem `hrRegistro`
 
-**Consequencia pratica:** qualquer automacao baseada em detectar
-`EcommerceSolidconStatus = 6` nunca dispara enquanto isso nao for resolvido —
-e nenhum pedido real chega a ser faturado, so cancelado.
+Nao e travamento: sao testes que foram **cancelados** em vez de fechados. O
+unico que alguem levou ate o fim (2038) fechou sem problema.
 
-**Alcance de rede:** a VPS de producao NAO chega em `10.13.0.2` (testado). Só
-maquina dentro da rede da loja. Automacao que dependa do banco precisa rodar
-num agente local — o `Notificador/` ja e um candidato natural, roda no Windows
-do separador e ja fala com a nossa API.
+### Correcoes de leituras anteriores minhas (29/08/2026)
+
+Escrevi aqui, e estava errado nas duas vezes:
+1. Que o pedido `2023` "foi criado por outro caminho". Nao — foi feito pelo app
+   antigo, fluxo Solidcom 100%, inclusive coletor, com corte e substituicao de
+   item de proposito.
+2. Que `cdEcom = 19` travava o pedido. Nao trava: o 2038 tem `cdEcom = 19` e
+   foi faturado. A correlacao "cdEcom=19 sempre em status 1" era real mas
+   enganosa — a causa e a esteira do coletor, nao o campo.
+
+Licao: `EcommerceSolidconStatus` descreve o fluxo DELES. Pra medir o NOSSO,
+usar os campos que o fechamento fiscal preenche.
