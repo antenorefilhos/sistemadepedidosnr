@@ -405,6 +405,37 @@ grep -rn "useStoreBanners\|deliveryArea" sistema/frontend/src sistema/backend/sr
 Se o grep só achar a definição do tipo e nenhum uso, a feature está morta —
 independentemente de quantas telas do admin a alimentam.
 
+
+### A mesma armadilha na direcao inversa: dado sem quem veja
+
+A regra acima cobre "tela sem dado". O inverso aconteceu mais vezes: **campo
+novo que ninguem mostra**. E mais dificil de perceber, porque nada esta
+quebrado — o dado e gravado, a logica ate o respeita, e so uma PESSOA fica
+sem a informacao.
+
+Caso mais caro: `OrderItem.substitutionPolicy`. O cliente escolhe item a item
+no carrinho, `picking.service` decide `requestSubstitution` a partir dele, e o
+separador **nao via nada** — decidia no escuro sobre trocar ou nao produto que
+faltou, sendo ele quem fala com o cliente. O dado ja chegava no app (o backend
+usa `include`, o Prisma devolve todo escalar); faltava so a tela mostrar.
+Achado por comparacao manual entre um pedido nosso e um feito pelo app da
+Solidcom, nao por teste.
+
+**Regra:** campo novo em modelo que humano usa exige responder *quem vai ver
+isso* — ou justificar por que ninguem precisa. As duas respostas sao validas;
+nao decidir e o problema.
+
+Pra pegar o que ja passou:
+
+```bash
+node sistema/scripts/check-orphan-fields.js
+```
+
+Lista campo gravado no banco e nao lido por nenhum dos quatro apps. E lista de
+**suspeitos, nao veredito**: campo interno legitimo (antifraude, snapshot,
+token) aparece ali e deve ir pra `EXCECOES` **com o motivo escrito** — isencao
+sem motivo vira lixo que ninguem revisa depois.
+
 ## Frete grátis: zona sobrepõe o global, sempre — dois lugares aplicam a regra
 
 Regra de negócio (confirmada com o Jonathan em 19/08/2026): frete grátis

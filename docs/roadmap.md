@@ -15,6 +15,16 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
+- [ ] **Auditoria de aprovação B2B não aparece em lugar nenhum.** O
+      `businessApprovalStatus` é exibido em `BusinessAccountsSection`, mas
+      `businessApprovedBy` e `businessApprovedAt` (quem aprovou e quando) não —
+      e `businessInvoiceSnapshot` também não, porque faturamento B2B não foi
+      implementado. Achado pelo `check-orphan-fields.js` em 02/09/2026. Não é
+      fluxo quebrado, é trilha de auditoria faltando: hoje ninguém consegue
+      dizer quem liberou um pedido de conta empresarial. Decidir se vale tela
+      ou se o campo sai do schema — enquanto não decidir, fica isento no script
+      apontando para cá.
+
 - [x] **E-mail transacional em produção.** (28/08/2026) A `RESEND_API_KEY`
       faltava no `.env` da VPS e a `RESEND_FROM_EMAIL` estava vazia, caindo no
       remetente de teste do Resend — que só entrega para o dono da conta. O
@@ -285,6 +295,11 @@ raio/retângulo/polígono, busca de endereço e contexto das zonas já cadastrad
 tela de Desempenho da Equipe.
 
 ## Fila (não bloqueiam o lançamento) — concluídos
+
+- [x] **Banco de fontes de fotos de produtos.** (31/08/2026) Coleta
+      humanizada em 26 mercados, índice por EAN/nome, normalização mínima de
+      800×800 e publicação controlada; 3.584 imagens novas foram sincronizadas
+      para os uploads da VPS. Casos sem fonte permanecem separados para revisão.
 
 - [x] **Ferramenta de casamento automático de fotos por nome.** O import em
       massa original foi um script avulso; virou ferramenta reutilizável em
