@@ -162,6 +162,7 @@ export class OrderOrchestrationService {
         unitPrice: item.unitPrice,
         subtotal: item.subtotal,
         scannedCode: null,
+        substitutionPolicy: item.substitutionPolicy || 'ALLOW',
       })),
     }
   }
@@ -487,10 +488,30 @@ export class OrderOrchestrationService {
     }
     const payment = paymentLabels[payload.paymentMethod] || payload.paymentMethod
 
-    return [payload.notes?.trim(), payment ? `Pgto: ${payment}` : null]
+    return [payload.notes?.trim(), this.buildTrocaLabel(payload), payment ? `Pgto: ${payment}` : null]
       .filter(Boolean)
       .join(' / ')
       .slice(0, 500)
+  }
+
+  /**
+   * Resume, pra `obs` do pedido, se o cliente aceita substituicao de item.
+   *
+   * O dado existe por item (`OrderItem.substitutionPolicy`, o cliente escolhe
+   * no carrinho) e nunca era enviado -- o separador da loja abria o pedido no
+   * PDV sem saber se podia trocar. Substituir sem permissao gera devolucao;
+   * nao substituir quando o cliente aceitava perde a venda do item.
+   *
+   * Resumo e nao lista, de proposito: o detalhe por produto e' o nosso
+   * `picking-app` que mostra. No Dorsal o separador so precisa da regra geral.
+   */
+  private buildTrocaLabel(payload: InternalOrderContract): string | null {
+    const itens = payload.items || []
+    if (itens.length === 0) return null
+    const aceitam = itens.filter((item) => (item.substitutionPolicy || 'ALLOW') === 'ALLOW').length
+    if (aceitam === itens.length) return 'Aceita troca: Sim'
+    if (aceitam === 0) return 'Aceita troca: Nao'
+    return `Aceita troca: Parcial (${aceitam}/${itens.length} itens)`
   }
 
   /** Guarda o DAV pro separador conseguir puxar o pedido no PDV. */

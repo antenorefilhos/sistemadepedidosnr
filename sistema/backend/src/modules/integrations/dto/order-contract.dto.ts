@@ -22,6 +22,9 @@ export interface InternalOrderItemContract {
    *  de volta ao formato que o ERP espera (quantidade em peso real, preco
    *  por kg), diferente de unitPrice que aqui e o preco por step. */
   listUnitPrice?: number
+  /** Se o cliente aceita substituicao deste item quando faltar no estoque.
+   *  `ALLOW` (default) | `DENY`. O separador precisa saber antes de trocar. */
+  substitutionPolicy?: string
 }
 
 export interface InternalOrderAddressContract {
