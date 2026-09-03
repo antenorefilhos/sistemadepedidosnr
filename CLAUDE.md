@@ -490,3 +490,66 @@ checkout. Se um dia precisar de criação de pedido self-service fora da sessão
 de checkout (ex.: app mobile), a correção certa lá é recalcular `delivery` a
 partir do endereço/zona no próprio `OrdersService.create()`, não reabrir a
 rota confiando no valor recebido.
+
+## Regra de negócio: estoque do ERP governa EXIBIÇÃO, não quantidade
+
+Decisão do lojista em 02/09/2026, depois de um pedido travar no checkout com
+"alguns itens ficaram indisponíveis" — vinho com 3 em estoque, cliente pediu 6,
+e a mensagem nem dizia qual produto era.
+
+O `syncOption` decide se o produto **aparece**; quem vê pode pedir a quantidade
+que quiser, mesmo acima do estoque sincronizado. O dado do Solidcom erra com
+frequência, a loja repõe durante o dia, e barrar por esse número perdia pedido
+de item que a loja tinha. Falta de verdade é resolvida pelo separador, com a
+`substitutionPolicy` que o cliente escolhe no carrinho.
+
+A regra vive em **um** lugar: `common/product-availability.ts`
+(`isProductSellable`). Ela precisa valer em três pontos que decidem coisas
+diferentes — vitrine (`isStorefrontVisible`), quote
+(`CheckoutService.buildStockSnapshot`) e reserva
+(`InventoryService.reserveForCheckout`). Divergir entre eles produz o pior
+sintoma possível: o produto aparece na tela e o checkout recusa.
+
+O checkout ainda barra **um** caso, de propósito: o produto deixar de ser
+vendável entre entrar no carrinho e fechar o pedido.
+
+## Armadilha: token assinado não tem revogação (resolvido, mas entenda antes de mexer)
+
+Até 03/09/2026 o `JwtAuthGuard` só validava a assinatura. Consequência que
+ninguém tinha percebido: **desativar um funcionário na tela Equipe não
+derrubava a sessão dele** — o acesso só acabava quando o token expirava
+sozinho. O mesmo valia para tirar um módulo: `moduleAccess` viajava dentro do
+token e ficava congelado até o próximo login.
+
+Isso ficava contido enquanto todo token durava 24h. Deixou de ficar quando
+separação e entrega passaram a precisar de sessão longa (rodam no celular do
+funcionário e não podem pedir login a cada turno).
+
+`JwtStrategy.validate()` agora consulta o banco a cada requisição autenticada:
+- funcionário `active: false` → 401 na hora
+- cliente `blocked` → 401 na hora
+- `role` e `moduleAccess` vêm do **banco**, não do token
+
+Ou seja: o token prova **quem é**; o que a pessoa **pode** é lido no momento do
+uso. É isso que torna a sessão longa aceitável — o prazo virou conveniência, não
+mais uma janela de risco.
+
+Validade por papel (`auth.service.ts`): `admin` fica nas 24h do
+`AuthModule`; `customer`, `picker` e `driver` recebem 30 dias explicitamente.
+Não "padronize" isso no `signOptions` do módulo — os testes em
+`customer-token-ttl.spec.ts` existem para doer se alguém tentar.
+
+O custo é uma consulta por PK em rota autenticada. O catálogo do storefront é
+público e não passa por ali.
+
+## Push: uma inscrição tem exatamente UM dono
+
+`PushSubscription` guarda `customerId` **ou** `adminId`, nunca os dois e nunca
+nenhum — há um `CHECK` no banco (`push_subscriptions_um_dono`). O mesmo
+aparelho pode ser inscrito como cliente e depois como funcionário (o celular do
+dono da loja é o caso óbvio), e o `endpoint` é o mesmo: por isso todo `upsert`
+**zera o outro dono**. Esquecer disso faz o banco recusar a gravação.
+
+Quem recebe é resolvido no disparo (`sendNotificationToModule`), pelo
+`moduleAccess` de quem está ativo — não há lista de destinatário guardada em
+lugar nenhum.

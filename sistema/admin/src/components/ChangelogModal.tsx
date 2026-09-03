@@ -14,6 +14,21 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.5.0',
+    date: '03/09/2026',
+    title: 'Checkout Destravado, Login que Dura e Avisos no Celular da Equipe',
+    highlights: [
+      { type: 'fix', description: 'O cliente era impedido de fechar o pedido quando pedia mais unidades do que o estoque do Solidcom mostrava — e a mensagem nem dizia qual produto era. Agora o estoque decide apenas se o produto aparece na loja: quem vê pode pedir a quantidade que quiser, e a falta é resolvida na separação.' },
+      { type: 'fix', description: 'Voltar ao carrinho durante o checkout apagava tudo que o cliente já tinha digitado: nome, WhatsApp, CPF, endereço e o CEP. Ele tinha que preencher de novo, e muita gente desiste aí. Agora nada se perde.' },
+      { type: 'fix', description: 'Nos CEPs que atendem mais de um ponto (condomínios), a escolha da localidade ficava escondida embaixo da tela no celular — o cliente não via e achava que o botão de avançar estava quebrado. Agora abre uma janela na frente dele.' },
+      { type: 'feat', description: 'Depois do pedido confirmado, o cliente é convidado a criar uma senha e finalizar o cadastro. Antes ele era reconhecido pelo sistema, mas nunca conseguia entrar para acompanhar os próprios pedidos.' },
+      { type: 'feat', description: 'Cliente e equipe param de ser deslogados todo dia: a sessão passa a durar 30 dias. Os aplicativos de separação e entrega ficam prontos no celular do funcionário, sem pedir login a cada turno.' },
+      { type: 'feat', description: 'Separação e entrega passam a avisar no celular: o separador é chamado quando entra pedido para separar, e o entregador quando um pedido é liberado pelo caixa. Antes só descobria quem lembrasse de abrir o aplicativo e olhar a lista.' },
+      { type: 'fix', description: 'Desativar um funcionário na tela Equipe agora corta o acesso dele na hora. Antes ele continuava usando o sistema até o acesso vencer sozinho — o mesmo valia para tirar o acesso a um módulo.' },
+      { type: 'fix', description: 'Os aplicativos de separação e entrega não tinham ícone: instalar na tela inicial do celular gerava um atalho sem imagem. Corrigido.' },
+    ],
+  },
+  {
     version: '1.4.0',
     date: '02/09/2026',
     title: 'Entregas no Ar, Loja Destravada e Avisos ao Separador',

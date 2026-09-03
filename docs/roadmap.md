@@ -28,6 +28,15 @@ que fecha desce para o histórico com a data e o commit.
       `READY_FOR_DELIVERY` e a fila do entregador fica sempre vazia.
       Ver [solidcom-api.md](solidcom-api.md).
 
+- [x] **Equipe passa a ser avisada no celular.** (03/09/2026) Separação e
+      entrega não notificavam nada: `PushSubscription` só aceitava
+      `customerId`, então só descobria serviço novo quem lembrasse de abrir o
+      app e olhar a lista. Agora a inscrição aceita funcionário, o
+      destinatário é resolvido no disparo pelo `moduleAccess` de quem está
+      ativo, e os gatilhos são `PICKING_PENDING` (separador) e
+      `READY_FOR_DELIVERY` (entregador). **Falta testar em aparelho real** —
+      só o caminho de código foi verificado.
+
 - [ ] **Fluxo de entrega nunca rodou ponta a ponta.** A infraestrutura ficou
       pronta em 02/09/2026 — motorista vinculado, fila compartilhada no app,
       rota se montando sozinha, status sincronizando, notificação ao cliente em
