@@ -6,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service'
 
 const mockNotificationsService = {
   notifyOrderStatusChange: jest.fn().mockResolvedValue(undefined),
+  notifyPickingTeamNewOrder: jest.fn().mockResolvedValue(undefined),
 }
 
 const mockPrismaService = {

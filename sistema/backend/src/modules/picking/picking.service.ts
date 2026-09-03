@@ -241,6 +241,12 @@ export class PickingService {
         items: { include: { product: true } },
       },
     })
+    // Avisa o celular de quem separa. Fora do await de proposito: push fora
+    // do ar nao pode impedir a tarefa de existir.
+    this.notificationsService
+      .notifyPickingTeamNewOrder(order.id, task.items.length)
+      .catch(() => {})
+
     await this.recordOrderEvent(updatedOrder, 'order.picking_task_created', {
       taskId: task.id,
       assignedToId: task.assignedToId,

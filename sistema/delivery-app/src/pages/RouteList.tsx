@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, LogOut, MapPin, Clock, ChevronRight, Inbox, Hand, Package } from 'lucide-react'
+import { AvisoPush } from '../components/AvisoPush'
 import { driverApi, DeliveryRoute, AvailableDelivery } from '../services/api'
 import toast from 'react-hot-toast'
 
@@ -97,6 +98,8 @@ export default function RouteList({
           </div>
         </div>
       </header>
+
+      <AvisoPush />
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         {/* Fila compartilhada: todo entregador ve a mesma lista e quem tocar

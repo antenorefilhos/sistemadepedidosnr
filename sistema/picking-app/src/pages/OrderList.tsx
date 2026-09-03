@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Search, RefreshCw, LogOut, Filter, X, Inbox, Package, ChevronRight, Clock } from 'lucide-react'
 import { pickerApi, Order } from '../services/api'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
+import { AvisoPush } from '../components/AvisoPush'
 import toast from 'react-hot-toast'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -166,6 +167,8 @@ export default function OrderList({
           </div>
         )}
       </header>
+
+      <AvisoPush />
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         {loading && orders.length === 0 ? (

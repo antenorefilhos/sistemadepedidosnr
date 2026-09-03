@@ -55,7 +55,7 @@ export class NotificationsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Registrar subscription para Web Push' })
   async savePushSubscription(
-    @Req() req: { user?: { id?: string } },
+    @Req() req: { user?: { id?: string; role?: string } },
     @Body()
     body: {
       endpoint: string
@@ -69,7 +69,41 @@ export class NotificationsController {
   ) {
     const customerId = String(req.user?.id || '')
     if (!customerId) throw new UnauthorizedException('Não autenticado')
+    // Confere o papel: sem isso, um token de funcionario gravava o id de
+    // Admin na coluna customerId -- id valido, tabela errada, e a inscricao
+    // nunca receberia nada. Funcionario usa push-subscribe/staff.
+    if (req.user?.role !== 'customer') {
+      throw new UnauthorizedException('Rota de cliente. Equipe usa /notifications/push-subscribe/staff.')
+    }
     return this.notificationsService.savePushSubscription(customerId, body)
+  }
+
+  @Post('push-subscribe/staff')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Registrar aparelho de funcionario para Web Push',
+    description:
+      'Usado pelos apps de separacao e entrega, que rodam no celular do funcionario. ' +
+      'O destinatario dos avisos e decidido no disparo pelo moduleAccess da conta.',
+  })
+  async saveStaffPushSubscription(
+    @Req() req: { user?: { id?: string; role?: string } },
+    @Body()
+    body: {
+      endpoint: string
+      auth?: string
+      p256dh?: string
+      keys?: { auth?: string; p256dh?: string }
+    },
+  ) {
+    const adminId = String(req.user?.id || '')
+    if (!adminId) throw new UnauthorizedException('Não autenticado')
+    if (req.user?.role === 'customer') {
+      throw new UnauthorizedException('Rota de equipe. Cliente usa /notifications/push-subscribe.')
+    }
+    await this.notificationsService.saveStaffPushSubscription(adminId, body)
+    return { ok: true }
   }
 
   @Post('admin/broadcast')

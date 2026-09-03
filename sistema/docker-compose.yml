@@ -133,6 +133,11 @@ services:
     build:
       context: ./picking-app
       dockerfile: Dockerfile
+      args:
+        # Sem isto a chave nao chega no bundle e o botao de ativar avisos
+        # falha calado -- o app de picking roda no celular do funcionario e
+        # o push e a razao de ele existir.
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
     container_name: antenor_picking
     restart: always
     depends_on:
@@ -147,6 +152,11 @@ services:
     build:
       context: ./delivery-app
       dockerfile: Dockerfile
+      args:
+        # Sem isto a chave nao chega no bundle e o botao de ativar avisos
+        # falha calado -- o app de delivery roda no celular do funcionario e
+        # o push e a razao de ele existir.
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
     container_name: antenor_delivery
     restart: always
     depends_on:

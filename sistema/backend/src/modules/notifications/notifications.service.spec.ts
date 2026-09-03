@@ -81,7 +81,9 @@ describe('NotificationsService', () => {
 
     expect(prisma.pushSubscription.upsert).toHaveBeenCalledWith({
       where: { endpoint: 'https://push.example/sub' },
-      update: { customerId: 'customer-1', auth: 'auth-key', p256dh: 'p256dh-key' },
+      // adminId: null zera dono anterior -- o mesmo aparelho pode ter sido
+      // inscrito como funcionario (a constraint do banco exige UM dono).
+      update: { customerId: 'customer-1', adminId: null, auth: 'auth-key', p256dh: 'p256dh-key' },
       create: {
         customerId: 'customer-1',
         endpoint: 'https://push.example/sub',

@@ -63,6 +63,9 @@ export class PushNotificationService {
         where: { endpoint: subscription.endpoint },
         update: {
           customerId,
+          // Zera o outro dono: o mesmo aparelho pode ter sido inscrito como
+          // funcionario antes (ver registerStaffSubscription).
+          adminId: null,
           auth: subscription.keys?.auth || '',
           p256dh: subscription.keys?.p256dh || '',
         },
@@ -75,6 +78,40 @@ export class PushNotificationService {
       })
     } catch (error) {
       this.logger.error('Erro ao registrar push subscription:', error)
+    }
+  }
+
+  /**
+   * Registra a inscricao de um FUNCIONARIO (separacao/entrega).
+   *
+   * O `update` zera `customerId` e o inverso vale no registro de cliente: um
+   * mesmo aparelho pode ser usado pelo cliente e depois pelo funcionario (o
+   * celular do dono da loja e o caso obvio), e o endpoint e o mesmo. Sem
+   * zerar o dono anterior, a inscricao ficaria com dois donos e a constraint
+   * do banco recusaria -- de proposito, pra nao disparar em duplicidade.
+   */
+  async registerStaffSubscription(
+    adminId: string,
+    subscription: BrowserPushSubscriptionPayload,
+  ): Promise<void> {
+    try {
+      await this.prisma.pushSubscription.upsert({
+        where: { endpoint: subscription.endpoint },
+        update: {
+          adminId,
+          customerId: null,
+          auth: subscription.keys?.auth || '',
+          p256dh: subscription.keys?.p256dh || '',
+        },
+        create: {
+          adminId,
+          endpoint: subscription.endpoint,
+          auth: subscription.keys?.auth || '',
+          p256dh: subscription.keys?.p256dh || '',
+        },
+      })
+    } catch (error) {
+      this.logger.error('Erro ao registrar push subscription de funcionario:', error)
     }
   }
 
@@ -106,6 +143,44 @@ export class PushNotificationService {
       this.logger.error('Erro ao enviar push notification:', error)
       return { sent: 0, failed: 1, skipped: 0 }
     }
+  }
+
+  /**
+   * Avisa toda a EQUIPE de um modulo (`picking` ou `delivery`).
+   *
+   * Manda pra quem tem o modulo e esta ativo, buscando no banco na hora --
+   * nao guarda lista de destinatario em lugar nenhum. Tirar o modulo de
+   * alguem na tela Equipe para de avisar essa pessoa no proximo disparo, sem
+   * mais nada.
+   *
+   * `role='admin'` entra tambem: e master e enxerga todos os modulos (ver
+   * ModuleAccessGuard), entao o dono da loja recebe o mesmo aviso que o
+   * separador -- se nao quiser, e so nao ativar o push no aparelho dele.
+   */
+  async sendNotificationToModule(modulo: 'picking' | 'delivery', notification: PushNotification) {
+    if (!this.enabled) {
+      this.logger.warn('Web Push ignorado: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY nao configurados.')
+      return { sent: 0, failed: 0, skipped: 1 }
+    }
+
+    const equipe = await this.prisma.admin.findMany({
+      where: { active: true, OR: [{ role: 'admin' }, { moduleAccess: { has: modulo } }] },
+      select: { id: true },
+    })
+    if (equipe.length === 0) return { sent: 0, failed: 0, skipped: 0 }
+
+    const subscriptions = await this.prisma.pushSubscription.findMany({
+      where: { adminId: { in: equipe.map((pessoa) => pessoa.id) } },
+    })
+
+    let sent = 0
+    let failed = 0
+    for (const subscription of subscriptions) {
+      const ok = await this.sendPushToSubscription(subscription, notification)
+      if (ok) sent += 1
+      else failed += 1
+    }
+    return { sent, failed, skipped: 0 }
   }
 
   async sendNotificationToMany(customerIds: string[], notification: PushNotification) {

@@ -199,13 +199,32 @@ export class NotificationsService {
 
     return this.prisma.pushSubscription.upsert({
       where: { endpoint: subscription.endpoint },
-      update: { customerId, auth, p256dh },
+      // adminId: null zera dono anterior -- o mesmo aparelho pode ter sido
+      // inscrito como funcionario, e a constraint do banco exige UM dono.
+      update: { customerId, adminId: null, auth, p256dh },
       create: {
         customerId,
         endpoint: subscription.endpoint,
         auth,
         p256dh,
       },
+    })
+  }
+
+  /** Inscricao de aparelho de funcionario (apps de separacao e entrega). */
+  async saveStaffPushSubscription(
+    adminId: string,
+    subscription: { endpoint: string; auth?: string; p256dh?: string; keys?: { auth?: string; p256dh?: string } },
+  ) {
+    const auth = subscription.auth || subscription.keys?.auth || ''
+    const p256dh = subscription.p256dh || subscription.keys?.p256dh || ''
+
+    return this.prisma.pushSubscription.upsert({
+      where: { endpoint: subscription.endpoint },
+      // customerId: null zera dono anterior -- o celular do dono da loja pode
+      // ter sido inscrito como cliente antes, e o banco exige UM dono.
+      update: { adminId, customerId: null, auth, p256dh },
+      create: { adminId, endpoint: subscription.endpoint, auth, p256dh },
     })
   }
 
@@ -220,6 +239,55 @@ export class NotificationsService {
       select: { id: true },
     })
     return customers.map((c) => c.id)
+  }
+
+  /**
+   * Avisa a equipe de separacao que ha pedido novo pra separar.
+   *
+   * Existe porque o app de separacao roda no CELULAR do funcionario e ate
+   * 03/09/2026 nao avisava nada: so descobria pedido novo quem lembrasse de
+   * abrir o app e olhar a lista. Pedido parado e SLA estourado sem ninguem
+   * saber -- e o cliente esperando.
+   *
+   * Nunca deixa uma falha de push derrubar o fluxo: o pedido ja foi criado e
+   * a tarefa ja existe quando isto roda. Aviso que nao sai e ruim; pedido que
+   * nao entra na fila por causa do aviso e muito pior.
+   */
+  async notifyPickingTeamNewOrder(orderId: string, itemCount: number): Promise<void> {
+    const shortId = orderId.slice(-8).toUpperCase()
+    try {
+      await this.pushNotificationService.sendNotificationToModule('picking', {
+        title: 'Novo pedido para separar',
+        body: `Pedido #${shortId} - ${itemCount} ${itemCount === 1 ? 'item' : 'itens'}`,
+        url: `/pedidos/${orderId}`,
+        // Uma notificacao por pedido: sem tag, dez pedidos viram dez avisos
+        // empilhados e o separador para de ler.
+        tag: `picking-${orderId}`,
+      })
+    } catch (error) {
+      this.logger.warn(`Push de separacao falhou para ${orderId}: ${(error as Error).message}`)
+    }
+  }
+
+  /**
+   * Avisa a equipe de entrega que ha pedido disponivel na fila.
+   *
+   * Dispara quando o pedido e faturado no PDV e vira READY_FOR_DELIVERY --
+   * o momento em que ele aparece na fila compartilhada e qualquer entregador
+   * pode pegar pra si.
+   */
+  async notifyDeliveryTeamOrderReady(orderId: string): Promise<void> {
+    const shortId = orderId.slice(-8).toUpperCase()
+    try {
+      await this.pushNotificationService.sendNotificationToModule('delivery', {
+        title: 'Entrega disponivel',
+        body: `Pedido #${shortId} liberado para entrega`,
+        url: '/',
+        tag: `delivery-${orderId}`,
+      })
+    } catch (error) {
+      this.logger.warn(`Push de entrega falhou para ${orderId}: ${(error as Error).message}`)
+    }
   }
 
   async notifyOrderStatusChange(orderId: string, status: string): Promise<void> {

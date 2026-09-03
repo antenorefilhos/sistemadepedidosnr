@@ -1516,16 +1516,28 @@ model PromotionCampaignItem {
 }
 
 // Notifications
+/// Inscricao de Web Push de UM aparelho.
+///
+/// Guarda cliente OU funcionario -- exatamente um dos dois preenchido. Ate
+/// 03/09/2026 so existia `customerId`, entao os apps de separacao e entrega
+/// nao tinham como avisar ninguem: eles rodam no celular do funcionario e o
+/// aviso de "chegou pedido pra separar" simplesmente nao existia.
+///
+/// Nao ha relacao declarada com Customer/Admin de proposito: sao duas tabelas
+/// diferentes e o Prisma nao modela uniao. A limpeza acontece pelo endpoint
+/// (410/404 do servico de push removem a inscricao morta).
 model PushSubscription {
   id        String   @id @default(cuid())
   tenantId  String   @default("tenant_default")
-  customerId String
+  customerId String?
+  adminId   String?
   endpoint  String   @unique
   auth      String
   p256dh    String
   createdAt DateTime @default(now())
 
   @@index([tenantId, customerId])
+  @@index([tenantId, adminId])
   @@map("push_subscriptions")
 }
 

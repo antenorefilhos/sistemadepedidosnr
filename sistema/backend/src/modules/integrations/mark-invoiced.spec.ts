@@ -24,7 +24,10 @@ const build = (order: Record<string, unknown> | null) => {
     },
     orderEvent: { create: jest.fn().mockResolvedValue({}) },
   }
-  const notifications = { notifyOrderStatusChange: jest.fn().mockResolvedValue(undefined) }
+  const notifications = {
+    notifyOrderStatusChange: jest.fn().mockResolvedValue(undefined),
+    notifyDeliveryTeamOrderReady: jest.fn().mockResolvedValue(undefined),
+  }
   const service = new OrderOrchestrationService(
     {} as never, prisma as never, {} as never, {} as never, notifications as never,
   )
@@ -50,6 +53,9 @@ describe('markInvoiced', () => {
       expect.objectContaining({ data: { status: 'READY_FOR_DELIVERY' } }),
     )
     expect(notifications.notifyOrderStatusChange).toHaveBeenCalledWith('ord1', 'READY_FOR_DELIVERY')
+    // A equipe de entrega e avisada no mesmo instante: e quando o pedido
+    // aparece na fila compartilhada.
+    expect(notifications.notifyDeliveryTeamOrderReady).toHaveBeenCalledWith('ord1')
   })
 
   it('retirada vai pra READY_FOR_PICKUP, nao pra entrega', async () => {
@@ -58,6 +64,8 @@ describe('markInvoiced', () => {
       status: 'READY_FOR_PICKUP',
     })
     expect(notifications.notifyOrderStatusChange).toHaveBeenCalledWith('ord1', 'READY_FOR_PICKUP')
+    // Retirada na loja nao tem entrega -- nao acorda o entregador a toa.
+    expect(notifications.notifyDeliveryTeamOrderReady).not.toHaveBeenCalled()
   })
 
   it('reportar de novo e no-op, nao erro', async () => {

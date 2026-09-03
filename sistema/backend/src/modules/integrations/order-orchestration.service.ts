@@ -648,6 +648,12 @@ export class OrderOrchestrationService {
     // avancar, senao o agente reprocessa em loop por causa de notificacao.
     this.notificationsService.notifyOrderStatusChange(orderId, proximo).catch(() => {})
 
+    // Pedido faturado no PDV entra na fila compartilhada de entrega neste
+    // instante -- e a hora de avisar quem esta com o celular na mao.
+    if (proximo === 'READY_FOR_DELIVERY') {
+      this.notificationsService.notifyDeliveryTeamOrderReady(orderId).catch(() => {})
+    }
+
     return { orderId, status: proximo, jaEstava: false }
   }
 
