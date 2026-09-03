@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useCart } from '../hooks/useCart'
 import {
@@ -22,6 +22,7 @@ import type { Order } from '../types'
 import { buildChangeForOptions, formatChangeForLabel } from '../utils/changeOptions'
 import { getProductLineTotal, getProductPricePresentation, getProductStep } from '../utils/productPricing'
 import { saveDeliveryAddress } from '../utils/deliveryAddress'
+import { clearCheckoutDraft, readCheckoutDraft, saveCheckoutDraft } from '../utils/checkoutDraft'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { FreeShippingBar } from '../components/FreeShippingBar'
 import { useAddressAutofill } from '../hooks/useAddressAutofill'
@@ -33,6 +34,8 @@ import {
   getCheckoutBlockerMessage,
 } from '../utils/checkout'
 import { Button, buttonVariants } from '../components/ui/button'
+import { LocalityPickerModal } from '../components/LocalityPickerModal'
+import { CriarSenhaCard } from '../components/CriarSenhaCard'
 import { Input } from '../components/ui/input'
 import { Radio } from '../components/ui/radio'
 import { surfaceClasses } from '../components/ui/surface'
@@ -42,6 +45,7 @@ import {
   formatZipCode,
   mapDeliveryCalcResponse,
   readDeliveryVerification,
+  saveDeliveryVerification,
   subscribeDeliveryVerification,
   verifyDeliveryForAddress,
   type DeliveryCalcSnapshot,
@@ -144,30 +148,42 @@ export default function Checkout() {
 
   const [formData, setFormData] = useState(() => {
     const saved = readDeliveryVerification()?.address
+    // Rascunho da tentativa anterior. Vence sobre `saved` nos campos de
+    // endereco porque e o que o cliente digitou aqui por ultimo; perde pro
+    // cadastro (`user`) nos dados pessoais, que sao a fonte de verdade.
+    const draft = readCheckoutDraft()
     return {
-      guestName: user?.name || '',
-      guestWhatsapp: user?.whatsapp || '',
-      guestCpf: user?.cpf || '',
-      guestEmail: user?.email || '',
-      street: saved?.street || '',
-      number: saved?.number || '',
-      complement: saved?.complement || '',
-      neighborhood: saved?.neighborhood || '',
-      city: saved?.city || '',
-      state: saved?.state || '',
-      zipCode: saved?.zipCode || '',
+      guestName: user?.name || draft.guestName || '',
+      guestWhatsapp: user?.whatsapp || draft.guestWhatsapp || '',
+      guestCpf: user?.cpf || draft.guestCpf || '',
+      guestEmail: user?.email || draft.guestEmail || '',
+      street: draft.street || saved?.street || '',
+      number: draft.number || saved?.number || '',
+      complement: draft.complement || saved?.complement || '',
+      neighborhood: draft.neighborhood || saved?.neighborhood || '',
+      city: draft.city || saved?.city || '',
+      state: draft.state || saved?.state || '',
+      zipCode: draft.zipCode || saved?.zipCode || '',
       // Posicao do aparelho, quando houve GPS. Decide a zona por poligono.
       lat: (saved?.lat ?? null) as number | null,
       lng: (saved?.lng ?? null) as number | null,
       // CEP com mais de um ponto de entrega mapeado (ver DeliveryCalcSnapshot).
-      locality: (saved?.locality ?? '') as string,
-      deliveryPointCode: (saved?.deliveryPointCode ?? '') as string,
-      paymentMethod: 'CASH',
-      needsChange: 'NO',
-      changeFor: '',
-      notes: '',
+      locality: (draft.locality || saved?.locality || '') as string,
+      deliveryPointCode: (draft.deliveryPointCode || saved?.deliveryPointCode || '') as string,
+      paymentMethod: draft.paymentMethod || 'CASH',
+      needsChange: draft.needsChange || 'NO',
+      changeFor: draft.changeFor || '',
+      notes: draft.notes || '',
     }
   })
+
+  // Grava o rascunho a cada tecla. Sem isso, sair do checkout (voltar ao
+  // carrinho pra corrigir uma quantidade) apagava o formulario inteiro e o
+  // cliente redigitava tudo -- motivo classico de abandono de carrinho.
+  useEffect(() => {
+    if (step === 'confirmation') return
+    saveCheckoutDraft(formData)
+  }, [formData, step])
 
   const {
     cepLoading,
@@ -233,10 +249,32 @@ export default function Checkout() {
     if (digits.length === 8) autoCalculateByCep(formData.zipCode)
   }, [step, formData.zipCode, autoCalculateByCep])
 
+  const [localityModalOpen, setLocalityModalOpen] = useState(false)
+  // Conta sem senha (tipica de checkout convidado): oferecemos criar uma
+  // depois do pedido, pra ela deixar de ser inalcancavel no proximo acesso.
+  const [contaSemSenha, setContaSemSenha] = useState(false)
+  const precisaEscolherLocalidade = Boolean(
+    deliveryCalc?.requiresLocalitySelection && (deliveryCalc.availableLocalities?.length ?? 0) > 0,
+  )
+
+  // Abre o modal sozinho quando a escolha vira obrigatoria. Sem escolher, o
+  // backend nao libera a etapa -- deixar a lista rolando abaixo da dobra
+  // (como era) travava o cliente no mobile sem ele entender por que.
+  // O ref evita reabrir se o cliente fechou de proposito: so dispara de novo
+  // se o CEP mudar.
+  const cepComModalAbertoRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (step !== 'address' || !precisaEscolherLocalidade || formData.deliveryPointCode) return
+    if (cepComModalAbertoRef.current === formData.zipCode) return
+    cepComModalAbertoRef.current = formData.zipCode
+    setLocalityModalOpen(true)
+  }, [step, precisaEscolherLocalidade, formData.deliveryPointCode, formData.zipCode])
+
   // CEP como 25750-222 cobre de Chafariz a um condominio 2km mais longe --
   // sem essa escolha o backend so libera passar de step (ver
   // requiresLocalitySelection acima), entao reverifica na hora.
   const handleSelectLocality = async (option: { name: string; code: string }) => {
+    setLocalityModalOpen(false)
     setFormData((prev) => ({ ...prev, locality: option.name, deliveryPointCode: option.code }))
     try {
       const calc = await verifyDeliveryForAddress(
@@ -443,6 +481,11 @@ export default function Checkout() {
   ]
   const activeStepIndex = checkoutSteps.findIndex((item) => item.id === step)
 
+  // O erro de estoque so serve se disser QUAL item -- o quote traz productId,
+  // e o nome esta aqui no carrinho local.
+  const nomeDoProdutoNoCarrinho = (productId: string) =>
+    cart.find((cartItem) => cartItem.productId === productId)?.product?.name
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setCheckoutError(null)
@@ -453,7 +496,7 @@ export default function Checkout() {
           // Sem endereco pra validar: o cliente busca na loja.
           const quote = await ensureCheckoutSession({ customerId: user?.id })
           if (!quote.canConfirm) {
-            setCheckoutError(getCheckoutBlockerMessage(quote))
+            setCheckoutError(getCheckoutBlockerMessage(quote, nomeDoProdutoNoCarrinho))
             return
           }
           setStep('payment')
@@ -501,15 +544,34 @@ export default function Checkout() {
         }
 
         if (calc.requiresLocalitySelection) {
-          setCheckoutError('Esse CEP tem mais de um ponto de entrega -- escolha sua localidade abaixo para continuar.')
+          // Abre o modal em vez de so avisar: o cliente tentou avancar, entao
+          // a acao que falta tem que aparecer na frente dele, nao "abaixo".
+          setLocalityModalOpen(true)
+          setCheckoutError('Esse CEP tem mais de um ponto de entrega -- escolha sua localidade para continuar.')
           return
         }
 
         const quote = await ensureCheckoutSession({ customerId: user?.id })
         if (!quote.canConfirm) {
-          setCheckoutError(getCheckoutBlockerMessage(quote))
+          setCheckoutError(getCheckoutBlockerMessage(quote, nomeDoProdutoNoCarrinho))
           return
         }
+
+        // Endereco aprovado na zona: guarda junto com o calculo de frete. Sem
+        // isso, voltar pro carrinho e retornar obrigava a redigitar o CEP e
+        // reescolher a localidade, mesmo com tudo ja validado.
+        saveDeliveryVerification({
+          address: {
+            ...addressToValidate,
+            complement: formData.complement || null,
+            lat: formData.lat,
+            lng: formData.lng,
+            locality: formData.locality || null,
+            deliveryPointCode: formData.deliveryPointCode || null,
+          },
+          calc,
+          verifiedAt: new Date().toISOString(),
+        })
 
         setStep('payment')
       } catch (error) {
@@ -558,6 +620,7 @@ export default function Checkout() {
           localStorage.setItem('token', access_token)
           localStorage.setItem('user', JSON.stringify(guestUser))
           customerId = guestUser.id
+          setContaSemSenha(guestUser.hasPassword === false)
         }
 
         if (!customerId) {
@@ -604,7 +667,7 @@ export default function Checkout() {
 
         const quote = await ensureCheckoutSession({ customerId, deliveryAddressId })
         if (!quote.canConfirm) {
-          setCheckoutError(getCheckoutBlockerMessage(quote))
+          setCheckoutError(getCheckoutBlockerMessage(quote, nomeDoProdutoNoCarrinho))
           return
         }
 
@@ -639,6 +702,10 @@ export default function Checkout() {
         backendCartIdRef.current = null
         checkoutSessionIdRef.current = null
         clear()
+        // Pedido saiu: o proximo checkout comeca limpo. O endereco continua
+        // guardado em saveDeliveryAddress -- e o rascunho do formulario que
+        // nao deve sobreviver a um pedido concluido.
+        clearCheckoutDraft()
         setStep('confirmation')
       } catch (error) {
         // Mesmo motivo do catch da etapa de endereco: sessao pode ter
@@ -830,6 +897,8 @@ export default function Checkout() {
                 </div>
               )
             })()}
+            {contaSemSenha && <CriarSenhaCard />}
+
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               {whatsappDispatch?.url && (
                 <a
@@ -873,7 +942,19 @@ export default function Checkout() {
                 {!user && guestCheckoutEnabled && (
                   <>
                     <div className="rounded-lg border border-[#D2BB8A]/50 bg-[#FBFAF7] p-4 space-y-4">
-                      <h3 className="font-semibold text-[#231F20]">Seus dados para o pedido</h3>
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <h3 className="font-semibold text-[#231F20]">Seus dados para o pedido</h3>
+                        {/* Quem ja tem senha entra e pula o preenchimento inteiro.
+                            Sem essa saida, cliente antigo redigita tudo todo pedido
+                            mesmo tendo cadastro -- o sistema reconhece por CPF/WhatsApp
+                            no fim, mas o cliente nao sabe disso e nao ganha nada. */}
+                        <Link
+                          to={`/login?redirect=${encodeURIComponent('/checkout')}`}
+                          className="text-xs font-semibold text-[#5D082A] underline underline-offset-2"
+                        >
+                          Já tem cadastro? Entrar
+                        </Link>
+                      </div>
                       <div>
                         <label htmlFor="guestName" className="block text-sm font-medium mb-1">Nome</label>
                         <Input
@@ -1022,30 +1103,20 @@ export default function Checkout() {
                   )}
                 </div>
 
-                {deliveryCalc?.requiresLocalitySelection && deliveryCalc.availableLocalities && deliveryCalc.availableLocalities.length > 0 && (
+                {precisaEscolherLocalidade && (
                   <div className={surfaceClasses({ tone: 'warm', className: 'p-3' })}>
-                    <p className="text-sm font-semibold text-[#231F20] mb-1">
-                      Selecione sua localidade ou condomínio
+                    <p className="text-sm font-semibold text-[#231F20]">
+                      {formData.locality ? `Localidade: ${formData.locality}` : 'Falta escolher sua localidade'}
                     </p>
-                    <p className="text-xs text-gray-500 mb-3">O CEP informado atende diferentes pontos da região.</p>
-                    <div className="space-y-2" role="radiogroup" aria-label="Selecione sua localidade">
-                      {deliveryCalc.availableLocalities.map((option) => (
-                        <button
-                          key={`${option.code}--${option.name}`}
-                          type="button"
-                          role="radio"
-                          aria-checked={formData.deliveryPointCode === option.code}
-                          onClick={() => handleSelectLocality(option)}
-                          className={`w-full rounded-lg border px-4 py-3 text-left text-sm font-semibold transition-colors ${
-                            formData.deliveryPointCode === option.code
-                              ? 'border-[#5D082A] bg-[#FFF7FA]'
-                              : 'border-[#E8D7B0] bg-white hover:border-[#5D082A]/60 hover:bg-[#FFF7FA]'
-                          }`}
-                        >
-                          <span className="block text-[#231F20]">{option.name}</span>
-                        </button>
-                      ))}
-                    </div>
+                    <p className="mt-0.5 text-xs text-gray-500">O CEP informado atende diferentes pontos da região.</p>
+                    <Button
+                      type="button"
+                      onClick={() => setLocalityModalOpen(true)}
+                      variant="outline"
+                      className="mt-2 w-full"
+                    >
+                      {formData.locality ? 'Trocar localidade' : 'Escolher minha localidade'}
+                    </Button>
                   </div>
                 )}
 
@@ -1401,6 +1472,14 @@ export default function Checkout() {
           </form>
         )}
       </div>
+
+      <LocalityPickerModal
+        open={localityModalOpen && precisaEscolherLocalidade}
+        options={deliveryCalc?.availableLocalities ?? []}
+        selectedCode={formData.deliveryPointCode}
+        onSelect={handleSelectLocality}
+        onClose={() => setLocalityModalOpen(false)}
+      />
     </div>
   )
 }

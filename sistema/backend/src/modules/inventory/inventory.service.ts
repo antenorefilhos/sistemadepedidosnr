@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
+import { isProductSellable } from '../../common/product-availability'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { PublicApiService } from '../public-api/public-api.service'
 import { TenantContext } from '../../common/tenant/tenant-context'
@@ -74,20 +75,20 @@ export class InventoryService {
       )
 
       const reservations = []
-      // syncOption='SEMPRE' vem do Solidcom: produto sempre vendavel, ignora
-      // o numero de estoque sincronizado (que fica errado com frequencia,
-      // ex.: negativo em item de producao propria). Mesmo criterio usado na
-      // vitrine (ver isStorefrontVisible/products.service.ts) e no quote do
-      // checkout (CheckoutService.buildStockSnapshot).
-      const alwaysAvailableProducts = await tx.product.findMany({
-        where: { tenantId, storeId, id: { in: items.map((item) => item.productId) }, syncOption: 'SEMPRE' },
-        select: { id: true },
+      // Produto VENDAVEL reserva qualquer quantidade, mesmo acima do estoque
+      // sincronizado: o numero do ERP governa exibicao, nao limite de pedido
+      // (ver common/product-availability.ts e a decisao de 02/09/2026). Sem
+      // isso a reserva rejeitava o pedido que o quote acabou de aprovar, e o
+      // cliente levava "estoque indisponivel" no ultimo clique.
+      const produtos = await tx.product.findMany({
+        where: { tenantId, storeId, id: { in: items.map((item) => item.productId) } },
+        select: { id: true, syncOption: true, stock: true, active: true },
       })
-      const alwaysAvailableIds = new Set(alwaysAvailableProducts.map((product) => product.id))
+      const vendaveisIds = new Set(produtos.filter(isProductSellable).map((product) => product.id))
 
       for (const item of items) {
         const policy = await this.findPolicy(tx, tenantId, storeId, item.productId)
-        const allowBackorder = policy?.allowBackorder || alwaysAvailableIds.has(item.productId)
+        const allowBackorder = policy?.allowBackorder || vendaveisIds.has(item.productId)
         const ttlMinutes = request.ttlMinutes || Number(policy?.reservationTtlMin || DEFAULT_RESERVATION_TTL_MIN)
         const expiresAt = request.expiresAt || new Date(Date.now() + ttlMinutes * 60 * 1000)
         const quantity = this.toDecimal(item.quantity)

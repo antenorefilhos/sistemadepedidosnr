@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronRight, Loader2, MapPin, ShoppingBag, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, MapPin, ShoppingBag, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { Button } from './ui/button'
+import { LocalityPickerModal } from './LocalityPickerModal'
 import { Input } from './ui/input'
 import { surfaceClasses } from './ui/surface'
 import { deliveryAPI } from '../services/api'
@@ -552,56 +553,13 @@ export function DeliveryVerificationModal() {
         </div>
       )}
 
-      {/* Sub-modal dedicado: escolha da localidade/condominio quando o CEP
-          cobre mais de um ponto da planilha de balcao. Lista limpa, so com o
-          nome -- sem taxas e sem codigos. */}
-      {localityModalOpen && (
-        <div className="fixed inset-0 z-[120] bg-black/50 flex items-end md:items-center justify-center">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="locality-modal-title"
-            className={surfaceClasses({
-              tone: 'warm',
-              className: 'w-full md:max-w-md rounded-t-2xl md:rounded-lg p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain',
-            })}
-          >
-            <div className="mb-1 flex items-start justify-between gap-3">
-              <h3 id="locality-modal-title" className="text-lg font-black leading-tight tracking-tight text-[#231F20]">
-                Selecione sua localidade ou condomínio
-              </h3>
-              <Button
-                type="button"
-                onClick={() => setLocalityModalOpen(false)}
-                variant="ghost"
-                size="icon"
-                className="-mr-1 -mt-1 shrink-0"
-                aria-label="Fechar seleção de localidade"
-              >
-                <X size={18} />
-              </Button>
-            </div>
-
-            <p className="mb-4 text-xs text-[#5d4f33]">
-              O CEP informado atende diferentes pontos da região.
-            </p>
-
-            <div className="space-y-2">
-              {calc?.availableLocalities?.map((option) => (
-                <button
-                  key={`${option.code}--${option.name}`}
-                  type="button"
-                  onClick={() => handleSelectLocality({ name: option.name, code: option.code })}
-                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#E8D7B0] bg-white px-4 py-3.5 text-left text-sm font-semibold text-[#231F20] transition-colors hover:border-[#5D082A] hover:bg-[#FFF7FA] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A]/50"
-                >
-                  <span className="min-w-0">{option.name}</span>
-                  <ChevronRight size={16} className="shrink-0 text-[#D2BB8A]" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <LocalityPickerModal
+        open={localityModalOpen}
+        options={calc?.availableLocalities ?? []}
+        selectedCode={address.deliveryPointCode}
+        onSelect={(option) => handleSelectLocality({ name: option.name, code: option.code })}
+        onClose={() => setLocalityModalOpen(false)}
+      />
     </>
   )
 }

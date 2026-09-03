@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
+import { isProductSellable } from '../../common/product-availability'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext } from '../../common/tenant/tenant-context'
 import { DeliveryService } from '../delivery/delivery.service'
@@ -420,18 +421,20 @@ export class CheckoutService {
       ),
       this.prisma.product.findMany({
         where: { tenantId: context.tenantId, storeId: context.storeId, id: { in: cart.items.map((item) => item.productId) } },
-        select: { id: true, syncOption: true },
+        select: { id: true, syncOption: true, stock: true, active: true },
       }),
     ])
     const availableByProduct = new Map(availability.items.map((item) => [item.productId, item.available]))
-    // syncOption='SEMPRE' vem do Solidcom e significa "sempre vendavel, ignore
-    // o numero de estoque" -- necessario porque o estoque sincronizado do ERP
-    // fica errado com frequencia (ex.: negativo em item de producao propria).
-    const syncOptionByProduct = new Map(products.map((product) => [product.id, product.syncOption]))
+    const produtoPorId = new Map(products.map((product) => [product.id, product]))
     const items = cart.items.map((item) => {
       const requested = Number(item.quantity)
       const available = Number(availableByProduct.get(item.productId) || 0)
-      const inStock = syncOptionByProduct.get(item.productId) === 'SEMPRE' || available >= requested
+      // A quantidade NAO barra o checkout: o estoque do ERP governa exibicao,
+      // nao limite de pedido (ver isProductSellable). O que barra e o produto
+      // ter deixado de ser vendavel entre entrar no carrinho e fechar --
+      // ex.: zerou o estoque de um item 'ESTOQUE' e ele saiu da vitrine.
+      const produto = produtoPorId.get(item.productId)
+      const inStock = produto ? isProductSellable(produto) : false
       return {
         productId: item.productId,
         requested,

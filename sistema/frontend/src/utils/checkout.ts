@@ -38,10 +38,30 @@ export function formatDeliveryWindow(quote?: CheckoutQuoteResponse | null) {
   return `${asTime(slot.windowStart)} - ${asTime(slot.windowEnd)}`
 }
 
-/** Traduz o motivo pelo qual o checkout nao pode prosseguir. */
-export function getCheckoutBlockerMessage(quote: CheckoutQuoteResponse) {
-  if (quote.stock.unavailableItems.length > 0) {
-    return 'Alguns itens ficaram indisponiveis antes do pagamento. Revise o carrinho para continuar.'
+/**
+ * Traduz o motivo pelo qual o checkout nao pode prosseguir.
+ *
+ * `nomePorProduto` existe porque a versao anterior devolvia so "alguns itens
+ * ficaram indisponiveis" -- o cliente ficava travado sem saber QUAL item
+ * mexer. O detalhe ate era exibido, mas dentro do card de resumo do pedido,
+ * longe do alerta que barrou o envio. O backend sempre mandou productId,
+ * requested e available; faltava trazer isso pro texto do erro.
+ */
+export function getCheckoutBlockerMessage(
+  quote: CheckoutQuoteResponse,
+  nomePorProduto?: (productId: string) => string | undefined,
+) {
+  const indisponiveis = quote.stock.unavailableItems
+  if (indisponiveis.length > 0) {
+    const detalhe = indisponiveis
+      .map((item) => {
+        const nome = nomePorProduto?.(item.productId) || 'Item do carrinho'
+        return item.available > 0
+          ? `${nome} (voce pediu ${item.requested}, temos ${item.available})`
+          : `${nome} (esgotado)`
+      })
+      .join('; ')
+    return `Revise o carrinho para continuar: ${detalhe}.`
   }
   if (quote.delivery.outOfArea) return 'Endereco fora da zona de entrega cadastrada.'
   if (!quote.delivery.validSlot) return 'Selecione uma janela de entrega valida para continuar.'

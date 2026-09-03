@@ -52,10 +52,14 @@ describe('CheckoutService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
-    // buildStockSnapshot le syncOption pra tratar produto 'SEMPRE' como
-    // sempre disponivel, independente do estoque sincronizado do ERP.
+    // buildStockSnapshot le syncOption/stock pra decidir se o produto e
+    // VENDAVEL (ver common/product-availability.ts). Nao pode devolver lista
+    // vazia: produto ausente do banco significa item de carrinho apontando pra
+    // nada, e o checkout barra -- de proposito.
     product: {
-      findMany: jest.fn().mockResolvedValue([]),
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'prod-1', syncOption: 'ESTOQUE', stock: 10, active: true },
+      ]),
     },
     address: {
       findFirst: jest.fn(),
@@ -174,7 +178,12 @@ describe('CheckoutService', () => {
     expect(mockPrisma.checkoutSession.create).not.toHaveBeenCalled()
   })
 
-  it('quotes stock and substitution preference per item before payment', async () => {
+  // Decisao do lojista (02/09/2026): o estoque do ERP governa EXIBICAO, nao
+  // limite de quantidade. Ate entao o cliente montava o pedido inteiro e
+  // levava "alguns itens ficaram indisponiveis" so no fim -- caso real: vinho
+  // com 3 em estoque, pediu 6. Quando falta de verdade, quem resolve e o
+  // separador, com a politica de substituicao escolhida pelo cliente.
+  it('pedir mais do que o estoque disponivel NAO bloqueia o checkout', async () => {
     mockInventoryService.getAvailability.mockResolvedValue({
       tenantId: 'tenant_default',
       storeId: 'store_default',
@@ -185,9 +194,46 @@ describe('CheckoutService', () => {
       delivery: { cep: '01001000', slotId: 'slot-1' },
     })
 
-    expect(result.canConfirm).toBe(false)
-    expect(result.stock.unavailableItems).toEqual([{ productId: 'prod-1', requested: 2, available: 1 }])
+    expect(result.stock.unavailableItems).toEqual([])
+    expect(result.canConfirm).toBe(true)
+    // A preferencia de substituicao do item continua sendo transportada: e o
+    // que o separador le quando o produto realmente falta.
     expect(result.stock.items[0]).toEqual(expect.objectContaining({ substitutionStatus: 'DECLINED' }))
+  })
+
+  it('produto que deixou de ser vendavel no meio do caminho bloqueia', async () => {
+    mockPrisma.product.findMany.mockResolvedValueOnce([
+      { id: 'prod-1', syncOption: 'ESTOQUE', stock: 0, active: true },
+    ])
+    mockInventoryService.getAvailability.mockResolvedValue({
+      tenantId: 'tenant_default',
+      storeId: 'store_default',
+      items: [{ productId: 'prod-1', available: 0 }],
+    })
+
+    const result = await service.quoteSession(undefined, 'session-1', {
+      delivery: { cep: '01001000', slotId: 'slot-1' },
+    })
+
+    expect(result.canConfirm).toBe(false)
+    expect(result.stock.unavailableItems).toEqual([{ productId: 'prod-1', requested: 2, available: 0 }])
+  })
+
+  it('SEMPRE com estoque negativo continua vendavel', async () => {
+    mockPrisma.product.findMany.mockResolvedValueOnce([
+      { id: 'prod-1', syncOption: 'SEMPRE', stock: -2897, active: true },
+    ])
+    mockInventoryService.getAvailability.mockResolvedValue({
+      tenantId: 'tenant_default',
+      storeId: 'store_default',
+      items: [{ productId: 'prod-1', available: -2897 }],
+    })
+
+    const result = await service.quoteSession(undefined, 'session-1', {
+      delivery: { cep: '01001000', slotId: 'slot-1' },
+    })
+
+    expect(result.stock.unavailableItems).toEqual([])
   })
 
   it('blocks confirmation when delivery has no valid slot', async () => {
