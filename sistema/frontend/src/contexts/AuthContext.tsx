@@ -15,12 +15,26 @@ export interface AuthContextData {
   token: string | null
   isLoading: boolean
   isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string, destino?: string) => Promise<void>
   register: (data: RegisterPayload) => Promise<void>
   logout: () => void
 }
 
 export const AuthContext = createContext<AuthContextData>({} as AuthContextData)
+
+/**
+ * So aceita caminho interno como destino pos-login.
+ *
+ * O destino vem da query string (`/login?redirect=...`), que qualquer um pode
+ * montar num link. Sem esta checagem, `?redirect=https://site-falso` levaria o
+ * cliente recem-autenticado pra fora do site logo apos digitar a senha --
+ * open redirect, o vetor classico de phishing. `//host` tambem e externo,
+ * apesar de comecar com barra.
+ */
+export function destinoSeguro(destino?: string) {
+  if (!destino || !destino.startsWith('/') || destino.startsWith('//')) return '/'
+  return destino
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -46,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false)
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, destino?: string) => {
     setIsLoading(true)
     try {
       const response = await authAPI.login(email, password)
@@ -58,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('user', JSON.stringify(userData))
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
 
-      navigate('/')
+      navigate(destinoSeguro(destino))
     } finally {
       setIsLoading(false)
     }

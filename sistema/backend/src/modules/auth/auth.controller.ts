@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Patch, Param, HttpCode, HttpStatus, UseGuards, Req } from '@nestjs/common'
+import { Controller, Post, Body, Get, Patch, Param, HttpCode, HttpStatus, UseGuards, Req, UnauthorizedException } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
 import { AuthService } from './auth.service'
@@ -6,7 +6,7 @@ import { CreateAdminDto, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
 import { LoginDto, CustomerLoginDto } from './dto/login.dto'
-import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto'
+import { ForgotPasswordDto, ResetPasswordDto, SetPasswordDto } from './dto/forgot-password.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
@@ -129,6 +129,27 @@ export class AuthController {
   })
   customerResetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.customerResetPassword(dto.token, dto.newPassword)
+  }
+
+  @Post('customer/set-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Definir senha da propria conta (cliente)',
+    description:
+      'Conta criada pelo checkout convidado nasce sem senha e por isso nao consegue voltar a entrar. ' +
+      'Esta rota deixa o cliente autenticado definir a dele. Se ja houver senha, exige a atual.',
+  })
+  customerSetPassword(@Req() req: { user?: { id?: string; role?: string } }, @Body() dto: SetPasswordDto) {
+    // O id vem SEMPRE do token, nunca do corpo: aceitar customerId do cliente
+    // deixaria qualquer autenticado trocar a senha de outra pessoa.
+    const customerId = req.user?.id
+    if (!customerId || req.user?.role !== 'customer') {
+      throw new UnauthorizedException('Rota exclusiva de cliente.')
+    }
+    return this.authService.customerSetPassword(customerId, dto.newPassword, dto.currentPassword)
   }
 
   @Post('customer/register')

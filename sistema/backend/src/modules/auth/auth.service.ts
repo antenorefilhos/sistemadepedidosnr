@@ -12,6 +12,35 @@ import { EmailService } from '../notifications/email.service'
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hora
 
+/**
+ * Quanto tempo o cliente fica logado.
+ *
+ * Constante, e nao variavel de ambiente, de proposito: o `docker-compose.yml`
+ * so repassa o que esta listado em `environment:`, e esta base ja acumula
+ * variaveis documentadas que nunca chegam no container (ver CLAUDE.md e
+ * `scripts/check-env.js`). Knob que parece existir e nao existe e pior que
+ * constante -- mudar aqui e rebuildar e explicito.
+ */
+const CUSTOMER_TOKEN_TTL: `${number}d` = '30d'
+
+/**
+ * Separacao e entrega rodam no CELULAR do funcionario e precisam da sessao
+ * viva pra avisar quem esta com o aparelho na mao -- pedir login a cada turno
+ * mata o proposito do app. Por isso `picker`/`driver` ganham a mesma sessao
+ * longa do cliente.
+ *
+ * `admin` fica de fora: e a conta que mexe em preco, catalogo e equipe, roda
+ * no computador da loja, e nao tem o problema de estar num bolso.
+ *
+ * Isto so e seguro porque a JwtStrategy passou a conferir a conta no banco a
+ * cada requisicao (ver o comentario la): desativar alguem na tela Equipe
+ * derruba a sessao na hora. Sem essa checagem, 30 dias aqui significaria um
+ * mes de acesso pra quem foi demitido -- token assinado nao se revoga.
+ */
+const STAFF_TOKEN_TTL: `${number}d` = '30d'
+
+const ttlDoPapel = (role: string) => (role === 'admin' ? undefined : { expiresIn: STAFF_TOKEN_TTL })
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -94,6 +123,40 @@ export class AuthService {
     return { message: 'Senha redefinida com sucesso.' }
   }
 
+  /**
+   * Cliente ja autenticado define (ou troca) a propria senha.
+   *
+   * Conta criada pelo checkout convidado nasce com `password: null`. O
+   * cadastro em si funciona -- `guestCheckout` reusa o cliente existente por
+   * WhatsApp/CPF/e-mail, entao o historico de pedidos se acumula certo --,
+   * mas sem senha ninguem consegue VOLTAR pra ver esse historico: o login
+   * falha, e "esqueci minha senha" depende de e-mail, que e opcional no
+   * checkout convidado. Na pratica o cliente virava convidado pra sempre.
+   *
+   * Nao pede senha atual quando ainda nao ha nenhuma (o caso do convidado);
+   * quando ja existe, exige -- senao um token vazado viraria tomada de conta
+   * permanente.
+   */
+  async customerSetPassword(customerId: string, newPassword: string, currentPassword?: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } })
+    if (!customer) throw new UnauthorizedException('Sessao invalida.')
+
+    if (customer.password) {
+      if (!currentPassword || !(await bcrypt.compare(currentPassword, customer.password))) {
+        throw new BadRequestException('Senha atual incorreta.')
+      }
+    }
+
+    const password = await bcrypt.hash(newPassword, 10)
+    await this.prisma.customer.update({
+      where: { id: customer.id },
+      // Invalida qualquer link de redefinicao pendente: quem acabou de definir
+      // senha nao deve continuar alcancavel por um token antigo no e-mail.
+      data: { password, resetTokenHash: null, resetTokenExpiresAt: null },
+    })
+    return { message: 'Senha definida com sucesso.' }
+  }
+
   async login(loginDto: LoginDto) {
     const admin = await this.prisma.admin.findUnique({
       where: { email: loginDto.email },
@@ -116,15 +179,20 @@ export class AuthService {
       await this.grantDefaultAdminAccess(admin.id, tenantId, storeId)
     }
 
-    const access_token = this.jwtService.sign({
-      id: admin.id,
-      email: admin.email,
-      name: admin.name,
-      role,
-      moduleAccess,
-      tenantId,
-      storeId,
-    })
+    const access_token = this.jwtService.sign(
+      {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        role,
+        moduleAccess,
+        tenantId,
+        storeId,
+      },
+      // picker/driver: sessao longa (celular do funcionario). admin: fica no
+      // padrao de 24h do modulo. Ver STAFF_TOKEN_TTL.
+      ttlDoPapel(role),
+    )
 
     return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role, moduleAccess, tenantId, storeId } }
   }
@@ -149,20 +217,7 @@ export class AuthService {
       })
     }
 
-    const tenantId = customer.tenantId || DEFAULT_TENANT_ID
-    const storeId = DEFAULT_STORE_ID
-    const access_token = this.jwtService.sign({
-      id: customer.id,
-      email: customer.email,
-      name: customer.name,
-      cpf: customer.cpf,
-      whatsapp: customer.whatsapp,
-      role: 'customer',
-      tenantId,
-      storeId,
-    })
-
-    return { access_token, user: { id: customer.id, email: customer.email, name: customer.name, cpf: customer.cpf, whatsapp: customer.whatsapp, role: 'customer', tenantId, storeId } }
+    return this.buildCustomerTokenResponse(customer)
   }
 
   /**
@@ -344,16 +399,33 @@ export class AuthService {
 
     const tenantId = customer.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
-    const access_token = this.jwtService.sign({
-      id: customer.id,
-      email: customer.email,
-      name: customer.name,
-      cpf: customer.cpf,
-      whatsapp: customer.whatsapp,
-      role: 'customer',
-      tenantId,
-      storeId,
-    })
+    const access_token = this.jwtService.sign(
+      {
+        id: customer.id,
+        email: customer.email,
+        name: customer.name,
+        cpf: customer.cpf,
+        whatsapp: customer.whatsapp,
+        role: 'customer',
+        tenantId,
+        storeId,
+      },
+      // Cliente fica logado por 30 dias; equipe (admin/separacao/entrega)
+      // continua nas 24h do padrao do modulo -- conta que opera a loja tem
+      // que expirar rapido, conta de comprador nao.
+      //
+      // O prazo longo e aceitavel AQUI por dois motivos concretos: (1) a conta
+      // nao guarda meio de pagamento -- dinheiro, PIX e cartao acontecem na
+      // entrega, entao nao ha o que um token roubado gaste; (2) o proprio
+      // guestCheckout ja entrega token pra quem souber nome + WhatsApp + CPF,
+      // entao essa e a regua de acesso a conta por decisao de produto, e 30
+      // dias nao a move.
+      //
+      // Quando a conta passar a guardar cartao, ou quando for preciso derrubar
+      // a sessao de alguem, isto aqui vira refresh token com sessao no banco:
+      // token assinado nao tem revogacao.
+      { expiresIn: CUSTOMER_TOKEN_TTL },
+    )
 
     return { access_token, user: { id: customer.id, email: customer.email, name: customer.name, cpf: customer.cpf, whatsapp: customer.whatsapp, role: 'customer', tenantId, storeId } }
   }
@@ -505,6 +577,7 @@ export class AuthService {
     tenantId?: string
     blocked?: boolean
     blockedReason?: string | null
+    password?: string | null
   }) {
     if (customer.blocked) {
       throw new ForbiddenException({
@@ -516,16 +589,33 @@ export class AuthService {
 
     const tenantId = customer.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
-    const access_token = this.jwtService.sign({
-      id: customer.id,
-      email: customer.email,
-      name: customer.name,
-      cpf: customer.cpf,
-      whatsapp: customer.whatsapp,
-      role: 'customer',
-      tenantId,
-      storeId,
-    })
+    const access_token = this.jwtService.sign(
+      {
+        id: customer.id,
+        email: customer.email,
+        name: customer.name,
+        cpf: customer.cpf,
+        whatsapp: customer.whatsapp,
+        role: 'customer',
+        tenantId,
+        storeId,
+      },
+      // Cliente fica logado por 30 dias; equipe (admin/separacao/entrega)
+      // continua nas 24h do padrao do modulo -- conta que opera a loja tem
+      // que expirar rapido, conta de comprador nao.
+      //
+      // O prazo longo e aceitavel AQUI por dois motivos concretos: (1) a conta
+      // nao guarda meio de pagamento -- dinheiro, PIX e cartao acontecem na
+      // entrega, entao nao ha o que um token roubado gaste; (2) o proprio
+      // guestCheckout ja entrega token pra quem souber nome + WhatsApp + CPF,
+      // entao essa e a regua de acesso a conta por decisao de produto, e 30
+      // dias nao a move.
+      //
+      // Quando a conta passar a guardar cartao, ou quando for preciso derrubar
+      // a sessao de alguem, isto aqui vira refresh token com sessao no banco:
+      // token assinado nao tem revogacao.
+      { expiresIn: CUSTOMER_TOKEN_TTL },
+    )
 
     return {
       access_token,
@@ -538,6 +628,10 @@ export class AuthService {
         role: 'customer',
         tenantId,
         storeId,
+        // Conta de checkout convidado nasce sem senha e nao consegue voltar a
+        // entrar. A tela usa isso pra oferecer a criacao de senha ao cliente
+        // certo, em vez de oferecer pra todo mundo. Booleano, nunca o hash.
+        hasPassword: Boolean(customer.password),
       },
     }
   }

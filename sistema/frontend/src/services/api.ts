@@ -229,7 +229,13 @@ api.interceptors.response.use(
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+        // Leva junto a pagina onde o cliente estava. Antes ia direto pra
+        // /login e a navegacao se perdia: quem estava no meio do checkout
+        // voltava pra tela de login sem contexto e recomecava do zero. O
+        // destino e validado no AuthContext (destinoSeguro) antes de ser
+        // usado -- nao da pra confiar em query string sem checar.
+        const volta = window.location.pathname + window.location.search
+        window.location.href = `/login?redirect=${encodeURIComponent(volta)}`
       }
       error.userMessage = 'Sessao expirada. Faca login novamente.'
     }
@@ -354,6 +360,9 @@ export const authAPI = {
   forgotPassword: (email: string) => api.post('/auth/customer/forgot-password', { email }),
   resetPassword: (token: string, newPassword: string) =>
     api.post('/auth/customer/reset-password', { token, newPassword }),
+  /** Cliente ja autenticado define a propria senha (conta de convidado nasce sem). */
+  setPassword: (newPassword: string, currentPassword?: string) =>
+    api.post('/auth/customer/set-password', { newPassword, ...(currentPassword ? { currentPassword } : {}) }),
 }
 
 // Addresses

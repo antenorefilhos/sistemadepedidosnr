@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { getApiErrorMessage } from '../utils/apiError'
@@ -17,6 +17,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,7 +26,9 @@ export default function Login() {
     setIsLoading(true)
 
     try {
-      await login(identifier, password)
+      // Volta pro checkout quando o cliente veio de la (ver AuthContext:
+      // destinoSeguro barra destino externo).
+      await login(identifier, password, searchParams.get('redirect') || undefined)
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Falha ao fazer login'))
     } finally {
