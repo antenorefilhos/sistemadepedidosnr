@@ -1,0 +1,15 @@
+{
+  "name": "antenor-notificador",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Notificador Windows — alerta pedidos novos/pendentes na tela",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node escalation.test.js && node faturamento.test.js"
+  },
+  "dependencies": {
+    "electron": "^43.4.0",
+    "mssql": "^12.7.0"
+  }
+}

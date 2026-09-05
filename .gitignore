@@ -65,7 +65,6 @@ Thumbs.db
 
 # Non-system files (docs, tools, assets, scripts auxiliares)
 arquivos-projeto/
-Notificador/
 Python/
 logos/
 design/
@@ -92,3 +91,12 @@ VIABILIDADE_VERCEL_SUPABASE.md
 .github/
 .overclock-app/
 .vscode/
+
+# Notificador (Electron, roda no PC da loja) -- o CODIGO e versionado desde
+# 04/09/2026: ele carrega o gatilho de faturamento do PDV, que e a peca que
+# libera o pedido pro entregador. Antes a pasta inteira ficava de fora e o
+# agente existiria so na maquina de quem o escreveu.
+Notificador/node_modules/
+Notificador/.env
+Notificador/dist/
+Notificador/out/

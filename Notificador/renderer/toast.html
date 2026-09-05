@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'" />
+<title>Alerta</title>
+<link rel="stylesheet" href="toast.css" />
+</head>
+<body>
+  <div id="toast" class="toast">
+    <span class="stripe"></span>
+    <div class="content">
+      <div class="head">
+        <span class="dot"></span>
+        <span id="level" class="level">NOVO</span>
+      </div>
+      <div class="main">
+        <span id="title" class="title"></span>
+        <span id="age" class="age"></span>
+      </div>
+      <p id="body" class="body"></p>
+    </div>
+  </div>
+  <script src="toast.js"></script>
+</body>
+</html>

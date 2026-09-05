@@ -1,0 +1,129 @@
+:root {
+  --panel: #1e2129;
+  --border: #2b2f39;
+  --text: #f2f3f5;
+  --muted: #8b909b;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--panel);
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toast {
+  display: flex;
+  height: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.toast.show { opacity: 1; }
+.toast.hide { opacity: 0; }
+
+/* Faixa lateral: a cor sozinha ja diz a gravidade. */
+.stripe {
+  width: 4px;
+  flex-shrink: 0;
+  background: var(--level-color);
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--level-color);
+  flex-shrink: 0;
+}
+
+/* Rotulo do nivel: pequeno e discreto — reforca a cor, nao compete com ela. */
+.level {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--level-color);
+}
+
+/* Linha principal: o que aconteceu + ha quanto tempo, lado a lado.
+   O tempo aparece so aqui, nunca repetido no titulo. */
+.main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* O numero e o que dita a urgencia — por isso vem grande e na cor do nivel. */
+.age {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--level-color);
+}
+
+.body {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Niveis — mesma escala do painel (style.css) */
+.toast.novo    { --level-color: #2ecc40; }
+.toast.atencao { --level-color: #f5a623; }
+.toast.critico { --level-color: #ff4d4f; }
+
+/* So o critico pulsa: se tudo chamasse atencao, nada chamaria. */
+.toast.critico .stripe,
+.toast.critico .dot { animation: pulse 1.4s ease-in-out infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none; }
+  .toast.critico .stripe,
+  .toast.critico .dot { animation: none; }
+}
