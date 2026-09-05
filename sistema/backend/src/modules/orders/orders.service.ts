@@ -505,7 +505,29 @@ export class OrdersService {
         : quote.businessAccountId
         ? 'APPROVED'
         : 'NOT_REQUIRED'
-    const orderStatus = businessApprovalStatus === 'PENDING' ? 'PENDING_APPROVAL' : 'PENDING'
+    // Pedido sem pagamento online a esperar ja nasce CONFIRMED, pronto pra
+    // separacao.
+    //
+    // Ate 04/09/2026 nascia sempre PENDING, e nada o promovia: CONFIRMED so
+    // era gravado pelo webhook do gateway -- que nunca dispara com pagamento
+    // na entrega (dinheiro, PIX e cartao acontecem na porta do cliente) -- ou
+    // por um PATCH manual no admin. Como `picking.service.searchOrders` lista
+    // somente CONFIRMED/PICKING_PENDING, o pedido nunca chegava ao separador:
+    // a jornada nao travava no meio, ela nunca comecava.
+    //
+    // PENDING nunca foi etapa de decisao da loja -- quando o desenho quer
+    // aprovacao humana ele usa PENDING_APPROVAL, preservado na condicao
+    // abaixo. O kanban do admin continua permitindo mover o pedido a mao.
+    const aguardaPagamentoOnline = this.requiresOnlinePaymentAuthorization({
+      paymentMethod: paymentMethod || 'CASH',
+      paymentStatus: 'UNPAID',
+    })
+    const orderStatus =
+      businessApprovalStatus === 'PENDING'
+        ? 'PENDING_APPROVAL'
+        : aguardaPagamentoOnline
+        ? 'PENDING'
+        : 'CONFIRMED'
     const itemsWithPrices = quote.items.map((item) => ({
       productId: item.productId,
       quantity: item.quantity,

@@ -515,6 +515,63 @@ describe('OrdersService', () => {
         }),
       );
     });
+
+    /**
+     * O pedido tem que nascer PRONTO PRA SEPARAR quando nao ha pagamento
+     * online a esperar.
+     *
+     * Ate 04/09/2026 todo pedido nascia PENDING, e nada o promovia a
+     * CONFIRMED: so o webhook de gateway (que nunca dispara com pagamento na
+     * entrega) ou um PATCH manual. Como `picking.service.searchOrders` lista
+     * apenas CONFIRMED/PICKING_PENDING, o pedido **nunca aparecia pro
+     * separador** -- a jornada nao travava no meio, ela nunca comecava.
+     *
+     * PENDING nao era etapa de decisao da loja: quando o desenho quer
+     * aprovacao humana ele usa PENDING_APPROVAL (contas B2B), preservado
+     * abaixo.
+     */
+    const criarPedido = async (over: Record<string, unknown> = {}) => {
+      mockPrismaService.product.findFirst.mockResolvedValue({
+        id: 'prod-1', name: 'Product', ean: '100', price: 100, promotionalPrice: null,
+      });
+      mockPrismaService.order.create.mockResolvedValue({
+        id: 'order-1', customerId: 'customer-1', subtotal: 100, delivery: 5, discount: 0, total: 105,
+        status: 'CONFIRMED', paymentMethod: 'CASH', customer: { whatsapp: '5511999999999', name: 'John' }, items: [],
+      });
+      mockOrderOrchestrationService.syncCreatedOrder.mockResolvedValue(undefined);
+      mockWhatsAppService.sendOrderConfirmation.mockResolvedValue({ url: 'wa.me' });
+
+      await service.create({
+        customerId: 'customer-1',
+        idempotencyKey: `idem-${Math.random()}`,
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        delivery: 5,
+        paymentMethod: 'CASH',
+        ...over,
+      } as any);
+
+      return mockPrismaService.order.create.mock.calls.at(-1)[0].data.status;
+    };
+
+    it.each(['CASH', 'PIX', 'CARD'])(
+      'pedido com pagamento na entrega (%s) nasce CONFIRMED, pronto pro separador',
+      async (paymentMethod) => {
+        expect(await criarPedido({ paymentMethod })).toBe('CONFIRMED');
+      },
+    );
+
+    // Conta empresarial aguardando liberacao continua parada -- e o unico
+    // caso em que a loja realmente decide antes de separar.
+    it('pedido B2B aguardando aprovacao continua em PENDING_APPROVAL', async () => {
+      // `businessAccountId` vem do quote do pricing, nao do cadastro do cliente.
+      const quotePadrao = mockPricingService.quote.getMockImplementation();
+      mockPricingService.quote.mockImplementation(async (request: any) => ({
+        ...(await quotePadrao(request)),
+        businessAccountId: 'ba-1',
+      }));
+
+      expect(await criarPedido({ businessAccountId: 'ba-1', requiresApproval: true })).toBe('PENDING_APPROVAL');
+    });
   });
 
   describe('findOne', () => {
