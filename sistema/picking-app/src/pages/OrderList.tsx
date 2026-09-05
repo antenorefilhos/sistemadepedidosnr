@@ -20,6 +20,10 @@ const STATUS_LABEL: Record<string, string> = {
   FAILED_DELIVERY: 'Entrega Falhou',
   COMPLETED: 'Concluido',
   CANCELLED: 'Cancelado',
+  // Faltavam: sem eles a tela mostrava o valor cru do banco em ingles
+  // (o uso e `STATUS_LABEL[status] || status`).
+  PENDING_APPROVAL: 'Aguardando aprovacao',
+  REFUNDED: 'Reembolsado',
 }
 
 const STATUS_COLOR: Record<string, string> = {

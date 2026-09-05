@@ -37,20 +37,54 @@ const EMPTY_ADDRESS_FORM: CreateAddressPayload = {
   isDefault: false,
 }
 
+/**
+ * Como o CLIENTE le o andamento do pedido dele.
+ *
+ * O mapa cobria so 5 dos 16 status possiveis, e a exibicao cai em
+ * `LABEL[status] || status` -- entao quem tivesse um pedido saindo pra entrega
+ * lia literalmente "OUT_FOR_DELIVERY" na tela. O valor em ingles e o
+ * identificador interno do banco; o cliente nunca deveria ve-lo.
+ *
+ * O texto aqui e do ponto de vista de quem comprou, nao da operacao: ele nao
+ * sabe o que e "conferencia" nem "checkout", sabe que o pedido esta sendo
+ * preparado.
+ */
 const ORDER_STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pendente',
+  PENDING: 'Recebido',
+  PENDING_APPROVAL: 'Aguardando aprovação',
   CONFIRMED: 'Confirmado',
-  COMPLETED: 'Concluido',
+  PICKING_PENDING: 'Na fila de separação',
+  PICKING: 'Sendo separado',
+  CONFERENCE_PENDING: 'Em conferência',
+  PACKING: 'Sendo embalado',
+  READY_FOR_CHECKOUT: 'Finalizando no caixa',
+  READY_FOR_DELIVERY: 'Pronto para entrega',
+  READY_FOR_PICKUP: 'Pronto para retirada',
+  OUT_FOR_DELIVERY: 'Saiu para entrega',
   DELIVERED: 'Entregue',
+  FAILED_DELIVERY: 'Entrega não concluída',
+  COMPLETED: 'Concluído',
   CANCELLED: 'Cancelado',
+  REFUNDED: 'Reembolsado',
 }
 
 const ORDER_STATUS_CLASS: Record<string, string> = {
   PENDING: 'bg-yellow-100 text-yellow-800',
+  PENDING_APPROVAL: 'bg-yellow-100 text-yellow-800',
   CONFIRMED: 'bg-[#F8F0DC] text-[#5D082A]',
+  PICKING_PENDING: 'bg-sky-100 text-sky-800',
+  PICKING: 'bg-sky-100 text-sky-800',
+  CONFERENCE_PENDING: 'bg-sky-100 text-sky-800',
+  PACKING: 'bg-sky-100 text-sky-800',
+  READY_FOR_CHECKOUT: 'bg-sky-100 text-sky-800',
+  READY_FOR_DELIVERY: 'bg-emerald-100 text-emerald-800',
+  READY_FOR_PICKUP: 'bg-emerald-100 text-emerald-800',
+  OUT_FOR_DELIVERY: 'bg-emerald-100 text-emerald-800',
   COMPLETED: 'bg-[#F8F0DC] text-[#5D082A]',
   DELIVERED: 'bg-[#F8F0DC] text-[#5D082A]',
+  FAILED_DELIVERY: 'bg-red-100 text-red-800',
   CANCELLED: 'bg-red-100 text-red-800',
+  REFUNDED: 'bg-red-100 text-red-800',
 }
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
