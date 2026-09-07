@@ -14,6 +14,18 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.6.0',
+    date: '07/09/2026',
+    title: 'Pedido Liberado Sozinho pelo Caixa e Avisos com o Número do PDV',
+    highlights: [
+      { type: 'feat', description: 'O pedido passa a ser liberado para o entregador sozinho, assim que a venda é finalizada no PDV. Antes essa etapa dependia de alguém avisar o sistema manualmente, e o pedido ficava parado depois de sair da separação. Precisa de uma configuração única no computador da loja.' },
+      { type: 'feat', description: 'O aviso de pedido parado no computador da separação agora mostra o número do pedido (o mesmo que se digita no PDV). Antes avisava que havia pedido esperando, mas não qual — era preciso abrir o aplicativo e procurar.' },
+      { type: 'fix', description: 'Na tela "Minha conta" do cliente, o andamento do pedido aparecia em inglês em várias etapas: quem tivesse pedido a caminho lia "OUT_FOR_DELIVERY". Agora todas as etapas aparecem em português e escritas para o cliente entender.' },
+      { type: 'fix', description: 'Pedido novo passa a entrar no painel como "Confirmado" em vez de "Pendente". Pendente dava a entender que faltava alguma ação sua, quando o pedido já estava pronto para separação.' },
+      { type: 'fix', description: 'Faltavam dois rótulos de situação no aplicativo de separação, que apareciam como código interno em vez de texto.' },
+    ],
+  },
+  {
     version: '1.5.0',
     date: '03/09/2026',
     title: 'Checkout Destravado, Login que Dura e Avisos no Celular da Equipe',

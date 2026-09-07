@@ -182,7 +182,13 @@ fiscal.
 ## RESOLVIDO (29/08/2026): o sinal de faturamento e `hrRegistro`, nao o status
 
 Consulta direta ao banco `DORSAL` (SQL Server `10.13.0.2`, credencial em
-`sistema/.env` como `DORSAL_DB_*` — valor real nunca em doc versionada).
+`sistema/.env` e `Notificador/.env` como `DORSAL_DB_*` — valor real nunca em
+doc versionada).
+
+O login `dash` citado em notas antigas **não existe mais** (confirmado em
+`sys.sql_logins` em 07/09/2026). O acesso atual usa `antenorefilhos`, com
+`CHECK_EXPIRATION = OFF` — senha de conta de serviço não pode expirar, senão o
+agente de faturamento para calado.
 
 ### O bypass da separacao existe naturalmente — confirmado com dado
 

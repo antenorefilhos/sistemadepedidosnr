@@ -29,9 +29,12 @@ que fecha desce para o histórico com a data e o commit.
       caixa e o cancelado 102066 de fora). A validação achou um bug que teria
       feito o agente falhar calado: `inCancelado` nunca vale 0, é NULL ou 1 —
       ver CLAUDE.md.
-      **Falta ligar de fato**: preencher as quatro `DORSAL_DB_*` no
-      `Notificador/.env` do PC da loja. Hoje o acesso usa a conta
-      `antenorefilhos`; avaliar conta dedicada somente leitura.
+      **Falta ligar de fato**: copiar as quatro `DORSAL_DB_*` para o
+      `Notificador/.env` do PC da loja (hoje só estão na máquina do Jonathan).
+      O acesso usa a conta `antenorefilhos` (o login `dash` das notas antigas
+      não existe mais); avaliar conta dedicada somente leitura.
+      **Prova final pendente**: o DAV 102072 está separado e aguardando
+      fechamento no PDV — quando fechar, o agente deve detectar sozinho.
       Ver [solidcom-api.md](solidcom-api.md).
 
 - [x] **Equipe passa a ser avisada no celular.** (03/09/2026) Separação e
