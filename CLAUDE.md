@@ -553,3 +553,29 @@ dono da loja é o caso óbvio), e o `endpoint` é o mesmo: por isso todo `upsert
 Quem recebe é resolvido no disparo (`sendNotificationToModule`), pelo
 `moduleAccess` de quem está ativo — não há lista de destinatário guardada em
 lugar nenhum.
+
+## Armadilha: `inCancelado` do DORSAL nunca vale 0 — é NULL ou 1
+
+Achada em 07/09/2026, ao rodar a query do agente de faturamento contra o banco
+real pela primeira vez. A coluna é `bit` e a documentação dizia "pedido
+cancelado", então escrevi o filtro como `inCancelado = 0`. No banco real são
+**1.929 linhas `NULL` e 144 com `1` — nenhuma com zero**.
+
+Em SQL, `NULL = 0` não é falso, é *desconhecido*: a linha não entra no
+resultado. O filtro nunca casava nada. O agente teria rodado a cada 60
+segundos, encontrado zero pedidos, não registrado erro nenhum, e o pedido
+ficaria preso em `READY_FOR_CHECKOUT` para sempre — com toda a aparência de
+estar funcionando.
+
+Correto: `ISNULL(inCancelado, 0) = 0` (ver `Notificador/dorsal.js`).
+
+**A lição vale além desta coluna:** num banco de terceiro, "o campo existe e o
+tipo bate" não diz nada sobre quais valores ele realmente carrega. Antes de
+filtrar por igualdade em coluna anulável do DORSAL, conte a distribuição real
+(`SUM(CASE WHEN col IS NULL ...)`) em vez de assumir o valor neutro.
+
+Foi também o que corrigiu a estatística do `hrRegistro`: a nota antiga dizia
+"386/386 dos fechados", medido numa amostra pequena. Sobre as 2.073 linhas
+atuais há **5 pedidos com `COO` e sem `hrRegistro`** — todos de 2023/2024, sem
+`nrCupom`, cancelados ou legados. O sinal continua válido para o fluxo atual,
+mas não é 100% absoluto como a nota sugeria.

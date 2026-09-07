@@ -15,17 +15,23 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
-- [ ] **Ligar o gatilho de faturamento do PDV.** Resolvido em 02/09/2026 *qual*
-      é o sinal: `hrRegistro` na `tbPedido` do banco `DORSAL` — preenchido em
-      386 de 386 pedidos fechados e em nenhum não-fechado.
-      `EcommerceSolidconStatus` **não serve** no nosso caminho (o pedido 2038
-      está faturado e continua em `1`, porque a transição `5 → 6` pertence à
-      esteira do app coletor, que a gente pula de propósito). Falta decidir
-      **onde o polling roda**: a VPS de produção não alcança `10.13.0.2`
-      (testado) — precisa de agente dentro da rede da loja, e o `Notificador/`
-      é o candidato natural, já roda no Windows do separador e já fala com a
-      nossa API. Sem isso, nada move o pedido de `READY_FOR_CHECKOUT` para
-      `READY_FOR_DELIVERY` e a fila do entregador fica sempre vazia.
+- [x] **Gatilho de faturamento do PDV — código pronto.** (05/09/2026) O sinal é
+      `hrRegistro` na `tbPedido` do banco `DORSAL` — preenchido em 386 de 386
+      pedidos fechados e em nenhum não-fechado. `EcommerceSolidconStatus`
+      **não serve** no nosso caminho (o pedido 2038 está faturado e continua em
+      `1`, porque a transição `5 → 6` pertence à esteira do app coletor, que a
+      gente pula de propósito). O polling roda no `Notificador/`
+      (`faturamento.js` + `dorsal.js`, somente leitura, 7 testes), porque a VPS
+      não alcança `10.13.0.2` — confirmado por teste, é a rede.
+      **Query validada contra o banco real em 07/09/2026**: as cinco colunas
+      existem com os tipos previstos, e o ciclo completo devolveu exatamente os
+      pedidos faturados (liberou 102068 e 102069, deixou o 102071 ainda no
+      caixa e o cancelado 102066 de fora). A validação achou um bug que teria
+      feito o agente falhar calado: `inCancelado` nunca vale 0, é NULL ou 1 —
+      ver CLAUDE.md.
+      **Falta ligar de fato**: preencher as quatro `DORSAL_DB_*` no
+      `Notificador/.env` do PC da loja. Hoje o acesso usa a conta
+      `antenorefilhos`; avaliar conta dedicada somente leitura.
       Ver [solidcom-api.md](solidcom-api.md).
 
 - [x] **Equipe passa a ser avisada no celular.** (03/09/2026) Separação e
@@ -34,15 +40,18 @@ que fecha desce para o histórico com a data e o commit.
       app e olhar a lista. Agora a inscrição aceita funcionário, o
       destinatário é resolvido no disparo pelo `moduleAccess` de quem está
       ativo, e os gatilhos são `PICKING_PENDING` (separador) e
-      `READY_FOR_DELIVERY` (entregador). **Falta testar em aparelho real** —
-      só o caminho de código foi verificado.
+      `READY_FOR_DELIVERY` (entregador). **Validado em aparelho real**
+      (05/09/2026): os dois avisos chegaram no celular durante o teste da
+      jornada, com a inscrição de equipe gravada no banco.
 
-- [ ] **Fluxo de entrega nunca rodou ponta a ponta.** A infraestrutura ficou
-      pronta em 02/09/2026 — motorista vinculado, fila compartilhada no app,
-      rota se montando sozinha, status sincronizando, notificação ao cliente em
-      cada parada. Mas nenhum pedido percorreu o caminho inteiro até
-      `DELIVERED`. Enquanto isso não acontecer com um pedido real, a metade da
-      operação que o cliente mais julga segue sem validação.
+- [x] **Jornada executada ponta a ponta.** (05/09/2026) Os oito elos rodaram
+      contra produção com o DAV 102066, de `order.created` a `order.delivered`,
+      com rota `COMPLETED`. **Com uma ressalva que importa:** o `markInvoiced`
+      foi chamado à mão, então o pedido foi liberado para entrega sem
+      faturamento real no PDV — o elo mecânico está provado, o gatilho real
+      não. Falta repetir com uma venda fechada no caixa e o agente ligado.
+      Único erro do percurso: item por peso exige `finalWeight` (validação
+      correta — conferir se o campo está visível no app do separador).
 
 - [ ] **Auditoria de aprovação B2B não aparece em lugar nenhum.** O
       `businessApprovalStatus` é exibido em `BusinessAccountsSection`, mas

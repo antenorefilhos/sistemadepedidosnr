@@ -55,6 +55,14 @@ function lerConfig(env = process.env) {
  *
  * `nrSeqPAF` é o DAV (confirmado contra o cupom fiscal `DAV0000000102013`).
  * Não confunda com `cdPedidoCarga`, que já foi falso positivo aqui duas vezes.
+ *
+ * ARMADILHA (achada em 07/09/2026, ao rodar contra o banco real pela primeira
+ * vez): `inCancelado` é `bit`, mas o ERP **nunca grava 0** — são 1.929 linhas
+ * `NULL` e 144 com `1`, nenhuma com zero. Escrito como `inCancelado = 0`, o
+ * filtro nunca casava nada, porque `NULL = 0` é desconhecido em SQL, não
+ * falso. O agente teria rodado a cada minuto, achado zero pedidos, não
+ * registrado erro nenhum, e o pedido ficaria preso em READY_FOR_CHECKOUT para
+ * sempre -- com toda a aparência de funcionar. Por isso `ISNULL(...)`.
  */
 async function consultarFaturados(davs, config = lerConfig()) {
   if (!davs || davs.length === 0) return []
@@ -72,7 +80,7 @@ async function consultarFaturados(davs, config = lerConfig()) {
       FROM tbPedido
       WHERE nrSeqPAF IN (${parametros.join(', ')})
         AND hrRegistro IS NOT NULL
-        AND inCancelado = 0
+        AND ISNULL(inCancelado, 0) = 0
     `)
 
     return recordset.map((linha) => ({
