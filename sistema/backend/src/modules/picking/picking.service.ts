@@ -146,21 +146,39 @@ export class PickingService {
     // e nao ha fila de retentativa -- se falhar, o operador so perde a
     // comodidade, ajusta na mao como fazia antes.
     if (updated.erpDav && (await this.integrationModules.isEnabled('antenorapi'))) {
-      const itensComErp = updated.items.filter((item) => item.product?.erpProductId != null)
+      // Agrupado por erpProductId antes de mandar: o mesmo produto pode virar
+      // DUAS linhas em order_items (ex.: separador adiciona "mais um" do
+      // mesmo item durante a separacao, em vez de aumentar a quantidade da
+      // linha existente). Mandar as duas linhas separadas pro PUT faria o
+      // ERP receber duas entradas com o mesmo cdProduto -- a ultima venceria
+      // e a quantidade real ficaria pela metade, sem erro nenhum aparecer.
+      const porProduto = new Map<number, { quantidade: number; cutReason?: string; algumAtivo: boolean }>()
+      for (const item of updated.items) {
+        const erpProductId = item.product?.erpProductId
+        if (erpProductId == null) continue
+
+        const cortado = item.status === 'MISSING'
+        const atual = porProduto.get(erpProductId) || { quantidade: 0, algumAtivo: false }
+        if (!cortado) {
+          atual.quantidade += Number(item.fulfilledQuantity ?? item.quantity)
+          atual.algumAtivo = true
+        } else if (!atual.cutReason) {
+          atual.cutReason = item.cutReason || undefined
+        }
+        porProduto.set(erpProductId, atual)
+      }
+
+      const itensComErp = Array.from(porProduto.entries()).map(([erpProductId, dados]) => ({
+        erpProductId,
+        quantidade: dados.quantidade,
+        cancelado: !dados.algumAtivo,
+        motivoCorte: !dados.algumAtivo ? dados.cutReason : undefined,
+      }))
+
       if (itensComErp.length > 0) {
-        this.antenorApi
-          .updatePickedItems(
-            updated.erpDav,
-            itensComErp.map((item) => ({
-              erpProductId: item.product!.erpProductId as number,
-              quantidade: Number(item.fulfilledQuantity ?? item.quantity),
-              cancelado: item.status === 'MISSING',
-              motivoCorte: item.cutReason || undefined,
-            })),
-          )
-          .catch((error) => {
-            this.logger.warn(`Falha ao sincronizar itens separados do pedido ${order.id} no ERP`, error)
-          })
+        this.antenorApi.updatePickedItems(updated.erpDav, itensComErp).catch((error) => {
+          this.logger.warn(`Falha ao sincronizar itens separados do pedido ${order.id} no ERP`, error)
+        })
       }
     }
 
