@@ -33,6 +33,12 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const [actionLoading, setActionLoading] = useState(false)
   const [confirm, setConfirm] = useState<ConfirmState>({ mode: null, itemId: null, taskItemId: null, ean: '' })
   const [adjustQty, setAdjustQty] = useState<number>(0)
+  // Texto exibido no input, separado do numero validado (adjustQty). Sem
+  // isso, apagar o campo pra digitar um peso novo forcava de volta pro
+  // minimo (0,01) a cada tecla apagada -- Number('') || minValue cai no
+  // minValue no instante em que o campo fica vazio, antes do usuario
+  // conseguir digitar o valor certo.
+  const [adjustQtyText, setAdjustQtyText] = useState<string>('0')
   const [missingItem, setMissingItem] = useState<{ taskItemId: string; reason: string } | null>(null)
   const [addItemModal, setAddItemModal] = useState(false)
   const [productSearch, setProductSearch] = useState('')
@@ -132,8 +138,40 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
 
   const handleManualMode = (taskItem: PickingTaskItem) => {
     const orderItem = getOrderItemForTaskItem(taskItem)
-    setAdjustQty(Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1))
+    const inicial = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1)
+    setAdjustQty(inicial)
+    setAdjustQtyText(String(inicial))
     setConfirm({ mode: 'manual', itemId: null, taskItemId: taskItem.id, ean: '' })
+  }
+
+  // Aceita digito por digito enquanto o campo esta vazio ou incompleto (ex.:
+  // "1," no meio da digitacao de "1,25") sem forcar nenhum valor default --
+  // so atualiza o numero validado (adjustQty) quando o texto ja parseia pra
+  // um numero de verdade. O valor exibido aceita virgula OU ponto.
+  const handleAdjustQtyTextChange = (raw: string) => {
+    let sanitized = raw.replace(/[^\d.,]/g, '')
+    const partes = sanitized.split(/[.,]/)
+    if (partes.length > 2) {
+      const separador = sanitized.includes(',') ? ',' : '.'
+      sanitized = partes[0] + separador + partes.slice(1).join('')
+    }
+    setAdjustQtyText(sanitized)
+
+    const normalizado = sanitized.replace(',', '.')
+    if (normalizado !== '' && normalizado !== '.' && !normalizado.endsWith('.') && !Number.isNaN(Number(normalizado))) {
+      setAdjustQty(Number(normalizado))
+    }
+  }
+
+  // Ao sair do campo (ou confirmar), aplica o minimo -- so aqui, nunca
+  // durante a digitacao, senao volta o bug de nao deixar apagar.
+  const handleAdjustQtyBlur = (minValue: number) => {
+    const normalizado = adjustQtyText.replace(',', '.')
+    const parsed = Number(normalizado)
+    const valido = Number.isFinite(parsed) && parsed > 0 ? Math.max(minValue, parsed) : minValue
+    const arredondado = Number(valido.toFixed(3))
+    setAdjustQty(arredondado)
+    setAdjustQtyText(String(arredondado))
   }
 
   const handleBarcodeResult = async (barcode: string) => {
@@ -557,21 +595,30 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 </label>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setAdjustQty(q => Math.max(minValue, Number((q - step).toFixed(3))))}
+                    onClick={() => {
+                      const next = Math.max(minValue, Number((adjustQty - step).toFixed(3)))
+                      setAdjustQty(next)
+                      setAdjustQtyText(String(next))
+                    }}
                     className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
                   >
                     −
                   </button>
                   <input
-                    type="number"
-                    min={minValue}
-                    step={step}
-                    value={adjustQty}
-                    onChange={(e) => setAdjustQty(Math.max(minValue, Number(e.target.value) || minValue))}
+                    type="text"
+                    inputMode="decimal"
+                    value={adjustQtyText}
+                    onChange={(e) => handleAdjustQtyTextChange(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={() => handleAdjustQtyBlur(minValue)}
                     className="flex-1 h-10 rounded-lg border border-gray-200 text-center text-lg font-semibold focus:outline-none focus:border-brand-500"
                   />
                   <button
-                    onClick={() => setAdjustQty(q => Number((q + step).toFixed(3)))}
+                    onClick={() => {
+                      const next = Number((adjustQty + step).toFixed(3))
+                      setAdjustQty(next)
+                      setAdjustQtyText(String(next))
+                    }}
                     className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
                   >
                     +
