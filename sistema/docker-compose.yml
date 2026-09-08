@@ -73,6 +73,10 @@ services:
       # solidcom-erp.service.ts -- documentadas no .env.example e sem chegar
       # no container, entao configurar nao tinha efeito nenhum.
       SOLIDCOM_API_URL: ${SOLIDCOM_API_URL:-}
+      INTEGRATION_ANTENORAPI_ENABLED: ${INTEGRATION_ANTENORAPI_ENABLED:-false}
+      ANTENOR_API_URL: ${ANTENOR_API_URL:-}
+      ANTENOR_API_LOJA: ${ANTENOR_API_LOJA:-1}
+      ANTENOR_API_TIMEOUT_MS: ${ANTENOR_API_TIMEOUT_MS:-30000}
       SOLIDCOM_API_KEY: ${SOLIDCOM_API_KEY:-}
       SOLIDCOM_CNPJ: ${SOLIDCOM_CNPJ:-}
       SOLIDCOM_CODECOM: ${SOLIDCOM_CODECOM:-}

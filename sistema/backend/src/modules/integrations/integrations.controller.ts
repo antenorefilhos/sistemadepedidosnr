@@ -61,6 +61,20 @@ export class IntegrationsController {
     return this.orderOrchestrationService.markInvoiced(undefined, id, body || {})
   }
 
+  // Simetrico do endpoint acima: o operador cancelou o pedido no PDV.
+  // Mesmos papeis -- quem pode dizer "faturou" pode dizer "cancelou".
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'picker')
+  @ApiBearerAuth()
+  @Post('solidcom/orders/:id/cancelled-in-erp')
+  @ApiOperation({ summary: 'Marca o pedido como cancelado na retaguarda do ERP e avisa o cliente' })
+  markCancelledInErp(
+    @Param('id') id: string,
+    @Body() body: { canceladoEm?: string; motivo?: string; dav?: string },
+  ) {
+    return this.orderOrchestrationService.markCancelledInErp(undefined, id, body || {})
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get('modules')

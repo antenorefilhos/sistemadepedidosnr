@@ -677,6 +677,25 @@ compartilhada com o agente que desenvolve a AntenorApi (a API própria que vai
 substituir a Solidcom). Convenção e índice estão no `README.md` de lá — siga o
 que já existe em vez de criar outra.
 
+Desde 08/09/2026 a pasta tem estrutura fixa, e **não se cria mais arquivo
+avulso na raiz**:
+
+| Arquivo | Papel |
+|---|---|
+| `conversa-agentes.md` | **canal único de diálogo**, cronológico — toda mensagem entra no fim |
+| `tasks-linear.md` | quadro de tarefas compartilhado, prefixo `AEF-XXX` |
+| `specs/` | contratos de integração |
+| `historico/` | os 15 documentos anteriores, arquivados |
+
+Formato da mensagem (cabeçalho obrigatório, senão o outro agente não indexa):
+`### [YYYY-MM-DD HH:mm:ss] · [TIPO]` + `De:` / `Para:` / `Task Linear:` /
+`Status da Task:`, e `Ação Esperada:` no fim. Tipos: `[SOLICITAÇÃO]`,
+`[ENTREGA / RESPOSTA]`, `[HOMOLOGAÇÃO]`, `[BLOQUEIO / ALERTA]`.
+
+Toda demanda vira `AEF-XXX` lá **e** issue `JON-XX` no Linear — o `AEF` é o
+combinado entre os agentes, o `JON` é o que o lojista acompanha. Ao mexer numa,
+mexa na outra.
+
 Duas regras dessa pasta que já custaram caro:
 
 1. **Nenhuma credencial em documento.** Três chaves de produção circularam por
@@ -713,3 +732,37 @@ Inverter isso faz o preço promocional virar o preço cheio, e quando a promoç�
 acabar o produto fica barato para sempre — sem ninguém notar, porque o número
 parece plausível. Hoje lemos `vl_produto_normal`, e foi isso que nos protegeu
 quando o Solidcom serviu `vl_produto` defasado na ração Champion.
+
+## Armadilha: a rota de cancelamento da AntenorApi usa uma chave que nao temos
+
+Achada na homologacao da v1.6.0, em 08/09/2026 — e e o tipo que nao aparece em
+teste de `curl` isolado, so quando alguem pergunta *"e como o nosso codigo
+chama isso?"*.
+
+`POST /pedidos/:cdPedido/cancelar` e `GET /pedidos/:cdPedido/status-pdv` sao
+chaveados por **`cdPedido`**, a PK de `DORSAL.dbo.tbPedido`. Nos nao temos esse
+numero em lugar nenhum. Existem tres identificadores para o mesmo pedido:
+
+| Onde vive | Campo | Exemplo |
+|---|---|---|
+| `orders.erpDav` | `nrSeqPAF` — o DAV, o que o separador digita no PDV | `102072` |
+| `orders.numero` | `cdEcomPedido` — gerado por nos, existe desde a criacao | `619376003` |
+| **nao temos** | `cdPedido` — PK deles | `2074` |
+
+`GET /pedidos/102072/status-pdv` da **404**; `GET /pedidos/2074/status-pdv` da
+**200** e devolve `numeroDAV: 102072` no corpo. Eles correlacionam os tres, mas
+so aceitam entrada pelo que nao guardamos.
+
+**Nunca deduza o `cdPedido` a partir do DAV.** A diferenca parece constante
+(`DAV - 99998` acerta na faixa atual), mas ja mapeamos **12 offsets distintos**
+ao longo das faixas historicas de `tbPedido`. A formula funciona nos testes de
+hoje e cancela o pedido errado num pedido antigo, sem erro nenhum.
+
+Pedido aberto como `AEF-011` / `JON-9`: aceitar `cdEcomPedido` como chave. E o
+unico identificador que existe **antes** da resposta do `PostPedido` — o que
+faz o cancelamento funcionar inclusive para pedido que falhou ao sincronizar,
+justamente um dos que mais precisam ser cancelados.
+
+Enquanto isso nao entrar, `syncCancelledOrder` continua sem caminho: a
+`PutCancelamentoPedido` da Solidcom nunca funcionou (int32 estourado, ver acima)
+e a rota nova e inalcancavel. Pedido cancelado no site segue aberto no ERP.

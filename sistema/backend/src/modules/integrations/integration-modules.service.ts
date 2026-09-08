@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma.service'
 
 export type IntegrationModuleKey =
   | 'solidcom'
+  | 'antenorapi'
   | 'hubspot'
   | 'rdstation'
   | 'meta-pixel'
@@ -28,6 +29,12 @@ export class IntegrationModulesService {
       name: 'Solidcom ERP',
       removable: true,
       notes: 'Sincroniza catalogo e pedidos com ERP legado.',
+    },
+    antenorapi: {
+      key: 'antenorapi',
+      name: 'AntenorApi (ERP proprio)',
+      removable: true,
+      notes: 'API propria que le o SQL Server da loja. Hoje cobre cancelamento e status no PDV.',
     },
     hubspot: {
       key: 'hubspot',
@@ -69,6 +76,7 @@ export class IntegrationModulesService {
 
   private readonly envFlagNames: Record<IntegrationModuleKey, string> = {
     solidcom: 'INTEGRATION_SOLIDCOM_ENABLED',
+    antenorapi: 'INTEGRATION_ANTENORAPI_ENABLED',
     hubspot: 'INTEGRATION_HUBSPOT_ENABLED',
     rdstation: 'INTEGRATION_RDSTATION_ENABLED',
     'meta-pixel': 'INTEGRATION_META_PIXEL_ENABLED',
@@ -79,6 +87,8 @@ export class IntegrationModulesService {
 
   private readonly envDefaultValues: Record<IntegrationModuleKey, boolean> = {
     solidcom: true,
+    // Nasce desligado: a VPS ainda nao tem rota ate 10.13.0.2 (JON-11).
+    antenorapi: false,
     hubspot: false,
     rdstation: false,
     'meta-pixel': false,

@@ -3,9 +3,15 @@ import { PrismaService } from '../../common/prisma.service'
 import { InternalOrderAddressContract, InternalOrderContract } from './dto/order-contract.dto'
 import { SolidcomPedidoDto } from './dto/solidcom-order.dto'
 import { SolidcomERPService } from './solidcom-erp.service'
+import {
+  AntenorApiService,
+  OrderAlreadyInvoicedError,
+  OrderNotFoundInErpError,
+} from './antenor-api.service'
 import { IntegrationModulesService } from './integration-modules.service'
 import { IntegrationOutboxService } from './integration-outbox.service'
 import { requireEnv } from '../../common/require-env'
+import { reconcileInvoicedItems, Reconciliacao } from '../../common/order-reconciliation'
 import { NotificationsService } from '../notifications/notifications.service'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
@@ -28,6 +34,7 @@ export class OrderOrchestrationService {
 
   constructor(
     private readonly solidcomERPService: SolidcomERPService,
+    private readonly antenorApi: AntenorApiService,
     private readonly prisma: PrismaService,
     private readonly integrationModules: IntegrationModulesService,
     private readonly integrationOutbox: IntegrationOutboxService,
@@ -325,9 +332,15 @@ export class OrderOrchestrationService {
   }
 
   async syncCancelledOrder(payload: InternalOrderContract, reason?: string) {
-    if (!(await this.integrationModules.isEnabled('solidcom'))) {
+    // A AntenorApi tem precedencia quando ligada: e a unica das duas que
+    // consegue cancelar de verdade. A `PutCancelamentoPedido` do Solidcom
+    // recebe `cdPedido` como int32 e o nosso numero tem 12 digitos -- sempre
+    // devolveu 400, ou seja, nenhum pedido nunca foi cancelado no ERP por ali.
+    const viaAntenorApi = await this.integrationModules.isEnabled('antenorapi')
+
+    if (!viaAntenorApi && !(await this.integrationModules.isEnabled('solidcom'))) {
       await this.logSyncEvent('CANCEL_ORDER_SKIPPED_MODULE_DISABLED', payload.orderId, {
-        reason: 'Modulo Solidcom desativado',
+        reason: 'Nenhum conector de ERP ativo',
       })
       return
     }
@@ -338,13 +351,78 @@ export class OrderOrchestrationService {
       contract: payload,
       externalOrderNumber,
       reason: reason || null,
+      connector: viaAntenorApi ? 'ANTENORAPI' : 'SOLIDCOM',
     })
+
+    if (viaAntenorApi) {
+      try {
+        await this.antenorApi.cancelOrder(externalOrderNumber, reason)
+        await this.logSyncEvent('CANCEL_ORDER_SUCCESS', payload.orderId, {
+          externalOrderNumber,
+          reason: reason || null,
+          connector: 'ANTENORAPI',
+        })
+        return
+      } catch (error) {
+        // Pedido ja faturado no PDV: a recusa esta CERTA -- cancelar geraria
+        // furo fiscal. Nao e falha de integracao e nao entra na fila de
+        // retentativa; repetir amanha continuaria dando 409. Fica registrado
+        // pra alguem tratar o estorno no caixa.
+        if (error instanceof OrderAlreadyInvoicedError) {
+          await this.logSyncEvent('CANCEL_ORDER_REFUSED_ALREADY_INVOICED', payload.orderId, {
+            externalOrderNumber,
+            reason: reason || null,
+            connector: 'ANTENORAPI',
+          })
+          this.logger.warn(
+            `Pedido ${payload.orderId} (${externalOrderNumber}) ja faturado no PDV -- estorno tem que ser feito no caixa.`,
+          )
+          return
+        }
+
+        // Nunca chegou ao ERP: nao ha o que cancelar la. Cancelar so do nosso
+        // lado e o comportamento correto, nao um erro a repetir.
+        if (error instanceof OrderNotFoundInErpError) {
+          await this.logSyncEvent('CANCEL_ORDER_SKIPPED_NOT_IN_ERP', payload.orderId, {
+            externalOrderNumber,
+            reason: reason || null,
+            connector: 'ANTENORAPI',
+          })
+          return
+        }
+
+        const textoErro = this.stringifyError(error)
+        await this.logSyncEvent('CANCEL_ORDER_FAILED', payload.orderId, {
+          externalOrderNumber,
+          reason: reason || null,
+          connector: 'ANTENORAPI',
+          error: textoErro,
+        })
+        await this.integrationOutbox.enqueueEvent({
+          connectorType: 'ERP',
+          provider: 'ANTENORAPI',
+          aggregate: 'ORDER',
+          aggregateId: payload.orderId,
+          type: 'ORDER_CANCEL_TO_ERP',
+          payload: {
+            orderId: payload.orderId,
+            externalOrderNumber,
+            reason: reason || null,
+            previousError: textoErro,
+          },
+          idempotencyKey: `antenorapi:order:${payload.orderId}:cancel`,
+        })
+        this.logger.warn(`Falha ao cancelar pedido ${payload.orderId} na AntenorApi`, error)
+        return
+      }
+    }
 
     try {
       await this.solidcomERPService.cancelOrder(externalOrderNumber, reason)
       await this.logSyncEvent('CANCEL_ORDER_SUCCESS', payload.orderId, {
         externalOrderNumber,
         reason: reason || null,
+        connector: 'SOLIDCOM',
       })
     } catch (error) {
       const reasonText = this.stringifyError(error)
@@ -602,6 +680,162 @@ export class OrderOrchestrationService {
    * ja ter avancado e no-op, nao erro -- senao o agente ficaria logando falha
    * pra sempre no mesmo pedido.
    */
+  /**
+   * Direcao inversa do faturamento: o operador cancelou o pedido NO PDV.
+   *
+   * O `markInvoiced` cobre "a venda fechou". Faltava o simetrico -- e a
+   * assimetria era silenciosa: a AntenorApi passou a devolver
+   * `statusGeral: CANCELADO_NA_RETAGUARDA` na v1.6.0 e nada do nosso lado lia
+   * isso. O pedido morria no ERP e continuava vivo aqui: o separador podia
+   * separar, o entregador podia sair com ele, e o cliente so descobria quando
+   * nao chegasse -- ou pior, chegasse sem cupom.
+   *
+   * Chamado pelo agente de faturamento (hoje) ou pelo webhook (JON-23).
+   */
+  async markCancelledInErp(
+    context: Partial<TenantContext> | undefined,
+    orderId: string,
+    dados: { canceladoEm?: string; motivo?: string; dav?: string } = {},
+  ) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...tenantStoreWhere(context) },
+      select: { id: true, status: true, erpDav: true },
+    })
+    if (!order) throw new NotFoundException('Pedido nao encontrado.')
+
+    if (order.status === 'CANCELLED') {
+      return { orderId, status: order.status, jaEstava: true }
+    }
+
+    // Pedido ja entregue nao volta atras por cancelamento na retaguarda: a
+    // mercadoria saiu e o cliente recebeu. Cancelar aqui reescreveria o
+    // historico dele para algo que nao aconteceu. Registra a divergencia para
+    // alguem olhar, e nao mexe no estado.
+    const jaEntregue = ['DELIVERED', 'COMPLETED', 'PICKED_UP'].includes(order.status)
+    if (jaEntregue) {
+      await this.logSyncEvent('ERP_CANCEL_DIVERGENCE_ORDER_ALREADY_DELIVERED', orderId, {
+        localStatus: order.status,
+        dav: dados.dav ?? order.erpDav ?? null,
+        canceladoEm: dados.canceladoEm ?? null,
+        motivo: dados.motivo ?? null,
+      })
+      this.logger.warn(
+        `Pedido ${orderId} cancelado no ERP mas ja consta ${order.status} aqui -- divergencia registrada, estado preservado.`,
+      )
+      return { orderId, status: order.status, divergencia: true }
+    }
+
+    await this.prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } })
+    await this.prisma.orderEvent.create({
+      data: {
+        tenantId: context?.tenantId || DEFAULT_TENANT_ID,
+        storeId: context?.storeId || DEFAULT_STORE_ID,
+        orderId,
+        type: 'order.cancelled_in_erp',
+        payload: {
+          statusAnterior: order.status,
+          dav: dados.dav ?? order.erpDav ?? null,
+          canceladoEm: dados.canceladoEm ?? null,
+          motivo: dados.motivo ?? null,
+        },
+        actorType: 'SYSTEM',
+      },
+    })
+
+    // O cliente precisa saber. Nao bloqueia a resposta: falha de push nao pode
+    // impedir o cancelamento de ser gravado, senao o agente reprocessa em loop.
+    this.notificationsService.notifyOrderStatusChange(orderId, 'CANCELLED').catch(() => {})
+
+    return { orderId, status: 'CANCELLED', jaEstava: false }
+  }
+
+  /**
+   * Compara o que o cliente pediu com o que o PDV realmente faturou.
+   *
+   * Existe pelo item pesavel: o cliente aprova 0,800 kg, a balanca do caixa da
+   * 0,845 kg, e o cupom cobra o peso real. Ate agora o historico do cliente
+   * mostrava o valor estimado, nao o cobrado -- e em supermercado isso e a
+   * regra, nao a excecao.
+   *
+   * Grava o resultado como evento do pedido em vez de sobrescrever o total: o
+   * valor que o cliente aprovou e o valor que ele pagou sao dois fatos, e
+   * apagar o primeiro tira a chance de alguem conferir a diferenca depois.
+   */
+  async reconcileInvoicedOrder(
+    context: Partial<TenantContext> | undefined,
+    orderId: string,
+  ): Promise<{ orderId: string; reconciliacao: Reconciliacao } | { orderId: string; motivo: string }> {
+    if (!(await this.integrationModules.isEnabled('antenorapi'))) {
+      return { orderId, motivo: 'Conector AntenorApi desativado.' }
+    }
+
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...tenantStoreWhere(context) },
+      select: {
+        id: true,
+        erpDav: true,
+        items: {
+          select: {
+            quantity: true,
+            unitPrice: true,
+            product: { select: { erpProductId: true, ean: true, secondaryEans: true, name: true } },
+          },
+        },
+      },
+    })
+    if (!order) throw new NotFoundException('Pedido nao encontrado.')
+
+    const externalOrderNumber = await this.resolveExternalOrderNumber(orderId)
+    const faturados = await this.antenorApi.getInvoicedItems(externalOrderNumber)
+
+    if (!faturados) {
+      // Sem cupom ainda: nao e erro. O pedido pode nem ter passado no caixa.
+      return { orderId, motivo: 'Pedido ainda nao faturado no PDV.' }
+    }
+
+    const reconciliacao = reconcileInvoicedItems(
+      order.items.map((i) => ({
+        erpProductId: i.product?.erpProductId ?? null,
+        ean: i.product?.ean ?? null,
+        secondaryEans: i.product?.secondaryEans ?? null,
+        name: i.product?.name ?? null,
+        // `quantity` de proposito, nao `fulfilledQuantity`. O que o separador
+        // pesou e etapa intermediaria; o que interessa ao cliente e comparar o
+        // que ELE aprovou no checkout com o que o cupom cobrou.
+        quantity: Number(i.quantity),
+        unitPrice: Number(i.unitPrice),
+      })),
+      faturados,
+    )
+
+    await this.prisma.orderEvent.create({
+      data: {
+        tenantId: context?.tenantId || DEFAULT_TENANT_ID,
+        storeId: context?.storeId || DEFAULT_STORE_ID,
+        orderId,
+        type: reconciliacao.temDivergencia
+          ? 'order.invoice_diverged'
+          : 'order.invoice_reconciled',
+        payload: {
+          dav: order.erpDav,
+          totalPedido: reconciliacao.totalPedido,
+          totalFaturado: reconciliacao.totalFaturado,
+          diferenca: reconciliacao.diferenca,
+          itens: reconciliacao.itens,
+        },
+        actorType: 'SYSTEM',
+      },
+    })
+
+    if (reconciliacao.temDivergencia) {
+      this.logger.warn(
+        `Pedido ${orderId} (DAV ${order.erpDav}): cobrado R$ ${reconciliacao.totalFaturado} contra R$ ${reconciliacao.totalPedido} aprovados (diferenca R$ ${reconciliacao.diferenca}).`,
+      )
+    }
+
+    return { orderId, reconciliacao }
+  }
+
   async markInvoiced(
     context: Partial<TenantContext> | undefined,
     orderId: string,

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { SolidcomERPService } from './solidcom-erp.service'
+import { AntenorApiService } from './antenor-api.service'
 import { IntegrationsService } from './integrations.service'
 import { IntegrationsController } from './integrations.controller'
 import { HealthController } from './health.controller'
@@ -22,6 +23,7 @@ import { NotificationsModule } from '../notifications/notifications.module'
   controllers: [IntegrationsController, HealthController],
   providers: [
     SolidcomERPService,
+    AntenorApiService,
     IntegrationsService,
     HubSpotService,
     NfeService,
@@ -37,6 +39,7 @@ import { NotificationsModule } from '../notifications/notifications.module'
   ],
   exports: [
     SolidcomERPService,
+    AntenorApiService,
     IntegrationsService,
     HubSpotService,
     NfeService,

@@ -6,6 +6,11 @@ import { SolidcomERPService } from './solidcom-erp.service'
 import { IntegrationModulesService } from './integration-modules.service'
 import { IntegrationOutboxService } from './integration-outbox.service'
 import { NotificationsService } from '../notifications/notifications.service'
+import {
+  AntenorApiService,
+  OrderAlreadyInvoicedError,
+  OrderNotFoundInErpError,
+} from './antenor-api.service'
 
 const mockSolidcomERPService = {
   syncOrder: jest.fn(),
@@ -22,10 +27,24 @@ const mockPrismaService = {
   },
   order: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    update: jest.fn(),
+  },
+  orderEvent: {
+    create: jest.fn(),
   },
 }
+const mockAntenorApiService = {
+  cancelOrder: jest.fn(),
+  getOrderStatus: jest.fn(),
+  isConfigured: jest.fn().mockReturnValue(true),
+}
+
+// O mock precisa saber QUAL modulo esta sendo perguntado. Antes respondia
+// `true` pra tudo; com dois conectores de ERP isso faria todo teste do
+// caminho legado cair no conector novo sem ninguem notar.
 const mockIntegrationModulesService = {
-  isEnabled: jest.fn().mockResolvedValue(true),
+  isEnabled: jest.fn(async (key: string) => key !== 'antenorapi'),
 }
 const mockIntegrationOutboxService = {
   enqueueEvent: jest.fn(),
@@ -43,6 +62,7 @@ describe('OrderOrchestrationService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: IntegrationModulesService, useValue: mockIntegrationModulesService },
         { provide: IntegrationOutboxService, useValue: mockIntegrationOutboxService },
+        { provide: AntenorApiService, useValue: mockAntenorApiService },
         // Injetado pelo gatilho de faturamento (markInvoiced avisa o cliente
         // quando o PDV fecha a venda).
         { provide: NotificationsService, useValue: { notifyOrderStatusChange: jest.fn() } },
@@ -53,6 +73,9 @@ describe('OrderOrchestrationService', () => {
   })
 
   afterEach(() => {
+    mockIntegrationModulesService.isEnabled.mockImplementation(
+      async (key: string) => key !== 'antenorapi',
+    )
     jest.clearAllMocks()
   })
 
@@ -512,4 +535,188 @@ describe('OrderOrchestrationService', () => {
     const remoteOnly = result.items.find((i) => i.status === 'remote_only')
     expect(remoteOnly?.externalOrderNumber).toBe(999)
   })
+
+  describe('syncCancelledOrder via AntenorApi', () => {
+    const pedido = {
+      orderId: 'order-cancel-antenor',
+      customerId: 'cust-1',
+      status: 'CANCELLED',
+      paymentMethod: 'PIX',
+      paymentStatus: 'PENDING',
+      subtotal: 10,
+      delivery: 0,
+      discount: 0,
+      total: 10,
+      notes: null,
+      customer: { id: 'cust-1', cpf: null, name: 'Cliente', whatsapp: '5511', email: null },
+      items: [],
+    } as unknown as InternalOrderContract
+
+    const eventosGravados = () =>
+      mockPrismaService.auditLog.create.mock.calls.map((c: any[]) => c[0]?.data?.action)
+
+    beforeEach(() => {
+      // Conector novo ligado, legado desligado.
+      mockIntegrationModulesService.isEnabled.mockImplementation(
+        async (key: string) => key === 'antenorapi',
+      )
+      mockPrismaService.auditLog.findFirst.mockResolvedValue({
+        id: 'snapshot-order',
+        changes: JSON.stringify({ externalPreview: { numero: 619376003 } }),
+      })
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-cancel' })
+    })
+
+    it('cancela pelo nosso numero e nao toca no conector legado', async () => {
+      mockAntenorApiService.cancelOrder.mockResolvedValue(undefined)
+
+      await service.syncCancelledOrder(pedido, 'Cliente desistiu')
+
+      expect(mockAntenorApiService.cancelOrder).toHaveBeenCalledWith(619376003, 'Cliente desistiu')
+      // A PutCancelamentoPedido do Solidcom nunca cancelou nada (int32 estoura
+      // com nosso numero de 12 digitos). Chamar os dois duplicaria a tentativa
+      // e mascararia a falha do novo com o erro conhecido do velho.
+      expect(mockSolidcomERPService.cancelOrder).not.toHaveBeenCalled()
+      expect(eventosGravados()).toContain('CANCEL_ORDER_SUCCESS')
+    })
+
+    it('pedido ja faturado: registra a recusa e NAO enfileira retentativa', async () => {
+      mockAntenorApiService.cancelOrder.mockRejectedValue(
+        new OrderAlreadyInvoicedError('619376003'),
+      )
+
+      await service.syncCancelledOrder(pedido, 'Cliente desistiu')
+
+      expect(eventosGravados()).toContain('CANCEL_ORDER_REFUSED_ALREADY_INVOICED')
+      // O 409 esta CERTO -- cancelar geraria furo fiscal. Repetir amanha daria
+      // 409 de novo, pra sempre. Enfileirar aqui seria transformar uma regra de
+      // negocio funcionando numa fila que nunca esvazia.
+      expect(mockIntegrationOutboxService.enqueueEvent).not.toHaveBeenCalled()
+    })
+
+    it('pedido inexistente no ERP: encerra sem erro e sem retentativa', async () => {
+      mockAntenorApiService.cancelOrder.mockRejectedValue(
+        new OrderNotFoundInErpError('619376003'),
+      )
+
+      await service.syncCancelledOrder(pedido, 'Cliente desistiu')
+
+      expect(eventosGravados()).toContain('CANCEL_ORDER_SKIPPED_NOT_IN_ERP')
+      expect(mockIntegrationOutboxService.enqueueEvent).not.toHaveBeenCalled()
+    })
+
+    it('falha de rede: enfileira pra retentativa', async () => {
+      mockAntenorApiService.cancelOrder.mockRejectedValue(new Error('ECONNREFUSED'))
+
+      await service.syncCancelledOrder(pedido, 'Cliente desistiu')
+
+      expect(eventosGravados()).toContain('CANCEL_ORDER_FAILED')
+      expect(mockIntegrationOutboxService.enqueueEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'ANTENORAPI',
+          idempotencyKey: 'antenorapi:order:order-cancel-antenor:cancel',
+        }),
+      )
+    })
+
+    it('nenhum conector ligado: nao tenta cancelar em lugar nenhum', async () => {
+      mockIntegrationModulesService.isEnabled.mockResolvedValue(false)
+
+      await service.syncCancelledOrder(pedido, 'Cliente desistiu')
+
+      expect(mockAntenorApiService.cancelOrder).not.toHaveBeenCalled()
+      expect(mockSolidcomERPService.cancelOrder).not.toHaveBeenCalled()
+      expect(eventosGravados()).toContain('CANCEL_ORDER_SKIPPED_MODULE_DISABLED')
+    })
+  })
+
+
+  describe('markCancelledInErp (cancelamento originado no PDV)', () => {
+    const notificar = jest.fn()
+
+    beforeEach(() => {
+      mockPrismaService.orderEvent.create.mockResolvedValue({})
+      mockPrismaService.order.update.mockResolvedValue({})
+      mockPrismaService.order.findFirst.mockReset()
+      notificar.mockReset()
+      ;(service as unknown as { notificationsService: unknown }).notificationsService = {
+        notifyOrderStatusChange: notificar,
+      }
+    })
+
+    const eventosGravados = () =>
+      mockPrismaService.auditLog.create.mock.calls.map((c: any[]) => c[0]?.data?.action)
+
+    it('cancela o pedido aqui e avisa o cliente', async () => {
+      mockPrismaService.order.findFirst.mockResolvedValue({
+        id: 'ord-1',
+        status: 'READY_FOR_CHECKOUT',
+        erpDav: '102072',
+      })
+      notificar.mockResolvedValue(undefined)
+
+      const r = await service.markCancelledInErp(undefined, 'ord-1', {
+        motivo: 'Cliente desistiu no caixa',
+      })
+
+      expect(r).toEqual({ orderId: 'ord-1', status: 'CANCELLED', jaEstava: false })
+      expect(mockPrismaService.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'CANCELLED' } }),
+      )
+      expect(mockPrismaService.orderEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ type: 'order.cancelled_in_erp' }),
+        }),
+      )
+      expect(notificar).toHaveBeenCalledWith('ord-1', 'CANCELLED')
+    })
+
+    it('pedido JA ENTREGUE: registra divergencia e nao mexe no estado', async () => {
+      mockPrismaService.order.findFirst.mockResolvedValue({
+        id: 'ord-2',
+        status: 'DELIVERED',
+        erpDav: '102060',
+      })
+
+      const r = await service.markCancelledInErp(undefined, 'ord-2', {})
+
+      // A mercadoria saiu e o cliente recebeu. Cancelar reescreveria o
+      // historico dele para algo que nao aconteceu.
+      expect(r).toEqual({ orderId: 'ord-2', status: 'DELIVERED', divergencia: true })
+      expect(mockPrismaService.order.update).not.toHaveBeenCalled()
+      expect(notificar).not.toHaveBeenCalled()
+      expect(eventosGravados()).toContain('ERP_CANCEL_DIVERGENCE_ORDER_ALREADY_DELIVERED')
+    })
+
+    it('idempotente: pedido ja cancelado nao notifica de novo', async () => {
+      mockPrismaService.order.findFirst.mockResolvedValue({
+        id: 'ord-3',
+        status: 'CANCELLED',
+        erpDav: '102072',
+      })
+
+      const r = await service.markCancelledInErp(undefined, 'ord-3', {})
+
+      expect(r).toEqual({ orderId: 'ord-3', status: 'CANCELLED', jaEstava: true })
+      expect(mockPrismaService.order.update).not.toHaveBeenCalled()
+      // O agente reprocessa a mesma janela varias vezes. Sem esta guarda, o
+      // cliente receberia "seu pedido foi cancelado" a cada passada.
+      expect(notificar).not.toHaveBeenCalled()
+    })
+
+    it('falha de push nao impede o cancelamento de ser gravado', async () => {
+      mockPrismaService.order.findFirst.mockResolvedValue({
+        id: 'ord-4',
+        status: 'READY_FOR_CHECKOUT',
+        erpDav: '102072',
+      })
+      notificar.mockRejectedValue(new Error('push falhou'))
+
+      await expect(service.markCancelledInErp(undefined, 'ord-4', {})).resolves.toEqual(
+        expect.objectContaining({ status: 'CANCELLED' }),
+      )
+      expect(mockPrismaService.order.update).toHaveBeenCalled()
+    })
+  })
+
 })
