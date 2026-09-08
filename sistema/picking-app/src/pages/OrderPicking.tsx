@@ -41,6 +41,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const [adjustQtyText, setAdjustQtyText] = useState<string>('0')
   const [missingItem, setMissingItem] = useState<{ taskItemId: string; reason: string } | null>(null)
   const [addItemModal, setAddItemModal] = useState(false)
+  const [addItemScanner, setAddItemScanner] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   const [productResults, setProductResults] = useState<Array<{ id: string; name: string; ean: string | null; price: number; promotionalPrice: number | null; unit: string | null }>>([])
   const [searchLoading, setSearchLoading] = useState(false)
@@ -691,16 +692,25 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             </div>
           </header>
           <div className="px-4 py-3">
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar produto por nome ou EAN..."
-                value={productSearch}
-                onChange={(e) => handleSearchProducts(e.target.value)}
-                autoFocus
-                className="w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-brand-500"
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar produto por nome ou EAN..."
+                  value={productSearch}
+                  onChange={(e) => handleSearchProducts(e.target.value)}
+                  autoFocus
+                  className="w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-brand-500"
+                />
+              </div>
+              <button
+                onClick={() => setAddItemScanner(true)}
+                className="w-12 h-12 flex-shrink-0 rounded-xl bg-brand-500 text-white flex items-center justify-center active:bg-brand-600"
+                title="Ler codigo de barras"
+              >
+                <Camera size={20} />
+              </button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-4 space-y-2">
@@ -740,6 +750,19 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
               </div>
             ))}
           </div>
+
+          {addItemScanner && (
+            <Modal onClose={() => setAddItemScanner(false)}>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Escanear Codigo</h2>
+              <BarcodeScanner
+                onResult={(barcode) => {
+                  setAddItemScanner(false)
+                  handleSearchProducts(barcode)
+                }}
+                onClose={() => setAddItemScanner(false)}
+              />
+            </Modal>
+          )}
         </div>
       )}
 
