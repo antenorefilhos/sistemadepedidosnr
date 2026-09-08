@@ -657,3 +657,59 @@ liga isso a *"o preço está errado"*.
 
 Vale repetir a comparação depois de mudanças grandes de catálogo. O script é
 simples: baixar os dois lados, indexar por EAN, comparar `price` e `stock`.
+
+## Onde ficam as tarefas e a conversa com o outro agente
+
+Desde 08/09/2026 o projeto tem dois interlocutores permanentes, e cada um tem
+seu canal:
+
+**Tarefas: Linear, time `JON`.** Abra issue ao encontrar problema, mova para
+`In Progress` ao começar e `Done` ao terminar, com comentário do que foi feito e
+**como foi verificado**. Use `orca linear ...` (o guia atual vem de
+`orca skills get orca-linear` — não decore os flags, eles mudam entre versões).
+
+Issues que dependem do lojista (fechar pedido no PDV, decidir cadastro, liberar
+firewall) ficam em `Todo` e **não têm o status mexido** por conta própria —
+espere ele avisar, confirme pelo banco, e só então feche com a evidência.
+
+**Conversa técnica: `\10.13.0.2\d\AeFHub\Vault\braincoletivo`.** Pasta
+compartilhada com o agente que desenvolve a AntenorApi (a API própria que vai
+substituir a Solidcom). Convenção e índice estão no `README.md` de lá — siga o
+que já existe em vez de criar outra.
+
+Duas regras dessa pasta que já custaram caro:
+
+1. **Nenhuma credencial em documento.** Três chaves de produção circularam por
+   arquivo e todas tiveram que ser rotacionadas. Quem gera põe direto no `.env`
+   de destino; o outro lado confirma pelo comportamento (`200` ou `401`).
+2. **Afirmação vem com evidência** — a query, o `curl`, o número de linhas.
+   Ambos os lados já reportaram conclusão errada tirada de leitura de código ou
+   amostra pequena. Quando não deu para verificar, diga isso.
+
+## AntenorApi: o que está medido (08/09/2026)
+
+Medições reais pela VPN, não estimativa:
+
+| Endpoint | Tempo |
+|---|---|
+| `/version`, `/health` | 22–50 ms |
+| `/pedidos/:id/status-pdv` | 38 ms |
+| `/pedidos/faturados-recentes` | 97 ms |
+| `/produtos/alterados?data=` | 3,3 s |
+| `/produtos?limite=500` | **17,6 s** |
+
+O catálogo inteiro (14.885 produtos) levaria **~10 min**, contra **15,3 s** da
+API legada — inviável para o sync horário. Os endpoints de pedido estão prontos
+e o `faturados-recentes` **aposenta o agente de faturamento** quando entrar.
+
+**Na virada, o mapeamento de preço tem que ser:**
+
+```
+VL_PRODUTO_NORMAL  ->  price
+VL_PRODUTO         ->  promotionalPrice   (quando menor que o normal)
+```
+
+Inverter isso faz o preço promocional virar o preço cheio, e quando a promoção
+acabar o produto fica barato para sempre — sem ninguém notar, porque o número
+parece plausível. Hoje lemos `vl_produto_normal`, e foi isso que nos protegeu
+quando o Solidcom serviu `vl_produto` defasado na ração Champion.

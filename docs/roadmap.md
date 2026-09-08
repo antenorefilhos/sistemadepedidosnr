@@ -1,5 +1,11 @@
 # Roadmap
 
+> **As tarefas vivem no Linear desde 08/09/2026** (time `JON`).
+> Este arquivo continua sendo o registro do *porquê* de cada item — o contexto,
+> a investigação e as armadilhas. O Linear guarda o *estado*: o que está aberto,
+> em andamento e concluído. Quando os dois divergirem, o Linear é a fonte de
+> verdade sobre status; este arquivo, sobre motivo.
+
 Regra que vale para tudo aqui: **nada entra sem ser testado em mobile e desktop.**
 O cliente chega por WhatsApp e Facebook Ads — mobile é o caminho principal, não o
 secundário. Sem barreira de entrada, sem passo confuso para quem nunca usou um app
