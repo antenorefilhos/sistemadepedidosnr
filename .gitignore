@@ -100,3 +100,9 @@ Notificador/node_modules/
 Notificador/.env
 Notificador/dist/
 Notificador/out/
+
+# Documentos de integracao que chegaram com credencial em texto puro (08/09/2026).
+# Nao apago o conteudo -- e material tecnico do dev da API -- mas mantenho fora
+# do git ate as chaves serem rotacionadas e removidas dos arquivos.
+docs/retorno-treplica-cloudflare-tunnel.*
+docs/resumo-pre-tunel-aprovado.*

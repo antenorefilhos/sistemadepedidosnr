@@ -579,3 +579,81 @@ Foi também o que corrigiu a estatística do `hrRegistro`: a nota antiga dizia
 atuais há **5 pedidos com `COO` e sem `hrRegistro`** — todos de 2023/2024, sem
 `nrCupom`, cancelados ou legados. O sinal continua válido para o fluxo atual,
 mas não é 100% absoluto como a nota sugeria.
+
+## Solidcom: dois bancos, e o preço não está onde parece
+
+Descoberto em 08/09/2026, ao comparar a API do Solidcom com a AntenorApi contra
+o banco real. Três armadilhas juntas, todas capazes de fazer alguém ler o preço
+errado com total convicção:
+
+**1. `tbSuperProduto` existe nos DOIS bancos, com colunas diferentes.**
+`DORSAL.dbo.tbSuperProduto` tem `vlVenda`, `EcommerceFatorFracionado`,
+`vlVendaOriginal`. `Solidcon.dbo.tbSuperProduto` **não tem nenhuma dessas** — é
+cadastro fiscal/tributário. Mesmo nome, conteúdo distinto.
+
+**2. `cdSuperProduto` (a "família") tem numeração INDEPENDENTE em cada banco.**
+A família `3259` é `VINHO TINTO ARGENTINO` no DORSAL e a ração Champion no
+Solidcon. **Nunca junte as duas bases por `cdSuperProduto`** — o resultado
+parece válido e é lixo. Eu caí nessa e cheguei a reportar conclusão errada.
+
+**3. O preço de venda real vive em `Solidcon.dbo.tbSuperProdutoVendaLoja`**,
+com `vlPreco` **por filial** (`cdPessoaFilial`). E as filiais divergem muito: o
+abacaxi custa R$ 9,99 na filial 1 e R$ 16,00 na filial 2. Ler sem filtrar a
+filial devolve o preço da loja errada.
+
+A junção correta entre a API e o banco é por **`tbProduto.cdProduto`**
+(= `id_produto` / EAN da API), nunca por `cdSuperProduto`.
+
+## Produto ≠ linha de catálogo (e por que a busca por EAN engana)
+
+O `GetProdutos` devolve **15.918 linhas** para **14.885 produtos**: um produto
+com várias embalagens aparece uma vez por EAN. Qualquer contagem que compare
+"total da API" com "total do banco" precisa dizer qual das duas unidades está
+usando, ou produz divergência fantasma.
+
+Do nosso lado, `applyErpProducts` agrupa: grava **um** produto com o EAN
+principal e joga os demais em `secondaryEans`. Consequência prática que já me
+enganou: **procurar `WHERE ean = '644'` pode não achar um produto que existe** —
+o 644 é EAN secundário do brócolis, gravado sob `7898910528737`.
+
+Antes de concluir que um produto não foi sincronizado, procure **pelo nome**
+também. São 1.370 produtos com mais de um EAN (um deles com 33).
+
+## Armadilha: `NEW_PRODUCT` no relatório do sync não significa "criado agora"
+
+O `sync/incremental` devolve uma lista de mudanças comerciais. O campo `kind`
+sai de uma comparação com o estado anterior (`beforeByEan`): se o EAN não estava
+no mapa, marca `NEW_PRODUCT`.
+
+Como o mapa é indexado pelo EAN **principal**, um produto que chega por um EAN
+secundário aparece como "novo" mesmo já existindo. Não é bug do sync — é o
+relatório respondendo "não existia sob este código", não "acabei de criar".
+
+`synced` também conta **grupos**, não linhas: `received: 47 / synced: 43` é
+normal quando quatro linhas eram EANs adicionais de produtos já contados.
+
+## A API do Solidcom serve preço defasado (o cadastro muda antes dela)
+
+Observado em 08/09/2026 com a ração Champion: o cadastro foi corrigido no
+Solidcon (R$ 139,90 → R$ 11,90), e a **AntenorApi**, que lê o banco direto, já
+devolvia o valor novo enquanto o `GetProdutos` do Solidcom ainda servia o
+antigo. O `fracionamento` do mesmo produto propagou na hora; **só o preço
+atrasou.**
+
+Ou seja: quando alguém disser "corrigi o preço e o site não mudou", o problema
+provavelmente não é o nosso sync — é a API deles. Confirme lendo o banco
+(`tbSuperProdutoVendaLoja`) antes de investigar o nosso lado.
+
+## Método: a comparação entre as duas APIs funciona como auditoria de cadastro
+
+Comparar `GetProdutos` (Solidcom) com `/api/integracao/produtos` (AntenorApi)
+produto a produto encontrou, em 2.792 itens, **um erro de cadastro que estava
+no ar havia meses**: quatro variações da ração Champion com o mesmo nome, sendo
+uma delas vendida a granel e cadastrada na família dos sacos fechados — logo,
+R$ 139,90/kg em vez de R$ 11,90/kg.
+
+Ninguém tinha notado porque o sintoma era *"esse produto não vende"*, e ninguém
+liga isso a *"o preço está errado"*.
+
+Vale repetir a comparação depois de mudanças grandes de catálogo. O script é
+simples: baixar os dois lados, indexar por EAN, comparar `price` e `stock`.

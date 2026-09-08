@@ -56,6 +56,25 @@ que fecha desce para o histórico com a data e o commit.
       Único erro do percurso: item por peso exige `finalWeight` (validação
       correta — conferir se o campo está visível no app do separador).
 
+- [ ] **AntenorApi: substituir a integração Solidcom.** Em construção por outra
+      equipe, revisada por nós em 08/09/2026 (ver `docs/conferencia-antenorapi-v1.5.0.md`,
+      `o-que-o-checksum-revela.md` e `ambiente-de-desenvolvimento.md`). O bloqueio
+      do `tipoIntegracao` foi resolvido — a regra vive em `Solidcon.dbo.tbProduto`
+      (`inNaoInternet`/`inInternet`), validada em 14.885 produtos com zero
+      divergências. **Falta antes do corte:** performance (hoje ~40× mais lenta
+      que o Solidcom — 1.409 produtos em 59,7s contra 15,3s do catálogo inteiro),
+      decidir a rota VPS ↔ loja (Cloudflare Tunnel inviável: exige DNS na
+      Cloudflare; alternativa é estender o WireGuard existente), e o mapeamento
+      `VL_PRODUTO_NORMAL → price` / `VL_PRODUTO → promotionalPrice` — inverter
+      isso faz o preço promocional virar o preço cheio quando a promoção acabar.
+
+- [ ] **ERP exposto na internet.** `http://45.239.193.56:5000` responde sem TLS e
+      sem autenticação: o catálogo completo (10,5 MB, com preço, custo e margem)
+      sai de qualquer lugar, e o mesmo endereço aceita gravar pedido. Não é novo
+      — é como a integração sempre funcionou — mas foi medido em 08/09/2026.
+      Qualquer túnel resolve; enquanto não vem, uma regra de firewall
+      restringindo a porta 5000 ao IP da VPS já cobre quase tudo.
+
 - [ ] **Auditoria de aprovação B2B não aparece em lugar nenhum.** O
       `businessApprovalStatus` é exibido em `BusinessAccountsSection`, mas
       `businessApprovedBy` e `businessApprovedAt` (quem aprovou e quando) não —
