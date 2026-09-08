@@ -189,6 +189,60 @@ export class AntenorApiService {
     }
   }
 
+  /**
+   * Sincroniza pesos ajustados e cortes da separacao de volta pro ERP (JON-29).
+   *
+   * Ate 08/09/2026 o app de separacao gravava o peso real e o corte so no
+   * nosso banco: o Solidcom nunca ficava sabendo, e o operador do caixa
+   * precisava reconferir/corrigir tudo na mao ao importar o DAV -- anulando
+   * boa parte do ganho de ter separacao pelo celular.
+   *
+   * Chamado no fim da separacao (`sendToCashier`), antes do pedido ir pro
+   * caixa. Best-effort de proposito: falha aqui nao pode bloquear o pedido de
+   * seguir pro caixa fisico -- o operador so perde a comodidade de nao
+   * reajustar na mao, nao perde a venda.
+   */
+  async updatePickedItems(
+    identificador: string | number,
+    itens: Array<{
+      erpProductId: number
+      quantidade: number
+      cancelado?: boolean
+      motivoCorte?: string
+    }>,
+  ): Promise<void> {
+    try {
+      await this.cliente.put(
+        `/api/integracao/pedidos/${encodeURIComponent(String(identificador))}/itens`,
+        {
+          loja: this.loja,
+          itens: itens.map((item) => ({
+            cdProduto: item.erpProductId,
+            quantidade: item.cancelado ? 0 : item.quantidade,
+            cancelado: Boolean(item.cancelado),
+            ...(item.motivoCorte ? { motivoCorte: item.motivoCorte } : {}),
+          })),
+        },
+      )
+      this.logger.log(`Itens do pedido ${identificador} sincronizados no ERP apos separacao`)
+    } catch (error) {
+      const status = (error as AxiosError)?.response?.status
+
+      // Pedido ja faturado: o operador foi mais rapido que a sincronizacao, ou
+      // o cutover ja fechou o caixa antes. Nao e falha -- so nao ha mais o que
+      // atualizar na retaguarda.
+      if (status === 409) {
+        this.logger.warn(`Pedido ${identificador} ja faturado no PDV -- sync de itens ignorado.`)
+        return
+      }
+      if (status === 404) {
+        throw new OrderNotFoundInErpError(String(identificador))
+      }
+
+      throw error
+    }
+  }
+
   /** Consulta o estado do pedido no PDV. Aceita o nosso numero, o DAV ou o cdPedido. */
   async getOrderStatus(identificador: string | number): Promise<AntenorApiOrderStatus | null> {
     try {

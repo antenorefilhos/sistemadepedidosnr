@@ -2,6 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { NotificationsService } from '../notifications/notifications.service'
+import { Logger } from '@nestjs/common'
+import { AntenorApiService } from '../integrations/antenor-api.service'
+import { IntegrationModulesService } from '../integrations/integration-modules.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import { resolveDateRange } from '../../common/date-range.util'
@@ -36,9 +39,13 @@ const FINAL_ITEM_STATUSES = ['PICKED', 'MISSING', 'SUBSTITUTED', 'CANCELLED']
 
 @Injectable()
 export class PickingService {
+  private readonly logger = new Logger(PickingService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly antenorApi: AntenorApiService,
+    private readonly integrationModules: IntegrationModulesService,
   ) {}
 
   async searchOrders(
@@ -132,6 +139,30 @@ export class PickingService {
     }, actor)
 
     this.notificationsService.notifyOrderStatusChange(order.id, 'READY_FOR_CHECKOUT').catch(() => {})
+
+    // Sincroniza peso ajustado e corte de volta pro ERP (JON-29), pra o
+    // operador do caixa nao ter que reconferir tudo na mao ao importar o DAV.
+    // Best-effort: erro aqui nao pode travar o pedido de ir pro caixa fisico,
+    // e nao ha fila de retentativa -- se falhar, o operador so perde a
+    // comodidade, ajusta na mao como fazia antes.
+    if (updated.erpDav && (await this.integrationModules.isEnabled('antenorapi'))) {
+      const itensComErp = updated.items.filter((item) => item.product?.erpProductId != null)
+      if (itensComErp.length > 0) {
+        this.antenorApi
+          .updatePickedItems(
+            updated.erpDav,
+            itensComErp.map((item) => ({
+              erpProductId: item.product!.erpProductId as number,
+              quantidade: Number(item.fulfilledQuantity ?? item.quantity),
+              cancelado: item.status === 'MISSING',
+              motivoCorte: item.cutReason || undefined,
+            })),
+          )
+          .catch((error) => {
+            this.logger.warn(`Falha ao sincronizar itens separados do pedido ${order.id} no ERP`, error)
+          })
+      }
+    }
 
     return updated
   }
