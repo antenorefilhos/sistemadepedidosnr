@@ -40,6 +40,13 @@ let lastOrders = []
 // quando o nivel sobe ou quando o nivel critico pede reforco.
 const notified = new Map()
 
+// Verificacao do IDENTITY do DAV: nao precisa da granularidade de 60s do
+// faturamento -- so importa pegar antes do proximo pedido real nascer com
+// numero quebrado. A cada 30 ciclos (~30min) e reforca o alerta enquanto
+// nao for corrigido, em vez de avisar uma vez e deixar passar despercebido.
+let ciclosDesdeChecagemIdentity = 0
+let identityQuebradoDesde = null
+
 function log(msg) {
   const ts = new Date().toLocaleTimeString('pt-BR')
   console.log(`[${ts}] ${msg}`)
@@ -216,6 +223,35 @@ async function apiJson(caminho, opcoes = {}) {
   return res.status === 204 ? null : res.json()
 }
 
+async function verificarIdentityDav() {
+  if (!FATURAMENTO_LIGADO) return
+  if (ciclosDesdeChecagemIdentity++ % 30 !== 0) return // ~1x a cada 30min
+
+  if (!dorsal) dorsal = require('./dorsal')
+
+  try {
+    const saude = await dorsal.verificarSaudeIdentity()
+    if (saude.saudavel) {
+      if (identityQuebradoDesde) log('IDENTITY do DAV normalizado.')
+      identityQuebradoDesde = null
+      return
+    }
+
+    if (!identityQuebradoDesde) identityQuebradoDesde = Date.now()
+    log(`ALERTA: IDENTITY do DAV descarrilado -- proximo pedido nasceria com nrSeqPAF ${saude.identCurrent + 1} em vez de ${saude.ultimoDavReal + 1}. Precisa de DBCC CHECKIDENT RESEED.`)
+    toast(
+      { label: 'CRITICO' },
+      'Numeracao de DAV quebrada',
+      `Proximo pedido sairia com DAV ${saude.identCurrent + 1} em vez de ${saude.ultimoDavReal + 1}. Avise o time tecnico.`,
+      'verificacao automatica',
+    )
+  } catch (erro) {
+    // Mesmo criterio do faturamento: banco fora do ar nao pode virar spam de
+    // log a cada 30 minutos.
+    log(`verificacao de identity indisponivel: ${erro.message}`)
+  }
+}
+
 async function conciliarPdv() {
   if (!FATURAMENTO_LIGADO) return
 
@@ -290,6 +326,7 @@ async function check() {
     // Depois de avisar sobre separação: o pedido que já foi ao caixa pode ter
     // sido faturado no PDV, e é isso que o libera pro entregador.
     await conciliarPdv()
+    await verificarIdentityDav()
   } catch (err) {
     loginRetries++
     const msg = err.message || String(err)

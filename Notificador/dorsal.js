@@ -97,4 +97,41 @@ async function consultarFaturados(davs, config = lerConfig()) {
   }
 }
 
-module.exports = { consultarFaturados, lerConfig }
+/**
+ * Detecta se o IDENTITY de `nrSeqPAF` (o DAV) descarrilou.
+ *
+ * `nrSeqPAF` é coluna IDENTITY nativa do SQL Server. `IDENTITY_INSERT ON`
+ * usado em teste -- mesmo dentro de transacao com ROLLBACK -- empurra o
+ * ponteiro interno pra frente e NUNCA volta sozinho (achado em 08/09/2026,
+ * duas vezes no mesmo dia). O sintoma so aparece pro lojista quando o
+ * proximo pedido nasce com DAV de 7 digitos, tarde demais.
+ *
+ * Compara o IDENT_CURRENT com o maior nrSeqPAF real (abaixo do teto de
+ * 900000 que separa pedido de verdade de fixture de teste) e alerta se a
+ * diferenca for grande -- alertar aqui, uma vez por minuto de operacao
+ * normal, e infinitamente mais barato que descobrir no caixa com cliente
+ * esperando.
+ */
+async function verificarSaudeIdentity(config = lerConfig()) {
+  const pool = await sql.connect(config)
+  try {
+    const { recordset } = await pool.request().query(`
+      SELECT
+        IDENT_CURRENT('tbPedido') AS identCurrent,
+        (SELECT MAX(TRY_CAST(nrSeqPAF AS BIGINT)) FROM tbPedido WHERE TRY_CAST(nrSeqPAF AS BIGINT) < 900000) AS ultimoDavReal
+    `)
+    const { identCurrent, ultimoDavReal } = recordset[0]
+    const diferenca = Number(identCurrent) - Number(ultimoDavReal || 0)
+
+    // Margem de 50: cobre pedidos concorrentes no exato instante da checagem
+    // sem disparar alarme por coisa normal.
+    if (diferenca > 50) {
+      return { saudavel: false, identCurrent: Number(identCurrent), ultimoDavReal: Number(ultimoDavReal), diferenca }
+    }
+    return { saudavel: true, identCurrent: Number(identCurrent), ultimoDavReal: Number(ultimoDavReal), diferenca }
+  } finally {
+    await pool.close().catch(() => {})
+  }
+}
+
+module.exports = { consultarFaturados, verificarSaudeIdentity, lerConfig }
