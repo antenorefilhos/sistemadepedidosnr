@@ -47,6 +47,25 @@ const STATUS_ACTION_COLOR: Record<string, string> = {
   FAILED: 'bg-red-600',
 }
 
+function buildWhatsAppLink(whatsapp: string, message: string): string {
+  return `https://wa.me/55${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
+}
+
+/**
+ * Mensagem automatica pro cliente a cada mudanca de status na entrega.
+ *
+ * So dispara quando o entregador MUDA o status (Cheguei / Entregue / Nao
+ * entregue) -- nao quando ele so abre o WhatsApp manualmente pra falar algo
+ * fora do roteiro. `wa.me` nao manda sozinho: abre o WhatsApp com o texto
+ * pronto, o entregador so aperta enviar.
+ */
+const STATUS_WHATSAPP_MESSAGE: Record<string, (codigo: string, notes?: string) => string> = {
+  ARRIVED: (codigo) => `Estou no seu endereço, com o seu pedido ${codigo}.`,
+  DELIVERED: (codigo) => `Seu pedido ${codigo} foi entregue! Obrigado pela preferência 😊`,
+  FAILED: (codigo, notes) =>
+    `Não consegui entregar o seu pedido ${codigo}. Motivo: ${notes?.trim() || 'não informado'}.`,
+}
+
 export default function RouteDetail({ routeId, onBack }: { routeId: string; onBack: () => void }) {
   const [route, setRoute] = useState<DeliveryRoute | null>(null)
   const [loading, setLoading] = useState(true)
@@ -96,12 +115,21 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
 
   const handleUpdateStop = async (stopId: string, status: string, notes?: string) => {
     if (!route) return
+    // Captura antes do fetchRoute() -- depois dele o `route` do closure ja
+    // era, e o pedido some da lista de "pending" quando vira DELIVERED/FAILED.
+    const stop = route.stops.find((s) => s.id === stopId)
     setActionLoading(true)
     try {
       await driverApi.updateStopStatus(route.id, stopId, status, notes)
       await fetchRoute()
       toast.success(STATUS_ACTION_LABEL[status] || 'Atualizado')
       setFailModal(null)
+
+      const whatsapp = stop?.order?.customer?.whatsapp
+      const montarMensagem = STATUS_WHATSAPP_MESSAGE[status]
+      if (whatsapp && montarMensagem) {
+        window.location.href = buildWhatsAppLink(whatsapp, montarMensagem(getOrderCode(stop.order), notes))
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Erro')
     } finally {
@@ -236,7 +264,10 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
               <div className="flex gap-2">
                 {customer?.whatsapp && (
                   <a
-                    href={`https://wa.me/55${customer.whatsapp.replace(/\D/g, '')}`}
+                    href={buildWhatsAppLink(
+                      customer.whatsapp,
+                      `Olá, sou o entregador da Antenor e Filhos\nEstou com o seu pedido: ${getOrderCode(stop.order)}`,
+                    )}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="h-10 px-3 rounded-lg border border-gray-200 text-gray-600 text-sm flex items-center gap-1.5 active:scale-[0.98]"

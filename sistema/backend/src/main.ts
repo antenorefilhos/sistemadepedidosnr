@@ -102,7 +102,12 @@ async function bootstrap() {
     .build()
   
   const document = SwaggerModule.createDocument(app, config)
-  SwaggerModule.setup('api', app, document)
+  // customfavIcon reaproveita a rota estatica /uploads que ja existe --
+  // nao criamos pasta publica nova so pra um favicon.
+  SwaggerModule.setup('api', app, document, {
+    customfavIcon: '/uploads/favicon.ico',
+    customSiteTitle: 'Mercado Antenor API',
+  })
 
   const port = process.env.PORT || 3001
   await app.listen(port)
