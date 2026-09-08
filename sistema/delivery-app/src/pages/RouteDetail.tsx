@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Phone, Loader2, Navigation, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { driverApi, DeliveryRoute, DeliveryStop } from '../services/api'
+import { getOrderCode } from '../utils/orderCode'
 import toast from 'react-hot-toast'
 
 const STOP_STATUS_LABEL: Record<string, string> = {
@@ -191,6 +192,9 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                       {stop.sequence}
                     </span>
                     <span className="font-semibold text-gray-900 truncate">{customer?.name || 'Cliente'}</span>
+                    <span className="flex-shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                      {getOrderCode(stop.order)}
+                    </span>
                   </div>
                 </div>
                 <span className="flex items-center gap-1 text-xs font-medium text-gray-500">
@@ -217,9 +221,9 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                   {stop.order.notes}
                 </p>
               )}
-              {(stop.order as any)?.deliveryInstructions && (
+              {stop.order?.deliveryInstructions && (
                 <p className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5 mb-2">
-                  <strong>Instrucoes:</strong> {(stop.order as any).deliveryInstructions}
+                  <strong>Instrucoes:</strong> {stop.order.deliveryInstructions}
                 </p>
               )}
 

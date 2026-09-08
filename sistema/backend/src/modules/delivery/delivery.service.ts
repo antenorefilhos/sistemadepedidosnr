@@ -726,6 +726,7 @@ export class DeliveryService {
       },
       select: {
         id: true,
+        erpDav: true,
         total: true,
         createdAt: true,
         deliveryInstructions: true,

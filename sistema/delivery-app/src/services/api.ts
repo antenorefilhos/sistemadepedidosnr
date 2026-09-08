@@ -31,10 +31,12 @@ export interface DeliveryStop {
   deliveredAt: string | null
   order?: {
     id: string
+    erpDav: string | null
     total: number
     status: string
     paymentMethod: string
     notes: string | null
+    deliveryInstructions: string | null
     addressSnapshot?: {
       street?: string
       number?: string
@@ -62,6 +64,7 @@ export interface DeliveryRoute {
 /** Pedido na fila compartilhada -- ainda sem dono. */
 export interface AvailableDelivery {
   id: string
+  erpDav: string | null
   total: number
   createdAt: string
   deliveryInstructions: string | null

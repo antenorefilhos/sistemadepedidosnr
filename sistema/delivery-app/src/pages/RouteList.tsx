@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, LogOut, MapPin, Clock, ChevronRight, Inbox, Hand, Package } from 'lucide-react'
 import { AvisoPush } from '../components/AvisoPush'
 import { driverApi, DeliveryRoute, AvailableDelivery } from '../services/api'
+import { getOrderCode } from '../utils/orderCode'
 import toast from 'react-hot-toast'
 
 // Valores reais do backend (schema.prisma: default PLANNED; delivery.service:
@@ -116,9 +117,14 @@ export default function RouteList({
                   <div className="flex items-start gap-2">
                     <Package size={16} className="mt-0.5 shrink-0 text-amber-700" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-gray-800">
-                        {pedido.customer?.name ?? 'Cliente'}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate font-semibold text-gray-800">
+                          {pedido.customer?.name ?? 'Cliente'}
+                        </p>
+                        <span className="flex-shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                          {getOrderCode(pedido)}
+                        </span>
+                      </div>
                       <p className="truncate text-sm text-gray-600">{enderecoCurto(pedido.addressSnapshot)}</p>
                       <p className="mt-0.5 text-xs text-gray-500">
                         {pedido._count?.items ?? 0} item(ns) · R$ {Number(pedido.total).toFixed(2)}
