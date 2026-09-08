@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
-import axios, { AxiosError } from 'axios'
+import axios, { AxiosError, AxiosInstance } from 'axios'
+import * as fs from 'fs'
+import * as https from 'https'
 
 /**
  * Cliente da AntenorApi -- a API propria que le o SQL Server da loja
@@ -99,6 +101,58 @@ export class AntenorApiService {
     return Number(process.env.ANTENOR_API_TIMEOUT_MS || 30000)
   }
 
+  private clienteCache: AxiosInstance | null = null
+
+  /**
+   * Cliente HTTP configurado: chave no header e certificado fixado.
+   *
+   * A API da loja e publicada em `https://45.239.193.56:5001` com certificado
+   * AUTOASSINADO, de proposito. Ela tem um consumidor so -- este backend --,
+   * entao confiar num certificado especifico e mais forte que confiar em
+   * qualquer CA publica: um intermediario precisaria da chave privada deles,
+   * nao bastaria uma CA comprometida.
+   *
+   * Isso significa que `ANTENOR_API_CA_PATH` e obrigatorio quando a URL e
+   * `https`. Sem ele so haveria duas saidas, e as duas sao ruins: falhar todo
+   * request, ou desligar a validacao com `rejectUnauthorized: false` -- que e
+   * pior que HTTP puro, porque parece seguro e aceita qualquer certificado.
+   */
+  private get cliente(): AxiosInstance {
+    if (this.clienteCache) return this.clienteCache
+
+    const base = this.baseUrl
+    const chave = process.env.ANTENOR_API_KEY
+    if (!chave) {
+      throw new Error(
+        'ANTENOR_API_KEY nao esta definida. O conector AntenorApi esta ligado mas nao tem credencial.',
+      )
+    }
+
+    let httpsAgent: https.Agent | undefined
+    if (base.startsWith('https://')) {
+      const caminhoCa = process.env.ANTENOR_API_CA_PATH
+      if (!caminhoCa) {
+        throw new Error(
+          'ANTENOR_API_CA_PATH nao esta definida. A AntenorApi usa certificado autoassinado; ' +
+            'sem o certificado publico nao ha como validar a conexao.',
+        )
+      }
+      httpsAgent = new https.Agent({
+        ca: fs.readFileSync(caminhoCa),
+        rejectUnauthorized: true,
+        keepAlive: true,
+      })
+    }
+
+    this.clienteCache = axios.create({
+      baseURL: base,
+      timeout: this.timeoutMs,
+      httpsAgent,
+      headers: { Authorization: `Bearer ${chave}` },
+    })
+    return this.clienteCache
+  }
+
   /**
    * Cancela o pedido no ERP pelo NOSSO numero (`orders.numero` = `cdEcomPedido`).
    *
@@ -112,15 +166,11 @@ export class AntenorApiService {
     const numero = String(cdEcomPedido)
 
     try {
-      await axios.post(
-        `${this.baseUrl}/api/integracao/pedidos/cancelar`,
-        {
-          cdEcomPedido: numero,
-          motivo: motivo || 'Cancelado no e-commerce',
-          loja: this.loja,
-        },
-        { timeout: this.timeoutMs },
-      )
+      await this.cliente.post('/api/integracao/pedidos/cancelar', {
+        cdEcomPedido: numero,
+        motivo: motivo || 'Cancelado no e-commerce',
+        loja: this.loja,
+      })
       this.logger.log(`Pedido ${numero} cancelado no ERP via AntenorApi`)
     } catch (error) {
       const status = (error as AxiosError)?.response?.status
@@ -142,9 +192,8 @@ export class AntenorApiService {
   /** Consulta o estado do pedido no PDV. Aceita o nosso numero, o DAV ou o cdPedido. */
   async getOrderStatus(identificador: string | number): Promise<AntenorApiOrderStatus | null> {
     try {
-      const { data } = await axios.get<AntenorApiOrderStatus>(
-        `${this.baseUrl}/api/integracao/pedidos/${encodeURIComponent(String(identificador))}/status-pdv`,
-        { timeout: this.timeoutMs },
+      const { data } = await this.cliente.get<AntenorApiOrderStatus>(
+        `/api/integracao/pedidos/${encodeURIComponent(String(identificador))}/status-pdv`,
       )
       return data
     } catch (error) {
@@ -161,9 +210,8 @@ export class AntenorApiService {
    */
   async getInvoicedItems(identificador: string | number): Promise<ItemFaturadoAntenorApi[] | null> {
     try {
-      const { data } = await axios.get<{ itens?: ItemFaturadoAntenorApi[] }>(
-        `${this.baseUrl}/api/integracao/pedidos/${encodeURIComponent(String(identificador))}/itens-faturados`,
-        { timeout: this.timeoutMs },
+      const { data } = await this.cliente.get<{ itens?: ItemFaturadoAntenorApi[] }>(
+        `/api/integracao/pedidos/${encodeURIComponent(String(identificador))}/itens-faturados`,
       )
       return data?.itens ?? null
     } catch (error) {
@@ -172,8 +220,12 @@ export class AntenorApiService {
     }
   }
 
-  /** `true` quando o conector tem pra onde falar. Nao faz requisicao. */
+  /** `true` quando o conector tem endereco E credencial. Nao faz requisicao. */
   isConfigured(): boolean {
-    return Boolean(process.env.ANTENOR_API_URL)
+    const url = process.env.ANTENOR_API_URL
+    if (!url || !process.env.ANTENOR_API_KEY) return false
+    // Em https o certificado tambem e requisito, nao detalhe de configuracao.
+    if (url.startsWith('https://') && !process.env.ANTENOR_API_CA_PATH) return false
+    return true
   }
 }

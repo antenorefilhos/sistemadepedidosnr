@@ -77,6 +77,8 @@ services:
       ANTENOR_API_URL: ${ANTENOR_API_URL:-}
       ANTENOR_API_LOJA: ${ANTENOR_API_LOJA:-1}
       ANTENOR_API_TIMEOUT_MS: ${ANTENOR_API_TIMEOUT_MS:-30000}
+      ANTENOR_API_KEY: ${ANTENOR_API_KEY:-}
+      ANTENOR_API_CA_PATH: ${ANTENOR_API_CA_PATH:-/etc/antenor/antenorapi.crt}
       SOLIDCOM_API_KEY: ${SOLIDCOM_API_KEY:-}
       SOLIDCOM_CNPJ: ${SOLIDCOM_CNPJ:-}
       SOLIDCOM_CODECOM: ${SOLIDCOM_CODECOM:-}
@@ -104,6 +106,10 @@ services:
     volumes:
       - ./backend/uploads:/app/uploads
       - ../arquivos-projeto/handoff_ecommerce_v3_n1_n2.csv:/data/handoff_ecommerce_v3_n1_n2.csv:ro
+      # Certificado publico da AntenorApi (autoassinado, fixado). Precisa
+      # existir DENTRO do container: ANTENOR_API_CA_PATH aponta pra ca, e sem
+      # o mount a variavel apontaria pra um caminho que so existe no host.
+      - /etc/antenor:/etc/antenor:ro
     networks:
       - antenor_network
     ports:
