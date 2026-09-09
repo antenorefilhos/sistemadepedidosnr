@@ -14,6 +14,22 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.7.0',
+    date: '08/09/2026',
+    title: 'Cliente Pode Cancelar de Verdade e Separação Ganha Leitor de Código',
+    highlights: [
+      { type: 'feat', description: 'Pedido cancelado pelo cliente agora é cancelado de verdade no sistema da loja. Antes o cancelamento só acontecia aqui — se o pedido já tivesse chegado no ERP, ele continuava aberto lá, sem ninguém saber.' },
+      { type: 'feat', description: 'Quando o pedido é cancelado direto no caixa (não pelo cliente), isso agora chega até aqui e atualiza o status. Antes o pedido ficava "preso" no sistema como se ainda estivesse ativo.' },
+      { type: 'feat', description: 'Peso e itens ajustados durante a separação passam a chegar no sistema da loja antes de o pedido ir para o caixa. O operador não precisa mais reconferir tudo na mão ao importar o pedido.' },
+      { type: 'feat', description: 'Ao incluir um item durante a separação, agora dá para ler o código de barras pela câmera do celular, em vez de só buscar por nome ou digitar o código.' },
+      { type: 'fix', description: 'No aplicativo de separação, ao ajustar o peso de um item pesável, o campo voltava sozinho para 0,01 sempre que a pessoa tentava apagar tudo para digitar o peso certo. Corrigido: agora dá para apagar e digitar normalmente.' },
+      { type: 'feat', description: 'O entregador agora vê o código do pedido (o mesmo do PDV) na lista de entregas disponíveis e em cada parada da rota. Antes não tinha nenhum número pra se referir ao pedido numa ligação.' },
+      { type: 'feat', description: 'O entregador ganhou aviso automático por WhatsApp pro cliente: ao marcar "Cheguei", "Entregue" ou "Não Entregue", já abre uma mensagem pronta explicando a situação — só falta confirmar o envio.' },
+      { type: 'feat', description: 'Todos os aplicativos (Mercado, Admin, Separação e Entrega) ganharam ícone e identidade visual próprios ao instalar na tela inicial do celular. O painel Admin nem tinha essa opção antes.' },
+      { type: 'fix', description: 'A foto de fundo da página da Adega às vezes parava de aparecer. O arquivo estava salvo com o formato errado; corrigido e com um reforço automático para quando a rede do cliente estiver instável.' },
+    ],
+  },
+  {
     version: '1.6.0',
     date: '07/09/2026',
     title: 'Pedido Liberado Sozinho pelo Caixa e Avisos com o Número do PDV',
