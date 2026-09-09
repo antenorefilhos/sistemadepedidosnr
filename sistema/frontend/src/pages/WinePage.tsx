@@ -181,11 +181,22 @@ export default function WinePage() {
       <main>
         {/* Luxury Hero Section */}
         <section className="relative h-[60vh] flex items-end pb-12">
-           <img 
-             src="/banners/vinhos.png" 
-             alt="Luxury Wine Selection - Adega Antenor & Filhos" 
-             className="absolute inset-0 w-full h-full object-cover opacity-60" 
+           <img
+             src="/banners/vinhos.jpg"
+             alt="Luxury Wine Selection - Adega Antenor & Filhos"
+             className="absolute inset-0 w-full h-full object-cover opacity-60"
              loading="eager"
+             onError={(e) => {
+               // Rede instavel derruba o carregamento sem avisar -- sem isso
+               // a secao inteira fica com fundo vazio ate o usuario recarregar
+               // a pagina inteira. Uma tentativa com cache-buster resolve o
+               // caso comum (resposta parcial/corrompida em cache); se falhar
+               // de novo, desiste -- sem loop.
+               const img = e.currentTarget
+               if (img.dataset.retried) return
+               img.dataset.retried = '1'
+               img.src = `/banners/vinhos.jpg?retry=${Date.now()}`
+             }}
            />
            <div className="absolute inset-0 bg-gradient-to-t from-[#231F20] via-transparent to-[#231F20]/30" />
            <div className="relative z-10 max-w-7xl mx-auto px-6 w-full fade-in-section">
