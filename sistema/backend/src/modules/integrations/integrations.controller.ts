@@ -8,6 +8,7 @@ import { IntegrationsService } from './integrations.service'
 import { OrderOrchestrationService } from './order-orchestration.service'
 import { WebhookPayload } from './payments-webhook.service'
 import { WebhookGuard } from './webhook.guard'
+import { AntenorApiWebhookGuard } from './antenor-api-webhook.guard'
 import { IntegrationModuleKey } from './integration-modules.service'
 import { CreatePaymentTransactionDto, CreateRefundDto, ReconcilePaymentsDto, RegisterChargebackDto } from './dto/payment-ledger.dto'
 import { CreateIntegrationConnectorDto, EnqueueOutboxEventDto, RunOutboxWorkerDto } from './dto/integration-outbox.dto'
@@ -73,6 +74,25 @@ export class IntegrationsController {
     @Body() body: { canceladoEm?: string; motivo?: string; dav?: string },
   ) {
     return this.orderOrchestrationService.markCancelledInErp(undefined, id, body || {})
+  }
+
+  // Webhook de mudanca de estado do pedido da AntenorApi (JON-23). Aposenta
+  // o polling do agente de faturamento -- ver order-orchestration.service.ts
+  // (handleWebhookStatus) e antenor-api-webhook.guard.ts (assinatura HMAC).
+  @UseGuards(AntenorApiWebhookGuard)
+  @Post('antenorapi/webhook')
+  @Throttle({ webhook: { limit: 120, ttl: 60000 } })
+  @ApiOperation({ summary: 'Recebe mudanca de estado de pedido (faturado/cancelado) da AntenorApi' })
+  handleAntenorApiWebhook(
+    @Body() body: {
+      cdEcomPedido?: string
+      numeroDAV?: string
+      statusGeral?: string
+      cancelamento?: { canceladoEm?: string; motivo?: string }
+      faturamento?: { hrRegistro?: string; coo?: number; nrCupom?: number }
+    },
+  ) {
+    return this.orderOrchestrationService.handleWebhookStatus(body || {})
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

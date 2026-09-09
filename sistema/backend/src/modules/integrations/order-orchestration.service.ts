@@ -891,6 +891,48 @@ export class OrderOrchestrationService {
     return { orderId, status: proximo, jaEstava: false }
   }
 
+  /**
+   * Recebe o webhook de mudanca de estado do pedido da AntenorApi (JON-23),
+   * que aposenta o polling do agente de faturamento (Notificador/).
+   *
+   * Resolve o pedido pelo DAV (`numeroDAV`), nao pelo `cdEcomPedido`: o DAV
+   * ja e coluna direta (`erpDav`), enquanto `cdEcomPedido` exige reconstruir
+   * o numero externo a partir do snapshot do contrato -- mais um lugar pra
+   * quebrar sem necessidade, quando o dado que precisamos ja esta pronto.
+   *
+   * Status desconhecido ou pedido sem DAV correspondente: responde OK sem
+   * fazer nada. Devolver erro ali faria a AntenorApi reentregar pra sempre
+   * um evento que nunca vai casar (ex.: DAV de pedido de teste antigo).
+   */
+  async handleWebhookStatus(payload: {
+    numeroDAV?: string
+    statusGeral?: string
+    cancelamento?: { canceladoEm?: string; motivo?: string }
+    faturamento?: { hrRegistro?: string; coo?: number; nrCupom?: number }
+  }) {
+    const dav = String(payload.numeroDAV || '').trim()
+    const status = String(payload.statusGeral || '').toUpperCase()
+    if (!dav || !status) return { processado: false, motivo: 'Payload incompleto (numeroDAV/statusGeral).' }
+
+    const order = await this.prisma.order.findFirst({ where: { erpDav: dav }, select: { id: true } })
+    if (!order) return { processado: false, motivo: `Nenhum pedido com DAV ${dav}.` }
+
+    if (status === 'FATURADO_NO_PDV') {
+      const resultado = await this.markInvoiced(undefined, order.id, payload.faturamento || {})
+      return { processado: true, orderId: order.id, ...resultado }
+    }
+    if (status === 'CANCELADO_NA_RETAGUARDA' || status === 'CANCELADO_NO_PDV') {
+      const resultado = await this.markCancelledInErp(undefined, order.id, {
+        canceladoEm: payload.cancelamento?.canceladoEm,
+        motivo: payload.cancelamento?.motivo,
+        dav,
+      })
+      return { processado: true, orderId: order.id, ...resultado }
+    }
+
+    return { processado: false, motivo: `Status ${status} nao mapeado, ignorado.` }
+  }
+
   private async resolveExternalOrderNumber(orderId: string, payload?: InternalOrderContract): Promise<number> {
     const snapshot = await this.prisma.auditLog.findFirst({
       where: {
