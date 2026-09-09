@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { SolidcomERPService } from './solidcom-erp.service'
 import { AntenorApiService } from './antenor-api.service'
+import { PdvCancellationScheduler } from './pdv-cancellation.scheduler'
 import { IntegrationsService } from './integrations.service'
 import { IntegrationsController } from './integrations.controller'
 import { HealthController } from './health.controller'
@@ -24,6 +25,7 @@ import { NotificationsModule } from '../notifications/notifications.module'
   providers: [
     SolidcomERPService,
     AntenorApiService,
+    PdvCancellationScheduler,
     IntegrationsService,
     HubSpotService,
     NfeService,
