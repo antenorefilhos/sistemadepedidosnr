@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req, UnauthorizedException } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req, UnauthorizedException, BadRequestException } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { NotificationsService } from './notifications.service'
 import { NotificationService } from './notification.service'
@@ -102,6 +102,9 @@ export class NotificationsController {
     if (req.user?.role === 'customer') {
       throw new UnauthorizedException('Rota de equipe. Cliente usa /notifications/push-subscribe.')
     }
+    // JON-31: achado na varredura de 09/09/2026 -- sem `endpoint` o insert
+    // estourava 500 (coluna NOT NULL) em vez de 400.
+    if (!body?.endpoint) throw new BadRequestException('Campo "endpoint" é obrigatório.')
     await this.notificationsService.saveStaffPushSubscription(adminId, body)
     return { ok: true }
   }

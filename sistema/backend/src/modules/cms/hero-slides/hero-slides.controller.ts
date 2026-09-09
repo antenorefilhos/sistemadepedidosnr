@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, BadRequestException } from '@nestjs/common';
 import { HeroSlidesService } from './hero-slides.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
@@ -19,6 +19,11 @@ export class HeroSlidesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   create(@Body() data: { title: string; tag?: string; description?: string; ctaLabel?: string; imageUrl: string; link?: string; order?: number }) {
+    // JON-31: achado na varredura de 09/09/2026 -- body sem `title`/`imageUrl`
+    // (colunas NOT NULL) estourava 500 direto do Prisma em vez de 400.
+    if (!data?.title || !data?.imageUrl) {
+      throw new BadRequestException('Campos "title" e "imageUrl" são obrigatórios.')
+    }
     return this.heroSlidesService.create(data);
   }
 

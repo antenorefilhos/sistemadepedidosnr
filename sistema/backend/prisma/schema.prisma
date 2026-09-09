@@ -284,7 +284,7 @@ model CustomerSegmentMember {
   storeId    String   @default("store_default")
   segmentId  String
   segment    CustomerSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
-  customerId String   @unique
+  customerId String
   reason     Json?
   score      Int      @default(0)
   createdAt  DateTime @default(now())

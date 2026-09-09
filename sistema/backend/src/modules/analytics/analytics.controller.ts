@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Query, Patch, Delete, Param, Res } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Query, Patch, Delete, Param, Res, BadRequestException } from '@nestjs/common';
 import { Response } from 'express'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
@@ -22,6 +22,9 @@ export class AnalyticsController {
   @Post('track')
   @ApiOperation({ summary: 'Registra um evento de comportamento do usuário' })
   async track(@Body() data: any) {
+    // JON-31: achado na varredura de 09/09/2026 -- sem `type` o insert
+    // estourava 500 (coluna NOT NULL), rota publica chamada pelo storefront.
+    if (!data?.type) throw new BadRequestException('Campo "type" é obrigatório.')
     return this.analyticsService.trackEvent(data);
   }
 

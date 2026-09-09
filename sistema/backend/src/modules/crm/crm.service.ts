@@ -27,8 +27,13 @@ export class CrmService {
     })
     if (!customer) throw new NotFoundException('Cliente nao encontrado.')
 
+    // JON-31: achado na varredura de 09/09/2026 -- findFirst sem select
+    // devolvia todo escalar do Customer, hash de senha e token de reset
+    // inclusos, pra um endpoint que so precisa mostrar relacionamento.
+    const { password: _password, resetTokenHash: _resetTokenHash, ...safeCustomer } = customer
+
     return {
-      customer,
+      customer: safeCustomer,
       quickReorder: customer.orders.map((order) => ({
         orderId: order.id,
         createdAt: order.createdAt,

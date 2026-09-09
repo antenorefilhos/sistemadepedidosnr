@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, BadRequestException } from '@nestjs/common'
 import { CategoryHierarchyService } from './category-hierarchy.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -18,8 +18,10 @@ export class AdminCategoriesController {
    */
   @Post()
   async createCategory(@Body() body: { name: string; priority?: number }) {
+    // JON-31: achado na varredura de 09/09/2026 -- retornava 201 (status de
+    // sucesso) mesmo em erro de validação, corpo mentia sobre o HTTP status.
     if (!body.name) {
-      return { success: false, error: 'Nome é obrigatório' }
+      throw new BadRequestException('Nome é obrigatório')
     }
 
     const category = await this.categoryHierarchy.createCategory(body.name, body.priority || 0)
@@ -35,8 +37,10 @@ export class AdminCategoriesController {
     @Param('parentId') parentId: string,
     @Body() body: { name: string; priority?: number }
   ) {
+    // JON-31: achado na varredura de 09/09/2026 -- retornava 201 (status de
+    // sucesso) mesmo em erro de validação, corpo mentia sobre o HTTP status.
     if (!body.name) {
-      return { success: false, error: 'Nome é obrigatório' }
+      throw new BadRequestException('Nome é obrigatório')
     }
 
     const subcategory = await this.categoryHierarchy.createSubcategory(parentId, body.name, body.priority || 0)

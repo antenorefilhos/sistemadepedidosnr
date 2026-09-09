@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query, UseGuards, Patch, Req } from '@nestjs/common'
+import { Controller, Get, Post, Body, Param, Put, Delete, Query, UseGuards, Patch, Req, NotFoundException } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger'
 import { ProductsService } from './products.service'
 import { CreateProductDto } from './dto/create-product.dto'
@@ -343,7 +343,12 @@ export class ProductsController {
     description: 'Produto não encontrado',
   })
   async findOne(@Param('id') id: string, @Req() req?: TenantContextRequest) {
-    return this.productsService.findOne(id, req ? getTenantContext(req) : undefined)
+    // JON-31: achado na varredura de 09/09/2026 -- produto inexistente
+    // devolvia 200 com corpo vazio em vez de 404, inconsistente com
+    // /products/:id/substitutes (que ja tratava certo).
+    const product = await this.productsService.findOne(id, req ? getTenantContext(req) : undefined)
+    if (!product) throw new NotFoundException('Produto não encontrado.')
+    return product
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

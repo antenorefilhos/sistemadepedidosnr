@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nest
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
+import { RolesGuard } from '../../common/guards/roles.guard'
+import { Roles } from '../../common/decorators/roles.decorator'
 import { assertCustomerOwnership } from '../../common/security/customer-ownership'
 import { RecommendationsService } from './recommendations.service'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
@@ -54,6 +56,11 @@ export class RecommendationsController {
     return this.recommendations.recordEvent(body, req ? getTenantContext(req) : undefined)
   }
 
+  // JON-31: achado na varredura de 09/09/2026 -- faltava guard aqui, dado
+  // operacional interno (ruptura de estoque, margem, produtos criticos)
+  // ficava acessivel sem token nenhum.
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Get('operational-insights')
   @ApiOperation({ summary: 'Inteligencia operacional de ruptura, criticos, campanha e conversao' })
   getOperationalInsights(@Req() req?: TenantContextRequest) {

@@ -24,6 +24,7 @@ import { getTenantContext, TenantContextRequest } from '../../common/tenant/tena
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, TenantAccessGuard)
   @Get()
   @ApiBearerAuth()
@@ -69,6 +70,7 @@ export class OrdersController {
     return this.ordersService.findAll(requesterId, getTenantContext(req))
   }
 
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get('analytics/sales')
@@ -96,6 +98,7 @@ export class OrdersController {
     return this.ordersService.getSalesAnalytics(period || 'week')
   }
 
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get('analytics/status')
@@ -125,6 +128,7 @@ export class OrdersController {
     return this.ordersService.getStatusAnalytics()
   }
 
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get('analytics/revenue')
@@ -152,6 +156,7 @@ export class OrdersController {
   }
 
   // ── Phase 17: Analytics Pro ─────────────────────────────────
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get('analytics/category-revenue')
@@ -162,6 +167,7 @@ export class OrdersController {
     return this.ordersService.getCategoryRevenue()
   }
 
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get('analytics/heatmap')
@@ -173,6 +179,7 @@ export class OrdersController {
   }
   // ────────────────────────────────────────────────────────────
 
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, TenantAccessGuard)
   @Get(':id')
   @ApiBearerAuth()
@@ -265,6 +272,7 @@ export class OrdersController {
     })
   }
 
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Put(':id')
@@ -286,6 +294,7 @@ export class OrdersController {
     return this.ordersService.update(id, updateOrderDto)
   }
 
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Put(':id/status')
@@ -307,6 +316,7 @@ export class OrdersController {
     return this.ordersService.updateStatus(id, status, reason)
   }
 
+  @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Delete(':id')
@@ -328,6 +338,7 @@ export class OrdersController {
     return this.ordersService.remove(id)
   }
 
+  @RelaxedThrottle()
   @Get('admin/fraud-logs')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
