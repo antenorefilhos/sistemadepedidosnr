@@ -490,15 +490,19 @@ function Account() {
                   filteredOrders.map((order: Order) => {
                     const isExpanded = expandedOrderId === order.id
                     const isActive = ['PENDING', 'CONFIRMED'].includes(order.status)
+                    const orderCode = order.erpDav || order.id.slice(-8).toUpperCase()
                     const whatsappNumber = (contactWhatsapp || import.meta.env.VITE_CONTACT_WHATSAPP || '').replace(/\D/g, '')
-                    const whatsappMsg = encodeURIComponent(`Olá! Gostaria de saber o status do meu pedido #${order.id.slice(-8).toUpperCase()}.`)
+                    const whatsappMsg = encodeURIComponent(`Olá! Gostaria de saber o status do meu pedido #${orderCode}.`)
                     const whatsappUrl = whatsappNumber ? `https://wa.me/${whatsappNumber}?text=${whatsappMsg}` : null
+                    const isPickup = order.fulfillmentType === 'PICKUP'
+                    const deliveredStop = order.deliveryStops?.find((stop) => stop.status === 'DELIVERED' && stop.deliveredAt)
+                    const address = order.addressSnapshot
 
                     return (
                     <div key={order.id} className={`rounded-lg border p-4 transition-colors ${isActive ? 'border-[#5D082A]/20 bg-[#FFF7FA]' : 'border-[#E8D7B0] bg-[#FBFAF7]'}`}>
                       <div className="flex justify-between items-start mb-2 gap-3">
                         <div>
-                          <p className="font-mono text-sm text-gray-500">#{order.id.slice(-8).toUpperCase()}</p>
+                          <p className="font-mono text-sm text-gray-500">#{orderCode}</p>
                           <p className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</p>
                         </div>
                         <div className="flex flex-wrap gap-2 justify-end items-center">
@@ -516,6 +520,9 @@ function Account() {
                         <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border ${getPaymentStatusClassName(order.paymentStatus)}`}>
                           {PAYMENT_STATUS_LABELS[(order.paymentStatus || 'UNPAID').toUpperCase()] || order.paymentStatus || 'Não pago'}
                         </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-xs font-semibold text-[#231F20] border border-[#E8D7B0]">
+                          {isPickup ? 'Retirada na loja' : 'Entrega'}
+                        </span>
                         {String(order.paymentMethod || '').toUpperCase() === 'CASH' && (() => {
                           const changeFor = parseChangeForFromNotes(order.notes)
                           if (!changeFor) return null
@@ -527,6 +534,17 @@ function Account() {
                           )
                         })()}
                       </div>
+                      {!isPickup && address && (
+                        <p className="text-xs text-gray-500 mb-2">
+                          Entregue em {address.street}, {address.number}
+                          {address.complement ? ` - ${address.complement}` : ''} · {address.neighborhood}, {address.city}/{address.state}
+                        </p>
+                      )}
+                      {order.status === 'DELIVERED' && deliveredStop?.deliveredAt && (
+                        <p className="text-xs font-semibold text-green-700 mb-2">
+                          Entregue em {new Date(deliveredStop.deliveredAt).toLocaleString('pt-BR')}
+                        </p>
+                      )}
 
                       <Button
                         type="button"

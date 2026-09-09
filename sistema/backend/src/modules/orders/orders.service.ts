@@ -255,6 +255,10 @@ export class OrdersService {
       include: {
         customer: true,
         items: { include: { product: true } },
+        // JON-12: tela de conta precisa mostrar DAV, tipo de entrega,
+        // endereco usado e se ja foi entregue -- sem isso o cliente so via
+        // status generico e id interno, sem visao real do pedido concluido.
+        deliveryStops: { select: { status: true, deliveredAt: true } },
       },
       orderBy: { createdAt: 'desc' },
     })

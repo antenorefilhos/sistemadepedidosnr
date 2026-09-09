@@ -60,6 +60,17 @@ export interface Order {
   paymentMethod?: string
   notes?: string | null
   createdAt: string
+  erpDav?: string | null
+  fulfillmentType?: string
+  addressSnapshot?: {
+    street: string
+    number: string
+    complement?: string | null
+    neighborhood: string
+    city: string
+    state: string
+  } | null
+  deliveryStops?: { status: string; deliveredAt: string | null }[]
 }
 
 export interface OrderItem {
