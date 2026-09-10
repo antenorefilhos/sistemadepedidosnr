@@ -8,6 +8,10 @@ export interface InternalOrderCustomerContract {
 
 export interface InternalOrderItemContract {
   productId: string
+  /** cdProduto do ERP (Product.erpProductId) -- o Solidcom aceita casar so
+   *  por EAN, mas a AntenorApi exige um cdProduto numerico de verdade
+   *  (JON-17). null quando o produto nunca sincronizou do ERP. */
+  erpProductId?: number | null
   productName: string | null
   ean: string | null
   quantity: number

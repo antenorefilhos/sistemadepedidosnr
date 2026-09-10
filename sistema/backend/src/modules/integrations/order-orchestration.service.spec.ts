@@ -37,6 +37,7 @@ const mockPrismaService = {
 const mockAntenorApiService = {
   cancelOrder: jest.fn(),
   getOrderStatus: jest.fn(),
+  createOrder: jest.fn(),
   isConfigured: jest.fn().mockReturnValue(true),
 }
 
@@ -716,6 +717,122 @@ describe('OrderOrchestrationService', () => {
         expect.objectContaining({ status: 'CANCELLED' }),
       )
       expect(mockPrismaService.order.update).toHaveBeenCalled()
+    })
+  })
+
+  describe('syncCreatedOrder via AntenorApi (JON-17, cutover)', () => {
+    const pickupPayload: InternalOrderContract = {
+      orderId: 'order-pickup-1',
+      customerId: 'cust-1',
+      fulfillmentType: 'PICKUP',
+      status: 'PENDING',
+      paymentMethod: 'PIX',
+      paymentStatus: 'PENDING',
+      subtotal: 37.9,
+      delivery: 0,
+      discount: 0,
+      total: 37.9,
+      notes: null,
+      customer: { id: 'cust-1', cpf: '14200744740', name: 'Jonathan Oliveira', whatsapp: '24992326277', email: null },
+      items: [
+        { productId: 'prod-1', erpProductId: 30039, productName: 'Arroz', ean: '602883849181', quantity: 1, unitPrice: 37.9, subtotal: 37.9 },
+      ],
+    }
+
+    beforeEach(() => {
+      mockIntegrationModulesService.isEnabled.mockImplementation(async (key: string) => key === 'antenorapi')
+    })
+
+    it('quando antenorapi esta ligada, usa ela em vez do Solidcom', async () => {
+      mockAntenorApiService.createOrder.mockResolvedValue({
+        sucesso: true, cdPedido: '2080', numeroDAV: '102078', cdEcomPedido: '999', valorTotal: 37.9, idempotente: false,
+      })
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+      await service.syncCreatedOrder(pickupPayload)
+
+      expect(mockAntenorApiService.createOrder).toHaveBeenCalled()
+      expect(mockSolidcomERPService.syncOrder).not.toHaveBeenCalled()
+    })
+
+    it('retirada na loja: NAO manda a chave `endereco` (a API rejeita null com 400, confirmado ao vivo em 10/09/2026)', async () => {
+      mockAntenorApiService.createOrder.mockResolvedValue({
+        sucesso: true, cdPedido: '2080', numeroDAV: '102078', cdEcomPedido: '999', valorTotal: 37.9, idempotente: false,
+      })
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+      await service.syncCreatedOrder(pickupPayload)
+
+      const enviado = mockAntenorApiService.createOrder.mock.calls[0][0]
+      // `undefined` no objeto JS -- e o JSON.stringify (Axios) que remove a
+      // chave de fato na hora de serializar pro HTTP, confirmado ao vivo.
+      expect(enviado.cliente.endereco).toBeUndefined()
+      expect(JSON.stringify(enviado)).not.toContain('"endereco"')
+    })
+
+    it('entrega: manda endereco completo', async () => {
+      mockAntenorApiService.createOrder.mockResolvedValue({
+        sucesso: true, cdPedido: '2081', numeroDAV: '102079', cdEcomPedido: '999', valorTotal: 42.9, idempotente: false,
+      })
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+      await service.syncCreatedOrder({
+        ...pickupPayload,
+        fulfillmentType: 'DELIVERY',
+        deliveryAddress: { street: 'Estrada Uniao', number: '22099', neighborhood: 'Pedro do Rio', city: 'Petropolis', state: 'RJ', zipCode: '25750222' },
+      })
+
+      const enviado = mockAntenorApiService.createOrder.mock.calls[0][0]
+      expect(enviado.cliente.endereco).toEqual(
+        expect.objectContaining({ logradouro: 'Estrada Uniao', numero: '22099', cidade: 'Petropolis', cep: '25750222' }),
+      )
+    })
+
+    it('item pesavel: converte steps pra peso real, igual ao Solidcom', async () => {
+      mockAntenorApiService.createOrder.mockResolvedValue({
+        sucesso: true, cdPedido: '2082', numeroDAV: '102080', cdEcomPedido: '999', valorTotal: 10, idempotente: false,
+      })
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+      await service.syncCreatedOrder({
+        ...pickupPayload,
+        items: [
+          { productId: 'prod-2', erpProductId: 500, productName: 'Queijo', ean: '1234', quantity: 2, unitPrice: 10, subtotal: 20, isFractional: true, fractionStep: 0.4, listUnitPrice: 25 },
+        ],
+      })
+
+      const enviado = mockAntenorApiService.createOrder.mock.calls[0][0]
+      expect(enviado.itens[0]).toEqual(
+        expect.objectContaining({ cdProduto: 500, quantidade: 0.8, precoUnitario: 25 }),
+      )
+    })
+
+    it('sem erpProductId sincronizado: cai no EAN numerico como ultimo recurso', async () => {
+      mockAntenorApiService.createOrder.mockResolvedValue({
+        sucesso: true, cdPedido: '2083', numeroDAV: '102081', cdEcomPedido: '999', valorTotal: 10, idempotente: false,
+      })
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+      await service.syncCreatedOrder({
+        ...pickupPayload,
+        items: [{ productId: 'prod-3', erpProductId: null, productName: 'X', ean: '7891234567890', quantity: 1, unitPrice: 5, subtotal: 5 }],
+      })
+
+      const enviado = mockAntenorApiService.createOrder.mock.calls[0][0]
+      expect(enviado.itens[0].cdProduto).toBe(7891234567890)
+    })
+
+    it('falha na AntenorApi: enfileira no outbox e nao derruba o checkout', async () => {
+      mockAntenorApiService.createOrder.mockRejectedValue(new Error('timeout'))
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+      await expect(service.syncCreatedOrder(pickupPayload)).resolves.toBeUndefined()
+
+      expect(mockIntegrationOutboxService.enqueueSolidcomOrderFailure).toHaveBeenCalledWith(
+        'order-pickup-1',
+        expect.anything(),
+        expect.stringContaining('timeout'),
+      )
     })
   })
 

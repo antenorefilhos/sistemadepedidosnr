@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ProductsService } from './products.service';
 import { PrismaService } from '../../common/prisma.service';
 import { SolidcomERPService } from '../../modules/integrations/solidcom-erp.service';
+import { AntenorApiService } from '../../modules/integrations/antenor-api.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { ProductSearchService } from './product-search.service';
 import { IntegrationModulesService } from '../../modules/integrations/integration-modules.service';
@@ -71,6 +72,10 @@ const mockSolidcomERPService = {
   fetchByEan: jest.fn().mockResolvedValue(null),
   fetchRecentChanges: jest.fn().mockResolvedValue([]),
 };
+const mockAntenorApiService = {
+  syncProducts: jest.fn(),
+  fetchRecentChanges: jest.fn().mockResolvedValue([]),
+};
 const mockAuditLogService = { log: jest.fn() };
 const mockProductSearchService = {
   searchProducts: jest.fn(),
@@ -82,8 +87,12 @@ const mockProductSearchService = {
   isEnabled: jest.fn().mockReturnValue(false),
   suggest: jest.fn().mockResolvedValue([]),
 };
+// Espelha o default real (integration-modules.service.ts): solidcom ligado,
+// antenorapi desligado -- senao todo teste que espera o caminho Solidcom
+// passaria a rotear por AntenorApi (que tem prioridade em resolveCatalogSource)
+// sem nenhum teste ter mudado nada.
 const mockIntegrationModulesService = {
-  isEnabled: jest.fn().mockResolvedValue(true),
+  isEnabled: jest.fn((key: string) => Promise.resolve(key === 'solidcom')),
 };
 const mockCategoryHierarchyService = {
   generateMappingSuggestions: jest.fn().mockResolvedValue([]),
@@ -99,6 +108,7 @@ describe('ProductsService', () => {
         ProductsService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: SolidcomERPService, useValue: mockSolidcomERPService },
+        { provide: AntenorApiService, useValue: mockAntenorApiService },
         { provide: AuditLogService, useValue: mockAuditLogService },
         { provide: ProductSearchService, useValue: mockProductSearchService },
         { provide: IntegrationModulesService, useValue: mockIntegrationModulesService },

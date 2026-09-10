@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma.service'
 import { CreateProductDto } from './dto/create-product.dto'
 import { UpdateProductDto } from './dto/update-product.dto'
 import { SolidcomERPService, type ERPProduct } from '../../modules/integrations/solidcom-erp.service'
+import { AntenorApiService } from '../../modules/integrations/antenor-api.service'
 import { AuditLogService } from '../audit-log/audit-log.service'
 import { ProductSearchService } from './product-search.service'
 import { Prisma } from '@prisma/client'
@@ -153,6 +154,7 @@ export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private solidcomERPService: SolidcomERPService,
+    private antenorApiService: AntenorApiService,
     private auditLogService: AuditLogService,
     private productSearchService: ProductSearchService,
     private integrationModules: IntegrationModulesService,
@@ -512,11 +514,11 @@ export class ProductsService {
   }
 
   async syncTaxonomyFromProducts(): Promise<TaxonomySyncResult> {
-    if (!(await this.integrationModules.isEnabled('solidcom'))) {
+    if (!(await this.resolveCatalogSource())) {
       return {
         success: true,
         skipped: true,
-        reason: 'Modulo Solidcom desativado',
+        reason: 'Nenhum conector de ERP habilitado (Solidcom ou AntenorApi)',
         productsProcessed: 0,
         productsRecategorized: 0,
         productsKeptByRegisteredCategory: 0,
@@ -1246,12 +1248,26 @@ export class ProductsService {
     return this.syncJob
   }
 
+  /**
+   * Fonte do catalogo (JON-17, cutover Solidcom -> AntenorApi): AntenorApi
+   * tem prioridade quando ligada -- e a substituta, nao um fallback. Os dois
+   * modulos podem ficar habilitados ao mesmo tempo durante a migracao
+   * (Solidcom seguindo pra pedido/cancelamento ate tudo migrar), sem os dois
+   * disputarem o catalogo.
+   */
+  private async resolveCatalogSource(): Promise<'antenorapi' | 'solidcom' | null> {
+    if (await this.integrationModules.isEnabled('antenorapi')) return 'antenorapi'
+    if (await this.integrationModules.isEnabled('solidcom')) return 'solidcom'
+    return null
+  }
+
   async syncFromERP() {
-    if (!(await this.integrationModules.isEnabled('solidcom'))) {
+    const source = await this.resolveCatalogSource()
+    if (!source) {
       return {
         success: true,
         skipped: true,
-        reason: 'Modulo Solidcom desativado',
+        reason: 'Nenhum conector de ERP habilitado (Solidcom ou AntenorApi)',
         products: 0,
         synced: 0,
         errors: 0,
@@ -1260,12 +1276,17 @@ export class ProductsService {
       }
     }
 
-    const syncResult = await this.solidcomERPService.syncProducts()
+    const syncResult =
+      source === 'antenorapi'
+        ? await this.antenorApiService.syncProducts()
+        : await this.solidcomERPService.syncProducts()
     const { synced, errors, indexedIds } = await this.applyErpProducts(syncResult.data)
 
-    // O catalogo em massa nao carrega promocao; sem esta passada, promocao que
-    // saiu do ar no PDV ficaria eterna na vitrine.
-    const promotions = await this.reconcilePromotions()
+    // O catalogo em massa do Solidcom nao carrega promocao viva; sem esta
+    // passada, promocao que saiu do ar no PDV ficaria eterna na vitrine. A
+    // AntenorApi nao tem esse problema -- VL_PRODUTO ja vem resolvido pra
+    // promocao ativa em CADA produto, a cada sync, sem precisar reconferir.
+    const promotions = source === 'solidcom' ? await this.reconcilePromotions() : { confirmed: 0, cleared: 0, unreachable: 0, clearedItems: [] }
 
     const taxonomy = await this.syncTaxonomyFromProducts()
 
@@ -1540,11 +1561,15 @@ export class ProductsService {
    * `PriceAuditLog`, para dar rastro do que o ERP mexeu e quando.
    */
   async syncRecentFromERP(hours = 2) {
-    if (!(await this.integrationModules.isEnabled('solidcom'))) {
-      return { success: true, skipped: true, reason: 'Modulo Solidcom desativado', changed: 0 }
+    const source = await this.resolveCatalogSource()
+    if (!source) {
+      return { success: true, skipped: true, reason: 'Nenhum conector de ERP habilitado (Solidcom ou AntenorApi)', changed: 0 }
     }
 
-    const items = await this.solidcomERPService.fetchRecentChanges(hours)
+    const items =
+      source === 'antenorapi'
+        ? await this.antenorApiService.fetchRecentChanges(hours)
+        : await this.solidcomERPService.fetchRecentChanges(hours)
     if (!items.length) {
       return { success: true, window: `${hours}h`, received: 0, changed: 0, changes: [] }
     }

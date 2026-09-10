@@ -5,6 +5,7 @@ import { SolidcomPedidoDto } from './dto/solidcom-order.dto'
 import { SolidcomERPService } from './solidcom-erp.service'
 import {
   AntenorApiService,
+  CreateAntenorApiOrderPayload,
   OrderAlreadyInvoicedError,
   OrderNotFoundInErpError,
 } from './antenor-api.service'
@@ -42,9 +43,18 @@ export class OrderOrchestrationService {
   ) {}
 
   async syncCreatedOrder(payload: InternalOrderContract): Promise<void> {
+    // JON-17 (cutover): AntenorApi tem prioridade quando ligada, mesmo padrao
+    // de resolveCatalogSource em products.service.ts -- e a substituta, nao
+    // um fallback. Os dois modulos podem ficar ligados ao mesmo tempo durante
+    // a migracao sem os dois tentarem mandar o mesmo pedido pro ERP.
+    if (await this.integrationModules.isEnabled('antenorapi')) {
+      await this.syncCreatedOrderViaAntenorApi(payload)
+      return
+    }
+
     if (!(await this.integrationModules.isEnabled('solidcom'))) {
       await this.logSyncEvent('SYNC_ORDER_SKIPPED_MODULE_DISABLED', payload.orderId, {
-        reason: 'Modulo Solidcom desativado',
+        reason: 'Nenhum conector de ERP habilitado (Solidcom ou AntenorApi)',
       })
       return
     }
@@ -73,6 +83,120 @@ export class OrderOrchestrationService {
       await this.integrationOutbox.enqueueSolidcomOrderFailure(payload.orderId, externalPayload as unknown as Record<string, unknown>, reason)
       this.logger.warn(`Falha ao encaminhar pedido ${payload.orderId} para integracao ERP`, error)
     }
+  }
+
+  /**
+   * Cria o pedido via AntenorApi (JON-17). Espelha o fluxo do Solidcom
+   * (snapshot antes, outbox de retentativa em falha, persiste o DAV) mas
+   * usa `createOrder` em vez de `syncOrder` -- a AntenorApi ja e idempotente
+   * por `cdEcomPedido` do lado dela, entao um reenvio via outbox nao duplica.
+   */
+  private async syncCreatedOrderViaAntenorApi(payload: InternalOrderContract): Promise<void> {
+    const externalPayload = this.mapToAntenorApiPedido(payload)
+
+    await this.logSyncEvent('INTERNAL_ORDER_CONTRACT_SNAPSHOT', payload.orderId, {
+      contract: payload,
+      externalPreview: externalPayload,
+    })
+
+    try {
+      const resultado = await this.antenorApi.createOrder(externalPayload)
+      await this.persistErpDav(payload.orderId, resultado.numeroDAV)
+      await this.logSyncEvent('SYNC_ORDER_SUCCESS', payload.orderId, {
+        externalNumero: externalPayload.cdEcomPedido,
+        dav: resultado.numeroDAV,
+        cdPedido: resultado.cdPedido,
+        idempotente: resultado.idempotente,
+      })
+    } catch (error) {
+      const reason = this.stringifyError(error)
+      await this.logSyncEvent('SYNC_ORDER_FAILED', payload.orderId, {
+        reason,
+        payload: externalPayload,
+      })
+      await this.integrationOutbox.enqueueSolidcomOrderFailure(payload.orderId, externalPayload as unknown as Record<string, unknown>, reason)
+      this.logger.warn(`Falha ao encaminhar pedido ${payload.orderId} para AntenorApi`, error)
+    }
+  }
+
+  /**
+   * Mapeia pro formato exato de `POST /api/integracao/pedidos`, confirmado
+   * com o `[A1-API]` em 10/09/2026 (ver braincoletivo). Reusa o MESMO
+   * `toExternalOrderNumber` do Solidcom pro `cdEcomPedido` -- e o
+   * identificador que o webhook (JON-23) e o cancelamento ja usam, trocar
+   * de numero no meio da migracao quebraria os dois.
+   */
+  private mapToAntenorApiPedido(payload: InternalOrderContract): CreateAntenorApiOrderPayload {
+    const cdEcomPedido = String(this.toExternalOrderNumber(payload.orderId))
+    const isPickup = payload.fulfillmentType === 'PICKUP'
+
+    // Mesmo criterio do Solidcom: cliente aceita substituicao a menos que
+    // TODOS os itens tenham dito DENY explicitamente.
+    const aceitaTroca = payload.items.some((item) => (item.substitutionPolicy || 'ALLOW') !== 'DENY')
+
+    return {
+      cdEcomPedido,
+      valorTotal: this.round2(payload.total),
+      valorFrete: this.round2(payload.delivery),
+      formaPagamentoTexto: this.paymentMethodLabel(payload.paymentMethod),
+      // Aceita string vazia OU null do lado deles -- reusa buildPedidoObs, que
+      // ja resolve pra string sempre (nunca null), mesma funcao do Solidcom.
+      observacao: this.buildPedidoObs(payload),
+      aceitaTroca,
+      cliente: {
+        documento: (payload.customer.cpf || '').replace(/\D/g, ''),
+        nome: payload.customer.name || 'Consumidor Final',
+        telefone: (payload.customer.whatsapp || '').replace(/\D/g, ''),
+        email: payload.customer.email || undefined,
+        // JON-17: achado ao testar de verdade contra a AntenorApi em
+        // 10/09/2026 -- a doc deles diz que aceita `endereco: null` pra
+        // retirada, mas a validacao real (Fastify/JSON Schema) rejeita null
+        // com 400 "body/cliente/endereco must be object". A CHAVE precisa
+        // ser omitida, nao setada como null. `undefined` some do JSON.
+        endereco: isPickup
+          ? undefined
+          : {
+              logradouro: payload.deliveryAddress?.street || '',
+              numero: payload.deliveryAddress?.number || '',
+              complemento: payload.deliveryAddress?.complement || '',
+              bairro: [payload.deliveryAddress?.neighborhood, payload.deliveryAddress?.locality]
+                .filter(Boolean)
+                .join(' - '),
+              cidade: payload.deliveryAddress?.city || '',
+              cep: (payload.deliveryAddress?.zipCode || '').replace(/\D/g, ''),
+            },
+      },
+      itens: payload.items.map((item) => {
+        // Mesma conversao do Solidcom: nosso `quantity` de item pesavel guarda
+        // numero de "steps", o ERP espera peso real.
+        const isWeighed = Boolean(item.isFractional) && Boolean(item.fractionStep)
+        const quantityRaw = isWeighed ? item.quantity * (item.fractionStep as number) : item.quantity
+        const quantidade = Number(quantityRaw.toFixed(3))
+        const precoUnitario = isWeighed ? (item.listUnitPrice ?? item.unitPrice) : item.unitPrice
+
+        return {
+          // cdProduto e obrigatorio pra AntenorApi (diferente do Solidcom, que
+          // casa por EAN se faltar). Sem erpProductId sincronizado, cai no EAN
+          // numerico como ultimo recurso -- mesma logica de risco que o
+          // Solidcom ja aceitava, so explicitada aqui por ser obrigatorio la.
+          cdProduto: item.erpProductId ?? this.parseInteger(item.ean),
+          cdEAN: item.ean || undefined,
+          quantidade,
+          precoUnitario: this.round2(precoUnitario),
+          precoTabelaNormal: this.round2(item.listUnitPrice ?? item.unitPrice),
+        }
+      }),
+    }
+  }
+
+  private paymentMethodLabel(paymentMethod: string): string {
+    const labels: Record<string, string> = {
+      CASH: 'Dinheiro',
+      PIX: 'Pix',
+      CARD: 'Cartao na entrega',
+      VOUCHER: 'Vale/Ticket Alimentacao',
+    }
+    return labels[paymentMethod] || paymentMethod
   }
 
   async getOrderContract(orderId: string) {
@@ -167,6 +291,7 @@ export class OrderOrchestrationService {
       scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
       items: order.items.map((item) => ({
         productId: item.productId,
+        erpProductId: item.product?.erpProductId ?? null,
         productName: item.product?.name || null,
         ean: item.product?.ean || null,
         quantity: item.quantity,
