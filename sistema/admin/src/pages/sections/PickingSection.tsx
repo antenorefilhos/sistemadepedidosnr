@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { getApiErrorMessage, pickingAPI, type AdminOrder, type PickingTask, type PickingTaskItem, type PickingPerformanceResponse } from '../../services/api'
+import { getApiErrorMessage, pickingAPI, staffAPI, type AdminOrder, type PickingTask, type PickingTaskItem, type PickingPerformanceResponse, type StaffMember } from '../../services/api'
 import { SectionEmptyState, SectionMetric, SectionPanel, SectionToolbar } from './SectionChrome'
 
 const TASK_STATUS_LABELS: Record<string, string> = {
@@ -127,8 +127,27 @@ export default function PickingSection() {
   const [customerSearch, setCustomerSearch] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [expandedTaskId, setExpandedTaskId] = useState('')
+  const [pickers, setPickers] = useState<StaffMember[]>([])
   const autoRefreshRef = useRef(autoRefresh)
   autoRefreshRef.current = autoRefresh
+
+  // JON-31: achado na auditoria de 10/09/2026 -- "Atribuir separador" era um
+  // campo de texto livre pedindo o ID do banco (CUID) de quem ia receber a
+  // tarefa. Ninguem sabe esse numero de cabeca; agora e um dropdown com nome.
+  useEffect(() => {
+    staffAPI
+      .list()
+      .then((res) => setPickers(res.data.filter((s) => s.active && s.moduleAccess.includes('picking'))))
+      .catch(() => setPickers([]))
+  }, [])
+
+  const pickerName = useCallback(
+    (id?: string | null) => {
+      if (!id) return null
+      return pickers.find((p) => p.id === id)?.name || null
+    },
+    [pickers],
+  )
 
   const load = useCallback(async () => {
     try {
@@ -494,7 +513,7 @@ export default function PickingSection() {
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
                         <span>Início: {task.startedAt ? formatDateTime(task.startedAt) : 'Não iniciada'}</span>
                         <span>Fim: {task.completedAt ? formatDateTime(task.completedAt) : task.startedAt ? 'Em andamento' : '—'}</span>
-                        {task.assignedToId && <span>Separador: {task.assignedToId}</span>}
+                        {task.assignedToId && <span>Separador: {pickerName(task.assignedToId) || task.assignedToId}</span>}
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -750,19 +769,37 @@ export default function PickingSection() {
             </div>
 
             <label htmlFor="picking-task-action-value" className="mt-5 block space-y-1.5 text-xs font-bold uppercase tracking-wider text-[#9e7080]">
-              {taskActionDraft.mode === 'assign' && 'ID do separador'}
+              {taskActionDraft.mode === 'assign' && 'Separador'}
               {taskActionDraft.mode === 'finish' && 'Observacao final da separação'}
               {taskActionDraft.mode === 'conference' && 'Justificativa de divergencia'}
               {taskActionDraft.mode === 'packing' && 'Observacao da embalagem'}
-              <Input
-                id="picking-task-action-value"
-                value={taskActionDraft.value}
-                onChange={(event) => setTaskActionDraft((current) => current ? { ...current, value: event.target.value } : current)}
-                placeholder={taskActionDraft.mode === 'assign' ? 'Ex: separador-01' : 'Opcional'}
-                className="mt-1 h-11 rounded-xl border-[#ead7df] bg-white text-sm normal-case tracking-normal text-gray-800 shadow-none focus-visible:ring-[#5d082a]/20"
-                autoFocus
-              />
+              {taskActionDraft.mode === 'assign' ? (
+                <Select
+                  id="picking-task-action-value"
+                  value={taskActionDraft.value}
+                  onChange={(event) => setTaskActionDraft((current) => current ? { ...current, value: event.target.value } : current)}
+                  className="mt-1 h-11 rounded-xl border-[#ead7df] bg-white text-sm normal-case tracking-normal text-gray-800 shadow-none focus-visible:ring-[#5d082a]/20"
+                  autoFocus
+                >
+                  <option value="">Selecione...</option>
+                  {pickers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </Select>
+              ) : (
+                <Input
+                  id="picking-task-action-value"
+                  value={taskActionDraft.value}
+                  onChange={(event) => setTaskActionDraft((current) => current ? { ...current, value: event.target.value } : current)}
+                  placeholder="Opcional"
+                  className="mt-1 h-11 rounded-xl border-[#ead7df] bg-white text-sm normal-case tracking-normal text-gray-800 shadow-none focus-visible:ring-[#5d082a]/20"
+                  autoFocus
+                />
+              )}
             </label>
+            {taskActionDraft.mode === 'assign' && pickers.length === 0 && (
+              <p className="mt-1.5 text-xs text-amber-700">Nenhum funcionário com acesso ao módulo de Separação encontrado (confira em Equipe).</p>
+            )}
 
             <div className="mt-5 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setTaskActionDraft(null)} disabled={Boolean(busyKey)} className="rounded-xl border-[#ead7df]">
