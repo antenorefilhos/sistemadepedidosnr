@@ -90,10 +90,10 @@ export default function RouteList({
             <p className="font-semibold truncate">{userName}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={fetchRoutes} className="w-10 h-10 flex items-center justify-center rounded-xl active:bg-white/10">
+            <button onClick={fetchRoutes} className="w-11 h-11 flex items-center justify-center rounded-xl active:bg-white/10">
               <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
             </button>
-            <button onClick={onLogout} className="w-10 h-10 flex items-center justify-center rounded-xl active:bg-white/10">
+            <button onClick={onLogout} className="w-11 h-11 flex items-center justify-center rounded-xl active:bg-white/10">
               <LogOut size={18} />
             </button>
           </div>

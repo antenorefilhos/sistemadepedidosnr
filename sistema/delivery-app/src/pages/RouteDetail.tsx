@@ -176,7 +176,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
     <div className="flex flex-col h-full">
       <header className="bg-brand-600 text-white px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-xl active:bg-white/10">
+          <button onClick={onBack} className="w-11 h-11 flex items-center justify-center rounded-xl active:bg-white/10">
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1 min-w-0">
@@ -275,7 +275,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                     )}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="h-10 px-3 rounded-lg border border-gray-200 text-gray-600 text-sm flex items-center gap-1.5 active:scale-[0.98]"
+                    className="h-11 px-3 rounded-lg border border-gray-200 text-gray-600 text-sm flex items-center gap-1.5 active:scale-[0.98]"
                   >
                     <Phone size={14} />
                     WhatsApp
@@ -284,7 +284,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                 {addr && (
                   <button
                     onClick={() => openMaps(stop)}
-                    className="h-10 px-3 rounded-lg border border-gray-200 text-gray-600 text-sm flex items-center gap-1.5 active:scale-[0.98]"
+                    className="h-11 px-3 rounded-lg border border-gray-200 text-gray-600 text-sm flex items-center gap-1.5 active:scale-[0.98]"
                   >
                     <Navigation size={14} />
                     Mapa
@@ -295,7 +295,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                     key={ns}
                     onClick={() => (ns === 'FAILED' || ns === 'DELIVERED') ? setFailModal({ stopId: stop.id, status: ns, notes: '' }) : handleUpdateStop(stop.id, ns)}
                     disabled={actionLoading}
-                    className={`h-10 px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 active:scale-[0.98] disabled:opacity-60 ${STATUS_ACTION_COLOR[ns] || 'bg-gray-600'}`}
+                    className={`h-11 px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 active:scale-[0.98] disabled:opacity-60 ${STATUS_ACTION_COLOR[ns] || 'bg-gray-600'}`}
                   >
                     {STATUS_ACTION_LABEL[ns]}
                   </button>
@@ -336,9 +336,14 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
               >
                 Cancelar
               </button>
+              {/* JON-31: achado na varredura mobile de 09/09/2026 -- exigia nota
+                  pros dois status, entao marcar "Entregue" (o caminho feliz,
+                  a acao mais comum) tambem travava sem digitar nada. Nota
+                  continua obrigatoria so pra "Nao entregue", onde o motivo
+                  importa de verdade. */}
               <button
                 onClick={() => handleUpdateStop(failModal.stopId, failModal.status, failModal.notes)}
-                disabled={!failModal.notes.trim() || actionLoading}
+                disabled={(failModal.status === 'FAILED' && !failModal.notes.trim()) || actionLoading}
                 className={`flex-1 h-12 rounded-xl text-white font-semibold disabled:opacity-40 ${failModal.status === 'DELIVERED' ? 'bg-green-600' : 'bg-red-600'}`}
               >
                 {actionLoading ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Confirmar'}
