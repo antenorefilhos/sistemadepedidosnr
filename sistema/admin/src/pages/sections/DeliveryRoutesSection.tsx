@@ -249,7 +249,7 @@ export default function DeliveryRoutesSection() {
                         <li key={parada.id} className="flex items-center gap-2 text-sm">
                           <MapPin size={12} className="shrink-0 text-gray-400" />
                           <span className="font-mono text-xs text-gray-500">{parada.sequence}.</span>
-                          <span className="font-mono text-xs text-gray-500">{parada.orderId.slice(0, 8)}</span>
+                          <span className="font-mono text-xs text-gray-500">#{parada.order?.erpDav || parada.orderId.slice(-8).toUpperCase()}</span>
                           <span className="text-xs text-gray-600">{STATUS_PARADA[parada.status] ?? parada.status}</span>
                         </li>
                       ))}

@@ -1547,7 +1547,7 @@ export interface DeliveryRoute {
   startsAt?: string | null
   completedAt?: string | null
   driver?: Driver | null
-  stops: Array<{ id: string; orderId: string; sequence: number; status: string; eta?: string | null; deliveredAt?: string | null }>
+  stops: Array<{ id: string; orderId: string; sequence: number; status: string; eta?: string | null; deliveredAt?: string | null; order?: { erpDav: string | null } | null }>
 }
 
 export const deliveryAPI = {

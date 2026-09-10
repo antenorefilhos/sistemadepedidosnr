@@ -626,7 +626,11 @@ export class DeliveryService {
       },
       include: {
         driver: true,
-        stops: { orderBy: [{ sequence: 'asc' }] },
+        // JON-31: achado na varredura de 09/09/2026 -- admin mostrava so o
+        // orderId truncado na lista de paradas, id interno que ninguem digita
+        // em lugar nenhum. Mesmo padrao do DAV ja resolvido pro entregador
+        // (JON-12).
+        stops: { orderBy: [{ sequence: 'asc' }], include: { order: { select: { erpDav: true } } } },
       },
       orderBy: [{ createdAt: 'desc' }],
     })

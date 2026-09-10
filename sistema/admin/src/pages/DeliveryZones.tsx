@@ -304,9 +304,12 @@ export default function DeliveryZones() {
   })
 
   /**
-   * A loja so consegue fechar pedido com DUAS coisas ao mesmo tempo: uma zona
-   * ativa que cubra o endereco e uma janela de entrega futura com vaga. Faltando
-   * qualquer uma, o checkout trava — e antes disso a tela nao dava nenhum sinal.
+   * Zona ativa e obrigatoria: sem ela nenhum endereco casa e o checkout
+   * recusa de verdade. Janela de entrega NAO e mais obrigatoria (achado
+   * JON-31, 09/09/2026): `validateSlotCapacity` no backend trata falta de
+   * janela utilizavel como ASAP valido de proposito (ver comentario la) --
+   * o texto daqui dizia "o cliente nao consegue concluir o pedido", que ficou
+   * desatualizado e assustava o lojista a toa. Rebaixado pra aviso.
    */
   const readiness = useMemo(() => {
     const activeZones = zones.filter((zone) => zone.active)
@@ -319,9 +322,11 @@ export default function DeliveryZones() {
 
     const blockers: string[] = []
     if (!activeZones.length) blockers.push('Nenhuma zona ativa: nenhum endereco sera aceito no checkout.')
-    if (!upcomingSlots.length) blockers.push('Nenhuma janela de entrega futura com vaga: o cliente nao consegue concluir o pedido.')
 
     const warnings: string[] = []
+    if (!upcomingSlots.length) {
+      warnings.push('Nenhuma janela de entrega futura com vaga: o sistema aceita o pedido no modo "o quanto antes" (ASAP) automaticamente, mas vale cadastrar janelas novas.')
+    }
     const incomplete = activeZones.filter((zone) =>
       zone.type === 'CEP_RANGE' ? !(zone.cepStart && zone.cepEnd) : !zone.polygonGeoJSON,
     )
