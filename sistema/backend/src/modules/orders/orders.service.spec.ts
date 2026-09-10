@@ -41,6 +41,7 @@ const mockPrismaService = {
   address: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([]),
   },
   product: {
     findUnique: jest.fn(),
@@ -328,6 +329,45 @@ describe('OrdersService', () => {
       );
       expect(result.order.subtotal).toBe(60);
       expect(result.order.total).toBe(75);
+    });
+
+    it('JON-17: propaga erpProductId do produto pro payload de sync (achado testando o cutover ao vivo em 10/09/2026 -- sem isso a AntenorApi recusava com 400, cdProduto caia no fallback de EAN de 13 digitos)', async () => {
+      const mockCreateOrderDto = {
+        customerId: 'customer-1',
+        idempotencyKey: 'idem-erp-product-id',
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        delivery: 0,
+        paymentMethod: 'PIX',
+      };
+
+      mockPrismaService.product.findFirst.mockResolvedValueOnce({
+        id: 'prod-1', name: 'Arroz', ean: '602883849181', erpProductId: 30039, price: 37.9, promotionalPrice: null,
+      });
+
+      mockPrismaService.order.create.mockResolvedValue({
+        id: 'order-erp-1',
+        customerId: 'customer-1',
+        subtotal: 37.9,
+        delivery: 0,
+        discount: 0,
+        total: 37.9,
+        status: 'PENDING',
+        paymentMethod: 'PIX',
+        customer: { whatsapp: '5511999999999', email: 'test@test.com', name: 'John' },
+        items: [
+          { id: 'item-1', productId: 'prod-1', quantity: 1, unitPrice: 37.9, subtotal: 37.9, product: { erpProductId: 30039, ean: '602883849181', name: 'Arroz' } },
+        ],
+      });
+      mockOrderOrchestrationService.syncCreatedOrder.mockResolvedValue(undefined);
+      mockWhatsAppService.sendOrderConfirmation.mockResolvedValue({ url: 'wa.me' });
+
+      await service.create(mockCreateOrderDto as any);
+
+      expect(mockOrderOrchestrationService.syncCreatedOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: [expect.objectContaining({ productId: 'prod-1', erpProductId: 30039 })],
+        }),
+      );
     });
 
     it('should reject order with missing product before creating', async () => {

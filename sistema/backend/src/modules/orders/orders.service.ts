@@ -1506,6 +1506,15 @@ export class OrdersService {
 
         return {
           productId: item.productId,
+          // JON-17: achado testando o cutover de ponta a ponta em
+          // 10/09/2026 -- `sourceItems` (quote.items da PricingService, ou o
+          // map manual em cancelamento) nunca carregou erpProductId, so
+          // preco. `item.product` ja vem incluido aqui (order.items com
+          // product:true), e e a fonte confiavel: sem isso, o mapper da
+          // AntenorApi caia no fallback de EAN como cdProduto e a API
+          // recusava com 400 (cdProduto tem que ser o codigo interno deles,
+          // nao o EAN de 13 digitos).
+          erpProductId: item.product?.erpProductId ?? null,
           productName: source?.productName || item.product?.name || null,
           ean: source?.ean || item.product?.ean || null,
           quantity: item.quantity,
