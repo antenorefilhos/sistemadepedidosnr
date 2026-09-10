@@ -972,6 +972,7 @@ export default function Checkout() {
                           <Input
                             id="guestWhatsapp"
                             type="text"
+                            inputMode="numeric"
                             name="guestWhatsapp"
                             value={formData.guestWhatsapp}
                             onChange={handleInputChange}

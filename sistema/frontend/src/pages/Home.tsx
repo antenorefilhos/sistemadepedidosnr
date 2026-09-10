@@ -1060,7 +1060,7 @@ function TarjaStrip({ banner, onDismiss }: { banner: PromoBannerView; onDismiss:
             type="button"
             onClick={onDismiss}
             aria-label="Fechar aviso"
-            className="rounded-full p-1 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            className="relative rounded-full p-1 text-white/80 transition-colors before:absolute before:inset-[-14px] before:content-[''] hover:bg-white/10 hover:text-white"
           >
             <X size={16} />
           </button>
