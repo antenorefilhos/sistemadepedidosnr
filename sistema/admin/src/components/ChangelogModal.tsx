@@ -14,6 +14,22 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.8.0',
+    date: '10/09/2026',
+    title: 'Loja Migrou pro Sistema Próprio e Separação Ganhou Correções Importantes',
+    highlights: [
+      { type: 'feat', description: 'A loja passou a usar o sistema próprio (Solidcon) como fonte principal de catálogo, pedidos e faturamento, no lugar do sistema antigo. A troca foi testada de ponta a ponta antes de entrar no ar: pedido real, cancelamento e sincronização completa do catálogo.' },
+      { type: 'feat', description: 'Pedido cancelado direto no caixa da loja agora reflete automaticamente aqui, sem precisar de ninguém avisar manualmente.' },
+      { type: 'fix', description: 'Na tela "Atribuir separador" (Separação), era preciso digitar um código interno do banco de dados pra escolher quem ia separar o pedido — praticamente impossível de usar. Agora é uma lista com o nome de cada pessoa da equipe.' },
+      { type: 'fix', description: 'No aplicativo de separação, o ajuste fino de peso (setas +/-) mudava de 0,01 em 0,01 — pra corrigir uma diferença pequena eram dezenas de toques. Agora o passo é maior, e digitar o peso direto continua funcionando.' },
+      { type: 'fix', description: 'No aplicativo do entregador, marcar "Entregue" (o caso mais comum) também exigia digitar uma observação antes de liberar o botão de confirmar — só devia pedir isso quando a entrega falhasse.' },
+      { type: 'fix', description: 'Botões "Iniciar Rota" e "Concluir Rota" do aplicativo do entregador não apareciam nunca, por uma comparação de status desatualizada.' },
+      { type: 'fix', description: 'Ficha de produto pesável ou de produção própria às vezes mostrava "Estoque informado: -11" pro cliente, um número negativo do sistema interno que não faz sentido pra quem está comprando.' },
+      { type: 'fix', description: 'Nome do sistema de origem do catálogo aparecia errado ("Solidcom") em vários lugares do painel — corrigido pra "Solidcon", com aviso claro de que está desligado desde a migração pro sistema próprio.' },
+      { type: 'fix', description: 'Tela de Integrações dava erro ao clicar em "Mostrar Módulos" desde que o sistema próprio (Solidcon) foi adicionado à lista.' },
+    ],
+  },
+  {
     version: '1.7.0',
     date: '08/09/2026',
     title: 'Cliente Pode Cancelar de Verdade e Separação Ganha Leitor de Código',

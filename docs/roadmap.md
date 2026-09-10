@@ -42,6 +42,11 @@ que fecha desce para o histórico com a data e o commit.
       **Prova final pendente**: o DAV 102072 está separado e aguardando
       fechamento no PDV — quando fechar, o agente deve detectar sozinho.
       Ver [solidcom-api.md](solidcom-api.md).
+      **Atualização 10/09/2026**: o webhook da AntenorApi (JON-23) entrou em
+      produção e aposentou esse polling — o disparo agora é em tempo real,
+      vindo do lado deles. `FATURAMENTO_POLLING_DESLIGADO=true` aplicado no
+      `Notificador/.env` do PC da loja; a checagem de saúde do IDENTITY do
+      DAV continua ligada normalmente (mesma conexão DORSAL).
 
 - [x] **Equipe passa a ser avisada no celular.** (03/09/2026) Separação e
       entrega não notificavam nada: `PushSubscription` só aceitava
@@ -62,17 +67,19 @@ que fecha desce para o histórico com a data e o commit.
       Único erro do percurso: item por peso exige `finalWeight` (validação
       correta — conferir se o campo está visível no app do separador).
 
-- [ ] **AntenorApi: substituir a integração Solidcom.** Em construção por outra
-      equipe, revisada por nós em 08/09/2026 (ver `docs/conferencia-antenorapi-v1.5.0.md`,
-      `o-que-o-checksum-revela.md` e `ambiente-de-desenvolvimento.md`). O bloqueio
-      do `tipoIntegracao` foi resolvido — a regra vive em `Solidcon.dbo.tbProduto`
-      (`inNaoInternet`/`inInternet`), validada em 14.885 produtos com zero
-      divergências. **Falta antes do corte:** performance (hoje ~40× mais lenta
-      que o Solidcom — 1.409 produtos em 59,7s contra 15,3s do catálogo inteiro),
-      decidir a rota VPS ↔ loja (Cloudflare Tunnel inviável: exige DNS na
-      Cloudflare; alternativa é estender o WireGuard existente), e o mapeamento
-      `VL_PRODUTO_NORMAL → price` / `VL_PRODUTO → promotionalPrice` — inverter
-      isso faz o preço promocional virar o preço cheio quando a promoção acabar.
+- [x] **AntenorApi: substituir a integração Solidcom (cutover, JON-17).**
+      Concluído em 10/09/2026. Performance deixou de ser bloqueio — a versão
+      final da AntenorApi mediu 12,5s pro catálogo completo (15.934 produtos)
+      contra 15,3s do Solidcom antigo. Construído o que faltava do nosso lado
+      (criação de pedido e sync de catálogo via AntenorApi nunca tinham sido
+      escritos — só cancelamento e status já usavam o conector novo).
+      Mapeamento `VL_PRODUTO_NORMAL → price` / `VL_PRODUTO → promotionalPrice`
+      validado com query real no banco antes do corte. Testado de ponta a
+      ponta: pedido real gerou DAV 102080, cancelamento refletido no banco
+      DORSAL, sync completo com 0 erros. Um bug real só apareceu no teste de
+      ponta a ponta (`erpProductId` não chegava no payload, API rejeitava com
+      400) — corrigido na fonte única do mapeamento antes de fechar. Solidcom
+      desligado em produção (`enabled: false`), código mantido como fallback.
 
 - [ ] **ERP exposto na internet.** `http://45.239.193.56:5000` responde sem TLS e
       sem autenticação: o catálogo completo (10,5 MB, com preço, custo e margem)
