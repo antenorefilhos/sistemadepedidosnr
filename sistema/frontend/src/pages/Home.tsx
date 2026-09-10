@@ -718,7 +718,7 @@ export default function Home() {
       <ProductShelf
         className="md:hidden px-4 pt-5 pb-2"
         title="Ofertas para hoje"
-        eyebrow="Preco e margem"
+        eyebrow="Preços especiais"
         icon={Sparkles}
         products={offersShelf}
         to="/promocoes"

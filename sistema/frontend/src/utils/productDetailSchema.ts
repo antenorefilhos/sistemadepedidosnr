@@ -66,7 +66,10 @@ const buildAttributes = (product: Product) => {
     lines.push(`Produto pesavel com porcao minima de ${portionLabel}.`)
   }
 
-  if (typeof product.stock === 'number') {
+  // JON-31: achado na varredura de 09/09/2026 -- estoque negativo do ERP e
+  // dado real (producao propria/peso, ver CLAUDE.md), mas mostrar "-11" cru
+  // pro cliente e confuso. So exibe quando faz sentido pro cliente ver.
+  if (typeof product.stock === 'number' && product.stock >= 0) {
     lines.push(`Estoque informado: ${product.stock}.`)
   }
 
