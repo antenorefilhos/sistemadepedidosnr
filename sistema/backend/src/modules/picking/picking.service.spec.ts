@@ -3,10 +3,22 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { PrismaService } from '../../common/prisma.service'
 import { PickingService } from './picking.service'
 import { NotificationsService } from '../notifications/notifications.service'
+import { AntenorApiService } from '../integrations/antenor-api.service'
+import { IntegrationModulesService } from '../integrations/integration-modules.service'
 
 const mockNotificationsService = {
   notifyOrderStatusChange: jest.fn().mockResolvedValue(undefined),
   notifyPickingTeamNewOrder: jest.fn().mockResolvedValue(undefined),
+}
+
+const mockAntenorApiService = {
+  updatePickedItems: jest.fn().mockResolvedValue(undefined),
+}
+
+// syncOption de separacao so dispara quando 'antenorapi' esta ligado; nos testes
+// fica desligado, entao o PUT /itens nunca e chamado.
+const mockIntegrationModulesService = {
+  isEnabled: jest.fn().mockResolvedValue(false),
 }
 
 const mockPrismaService = {
@@ -136,6 +148,8 @@ describe('PickingService', () => {
         PickingService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: NotificationsService, useValue: mockNotificationsService },
+        { provide: AntenorApiService, useValue: mockAntenorApiService },
+        { provide: IntegrationModulesService, useValue: mockIntegrationModulesService },
       ],
     }).compile()
 
