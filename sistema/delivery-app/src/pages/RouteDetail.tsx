@@ -163,8 +163,13 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
 
   const pending = route.stops.filter((s) => !['DELIVERED', 'FAILED'].includes(s.status))
   const done = route.stops.filter((s) => ['DELIVERED', 'FAILED'].includes(s.status))
-  const canStart = route.status === 'PENDING'
-  const canComplete = route.status === 'IN_PROGRESS' && pending.length === 0
+  // JON-31: achado na varredura de 09/09/2026 -- comparava com PENDING/
+  // IN_PROGRESS, que o backend nunca produz (ver RouteList.tsx, ja corrigido
+  // la). Os botoes nunca renderizavam; a rota so avançava sozinha via
+  // syncRouteStatus. Valores reais: PLANNED/READY -> pode iniciar,
+  // OUT_FOR_DELIVERY -> pode concluir.
+  const canStart = route.status === 'PLANNED' || route.status === 'READY'
+  const canComplete = route.status === 'OUT_FOR_DELIVERY' && pending.length === 0
   const isFinished = ['COMPLETED', 'CANCELLED'].includes(route.status)
 
   return (
