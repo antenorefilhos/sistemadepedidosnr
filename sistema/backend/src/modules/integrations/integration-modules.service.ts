@@ -26,9 +26,9 @@ export class IntegrationModulesService {
   private readonly moduleDefaults: Record<IntegrationModuleKey, Omit<IntegrationModuleDescriptor, 'enabled'>> = {
     solidcom: {
       key: 'solidcom',
-      name: 'Solidcom ERP',
+      name: 'Solidcon ERP (legado)',
       removable: true,
-      notes: 'Sincroniza catalogo e pedidos com ERP legado.',
+      notes: 'ERP legado, substituido pela AntenorApi em 10/09/2026 (JON-17). Mantido desligado como fallback.',
     },
     antenorapi: {
       key: 'antenorapi',
