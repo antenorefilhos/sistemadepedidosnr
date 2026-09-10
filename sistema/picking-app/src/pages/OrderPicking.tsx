@@ -568,7 +568,12 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
         const requested = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)
         const isAdjusted = adjustQty !== requested
         const weighted = isWeightedProduct(product)
-        const step = weighted ? 0.01 : 1
+        // JON-31: achado na varredura mobile de 09/09/2026 -- passo de 0.01kg
+        // exigia dezenas de toques pra ajustar peso real (ex.: 1kg pedido,
+        // 0.94kg pesado = 6 toques so nessa diferenca pequena). 0.05kg reduz
+        // o toque em ~5x sem perder precisao pratica de balanca de loja;
+        // digitar direto continua disponivel pra ajuste fino.
+        const step = weighted ? 0.05 : 1
         const minValue = weighted ? 0.01 : 1
         return (
           <Modal onClose={() => setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })}>
@@ -601,7 +606,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                       setAdjustQty(next)
                       setAdjustQtyText(String(next))
                     }}
-                    className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
+                    className="w-11 h-11 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
                   >
                     −
                   </button>
@@ -620,7 +625,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                       setAdjustQty(next)
                       setAdjustQtyText(String(next))
                     }}
-                    className="w-10 h-10 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
+                    className="w-11 h-11 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
                   >
                     +
                   </button>
