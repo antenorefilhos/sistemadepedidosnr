@@ -206,6 +206,13 @@ function updateTrayTooltip(waiting) {
 const FATURAMENTO_LIGADO = ['DORSAL_DB_HOST', 'DORSAL_DB_NAME', 'DORSAL_DB_USER', 'DORSAL_DB_PASSWORD']
   .every((chave) => String(process.env[chave] || '').trim())
 
+// JON-23 (10/09/2026): o webhook da AntenorApi aposenta esse polling -- agora
+// e ela quem avisa a API quando o pedido fatura/cancela, em vez do agente
+// perguntar de minuto em minuto. Flag separada de FATURAMENTO_LIGADO de
+// proposito: verificarIdentityDav() usa a MESMA conexao DORSAL e continua
+// precisando dela ligada, mesmo com o polling de faturamento desligado.
+const POLLING_FATURAMENTO_DESLIGADO = String(process.env.FATURAMENTO_POLLING_DESLIGADO || '').toLowerCase() === 'true'
+
 let dorsal = null
 let avisouDorsalIndisponivel = false
 
@@ -253,7 +260,7 @@ async function verificarIdentityDav() {
 }
 
 async function conciliarPdv() {
-  if (!FATURAMENTO_LIGADO) return
+  if (!FATURAMENTO_LIGADO || POLLING_FATURAMENTO_DESLIGADO) return
 
   if (!dorsal) dorsal = require('./dorsal')
 
@@ -418,6 +425,13 @@ app.whenReady().then(() => {
   tray.on('click', togglePanel)
 
   log(`Notificador iniciado — polling a cada ${INTERVAL / 1000}s em ${API_URL}`)
+  log(
+    POLLING_FATURAMENTO_DESLIGADO
+      ? 'Polling de faturamento DESLIGADO -- webhook da AntenorApi (JON-23) cobre isso agora.'
+      : FATURAMENTO_LIGADO
+        ? 'Polling de faturamento ativo (fallback -- webhook JON-23 ja disponivel, considere desligar com FATURAMENTO_POLLING_DESLIGADO=true).'
+        : 'Polling de faturamento desligado (sem credenciais DORSAL no .env).',
+  )
   check()
   setInterval(check, INTERVAL)
 })
