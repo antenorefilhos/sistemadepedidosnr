@@ -8,7 +8,7 @@ const SERVICE_LABELS: Record<string, string> = {
   database: 'Banco de dados',
   redis: 'Cache (Redis)',
   meilisearch: 'Busca (Meili)',
-  solidcom: 'ERP (Solidcom)',
+  solidcom: 'ERP (Solidcon)',
 }
 
 function StatusIcon({ status }: { status: SystemServiceStatus['status'] }) {

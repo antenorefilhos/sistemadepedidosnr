@@ -34,7 +34,7 @@ const INTEGRATION_META: Record<IntegrationKey, IntegrationMeta> = {
   },
   antenorapi: {
     role: 'ERP próprio -- catálogo, pedidos e faturamento',
-    summary: 'API própria que lê o SQL Server da loja direto. Assumiu integralmente do Solidcom em 10/09/2026 (JON-17): catálogo, criação de pedido, cancelamento e status/faturamento no PDV.',
+    summary: 'API própria que lê o SQL Server da loja direto. Assumiu integralmente do Solidcon em 10/09/2026 (JON-17): catálogo, criação de pedido, cancelamento e status/faturamento no PDV.',
     contractSummary: 'Contrato JSON tipado (POST /pedidos, GET /produtos), assinatura HMAC no webhook (JON-23).',
     triggerSummary: 'Disparo automático na criação/cancelamento de pedido, sync de catálogo (cron horário + incremental) e webhook de faturamento/cancelamento vindo do PDV.',
     observabilitySummary: 'Certificado fixado (pinned), retry com backoff no webhook, outbox de retentativa em falha de rede.',
@@ -310,15 +310,23 @@ export default function Integrations() {
       )}
 
       {selectedModule?.key === 'solidcom' && status && (
-        <section className="bg-white border border-gray-100 rounded-lg shadow-sm p-6 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-lg font-bold text-gray-800">Status Solidcom</h3>
+        <section className={`border rounded-lg shadow-sm p-6 space-y-3 ${status.enabled ? 'bg-white border-gray-100' : 'bg-slate-50 border-slate-200'}`}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-bold text-gray-800">Status Solidcon</h3>
+              {!status.enabled && (
+                <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wide bg-slate-200 text-slate-700 border-transparent">
+                  Legado · Desativado
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
                 size="sm"
                 onClick={runSyncNow}
-                disabled={syncing}
+                disabled={syncing || !status.enabled}
+                title={!status.enabled ? 'Reative o módulo pra sincronizar por aqui' : undefined}
                 className="bg-[#5D082A] text-white hover:bg-[#4a0622] disabled:opacity-60"
               >
                 {syncing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCcw size={16} />}
@@ -336,6 +344,12 @@ export default function Integrations() {
               </Button>
             </div>
           </div>
+
+          {!status.enabled && (
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
+              Substituído pela AntenorApi em 10/09/2026 (JON-17). O código continua aqui como fallback -- os números abaixo são da última vez que o Solidcon rodou, não em tempo real.
+            </div>
+          )}
 
           {syncMessage && (
             <div className="rounded-lg border border-[#5D082A]/20 bg-[#fff5f8] p-3 text-xs text-[#6d123a] font-medium">

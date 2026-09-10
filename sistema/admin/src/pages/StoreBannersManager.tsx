@@ -2107,10 +2107,10 @@ export default function StoreBannersManager() {
                     <div className="border-t border-gray-100 pt-4">
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Vincular a um encarte</p>
                       <p className="text-[11px] text-gray-400 mb-2">
-                        Opcional. Informe o código do encarte no Solidcom e o banner fica ativo automaticamente
+                        Opcional. Informe o código do encarte no Solidcon e o banner fica ativo automaticamente
                         enquanto o encarte estiver vigente lá — sem precisar mexer em datas abaixo.
                       </p>
-                      <Label className="block text-xs font-medium text-gray-600 mb-1">Código do encarte (Solidcom)</Label>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">Código do encarte (Solidcon)</Label>
                       <Input
                         type="number"
                         value={form.campaignErpId}

@@ -239,8 +239,8 @@ export default function ProductsSection({
   const isSolidcomEnabled = Boolean(solidcomStatus?.enabled)
   const canRunSolidcomActions = !solidcomStatusLoading && isSolidcomEnabled
   const solidcomActionHint = solidcomStatusLoading
-    ? 'Verificando status da extensão Solidcom...'
-    : 'Habilite a extensão Solidcom para usar esta ação.'
+    ? 'Verificando status da extensão Solidcon...'
+    : 'Habilite a extensão Solidcon para usar esta ação.'
 
   const [catalogViewMode, setCatalogViewMode] = useState<'table' | 'cards'>('table')
   const [showFilterBar, setShowFilterBar] = useState(false)
@@ -644,12 +644,12 @@ export default function ProductsSection({
               </Button>
             </div>
 
-            <Button onClick={onSyncProducts} disabled={syncingProducts || !canRunSolidcomActions} title={!canRunSolidcomActions ? solidcomActionHint : 'Sincronizar produtos com Solidcom'} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm text-white hover:bg-sky-700">
+            <Button onClick={onSyncProducts} disabled={syncingProducts || !canRunSolidcomActions} title={!canRunSolidcomActions ? solidcomActionHint : 'Sincronizar produtos com Solidcon'} className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm text-white hover:bg-sky-700">
               <RefreshCw size={15} className={syncingProducts ? 'animate-spin' : ''} />
-              Sincronizar Solidcom
+              Sincronizar Solidcon
             </Button>
 
-            <Button onClick={onSyncTaxonomy} disabled={syncingTaxonomy || !canRunSolidcomActions} title={!canRunSolidcomActions ? solidcomActionHint : 'Gerar taxonomia com dados do Solidcom'} className="min-h-11 rounded-xl bg-amber-600 px-4 text-sm text-white hover:bg-amber-700">
+            <Button onClick={onSyncTaxonomy} disabled={syncingTaxonomy || !canRunSolidcomActions} title={!canRunSolidcomActions ? solidcomActionHint : 'Gerar taxonomia com dados do Solidcon'} className="min-h-11 rounded-xl bg-amber-600 px-4 text-sm text-white hover:bg-amber-700">
               <RefreshCw size={15} className={syncingTaxonomy ? 'animate-spin' : ''} />
               Gerar Taxonomia
             </Button>
@@ -730,7 +730,7 @@ export default function ProductsSection({
           <>
             {products.length === 0 ? (
               <div className="p-6">
-                <SectionEmptyState title="Nenhum produto encontrado" description="Ajuste a busca, revise os filtros ou sincronize novamente os dados do Solidcom." />
+                <SectionEmptyState title="Nenhum produto encontrado" description="Ajuste a busca, revise os filtros ou sincronize novamente os dados do Solidcon." />
               </div>
             ) : catalogViewMode === 'table' ? (
               <Table className="min-w-full text-sm">
@@ -1018,13 +1018,24 @@ export default function ProductsSection({
         )}
       </SectionPanel>
 
-      {/* Solidcom Status Panel */}
+      {/* Solidcon Status Panel (legado desde o cutover pra AntenorApi, JON-17) */}
       <SectionPanel>
-        <div className="border-b border-[#f1dbe3] bg-[linear-gradient(180deg,#fffafc_0%,#fff_100%)] p-5">
+        <div className={`border-b p-5 ${isSolidcomEnabled ? 'border-[#f1dbe3] bg-[linear-gradient(180deg,#fffafc_0%,#fff_100%)]' : 'border-slate-200 bg-slate-50'}`}>
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h3 className="text-base font-bold text-gray-800">Status da Integração Solidcom</h3>
-              <p className="text-xs text-gray-400">Volume, última sincronização e ocorrências recentes</p>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-gray-800">Status da Integração Solidcon</h3>
+                {!isSolidcomEnabled && (
+                  <span className="text-[10px] font-bold uppercase tracking-wide bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
+                    Legado · Desativado
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400">
+                {isSolidcomEnabled
+                  ? 'Volume, última sincronização e ocorrências recentes'
+                  : 'Substituído pela AntenorApi em 10/09/2026 — números abaixo são da última execução, não em tempo real'}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Button type="button" onClick={onReloadSolidcomStatus} disabled={solidcomStatusLoading} variant="outline" size="sm" className="rounded-xl border-[#ead7df] px-3 text-[11px] uppercase tracking-wide text-gray-500 hover:bg-gray-50">
