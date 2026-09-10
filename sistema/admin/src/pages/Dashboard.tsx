@@ -299,6 +299,15 @@ export default function AdminDashboard() {
   const [productsLoading, setProductsLoading] = useState(false)
   const [productsError, setProductsError] = useState('')
   const [productsSearch, setProductsSearch] = useState('')
+  // JON-31 (auditoria admin): a busca disparava 4 requisicoes por tecla e
+  // reprocessava a arvore mercadologica inteira no onChange -- congelava o
+  // navegador 30s+. Agora debounce de 350ms e a arvore/status/metricas saem
+  // do efeito de busca (nao mudam com o texto).
+  const [debouncedProductsSearch, setDebouncedProductsSearch] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedProductsSearch(productsSearch), 350)
+    return () => clearTimeout(id)
+  }, [productsSearch])
   const [productsFilterOutOfStock, setProductsFilterOutOfStock] = useState(false)
   const [productsFilterInactive, setProductsFilterInactive] = useState(false)
   const [productsFilterUncategorized, setProductsFilterUncategorized] = useState(false)
@@ -395,7 +404,7 @@ export default function AdminDashboard() {
 
   const loadProducts = useCallback(async (
     page = 1,
-    search = productsSearch,
+    search = '',
     outOfStock = productsFilterOutOfStock,
     inactive = productsFilterInactive,
     uncategorized = productsFilterUncategorized
@@ -426,7 +435,7 @@ export default function AdminDashboard() {
     } finally {
       setProductsLoading(false)
     }
-  }, [productsSearch, classification01Filter, classification02Filter, classification03Filter, classification04Filter, productsFilterOutOfStock, productsFilterInactive, productsFilterUncategorized])
+  }, [classification01Filter, classification02Filter, classification03Filter, classification04Filter, productsFilterOutOfStock, productsFilterInactive, productsFilterUncategorized])
 
   const loadMercadologicalTree = useCallback(async () => {
     try {
@@ -481,26 +490,29 @@ export default function AdminDashboard() {
     loadStats()
   }, [loadStats])
 
+  // Arvore mercadologica, status da integracao e metricas de disponibilidade:
+  // NAO mudam com o texto da busca -- carregam uma vez ao entrar na secao.
   useEffect(() => {
-    if (activeSection === 'products') {
-      loadProducts(
-        1,
-        productsSearch,
-        productsFilterOutOfStock,
-        productsFilterInactive,
-        productsFilterUncategorized
-      )
-      loadSolidcomStatus()
-      loadMercadologicalTree()
-      loadAvailabilityMetrics()
-    }
+    if (activeSection !== 'products') return
+    loadSolidcomStatus()
+    loadMercadologicalTree()
+    loadAvailabilityMetrics()
+  }, [activeSection, loadSolidcomStatus, loadMercadologicalTree, loadAvailabilityMetrics])
+
+  // Lista de produtos: reage ao texto JA COM DEBOUNCE e aos filtros.
+  useEffect(() => {
+    if (activeSection !== 'products') return
+    loadProducts(
+      1,
+      debouncedProductsSearch,
+      productsFilterOutOfStock,
+      productsFilterInactive,
+      productsFilterUncategorized
+    )
   }, [
     activeSection,
     loadProducts,
-    loadSolidcomStatus,
-    loadMercadologicalTree,
-    loadAvailabilityMetrics,
-    productsSearch,
+    debouncedProductsSearch,
     productsFilterOutOfStock,
     productsFilterInactive,
     productsFilterUncategorized

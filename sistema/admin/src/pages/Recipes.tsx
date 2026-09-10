@@ -22,6 +22,7 @@ interface RecipeSummary {
   difficulty?: string
   active: boolean
   publishedAt?: string
+  categoryId?: string | null
   category?: { name: string; slug: string }
 }
 
@@ -36,7 +37,7 @@ interface PaginatedRecipes {
 const DIFFICULTY_LABEL: Record<string, string> = {
   EASY: 'Fácil',
   MEDIUM: 'Médio',
-  HARD: 'Dificil',
+  HARD: 'Difícil',
 }
 
 const INITIAL_FORM = {
@@ -144,7 +145,10 @@ export default function Recipes() {
       prepTime: recipe.prepTime != null ? String(recipe.prepTime) : '',
       servings: recipe.servings != null ? String(recipe.servings) : '',
       difficulty: recipe.difficulty ?? '',
-      categoryId: '',
+      // JON-31 (auditoria admin): antes era hardcode '' -- salvar uma edicao
+      // apagava a categoria da receita em silencio. O list ja devolve
+      // categoryId, so faltava usar.
+      categoryId: recipe.categoryId ?? '',
       active: recipe.active,
       publishedAt: recipe.publishedAt ? recipe.publishedAt.slice(0, 16) : '',
     })
@@ -268,7 +272,7 @@ export default function Recipes() {
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs text-gray-600">Porcoes</Label>
+              <Label className="mb-1 block text-xs text-gray-600">Porções</Label>
               <Input
                 type="number"
                 value={form.servings}
@@ -286,7 +290,7 @@ export default function Recipes() {
                 <option value="">Sem classificação</option>
                 <option value="EASY">Fácil</option>
                 <option value="MEDIUM">Médio</option>
-                <option value="HARD">Dificil</option>
+                <option value="HARD">Difícil</option>
               </Select>
             </div>
 
@@ -330,7 +334,7 @@ export default function Recipes() {
               onClick={handleSubmit}
               disabled={isSaving}
             >
-              {isSaving ? 'Salvando...' : editing ? 'Salvar alteracoes' : 'Criar receita'}
+              {isSaving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar receita'}
             </Button>
             <Button
               type="button"
@@ -364,7 +368,7 @@ export default function Recipes() {
                 <TableHead>Categoria</TableHead>
                 <TableHead>Dificuldade</TableHead>
                 <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right">Acoes</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -434,7 +438,7 @@ export default function Recipes() {
               >
                 ← Anterior
               </Button>
-              <span className="text-xs text-gray-500">Pagina {page}</span>
+              <span className="text-xs text-gray-500">Página {page}</span>
               <Button
                 type="button"
                 variant="link"
@@ -443,7 +447,7 @@ export default function Recipes() {
                 disabled={!data?.hasNextPage}
                 className="px-0"
               >
-                Proxima →
+                Próxima →
               </Button>
             </div>
           )}
