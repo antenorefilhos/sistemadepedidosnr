@@ -25,12 +25,20 @@ type IntegrationMeta = {
 
 const INTEGRATION_META: Record<IntegrationKey, IntegrationMeta> = {
   solidcom: {
-    role: 'Sincronização de catálogo e pedidos',
-    summary: 'Módulo de integração com ERP legado para sincronização de produtos e gestão de pedidos descentralizada.',
+    role: 'Sincronização de catálogo e pedidos (legado)',
+    summary: 'ERP legado. Desligado desde o cutover pra AntenorApi (JON-17, 10/09/2026) -- mantido no código como fallback, sem uso ativo hoje.',
     contractSummary: 'Contrato interno normalizado com campos comerciais, pedidos e sincronização.',
     triggerSummary: 'Disparo automático na criação/cancelamento de pedido e sync manual de catálogo.',
     observabilitySummary: 'Trilha de falhas, reprocesso manual e reconciliação por período.',
     nextDeliverable: 'Toggle operacional em runtime já disponível por extensão.',
+  },
+  antenorapi: {
+    role: 'ERP próprio -- catálogo, pedidos e faturamento',
+    summary: 'API própria que lê o SQL Server da loja direto. Assumiu integralmente do Solidcom em 10/09/2026 (JON-17): catálogo, criação de pedido, cancelamento e status/faturamento no PDV.',
+    contractSummary: 'Contrato JSON tipado (POST /pedidos, GET /produtos), assinatura HMAC no webhook (JON-23).',
+    triggerSummary: 'Disparo automático na criação/cancelamento de pedido, sync de catálogo (cron horário + incremental) e webhook de faturamento/cancelamento vindo do PDV.',
+    observabilitySummary: 'Certificado fixado (pinned), retry com backoff no webhook, outbox de retentativa em falha de rede.',
+    nextDeliverable: 'Em produção, sem pendência conhecida.',
   },
   hubspot: {
     role: 'Relacionamento e automações',
@@ -72,10 +80,18 @@ const INTEGRATION_META: Record<IntegrationKey, IntegrationMeta> = {
     observabilitySummary: 'Fila de cobrança, webhook e eventos de pagamento.',
     nextDeliverable: 'Conector plugável com provider configurável.',
   },
+  'ai-notifications': {
+    role: 'Notificação automática por IA',
+    summary: 'IA (NVIDIA NIM) decide sozinha quando notificar clientes sobre promoções, sem regra fixa de horário/produto.',
+    contractSummary: 'Consulta o catálogo e histórico de notificação, decide texto e timing via modelo de linguagem.',
+    triggerSummary: 'Disparo agendado (cron), ver tela de Notificações pra horários e histórico.',
+    observabilitySummary: 'Registro de notificações enviadas por produto (aiNotifiedAt).',
+    nextDeliverable: 'Em produção, ajustável pela tela de Notificações.',
+  },
 }
 
 export default function Integrations() {
-  const [selectedIntegration, setSelectedIntegration] = useState<IntegrationKey>('solidcom')
+  const [selectedIntegration, setSelectedIntegration] = useState<IntegrationKey>('antenorapi')
   const [showModulesModal, setShowModulesModal] = useState(false)
   const [modulesLoading, setModulesLoading] = useState(false)
   const [togglingKey, setTogglingKey] = useState<IntegrationKey | null>(null)

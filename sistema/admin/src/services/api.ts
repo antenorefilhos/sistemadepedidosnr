@@ -179,7 +179,7 @@ export interface SolidcomStatusResponse {
 }
 
 export interface IntegrationModuleDescriptor {
-  key: 'solidcom' | 'hubspot' | 'rdstation' | 'meta-pixel' | 'nfe' | 'payments'
+  key: 'solidcom' | 'antenorapi' | 'hubspot' | 'rdstation' | 'meta-pixel' | 'nfe' | 'payments' | 'ai-notifications'
   name: string
   enabled: boolean
   removable: boolean
