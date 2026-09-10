@@ -49,6 +49,19 @@ describe('CustomersService — flag de push', () => {
     expect(prisma.pushSubscription.groupBy).not.toHaveBeenCalled()
   })
 
+  it('nao vaza hash de senha nem token de reset pra lista', async () => {
+    const { service, prisma } = build([])
+    prisma.customer.findMany.mockResolvedValue([
+      { id: 'c1', name: 'Ana', password: 'hash', resetTokenHash: 'tok', resetTokenExpiresAt: new Date() },
+    ])
+
+    const [ana] = (await service.findAll()) as Array<Record<string, unknown>>
+    expect(ana.password).toBeUndefined()
+    expect(ana.resetTokenHash).toBeUndefined()
+    expect(ana.resetTokenExpiresAt).toBeUndefined()
+    expect(ana.name).toBe('Ana')
+  })
+
   it('vale tambem no caminho de busca por texto', async () => {
     const { service, prisma } = build([{ customerId: 'c2', _count: { _all: 1 } }])
     prisma.customer.findMany.mockResolvedValue([CLIENTES[1]])

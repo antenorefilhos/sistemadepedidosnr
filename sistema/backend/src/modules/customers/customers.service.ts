@@ -6,6 +6,16 @@ import { IntegrationsService } from '../integrations/integrations.service'
 
 type UpdateCustomerDto = Partial<CreateCustomerDto>
 
+// Campos sensiveis que nunca podem sair pra tela do admin: hash de senha e
+// token de reset. Ate 10/09/2026 findAll/findOne devolviam o registro cru e
+// o /api/customers vazava o hash de TODOS os clientes pro navegador.
+// Strip pos-query (em vez de `select`) pra que campo sensivel novo no model
+// tambem caia aqui sem alguem lembrar de listar.
+function stripSecrets<T extends Record<string, unknown>>(customer: T): T {
+  const { password, resetTokenHash, resetTokenExpiresAt, ...safe } = customer
+  return safe as unknown as T
+}
+
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hora, mesmo padrao do fluxo de auth
 
 @Injectable()
@@ -34,7 +44,7 @@ export class CustomersService {
           orderBy: { createdAt: 'desc' },
         })
 
-    return this.withPushInfo(customers)
+    return this.withPushInfo(customers.map(stripSecrets))
   }
 
   /**
@@ -71,17 +81,19 @@ export class CustomersService {
   }
 
   async findOne(id: string) {
-    return this.prisma.customer.findUnique({
+    const customer = await this.prisma.customer.findUnique({
       where: { id },
       include: { addresses: true },
     })
+    return customer ? stripSecrets(customer) : customer
   }
 
   async findByCPF(cpf: string) {
-    return this.prisma.customer.findUnique({
+    const customer = await this.prisma.customer.findUnique({
       where: { cpf },
       include: { addresses: true },
     })
+    return customer ? stripSecrets(customer) : customer
   }
 
   async create(createCustomerDto: CreateCustomerDto) {
