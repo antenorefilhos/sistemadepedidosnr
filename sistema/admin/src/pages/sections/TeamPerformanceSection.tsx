@@ -120,7 +120,7 @@ export default function TeamPerformanceSection() {
               <tbody className="divide-y divide-gray-100">
                 {pickers.map((p) => (
                   <tr key={p.pickerId}>
-                    <td className="py-2 font-semibold text-[#5d082a]">{staffNameById.get(p.pickerId) || p.pickerId}</td>
+                    <td className="py-2 font-semibold text-gray-800">{staffNameById.get(p.pickerId) || 'Funcionário removido'}</td>
                     <td className="py-2">{p.tasksCompleted}</td>
                     <td className="py-2">{p.itemsPerMinute}</td>
                     <td className="py-2">{p.itemsMissing}</td>
@@ -156,7 +156,7 @@ export default function TeamPerformanceSection() {
               <tbody className="divide-y divide-gray-100">
                 {driverList.map((d) => (
                   <tr key={d.driverId}>
-                    <td className="py-2 font-semibold text-[#5d082a]">{d.driverName}</td>
+                    <td className="py-2 font-semibold text-gray-800">{d.driverName}</td>
                     <td className="py-2">{d.routesCompleted}</td>
                     <td className="py-2">{d.stopsDelivered}</td>
                     <td className="py-2">{d.stopsFailed}</td>
@@ -192,7 +192,7 @@ export default function TeamPerformanceSection() {
                 {substitutions.map((event) => (
                   <tr key={event.id}>
                     <td className="py-2 text-gray-500">{new Date(event.createdAt).toLocaleString('pt-BR')}</td>
-                    <td className="py-2 font-semibold text-[#5d082a]">
+                    <td className="py-2 font-semibold text-gray-800">
                       {event.actorName || ACTOR_TYPE_LABELS[event.actorType] || event.actorType}
                     </td>
                     <td className="py-2">{String(event.payload.sourceProductName || '—')}</td>
