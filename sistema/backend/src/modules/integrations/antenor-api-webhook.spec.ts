@@ -13,6 +13,7 @@ describe('handleWebhookStatus (JON-23)', () => {
     ;(service as unknown as { prisma: unknown }).prisma = mockPrisma
     ;(service as unknown as { markInvoiced: jest.Mock }).markInvoiced = jest.fn().mockResolvedValue({ status: 'READY_FOR_DELIVERY' })
     ;(service as unknown as { markCancelledInErp: jest.Mock }).markCancelledInErp = jest.fn().mockResolvedValue({ status: 'CANCELLED' })
+    ;(service as unknown as { logSyncEvent: jest.Mock }).logSyncEvent = jest.fn().mockResolvedValue(undefined)
   })
 
   it('payload sem DAV ou status: nao processa', async () => {
@@ -52,6 +53,34 @@ describe('handleWebhookStatus (JON-23)', () => {
     const resultado = await service.handleWebhookStatus({ numeroDAV: '1', statusGeral: 'ALGO_NOVO' })
     expect(resultado.processado).toBe(false)
     expect((service as unknown as { markInvoiced: jest.Mock }).markInvoiced).not.toHaveBeenCalled()
+  })
+
+  describe('formato novo da v1.8.0 (JON-38: `evento` dotted, sem numeroDAV)', () => {
+    it('evento pedido.faturado_pdv com numeroDAV: normaliza e chama markInvoiced', async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({ id: 'order-4' })
+      const resultado = await service.handleWebhookStatus({ numeroDAV: '102080', evento: 'pedido.faturado_pdv' })
+      expect((service as unknown as { markInvoiced: jest.Mock }).markInvoiced).toHaveBeenCalledWith(undefined, 'order-4', {})
+      expect(resultado.processado).toBe(true)
+    })
+
+    it('evento sem numeroDAV (so cdEcomPedido): nao processa, registra em vez de descartar calado', async () => {
+      const resultado = await service.handleWebhookStatus({ evento: 'pedido.separado', cdEcomPedido: '619376003' })
+      expect(resultado.processado).toBe(false)
+      expect(mockPrisma.order.findFirst).not.toHaveBeenCalled()
+      expect((service as unknown as { logSyncEvent: jest.Mock }).logSyncEvent).toHaveBeenCalledWith(
+        'WEBHOOK_EVENT_UNRESOLVED_NO_DAV',
+        '619376003',
+        expect.objectContaining({ evento: 'pedido.separado' }),
+      )
+    })
+
+    it('pedido.em_separacao com DAV: so registra, nao muda status do pedido', async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({ id: 'order-5' })
+      const resultado = await service.handleWebhookStatus({ numeroDAV: '102081', evento: 'pedido.em_separacao' })
+      expect(resultado).toEqual({ processado: true, orderId: 'order-5', registrado: 'EM_SEPARACAO' })
+      expect((service as unknown as { markInvoiced: jest.Mock }).markInvoiced).not.toHaveBeenCalled()
+      expect((service as unknown as { markCancelledInErp: jest.Mock }).markCancelledInErp).not.toHaveBeenCalled()
+    })
   })
 })
 

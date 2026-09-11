@@ -9,6 +9,7 @@ import { OrderOrchestrationService } from './order-orchestration.service'
 import { WebhookPayload } from './payments-webhook.service'
 import { WebhookGuard } from './webhook.guard'
 import { AntenorApiWebhookGuard } from './antenor-api-webhook.guard'
+import { AntenorApiService } from './antenor-api.service'
 import { IntegrationModuleKey } from './integration-modules.service'
 import { CreatePaymentTransactionDto, CreateRefundDto, ReconcilePaymentsDto, RegisterChargebackDto } from './dto/payment-ledger.dto'
 import { CreateIntegrationConnectorDto, EnqueueOutboxEventDto, RunOutboxWorkerDto } from './dto/integration-outbox.dto'
@@ -24,7 +25,34 @@ export class IntegrationsController {
   constructor(
     private readonly integrationsService: IntegrationsService,
     private readonly orderOrchestrationService: OrderOrchestrationService,
+    private readonly antenorApi: AntenorApiService,
   ) {}
+
+  // --- v1.8.0 (JON-34/35): fidelidade e NFC-e via AntenorApi ---------------
+  //
+  // Pass-through direto: o admin ja tem o CPF do cliente e o DAV do pedido em
+  // maos na tela de detalhe, entao nao precisamos resolver nada aqui, so
+  // repassar. `null` (pedido sem nota ainda, cliente sem cadastro fisico) nao
+  // e erro -- ver comentario em antenor-api.service.ts.
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('antenorapi/clientes/:cpf/fidelidade')
+  @ApiOperation({ summary: 'Status de fidelidade Mercafacil do cliente por CPF' })
+  async getFidelidade(@Param('cpf') cpf: string) {
+    const cliente = await this.antenorApi.getFidelidade(cpf)
+    return { clubeFidelidade: false, ...cliente }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('antenorapi/pedidos/:identificador/nfe')
+  @ApiOperation({ summary: 'XML/chave da NFC-e do pedido (DAV, cdPedido ou cdEcomPedido)' })
+  async getNfe(@Param('identificador') identificador: string) {
+    const nota = await this.antenorApi.getNfe(identificador)
+    if (!nota) return { disponivel: false }
+    return { disponivel: true, ...nota }
+  }
 
   // --- Gatilho de faturamento do PDV ---------------------------------------
   //
@@ -88,6 +116,7 @@ export class IntegrationsController {
       cdEcomPedido?: string
       numeroDAV?: string
       statusGeral?: string
+      evento?: string
       cancelamento?: { canceladoEm?: string; motivo?: string }
       faturamento?: { hrRegistro?: string; coo?: number; nrCupom?: number }
     },

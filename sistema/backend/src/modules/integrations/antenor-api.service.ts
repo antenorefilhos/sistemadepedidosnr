@@ -55,6 +55,23 @@ export type AntenorApiOrderStatus = {
   }
 }
 
+export type FidelidadeMercafacil = {
+  idCliente?: string
+  cpf?: string
+  nome?: string
+  clubeFidelidade: boolean
+  categoria?: { id?: number; descricao?: string }
+  ativo?: boolean
+}
+
+export type NfeAntenorApi = {
+  chaveAcesso: string
+  numero?: number
+  serie?: number
+  protocolo?: string
+  xml?: string
+}
+
 export type CreateAntenorApiOrderPayload = {
   cdEcomPedido: string
   valorTotal: number
@@ -312,6 +329,45 @@ export class AntenorApiService {
         `/api/integracao/pedidos/${encodeURIComponent(String(identificador))}/itens-faturados`,
       )
       return data?.itens ?? null
+    } catch (error) {
+      if ((error as AxiosError)?.response?.status === 404) return null
+      throw error
+    }
+  }
+
+  /**
+   * Status de fidelidade do cliente no CRM Mercafacil, via CPF (JON-34,
+   * v1.8.0). `null` quando o CPF nao e cliente cadastrado -- nao e erro, a
+   * maioria dos CPFs do storefront nunca fez cadastro fisico na loja.
+   */
+  async getFidelidade(cpf: string): Promise<FidelidadeMercafacil | null> {
+    const cpfLimpo = String(cpf || '').replace(/\D/g, '')
+    if (!cpfLimpo) return null
+
+    try {
+      const { data } = await this.cliente.get<{ sucesso?: boolean; cliente?: FidelidadeMercafacil }>(
+        `/api/integracao/clientes/${encodeURIComponent(cpfLimpo)}/fidelidade`,
+      )
+      return data?.cliente ?? null
+    } catch (error) {
+      if ((error as AxiosError)?.response?.status === 404) return null
+      throw error
+    }
+  }
+
+  /**
+   * XML da NFC-e do pedido faturado (JON-34, v1.8.0). `null` cobre dois casos
+   * distintos que o chamador nao precisa diferenciar pra decidir o que
+   * mostrar ("ainda nao tem nota"): pedido nao faturado, OU faturado mas o
+   * XML ainda nao chegou do transmissor fiscal -- confirmado em campo
+   * (10/09/2026, DAV 102074 faturado sem XML sincronizado ainda).
+   */
+  async getNfe(identificador: string | number): Promise<NfeAntenorApi | null> {
+    try {
+      const { data } = await this.cliente.get<NfeAntenorApi>(
+        `/api/integracao/pedidos/${encodeURIComponent(String(identificador))}/nfe`,
+      )
+      return data
     } catch (error) {
       if ((error as AxiosError)?.response?.status === 404) return null
       throw error

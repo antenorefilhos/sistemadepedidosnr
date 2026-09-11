@@ -1029,15 +1029,51 @@ export class OrderOrchestrationService {
    * fazer nada. Devolver erro ali faria a AntenorApi reentregar pra sempre
    * um evento que nunca vai casar (ex.: DAV de pedido de teste antigo).
    */
+  /**
+   * JON-38 (v1.8.0) manda o ciclo de vida novo num formato diferente do
+   * original (JON-23): `evento` no lugar de `statusGeral`, dotted-lowercase
+   * no lugar de UPPER_SNAKE, e chaveado por `cdEcomPedido` em vez de
+   * `numeroDAV`. Normaliza os dois formatos pro mesmo `status` interno antes
+   * de decidir o que fazer -- o resto do metodo nao precisa saber qual
+   * formato chegou.
+   */
+  private static readonly EVENTO_PARA_STATUS: Record<string, string> = {
+    'pedido.faturado_pdv': 'FATURADO_NO_PDV',
+    'pedido.cancelado_pdv': 'CANCELADO_NO_PDV',
+    'pedido.cancelado_retaguarda': 'CANCELADO_NA_RETAGUARDA',
+    'pedido.em_separacao': 'EM_SEPARACAO',
+    'pedido.separado': 'SEPARADO',
+  }
+
   async handleWebhookStatus(payload: {
     numeroDAV?: string
+    cdEcomPedido?: string
     statusGeral?: string
+    evento?: string
     cancelamento?: { canceladoEm?: string; motivo?: string }
     faturamento?: { hrRegistro?: string; coo?: number; nrCupom?: number }
   }) {
     const dav = String(payload.numeroDAV || '').trim()
-    const status = String(payload.statusGeral || '').toUpperCase()
-    if (!dav || !status) return { processado: false, motivo: 'Payload incompleto (numeroDAV/statusGeral).' }
+    const status = payload.evento
+      ? OrderOrchestrationService.EVENTO_PARA_STATUS[payload.evento] || payload.evento.toUpperCase()
+      : String(payload.statusGeral || '').toUpperCase()
+    if (!status) return { processado: false, motivo: 'Payload incompleto (numeroDAV/statusGeral ou evento).' }
+
+    if (!dav) {
+      // A v1.8.0 (JON-38) ainda nao manda numeroDAV nos eventos novos, so
+      // cdEcomPedido -- e nao temos indice pra resolver pedido a partir dele
+      // (so existe como hash calculado on-the-fly, nunca gravado). Registra
+      // em vez de descartar calado, pra nao virar "evento sumiu sem
+      // explicacao" quando alguem for investigar depois.
+      await this.logSyncEvent('WEBHOOK_EVENT_UNRESOLVED_NO_DAV', payload.cdEcomPedido || 'desconhecido', {
+        evento: payload.evento || payload.statusGeral,
+        cdEcomPedido: payload.cdEcomPedido || null,
+      })
+      return {
+        processado: false,
+        motivo: `Evento ${status} sem numeroDAV -- pedido nao localizavel a partir so de cdEcomPedido. Pedir pro A1-API incluir numeroDAV tambem.`,
+      }
+    }
 
     const order = await this.prisma.order.findFirst({ where: { erpDav: dav }, select: { id: true } })
     if (!order) return { processado: false, motivo: `Nenhum pedido com DAV ${dav}.` }
@@ -1053,6 +1089,14 @@ export class OrderOrchestrationService {
         dav,
       })
       return { processado: true, orderId: order.id, ...resultado }
+    }
+    if (status === 'EM_SEPARACAO' || status === 'SEPARADO') {
+      // So registro, sem mexer no status do pedido: a separacao real e
+      // controlada pelo nosso proprio app de picking, que ja e a fonte de
+      // verdade pro cliente e pro admin. Isso e o espelho do que aconteceu
+      // no PDV/ERP, util pra auditoria/divergencia, nao pra decisao.
+      await this.logSyncEvent(`ERP_STATUS_${status}`, order.id, {})
+      return { processado: true, orderId: order.id, registrado: status }
     }
 
     return { processado: false, motivo: `Status ${status} nao mapeado, ignorado.` }
