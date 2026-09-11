@@ -549,7 +549,9 @@ export default function Intelligence() {
           <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm">
             <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-1">Top Categoria</p>
             <p className="text-lg font-black text-gray-800 leading-tight mt-1">{topCategory?.category || '—'}</p>
-            <p className="text-xs text-gray-400 mt-1">R$ {topCategory?.revenue?.toFixed(2) || '0,00'}</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {(topCategory?.revenue ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </p>
           </div>
           <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm">
             <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-1">Canais Mapeados</p>

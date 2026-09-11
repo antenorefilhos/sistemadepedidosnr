@@ -1019,7 +1019,6 @@ export default function DeliveryZones() {
         </div>
       )}
 
-      {/* Areas de fulfillment tem precedencia sobre estas zonas — precisa ser explicito. */}
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6">
         {[
