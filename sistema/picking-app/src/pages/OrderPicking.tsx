@@ -727,7 +727,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
               <div key={p.id} className="bg-white rounded-xl border border-gray-100 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-gray-900 truncate">{p.name}</p>
+                    <p className="font-medium text-sm text-gray-900">{p.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       R$ {(p.promotionalPrice ?? p.price).toFixed(2)} / {p.unit || 'un'}
                       {p.ean && <span className="ml-2">EAN: {p.ean}</span>}
@@ -814,12 +814,12 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                     const requested = Number(item.requestedQuantity ?? 0)
                     const isAdjusted = picked > 0 && picked !== requested
                     return (
-                      <div key={item.id} className="flex items-center gap-3 py-1">
+                      <div key={item.id} className="flex items-start gap-3 py-1">
                         {isAdjusted
-                          ? <Edit3 size={14} className="text-orange-600 flex-shrink-0" />
-                          : <Check size={14} className="text-green-600 flex-shrink-0" />}
-                        <span className="flex-1 text-sm text-gray-900 truncate">{product?.name || 'Produto'}</span>
-                        <span className={`text-sm ${isAdjusted ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
+                          ? <Edit3 size={14} className="text-orange-600 flex-shrink-0 mt-0.5" />
+                          : <Check size={14} className="text-green-600 flex-shrink-0 mt-0.5" />}
+                        <span className="flex-1 text-sm text-gray-900">{product?.name || 'Produto'}</span>
+                        <span className={`text-sm flex-shrink-0 ${isAdjusted ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
                           {isAdjusted ? `${picked}/${requested}` : (picked || requested)} {product?.unit || 'un'}
                         </span>
                       </div>
@@ -839,10 +839,10 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                   {done.filter(i => i.status === 'MISSING').map(item => {
                     const product = getProductForTaskItem(item)
                     return (
-                      <div key={item.id} className="flex items-center gap-3 py-1">
-                        <X size={14} className="text-red-500 flex-shrink-0" />
-                        <span className="flex-1 text-sm text-red-800 truncate">{product?.name || 'Produto'}</span>
-                        {item.notes && <span className="text-xs text-red-400">{item.notes}</span>}
+                      <div key={item.id} className="flex items-start gap-3 py-1">
+                        <X size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+                        <span className="flex-1 text-sm text-red-800">{product?.name || 'Produto'}</span>
+                        {item.notes && <span className="text-xs text-red-400 flex-shrink-0">{item.notes}</span>}
                       </div>
                     )
                   })}
@@ -984,7 +984,7 @@ function ItemCard({
           <Package size={16} className="text-brand-500" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900 text-sm truncate">{product?.name || 'Produto'}</p>
+          <p className="font-medium text-gray-900 text-sm">{product?.name || 'Produto'}</p>
           <p className="text-xs text-gray-500">
             {qty} {product?.unit || 'un'}
             {product?.ean && <span className="ml-2 text-gray-400">EAN: {product.ean}</span>}
@@ -1060,7 +1060,7 @@ function DoneItemCard({
           {isMissing ? <X size={16} className="text-red-600" /> : isAdjusted ? <Edit3 size={16} className="text-orange-600" /> : <Check size={16} className="text-green-600" />}
         </div>
         <div className="flex-1 min-w-0">
-          <p className={`font-medium text-sm truncate ${isMissing ? 'text-red-900' : isAdjusted ? 'text-orange-900' : 'text-green-900'}`}>
+          <p className={`font-medium text-sm ${isMissing ? 'text-red-900' : isAdjusted ? 'text-orange-900' : 'text-green-900'}`}>
             {product?.name || 'Produto'}
           </p>
           <p className="text-xs text-gray-500">
