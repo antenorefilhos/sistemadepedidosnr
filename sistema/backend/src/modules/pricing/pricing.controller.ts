@@ -15,6 +15,8 @@ export class PricingController {
   constructor(private readonly pricingService: PricingService) {}
 
   @Post('quote')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async quote(@Body() body: any, @Req() req?: TenantContextRequest) {
     const context = req ? getTenantContext(req) : undefined
     return this.pricingService.quote({
