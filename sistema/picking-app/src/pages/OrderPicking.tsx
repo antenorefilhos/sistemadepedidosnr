@@ -17,6 +17,17 @@ const ITEM_STATUS_LABEL: Record<string, string> = {
   CANCELLED: 'Cancelado',
 }
 
+// Motivo de nao ter tarefa de separacao quando o pedido nao e elegivel (ver
+// ensureTaskForOrder no backend). Sem isso, um pedido cancelado ou ja
+// finalizado cai no mesmo "Nenhum item para separar" de um pedido com
+// carrinho vazio de verdade -- o separador nao sabe se e um erro ou se o
+// pedido so nao chegou a essa etapa.
+const ORDER_NOT_PICKABLE_LABEL: Record<string, string> = {
+  CANCELLED: 'Este pedido foi cancelado.',
+  COMPLETED: 'Este pedido já foi concluído.',
+  REFUNDED: 'Este pedido foi estornado.',
+}
+
 type ConfirmMode = null | 'scan' | 'ean' | 'manual'
 
 interface ConfirmState {
@@ -512,7 +523,11 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
         {taskItems.length === 0 && (
           <div className="flex flex-col items-center justify-center h-40 text-gray-400 gap-2">
             <Package size={32} />
-            <p className="text-sm">Nenhum item para separar</p>
+            <p className="text-sm">
+              {!task && ORDER_NOT_PICKABLE_LABEL[order.status]
+                ? ORDER_NOT_PICKABLE_LABEL[order.status]
+                : 'Nenhum item para separar'}
+            </p>
           </div>
         )}
       </div>
