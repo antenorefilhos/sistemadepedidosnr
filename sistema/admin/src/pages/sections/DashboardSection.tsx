@@ -255,7 +255,7 @@ export function DashboardSection({
   }, [])
 
   const roleQueues = useMemo(() => {
-    const activeStatuses = new Set(['PENDING', 'CONFIRMED', 'PAYMENT_PENDING', 'PICKING_PENDING', 'PICKING', 'WAITING_CUSTOMER_SUBSTITUTION', 'CONFERENCE_PENDING', 'PACKING', 'FAILED_SYNC'])
+    const activeStatuses = new Set(['PENDING', 'CONFIRMED', 'PAYMENT_PENDING', 'PICKING_PENDING', 'PICKING', 'WAITING_CUSTOMER_SUBSTITUTION', 'CONFERENCE_PENDING', 'PACKING', 'READY_FOR_CHECKOUT', 'FAILED_SYNC'])
     const activeOrders = orders.filter((order) => activeStatuses.has(order.status))
     const urgentOrders = activeOrders.filter((order) => {
       const ageMinutes = (Date.now() - new Date(order.createdAt).getTime()) / 60000
