@@ -1,28 +1,37 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../common/prisma.service'
 import { NotificationsService } from '../notifications/notifications.service'
+import { winstonLogger } from '../../common/logger'
 
 /**
  * Lembrete de carrinho abandonado: cliente colocou item, sumiu por 2h,
  * leva um push uma unica vez (abandonedNotifiedAt evita repeticao).
  * Estilo copiado de ai-notification.scheduler.ts.
+ *
+ * winstonLogger, nao o Logger do Nest: main.ts sobe com logger:false, entao
+ * Logger do Nest nunca aparece em producao (ver push-notification.service.ts,
+ * mesma armadilha corrigida em 12/09/2026).
  */
 @Injectable()
 export class AbandonedCartScheduler {
-  private readonly logger = new Logger(AbandonedCartScheduler.name)
   private isRunning = false
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
-  ) {}
+  ) {
+    const enabled = (process.env.ABANDONED_CART_ENABLED ?? 'true') !== 'false'
+    winstonLogger.info(enabled ? 'abandoned_cart_scheduler_enabled' : 'abandoned_cart_scheduler_disabled', {
+      cron: process.env.ABANDONED_CART_CRON || '*/30 * * * *',
+    })
+  }
 
   @Cron(process.env.ABANDONED_CART_CRON || '*/30 * * * *', { name: 'abandoned-cart-cycle' })
   async handleCycle(): Promise<void> {
     if ((process.env.ABANDONED_CART_ENABLED ?? 'true') === 'false') return
     if (this.isRunning) {
-      this.logger.warn('Ciclo de carrinho abandonado ignorado: ciclo anterior ainda em andamento.')
+      winstonLogger.warn('abandoned_cart_cycle_skipped_still_running')
       return
     }
 
@@ -63,10 +72,7 @@ export class AbandonedCartScheduler {
             data: { abandonedNotifiedAt: new Date() },
           })
         } catch (error) {
-          this.logger.error(
-            `Falha ao notificar carrinho abandonado ${cart.id}:`,
-            error instanceof Error ? error.stack : String(error),
-          )
+          winstonLogger.error('abandoned_cart_notify_failed', { cartId: cart.id, error: error instanceof Error ? { message: error.message, stack: error.stack } : error })
         }
       }
     } finally {
