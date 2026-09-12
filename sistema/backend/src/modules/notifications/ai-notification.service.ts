@@ -126,7 +126,10 @@ export class AiNotificationService {
           temperature: 0.7,
           max_tokens: 300,
         },
-        { headers: { Authorization: `Bearer ${this.apiKey}` }, timeout: 15000 },
+        // 15s estourava com frequencia real em producao (3 de 5 chamadas
+        // falharam por timeout num ciclo de 12/09/2026) -- 15s so cobria o
+        // caso rapido, nao a variacao normal de latencia da NVIDIA NIM.
+        { headers: { Authorization: `Bearer ${this.apiKey}` }, timeout: 25000 },
       )
 
       const toolCall = response.data?.choices?.[0]?.message?.tool_calls?.[0]

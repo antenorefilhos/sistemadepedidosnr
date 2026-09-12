@@ -267,7 +267,7 @@ export default function NotificationsBroadcast() {
                     <li key={p.id}>
                       <button
                         type="button"
-                        onClick={() => { setProduto(p); setBuscaProduto('') }}
+                        onClick={() => { setProduto(p); setBuscaProduto(''); setBannerId('') }}
                         className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-[#FDF8F0]"
                       >
                         {p.imageUrl ? (
