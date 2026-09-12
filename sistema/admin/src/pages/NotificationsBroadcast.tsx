@@ -72,6 +72,7 @@ export default function NotificationsBroadcast() {
         setAiCycleResult(`${data.candidates ?? 0} candidato(s) avaliados, ${data.notified ?? 0} notificado(s).`)
       }
       queryClient.invalidateQueries({ queryKey: ['notification-history'] })
+      queryClient.invalidateQueries({ queryKey: ['notification-history-counts'] })
     },
     onError: () => setAiCycleResult('Falha ao rodar o ciclo. Tente novamente.'),
   })
@@ -103,10 +104,36 @@ export default function NotificationsBroadcast() {
     },
   })
 
-  const { data: historico = [], isLoading: carregandoHistorico } = useQuery({
-    queryKey: ['notification-history'],
-    queryFn: async () => (await notificationsAdminAPI.history({ limit: 40 })).data,
+  // "Todas" aqui ja significa PROMO+CAMPAIGN (o default do backend) -- so
+  // "Pedidos" e "Tudo" pedem filtro explicito. Sem essa aba, ORDER_UPDATE
+  // (um por mudanca de status, MUITOS por pedido) afoga a auditoria de
+  // campanha assim que a loja tiver volume real -- ja tem 74 registros
+  // dessas com so um punhado de pedidos de teste.
+  const [abaHistorico, setAbaHistorico] = useState<'CAMPANHAS' | 'PEDIDOS' | 'TUDO'>('CAMPANHAS')
+  const [paginaHistorico, setPaginaHistorico] = useState(0)
+  const HISTORICO_POR_PAGINA = 20
+  const tipoParaApi = abaHistorico === 'CAMPANHAS' ? undefined : abaHistorico === 'PEDIDOS' ? 'ORDER_UPDATE' : 'ALL'
+
+  const { data: contagens } = useQuery({
+    queryKey: ['notification-history-counts'],
+    queryFn: async () => (await notificationsAdminAPI.historyCounts()).data,
   })
+  const totalCampanhas = (contagens?.PROMO ?? 0) + (contagens?.CAMPAIGN ?? 0)
+  const totalPedidos = contagens?.ORDER_UPDATE ?? 0
+
+  const { data: historicoResp, isLoading: carregandoHistorico } = useQuery({
+    queryKey: ['notification-history', abaHistorico, paginaHistorico],
+    queryFn: async () =>
+      (
+        await notificationsAdminAPI.history({
+          limit: HISTORICO_POR_PAGINA,
+          offset: paginaHistorico * HISTORICO_POR_PAGINA,
+          type: tipoParaApi,
+        })
+      ).data,
+  })
+  const historico = historicoResp?.items ?? []
+  const temMaisHistorico = historicoResp?.hasMore ?? false
 
   const bannerSelecionado = banners.find((b) => b.id === bannerId)
   // O que vai de fato na notificacao: mesma regra do backend (banner vence
@@ -137,6 +164,7 @@ export default function NotificationsBroadcast() {
       setBuscaProduto('')
       setBannerId('')
       queryClient.invalidateQueries({ queryKey: ['notification-history'] })
+      queryClient.invalidateQueries({ queryKey: ['notification-history-counts'] })
     },
     onError: () => {
       setResult({ type: 'error', message: 'Falha ao enviar notificação. Verifique os campos e tente novamente.' })
@@ -364,15 +392,39 @@ export default function NotificationsBroadcast() {
           corpo e minuto no backend. Serve pra responder "o que ja saiu e
           quando", que era impossivel sem consultar o banco na mao. */}
       <div className="mt-6 rounded-xl border border-[#f1dbe3] bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <History size={18} className="text-[#5D082A]" />
-          <h2 className="text-lg font-bold text-gray-800">Histórico de disparos</h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <History size={18} className="text-[#5D082A]" />
+            <h2 className="text-lg font-bold text-gray-800">Histórico de disparos</h2>
+          </div>
+          {/* Tabs: CAMPANHAS e o que se ausita de marketing (default). PEDIDOS
+              (ORDER_UPDATE, um aviso por mudanca de status) fica separado de
+              proposito -- sem essa divisao, o volume de pedido afoga qualquer
+              campanha assim que a loja tiver movimento real. */}
+          <div className="flex overflow-hidden rounded-lg border border-[#E8D7B0]">
+            {([
+              ['CAMPANHAS', `Campanhas${totalCampanhas ? ` (${totalCampanhas})` : ''}`],
+              ['PEDIDOS', `Pedidos${totalPedidos ? ` (${totalPedidos})` : ''}`],
+              ['TUDO', 'Tudo'],
+            ] as const).map(([valor, rotulo]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => { setAbaHistorico(valor); setPaginaHistorico(0) }}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  abaHistorico === valor ? 'bg-[#5D082A] text-white' : 'bg-white text-gray-600 hover:bg-[#FDF8F0]'
+                }`}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
         </div>
 
         {carregandoHistorico ? (
           <p className="text-sm text-gray-400">Carregando...</p>
         ) : historico.length === 0 ? (
-          <p className="text-sm text-gray-400">Nenhum disparo registrado ainda.</p>
+          <p className="text-sm text-gray-400">Nenhum disparo registrado nessa aba ainda.</p>
         ) : (
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {historico.map((d, i) => (
@@ -387,6 +439,9 @@ export default function NotificationsBroadcast() {
                   {d.type === 'CAMPAIGN' && (
                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">CAMPANHA</span>
                   )}
+                  {d.type === 'ORDER_UPDATE' && (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">PEDIDO</span>
+                  )}
                   <span className="text-xs text-gray-500">
                     {d.recipients} cliente(s) · {d.reads} leram
                   </span>
@@ -396,6 +451,30 @@ export default function NotificationsBroadcast() {
               </li>
             ))}
           </ul>
+        )}
+
+        {(paginaHistorico > 0 || temMaisHistorico) && (
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={paginaHistorico === 0}
+              onClick={() => setPaginaHistorico((p) => Math.max(0, p - 1))}
+            >
+              Anterior
+            </Button>
+            <span className="text-xs text-gray-400">Página {paginaHistorico + 1}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!temMaisHistorico}
+              onClick={() => setPaginaHistorico((p) => p + 1)}
+            >
+              Próxima
+            </Button>
+          </div>
         )}
 
         <p className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-400">

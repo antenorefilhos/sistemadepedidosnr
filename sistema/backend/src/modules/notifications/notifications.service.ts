@@ -171,10 +171,16 @@ export class NotificationsService {
    * precisar de precisao -- relatorio por campanha pra anunciante, por
    * exemplo -- e ai que vale criar a coluna.
    */
-  async listDispatches(limit = 50, type?: string) {
-    // Sem filtro, os avisos de pedido (ORDER_UPDATE, um por mudanca de status)
-    // afogam as campanhas -- sao muitos e nao e o que se audita aqui.
-    const filtro = type ? Prisma.sql`WHERE type = ${type}` : Prisma.empty
+  /**
+   * `types` filtra quais tipos entram (PROMO/CAMPAIGN/ORDER_UPDATE). Quem
+   * decide o default e o CONTROLLER, nao aqui -- ver notifications.controller.ts:
+   * sem filtro explicito no request, ele manda ['PROMO','CAMPAIGN'], que e o
+   * que essa tela audita de verdade. `offset` pagina; `hasMore` vem de pedir
+   * um registro a mais do que o limite e checar se sobrou.
+   */
+  async listDispatches(limit = 50, types?: string[], offset = 0) {
+    const filtro = types && types.length > 0 ? Prisma.sql`WHERE type = ANY(${types})` : Prisma.empty
+    const limitSeguro = Math.min(Math.max(limit, 1), 200)
     const rows = await this.prisma.$queryRaw<Array<{
       title: string
       body: string
@@ -198,23 +204,37 @@ export class NotificationsService {
       ${filtro}
       GROUP BY title, body, date_trunc('minute', "createdAt")
       ORDER BY MIN("createdAt") DESC
-      LIMIT ${Math.min(limit, 200)}
+      LIMIT ${limitSeguro + 1}
+      OFFSET ${Math.max(offset, 0)}
     `
 
-    return rows.map((r) => ({
-      title: r.title,
-      body: r.body,
-      type: r.type,
-      productId: r.productId,
-      imageUrl: r.imageUrl,
-      sentAt: r.sentAt,
-      recipients: Number(r.recipients),
-      reads: Number(r.reads),
-      // Taxa de leitura da notificacao in-app. NAO e taxa de entrega do push:
-      // o retorno do envio (sent/failed) nao e persistido hoje, entao ninguem
-      // sabe se o aviso chegou no aparelho -- so se foi gravado e lido aqui.
-      readRate: Number(r.recipients) > 0 ? Number(r.reads) / Number(r.recipients) : 0,
-    }))
+    const hasMore = rows.length > limitSeguro
+    const pagina = rows.slice(0, limitSeguro)
+
+    return {
+      hasMore,
+      items: pagina.map((r) => ({
+        title: r.title,
+        body: r.body,
+        type: r.type,
+        productId: r.productId,
+        imageUrl: r.imageUrl,
+        sentAt: r.sentAt,
+        recipients: Number(r.recipients),
+        reads: Number(r.reads),
+        // Taxa de leitura da notificacao in-app. NAO e taxa de entrega do push:
+        // o retorno do envio (sent/failed) nao e persistido hoje, entao ninguem
+        // sabe se o aviso chegou no aparelho -- so se foi gravado e lido aqui.
+        readRate: Number(r.recipients) > 0 ? Number(r.reads) / Number(r.recipients) : 0,
+      })),
+    }
+  }
+
+  /** Contagem por tipo, pra tabs com numero ("Promoções (182)") sem precisar
+   * carregar a lista inteira so pra saber quantas tem. */
+  async countDispatchesByType() {
+    const rows = await this.prisma.notification.groupBy({ by: ['type'], _count: { _all: true } })
+    return Object.fromEntries(rows.map((r) => [r.type, r._count._all]))
   }
 
   async findByCustomer(customerId: string, limit = 50) {

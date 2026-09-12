@@ -1675,8 +1675,9 @@ export const notificationsAdminAPI = {
     /** Replica o destino do banner escolhido. Vence productId quando os dois vierem. */
     bannerId?: string
   }) => api.post('/notifications/admin/broadcast', data),
-  history: (params?: { limit?: number; type?: string }) =>
-    api.get<NotificationDispatch[]>('/notifications/admin/history', { params }),
+  history: (params?: { limit?: number; offset?: number; type?: string }) =>
+    api.get<{ hasMore: boolean; items: NotificationDispatch[] }>('/notifications/admin/history', { params }),
+  historyCounts: () => api.get<Record<string, number>>('/notifications/admin/history/counts'),
   getAiCycleStatus: () => api.get<{ enabled: boolean }>('/notifications/admin/ai-cycle/status'),
   toggleAiCycle: (enabled: boolean) => api.post('/notifications/admin/ai-cycle/toggle', { enabled }),
   runAiCycleNow: () => api.post('/notifications/admin/ai-cycle/run'),

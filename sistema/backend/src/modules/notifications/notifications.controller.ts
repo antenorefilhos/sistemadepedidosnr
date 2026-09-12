@@ -146,8 +146,31 @@ export class NotificationsController {
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Historico de disparos, pra auditoria (o que foi enviado, quando, alcance e leituras)' })
-  async listDispatches(@Query('limit') limit?: string, @Query('type') type?: string) {
-    return this.notificationsService.listDispatches(limit ? Number(limit) : 50, type)
+  async listDispatches(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    // "type" aceita um ou varios, separados por virgula (ex: "PROMO,CAMPAIGN").
+    // Sem nada, o default e so PROMO+CAMPAIGN -- ORDER_UPDATE (um por mudanca
+    // de status de pedido, MUITOS) fica de fora por padrao, ou afoga a
+    // auditoria de campanha assim que a loja tiver volume real de pedidos.
+    // "ALL" pede tudo, sem filtro.
+    @Query('type') type?: string,
+  ) {
+    const types = !type
+      ? ['PROMO', 'CAMPAIGN']
+      : type === 'ALL'
+        ? undefined
+        : type.split(',').map((t) => t.trim()).filter(Boolean)
+    return this.notificationsService.listDispatches(limit ? Number(limit) : 50, types, offset ? Number(offset) : 0)
+  }
+
+  @Get('admin/history/counts')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Quantidade de notificacoes por tipo, pra tabs com numero' })
+  async countDispatches() {
+    return this.notificationsService.countDispatchesByType()
   }
 
   @Get('admin/ai-cycle/status')
