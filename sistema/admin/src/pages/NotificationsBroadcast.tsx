@@ -48,6 +48,10 @@ export default function NotificationsBroadcast() {
   // escolher um limpa o outro (os dois so fazem sentido junto se a foto/link
   // combinar por acidente, o que confunde mais do que ajuda).
   const [bannerId, setBannerId] = useState('')
+  // Segmentacao (JON-2): so tem efeito quando customerId estiver vazio.
+  const [inactiveDays, setInactiveDays] = useState('')
+  const [purchasedCategory, setPurchasedCategory] = useState('')
+  const [sendAt, setSendAt] = useState('')
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [aiCycleResult, setAiCycleResult] = useState<string | null>(null)
   const queryClient = useQueryClient()
@@ -135,6 +139,21 @@ export default function NotificationsBroadcast() {
   const historico = historicoResp?.items ?? []
   const temMaisHistorico = historicoResp?.hasMore ?? false
 
+  // Contagem previa: so faz sentido quando algum filtro esta ativo e nao ha
+  // customerId (que ja bypassa a segmentacao). Barato, entao mostra sempre.
+  const segmentoAtivo = !customerId.trim() && (Boolean(inactiveDays) || purchasedCategory.trim().length > 0)
+  const { data: segmentCount, isFetching: contandoSegmento } = useQuery({
+    queryKey: ['broadcast-segment-count', inactiveDays, purchasedCategory],
+    enabled: segmentoAtivo,
+    queryFn: async () =>
+      (
+        await notificationsAdminAPI.segmentCount({
+          inactiveDays: inactiveDays ? Number(inactiveDays) : undefined,
+          purchasedCategory: purchasedCategory.trim() || undefined,
+        })
+      ).data.count,
+  })
+
   const bannerSelecionado = banners.find((b) => b.id === bannerId)
   // O que vai de fato na notificacao: mesma regra do backend (banner vence
   // produto). Mostrar isso explicito e o que evita mandar com a imagem do
@@ -142,6 +161,8 @@ export default function NotificationsBroadcast() {
   // errada" desta sessao.
   const previewImage = bannerId ? bannerSelecionado?.desktopImageUrl : produto?.imageUrl
   const previewLabel = bannerId ? `Banner: ${bannerSelecionado?.title || bannerSelecionado?.name || 'sem título'}` : produto ? `Produto: ${produto.name}` : 'Sem imagem — abre a página inicial da loja'
+
+  const agendando = Boolean(sendAt) && new Date(sendAt).getTime() > Date.now()
 
   const broadcastMut = useMutation({
     mutationFn: () =>
@@ -153,22 +174,43 @@ export default function NotificationsBroadcast() {
         productId: bannerId ? undefined : produto?.id,
         imageUrl: bannerId ? undefined : produto?.imageUrl,
         bannerId: bannerId || undefined,
+        inactiveDays: inactiveDays ? Number(inactiveDays) : undefined,
+        purchasedCategory: purchasedCategory.trim() || undefined,
+        sendAt: sendAt ? new Date(sendAt).toISOString() : undefined,
       }),
     onSuccess: (res) => {
-      const count = (res.data as { count?: number })?.count ?? 0
-      setResult({ type: 'success', message: `Notificação enviada para ${count} cliente(s).` })
+      const data = res.data as { count?: number; scheduled?: boolean; sendAt?: string }
+      setResult(
+        data.scheduled
+          ? { type: 'success', message: `Notificação agendada para ${new Date(data.sendAt || sendAt).toLocaleString('pt-BR')}.` }
+          : { type: 'success', message: `Notificação enviada para ${data.count ?? 0} cliente(s).` },
+      )
       setTitle('')
       setBody('')
       setCustomerId('')
       setProduto(null)
       setBuscaProduto('')
       setBannerId('')
+      setInactiveDays('')
+      setPurchasedCategory('')
+      setSendAt('')
       queryClient.invalidateQueries({ queryKey: ['notification-history'] })
       queryClient.invalidateQueries({ queryKey: ['notification-history-counts'] })
+      queryClient.invalidateQueries({ queryKey: ['scheduled-broadcasts'] })
     },
     onError: () => {
       setResult({ type: 'error', message: 'Falha ao enviar notificação. Verifique os campos e tente novamente.' })
     },
+  })
+
+  const { data: agendados = [] } = useQuery({
+    queryKey: ['scheduled-broadcasts'],
+    queryFn: async () => (await notificationsAdminAPI.listScheduled()).data,
+  })
+
+  const cancelScheduledMut = useMutation({
+    mutationFn: (id: string) => notificationsAdminAPI.cancelScheduled(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scheduled-broadcasts'] }),
   })
 
   const canSend = title.trim().length > 0 && body.trim().length > 0
@@ -304,6 +346,50 @@ export default function NotificationsBroadcast() {
             Produto e banner são exclusivos: escolher um limpa o outro. Sem nenhum dos dois, o aviso abre a página inicial da loja.
           </p>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+            <div>
+              <Label htmlFor="notification-inactive" className="block text-xs font-semibold text-gray-600 mb-1">Sem pedido há</Label>
+              <Select
+                id="notification-inactive"
+                value={inactiveDays}
+                onChange={(e) => setInactiveDays(e.target.value)}
+                disabled={Boolean(customerId.trim())}
+              >
+                <option value="">Todos</option>
+                <option value="15">15 dias</option>
+                <option value="30">30 dias</option>
+                <option value="60">60 dias</option>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="notification-category" className="block text-xs font-semibold text-gray-600 mb-1">Categoria comprada</Label>
+              <Input
+                id="notification-category"
+                type="text"
+                value={purchasedCategory}
+                onChange={(e) => setPurchasedCategory(e.target.value)}
+                placeholder="Ex: Bebidas"
+                disabled={Boolean(customerId.trim())}
+              />
+            </div>
+          </div>
+          {segmentoAtivo && (
+            <p className="-mt-2 text-xs text-gray-500">
+              {contandoSegmento ? 'Contando clientes...' : `Alcançaria ${segmentCount ?? 0} cliente(s).`}
+            </p>
+          )}
+
+          <div>
+            <Label htmlFor="notification-send-at" className="block text-xs font-semibold text-gray-600 mb-1">Agendar para (opcional)</Label>
+            <Input
+              id="notification-send-at"
+              type="datetime-local"
+              value={sendAt}
+              onChange={(e) => setSendAt(e.target.value)}
+              className="max-w-xs"
+            />
+          </div>
+
           <div className="flex items-center gap-3 pt-1">
             <Button
               type="button"
@@ -311,7 +397,7 @@ export default function NotificationsBroadcast() {
               disabled={!canSend || broadcastMut.isPending}
             >
               {broadcastMut.isPending ? <RefreshCw size={15} className="animate-spin" /> : <Send size={15} />}
-              {broadcastMut.isPending ? 'Enviando...' : 'Enviar notificação'}
+              {broadcastMut.isPending ? (agendando ? 'Agendando...' : 'Enviando...') : agendando ? 'Agendar notificação' : 'Enviar notificação'}
             </Button>
           </div>
 
@@ -384,6 +470,32 @@ export default function NotificationsBroadcast() {
             </Button>
             {aiCycleResult && <p className="mt-2 text-[11px] text-gray-500">{aiCycleResult}</p>}
           </div>
+
+          {agendados.length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Agendados</p>
+              <ul className="space-y-2">
+                {agendados.map((a) => (
+                  <li key={a.id} className="flex items-start justify-between gap-2 text-xs">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-gray-800">{a.title}</p>
+                      <p className="text-gray-400">{new Date(a.sendAt).toLocaleString('pt-BR')}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 text-gray-400 hover:text-red-600"
+                      onClick={() => cancelScheduledMut.mutate(a.id)}
+                      aria-label="Cancelar agendamento"
+                    >
+                      <X size={13} />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 

@@ -2155,6 +2155,26 @@ model Notification {
   @@map("notifications")
 }
 
+model ScheduledNotification {
+  id                String    @id @default(cuid())
+  tenantId          String    @default("tenant_default")
+  type              String
+  title             String
+  body              String
+  customerId        String?
+  imageUrl          String?
+  productId         String?
+  bannerId          String?
+  inactiveDays      Int?
+  purchasedCategory String?
+  sendAt            DateTime
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([tenantId, sentAt, sendAt])
+  @@map("scheduled_notifications")
+}
+
 // Analytics & BI
 model AnalyticsEvent {
   id        String   @id @default(cuid())

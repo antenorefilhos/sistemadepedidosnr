@@ -125,11 +125,36 @@ export class NotificationsController {
       productId?: string
       /** Replica o destino do banner: o clique abre onde o botao dele abriria. */
       bannerId?: string
+      /** Segmentacao (JON-2): ignorada quando customerId vier preenchido. */
+      inactiveDays?: number
+      purchasedCategory?: string
+      /** ISO datetime opcional: no futuro, agenda em vez de mandar na hora. */
+      sendAt?: string
     },
   ) {
+    const sendAt = body.sendAt ? new Date(body.sendAt) : undefined
+    if (sendAt && !isNaN(sendAt.getTime()) && sendAt.getTime() > Date.now()) {
+      const scheduled = await this.notificationsService.scheduleBroadcast({
+        type: body.type,
+        title: body.title,
+        body: body.body,
+        customerId: body.customerId,
+        imageUrl: body.imageUrl,
+        productId: body.productId,
+        bannerId: body.bannerId,
+        inactiveDays: body.inactiveDays,
+        purchasedCategory: body.purchasedCategory,
+        sendAt,
+      })
+      return { scheduled: true, sendAt: scheduled.sendAt }
+    }
+
     const customers = body.customerId
       ? [body.customerId]
-      : await this.notificationsService.getAllCustomerIds()
+      : await this.notificationsService.findCustomerIdsBySegment({
+          inactiveDays: body.inactiveDays,
+          purchasedCategory: body.purchasedCategory,
+        })
 
     return this.notificationsService.broadcastToCustomers(customers, {
       type: body.type,
@@ -139,6 +164,40 @@ export class NotificationsController {
       productId: body.productId,
       bannerId: body.bannerId,
     })
+  }
+
+  @Get('admin/broadcast/scheduled')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Broadcasts agendados, ainda nao disparados' })
+  async listScheduledBroadcasts() {
+    return this.notificationsService.listScheduledBroadcasts()
+  }
+
+  @Post('admin/broadcast/scheduled/:id/cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancela um broadcast agendado antes de disparar' })
+  async cancelScheduledBroadcast(@Param('id') id: string) {
+    return this.notificationsService.cancelScheduledBroadcast(id)
+  }
+
+  @Get('admin/broadcast/segment-count')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Quantos clientes o filtro de segmentacao do broadcast bateria' })
+  async broadcastSegmentCount(
+    @Query('inactiveDays') inactiveDays?: string,
+    @Query('purchasedCategory') purchasedCategory?: string,
+  ) {
+    const ids = await this.notificationsService.findCustomerIdsBySegment({
+      inactiveDays: inactiveDays ? Number(inactiveDays) : undefined,
+      purchasedCategory: purchasedCategory || undefined,
+    })
+    return { count: ids.length }
   }
 
   @Get('admin/history')

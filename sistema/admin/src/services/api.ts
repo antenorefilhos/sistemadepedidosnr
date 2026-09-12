@@ -1648,6 +1648,13 @@ export interface AdminNotification {
   createdAt: string
 }
 
+export interface ScheduledNotification {
+  id: string
+  title: string
+  body: string
+  sendAt: string
+}
+
 export interface NotificationDispatch {
   title: string
   body: string
@@ -1674,7 +1681,16 @@ export const notificationsAdminAPI = {
     productId?: string
     /** Replica o destino do banner escolhido. Vence productId quando os dois vierem. */
     bannerId?: string
+    /** Segmentacao (JON-2): ignorados quando customerId vier preenchido. */
+    inactiveDays?: number
+    purchasedCategory?: string
+    /** ISO datetime opcional: no futuro, agenda em vez de mandar na hora. */
+    sendAt?: string
   }) => api.post('/notifications/admin/broadcast', data),
+  segmentCount: (params: { inactiveDays?: number; purchasedCategory?: string }) =>
+    api.get<{ count: number }>('/notifications/admin/broadcast/segment-count', { params }),
+  listScheduled: () => api.get<ScheduledNotification[]>('/notifications/admin/broadcast/scheduled'),
+  cancelScheduled: (id: string) => api.post(`/notifications/admin/broadcast/scheduled/${id}/cancel`),
   history: (params?: { limit?: number; offset?: number; type?: string }) =>
     api.get<{ hasMore: boolean; items: NotificationDispatch[] }>('/notifications/admin/history', { params }),
   historyCounts: () => api.get<Record<string, number>>('/notifications/admin/history/counts'),

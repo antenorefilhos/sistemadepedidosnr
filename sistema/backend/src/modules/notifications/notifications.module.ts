@@ -7,6 +7,7 @@ import { NotificationsController } from './notifications.controller'
 import { EmailService } from './email.service'
 import { AiNotificationService } from './ai-notification.service'
 import { AiNotificationScheduler } from './ai-notification.scheduler'
+import { ScheduledNotificationScheduler } from './scheduled-notification.scheduler'
 import { IntegrationModulesService } from '../integrations/integration-modules.service'
 import { PrismaService } from '../../common/prisma.service'
 
@@ -21,6 +22,7 @@ import { PrismaService } from '../../common/prisma.service'
     EmailService,
     AiNotificationService,
     AiNotificationScheduler,
+    ScheduledNotificationScheduler,
     IntegrationModulesService,
   ],
   exports: [

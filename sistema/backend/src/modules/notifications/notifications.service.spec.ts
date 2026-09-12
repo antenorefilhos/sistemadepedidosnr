@@ -27,6 +27,10 @@ describe('NotificationsService', () => {
         findMany: jest.fn(),
         groupBy: jest.fn(),
       },
+      scheduledNotification: {
+        findMany: jest.fn(),
+        update: jest.fn(),
+      },
     }
     const pushNotificationService = {
       sendNotification: jest.fn().mockResolvedValue({ sent: 1, failed: 0, skipped: 0 }),
@@ -214,6 +218,58 @@ describe('NotificationsService', () => {
       const ids = await service.findCustomerIdsBySegment({ inactiveDays: 30, purchasedCategory: 'vinhos' })
 
       expect(ids.sort()).toEqual(['c1', 'c2'])
+    })
+  })
+
+  describe('runDueScheduledBroadcasts', () => {
+    it('dispara agendamento com sendAt no passado e sentAt=null, e marca sentAt', async () => {
+      const { service, prisma } = makeService()
+      const item = {
+        id: 'sched-1',
+        type: 'PROMO',
+        title: 'Oferta',
+        body: 'Confira',
+        customerId: 'customer-1',
+        imageUrl: null,
+        productId: null,
+        bannerId: null,
+        inactiveDays: null,
+        purchasedCategory: null,
+      }
+      prisma.scheduledNotification.findMany.mockResolvedValue([item])
+      prisma.customer.findMany.mockResolvedValue([])
+      prisma.pushSubscription.findMany.mockResolvedValue([])
+
+      const result = await service.runDueScheduledBroadcasts()
+
+      expect(prisma.scheduledNotification.findMany).toHaveBeenCalledWith({
+        where: { sentAt: null, sendAt: { lte: expect.any(Date) } },
+      })
+      expect(prisma.scheduledNotification.update).toHaveBeenCalledWith({
+        where: { id: 'sched-1' },
+        data: { sentAt: expect.any(Date) },
+      })
+      expect(result).toEqual({ count: 1 })
+    })
+
+    it('nao dispara agendamento ja disparado (query so busca sentAt=null)', async () => {
+      const { service, prisma } = makeService()
+      prisma.scheduledNotification.findMany.mockResolvedValue([])
+
+      const result = await service.runDueScheduledBroadcasts()
+
+      expect(prisma.scheduledNotification.update).not.toHaveBeenCalled()
+      expect(result).toEqual({ count: 0 })
+    })
+
+    it('nao dispara agendamento no futuro (query so busca sendAt <= agora)', async () => {
+      const { service, prisma } = makeService()
+      prisma.scheduledNotification.findMany.mockResolvedValue([])
+
+      await service.runDueScheduledBroadcasts()
+
+      const call = prisma.scheduledNotification.findMany.mock.calls[0][0]
+      expect(call.where.sendAt.lte.getTime()).toBeLessThanOrEqual(Date.now())
     })
   })
 })

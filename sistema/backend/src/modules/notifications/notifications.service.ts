@@ -330,6 +330,99 @@ export class NotificationsService {
     return customers.map((c) => c.id)
   }
 
+  /** Agenda um broadcast pra rodar depois -- ScheduledNotificationScheduler dispara quando sendAt chegar. */
+  async scheduleBroadcast(dto: {
+    type: 'PROMO' | 'CAMPAIGN'
+    title: string
+    body: string
+    customerId?: string
+    imageUrl?: string
+    productId?: string
+    bannerId?: string
+    inactiveDays?: number
+    purchasedCategory?: string
+    sendAt: Date
+  }) {
+    return this.prisma.scheduledNotification.create({ data: dto })
+  }
+
+  async listScheduledBroadcasts() {
+    return this.prisma.scheduledNotification.findMany({
+      where: { sentAt: null },
+      orderBy: { sendAt: 'asc' },
+    })
+  }
+
+  async cancelScheduledBroadcast(id: string) {
+    const result = await this.prisma.scheduledNotification.deleteMany({ where: { id, sentAt: null } })
+    if (result.count === 0) throw new NotFoundException('Agendamento nao encontrado ou ja disparado')
+    return { ok: true }
+  }
+
+  /** Dispara os agendamentos vencidos -- chamado pelo scheduler a cada poucos minutos. */
+  async runDueScheduledBroadcasts() {
+    const due = await this.prisma.scheduledNotification.findMany({
+      where: { sentAt: null, sendAt: { lte: new Date() } },
+    })
+    for (const item of due) {
+      const customers = item.customerId
+        ? [item.customerId]
+        : await this.findCustomerIdsBySegment({
+            inactiveDays: item.inactiveDays ?? undefined,
+            purchasedCategory: item.purchasedCategory ?? undefined,
+          })
+      await this.broadcastToCustomers(customers, {
+        type: item.type as 'PROMO' | 'CAMPAIGN',
+        title: item.title,
+        body: item.body,
+        imageUrl: item.imageUrl ?? undefined,
+        productId: item.productId ?? undefined,
+        bannerId: item.bannerId ?? undefined,
+      })
+      await this.prisma.scheduledNotification.update({ where: { id: item.id }, data: { sentAt: new Date() } })
+    }
+    return { count: due.length }
+  }
+
+  /**
+   * Segmentacao pro broadcast manual (admin). Sem filtro nenhum, cai no
+   * comportamento antigo (todos). Os dois filtros, quando vem juntos, sao
+   * intersecao (E, nao OU) -- e o que "inativos ha 30 dias que compraram
+   * vinho" espera.
+   */
+  async findCustomerIdsBySegment(filtro: { inactiveDays?: number; purchasedCategory?: string }): Promise<string[]> {
+    if (!filtro.inactiveDays && !filtro.purchasedCategory) {
+      return this.getAllCustomerIds()
+    }
+
+    let ids: string[] | undefined
+
+    if (filtro.purchasedCategory) {
+      const rows = await this.prisma.order.findMany({
+        where: { items: { some: { product: { category: filtro.purchasedCategory } } } },
+        select: { customerId: true },
+        distinct: ['customerId'],
+      })
+      ids = rows.map((r) => r.customerId)
+    }
+
+    if (filtro.inactiveDays) {
+      const cutoff = new Date(Date.now() - filtro.inactiveDays * 24 * 60 * 60 * 1000)
+      const lastOrderByCustomer = await this.prisma.order.groupBy({
+        by: ['customerId'],
+        _max: { createdAt: true },
+      })
+      const recentIds = new Set(
+        lastOrderByCustomer.filter((o) => o._max.createdAt && o._max.createdAt >= cutoff).map((o) => o.customerId),
+      )
+      const allCustomers = await this.prisma.customer.findMany({ select: { id: true } })
+      const inactiveIds = allCustomers.map((c) => c.id).filter((id) => !recentIds.has(id))
+      ids = ids ? ids.filter((id) => inactiveIds.includes(id)) : inactiveIds
+    }
+
+    return ids ?? []
+  }
+
   /**
    * Avisa a equipe de separacao que ha pedido novo pra separar.
    *
