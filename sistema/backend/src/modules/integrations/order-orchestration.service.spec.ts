@@ -770,6 +770,20 @@ describe('OrderOrchestrationService', () => {
       expect(JSON.stringify(enviado)).not.toContain('"endereco"')
     })
 
+    it('v1.9.0 (AEF-031/JON-106): manda hrCombinada e retiraNaLoja -- regressao da migracao que deixava "Hora Combinada" vazia no PDV', async () => {
+      mockAntenorApiService.createOrder.mockResolvedValue({
+        sucesso: true, cdPedido: '2080', numeroDAV: '102078', cdEcomPedido: '999', valorTotal: 37.9, idempotente: false,
+      })
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+      await service.syncCreatedOrder(pickupPayload)
+
+      const enviado = mockAntenorApiService.createOrder.mock.calls[0][0]
+      expect(enviado.retiraNaLoja).toBe(true)
+      expect(typeof enviado.hrCombinada).toBe('string')
+      expect(new Date(enviado.hrCombinada).toString()).not.toBe('Invalid Date')
+    })
+
     it('entrega: manda endereco completo', async () => {
       mockAntenorApiService.createOrder.mockResolvedValue({
         sucesso: true, cdPedido: '2081', numeroDAV: '102079', cdEcomPedido: '999', valorTotal: 42.9, idempotente: false,

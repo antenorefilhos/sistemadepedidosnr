@@ -143,6 +143,12 @@ export class OrderOrchestrationService {
       // ja resolve pra string sempre (nunca null), mesma funcao do Solidcom.
       observacao: this.buildPedidoObs(payload),
       aceitaTroca,
+      // v1.9.0 (AEF-031/JON-106): confirmado com o A1-API em 12/09/2026.
+      // buildHoraCombinada e o mesmo metodo que ja alimentava o Solidcom --
+      // sem isso, "Hora Combinada" ficava sempre vazia no PDV desde o
+      // cutover.
+      hrCombinada: this.buildHoraCombinada(payload),
+      retiraNaLoja: isPickup,
       cliente: {
         documento: (payload.customer.cpf || '').replace(/\D/g, ''),
         nome: payload.customer.name || 'Consumidor Final',

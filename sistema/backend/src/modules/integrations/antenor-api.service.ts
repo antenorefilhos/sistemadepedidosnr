@@ -79,6 +79,13 @@ export type CreateAntenorApiOrderPayload = {
   formaPagamentoTexto: string
   observacao: string
   aceitaTroca: boolean
+  // v1.9.0 (AEF-031/JON-106, 12/09/2026): ate aqui esses dois campos existiam
+  // no conector Solidcom (desligado) e nunca foram carregados pro
+  // AntenorApi -- regressao da migracao. "Hora Combinada" ficava sempre
+  // vazia no PDV. retiraNaLoja tem fallback pelo endereco ausente do lado
+  // deles, mas mandar explicito evita depender de inferencia.
+  hrCombinada?: string
+  retiraNaLoja?: boolean
   cliente: {
     documento: string
     nome: string

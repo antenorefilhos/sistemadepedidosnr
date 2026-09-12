@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { PushSubscription } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
+import { winstonLogger } from '../../common/logger'
 
 type WebPush = {
   setVapidDetails: (subject: string, publicKey: string, privateKey: string) => void
@@ -36,7 +37,6 @@ interface BrowserPushSubscriptionPayload {
 
 @Injectable()
 export class PushNotificationService {
-  private readonly logger = new Logger(PushNotificationService.name)
   private readonly vapidPublicKey = String(process.env.VAPID_PUBLIC_KEY || '').trim()
   private readonly vapidPrivateKey = String(process.env.VAPID_PRIVATE_KEY || '').trim()
   private readonly vapidSubject = String(process.env.VAPID_SUBJECT || 'mailto:admin@antenorefilhos.com.br').trim()
@@ -45,9 +45,9 @@ export class PushNotificationService {
   constructor(private prisma: PrismaService) {
     if (this.enabled) {
       webpush.setVapidDetails(this.vapidSubject, this.vapidPublicKey, this.vapidPrivateKey)
-      this.logger.log('Web Push habilitado com VAPID.')
+      winstonLogger.info('Web Push habilitado com VAPID.')
     } else {
-      this.logger.warn('Web Push sem VAPID configurado; notificacoes push reais ficam desativadas.')
+      winstonLogger.warn('Web Push sem VAPID configurado; notificacoes push reais ficam desativadas.')
     }
   }
 
@@ -77,7 +77,7 @@ export class PushNotificationService {
         },
       })
     } catch (error) {
-      this.logger.error('Erro ao registrar push subscription:', error)
+      winstonLogger.error('Erro ao registrar push subscription:', { error: error instanceof Error ? { message: error.message, stack: error.stack } : error })
     }
   }
 
@@ -111,7 +111,7 @@ export class PushNotificationService {
         },
       })
     } catch (error) {
-      this.logger.error('Erro ao registrar push subscription de funcionario:', error)
+      winstonLogger.error('Erro ao registrar push subscription de funcionario:', { error: error instanceof Error ? { message: error.message, stack: error.stack } : error })
     }
   }
 
@@ -121,7 +121,7 @@ export class PushNotificationService {
 
   async sendNotification(customerId: string, notification: PushNotification): Promise<{ sent: number; failed: number; skipped: number }> {
     if (!this.enabled) {
-      this.logger.warn('Web Push ignorado: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY nao configurados.')
+      winstonLogger.warn('Web Push ignorado: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY nao configurados.')
       return { sent: 0, failed: 0, skipped: 1 }
     }
 
@@ -140,7 +140,7 @@ export class PushNotificationService {
 
       return { sent, failed, skipped: 0 }
     } catch (error) {
-      this.logger.error('Erro ao enviar push notification:', error)
+      winstonLogger.error('Erro ao enviar push notification:', { error: error instanceof Error ? { message: error.message, stack: error.stack } : error })
       return { sent: 0, failed: 1, skipped: 0 }
     }
   }
@@ -159,7 +159,7 @@ export class PushNotificationService {
    */
   async sendNotificationToModule(modulo: 'picking' | 'delivery', notification: PushNotification) {
     if (!this.enabled) {
-      this.logger.warn('Web Push ignorado: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY nao configurados.')
+      winstonLogger.warn('Web Push ignorado: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY nao configurados.')
       return { sent: 0, failed: 0, skipped: 1 }
     }
 
@@ -200,7 +200,7 @@ export class PushNotificationService {
   ): Promise<boolean> {
     try {
       if (!subscription.endpoint || !subscription.auth || !subscription.p256dh) {
-        this.logger.warn(`Push subscription incompleta removida: ${subscription.id}`)
+        winstonLogger.warn(`Push subscription incompleta removida: ${subscription.id}`)
         await this.removeSubscription(subscription.endpoint)
         return false
       }
@@ -226,17 +226,23 @@ export class PushNotificationService {
         }),
       )
 
-      this.logger.debug(`Push enviado para ${subscription.customerId}`)
+      winstonLogger.debug(`Push enviado para ${subscription.customerId}`)
       return true
     } catch (error) {
       const statusCode = Number((error as { statusCode?: number })?.statusCode || 0)
       if (statusCode === 404 || statusCode === 410) {
         await this.removeSubscription(subscription.endpoint)
-        this.logger.warn(`Push subscription expirada removida: ${subscription.id}`)
+        winstonLogger.warn(`Push subscription expirada removida: ${subscription.id}`)
         return false
       }
 
-      this.logger.error('Erro ao enviar push:', error)
+      const body = (error as { body?: string })?.body
+      winstonLogger.error('Erro ao enviar push:', {
+        subscriptionId: subscription.id,
+        statusCode,
+        body,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+      })
       return false
     }
   }
