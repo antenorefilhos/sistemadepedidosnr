@@ -22,6 +22,16 @@ export type AddressFields = {
    */
   lat?: number | null
   lng?: number | null
+  /**
+   * Localidade/condominio escolhida quando o CEP cobre mais de um ponto
+   * (ver LocalityPickerModal). Vale so pro CEP/posicao em que foi escolhida --
+   * um novo GPS invalida a escolha antiga tanto quanto editar o CEP na mao
+   * invalida, senao a tela mostrava a localidade velha e o modal de escolha
+   * nao reabria (o guard olha justamente esse campo pra saber se falta
+   * escolher de novo).
+   */
+  locality?: string
+  deliveryPointCode?: string
 }
 
 export type LocationStatus = 'idle' | 'gps-success' | 'gps-imprecise' | 'gps-fallback'
@@ -137,6 +147,11 @@ export function useAddressAutofill<T extends AddressFields>({
         neighborhood: normalized.neighborhood || prev.neighborhood,
         city: normalized.city || prev.city,
         state: normalized.state || prev.state,
+        // Nova posicao invalida a localidade/condominio escolhida antes (era
+        // pro CEP/lugar anterior) -- sem isso a tela ficava mostrando a
+        // localidade velha e o modal de escolha nao reabria.
+        locality: '',
+        deliveryPointCode: '',
         lat: isPreciseEnough ? position.lat : null,
         lng: isPreciseEnough ? position.lng : null,
       }))

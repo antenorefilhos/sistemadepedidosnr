@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { X } from 'lucide-react'
+import { SearchX, X } from 'lucide-react'
 import { Button } from './ui/button'
 import { surfaceClasses } from './ui/surface'
 
@@ -112,9 +112,9 @@ export function LocalityPickerModal({
           <Button
             type="button"
             onClick={onNone}
-            variant="outline"
-            className="mt-4 w-full border-2 border-dashed border-[#5D082A]/40 text-[#5D082A] hover:bg-[#FFF7FA]"
+            className="mt-5 w-full gap-2 bg-[#5D082A] py-3 text-sm font-bold text-white shadow-md hover:bg-[#4a0621]"
           >
+            <SearchX size={16} />
             Nenhuma dessas — digitar meu CEP
           </Button>
         )}
