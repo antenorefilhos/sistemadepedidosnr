@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { Button } from './ui/button'
 import { surfaceClasses } from './ui/surface'
@@ -45,10 +46,23 @@ export function LocalityPickerModal({
    */
   onNone?: () => void
 }) {
+  // Trava o scroll do body enquanto o modal esta aberto -- sem isso, arrastar
+  // dentro da lista de opcoes (celular) vazava o gesto pro fundo da pagina
+  // por baixo do overlay. Self-contido (nao depende do modal pai ja travar),
+  // porque o Checkout usa este modal fora de qualquer outro que trave scroll.
+  useEffect(() => {
+    if (!open) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [open])
+
   if (!open || options.length === 0) return null
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center overscroll-none bg-black/50 p-4">
       <div
         role="dialog"
         aria-modal="true"
