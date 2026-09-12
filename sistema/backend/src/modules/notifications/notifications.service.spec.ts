@@ -18,9 +18,13 @@ describe('NotificationsService', () => {
       customer: {
         findMany: jest.fn(),
       },
+      order: {
+        findUnique: jest.fn(),
+      },
     }
     const pushNotificationService = {
       sendNotification: jest.fn().mockResolvedValue({ sent: 1, failed: 0, skipped: 0 }),
+      notifyStatusChange: jest.fn().mockResolvedValue(undefined),
     }
     const whatsAppService = {
       sendStatusUpdate: jest.fn().mockResolvedValue(null),
@@ -66,6 +70,25 @@ describe('NotificationsService', () => {
       body: 'Confira as ofertas no mercado.',
       customerId: 'customer-1',
     })
+  })
+
+  it('mudanca de status manda UM push so, nao dois -- create() nao duplica o de notifyStatusChange', async () => {
+    const { service, prisma, pushNotificationService, whatsAppService } = makeService()
+    prisma.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      customerId: 'customer-1',
+      customer: { id: 'customer-1', name: 'Jonathan', whatsapp: '24999999999' },
+    })
+
+    await service.notifyOrderStatusChange('order-1', 'CONFIRMED')
+
+    // O registro pro sino/historico sempre e criado...
+    expect(prisma.notification.create).toHaveBeenCalledTimes(1)
+    // ...mas o push generico de dentro de create() fica de fora pra ORDER_UPDATE --
+    // quem manda o push aqui e notifyStatusChange (copy com emoji por status).
+    expect(pushNotificationService.sendNotification).not.toHaveBeenCalled()
+    expect(pushNotificationService.notifyStatusChange).toHaveBeenCalledWith('customer-1', 'ORDER-1', 'CONFIRMED')
+    expect(whatsAppService.sendStatusUpdate).toHaveBeenCalled()
   })
 
   it('aceita subscription do formato PushSubscriptionJSON do navegador', async () => {

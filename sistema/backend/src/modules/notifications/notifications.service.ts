@@ -77,7 +77,14 @@ export class NotificationsService {
       },
     })
 
-    if (notification.customerId) {
+    // ORDER_UPDATE fica de fora: notifyOrderStatusChange ja manda o push dele
+    // por pushNotificationService.notifyStatusChange (copy rica, com emoji
+    // por status) logo depois de chamar create() aqui. Ate 12/09/2026 os dois
+    // caminhos rodavam juntos e o cliente recebia DOIS pushes por mudanca de
+    // status -- um generico (este) e um com emoji (aquele). create() so cria
+    // o registro pro sino/historico nesse caso; PROMO/CAMPAIGN continuam
+    // mandando o push por aqui normalmente.
+    if (notification.customerId && dto.type !== 'ORDER_UPDATE') {
       await this.pushNotificationService.sendNotification(notification.customerId, {
         title: notification.title,
         body: notification.body,
