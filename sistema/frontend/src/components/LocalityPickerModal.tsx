@@ -1,4 +1,4 @@
-import { ChevronRight, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Button } from './ui/button'
 import { surfaceClasses } from './ui/surface'
 
@@ -28,25 +28,34 @@ export function LocalityPickerModal({
   selectedCode,
   onSelect,
   onClose,
+  onNone,
 }: {
   open: boolean
   options: LocalityOption[]
   selectedCode?: string | null
   onSelect: (option: LocalityOption) => void
   onClose: () => void
+  /**
+   * GPS perto da divisa de duas localidades erra com frequencia (ex.: cliente
+   * mora exatamente no limite dos CEPs de "Chafariz" e do condominio vizinho).
+   * Sem uma saida explicita, o cliente tentava clicar numa opcao errada por
+   * eliminacao. "Nenhuma dessas" fecha o modal e devolve pro campo de CEP em
+   * branco, pra digitar o correto do zero em vez de adivinhar entre as
+   * sugestoes.
+   */
+  onNone?: () => void
 }) {
   if (!open || options.length === 0) return null
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 md:items-center">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="locality-modal-title"
         className={surfaceClasses({
           tone: 'warm',
-          className:
-            'w-full md:max-w-md rounded-t-2xl md:rounded-lg p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain',
+          className: 'w-full max-w-md rounded-2xl p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain',
         })}
       >
         <div className="mb-1 flex items-start justify-between gap-3">
@@ -67,24 +76,34 @@ export function LocalityPickerModal({
 
         <p className="mb-4 text-xs text-[#5d4f33]">O CEP informado atende diferentes pontos da região.</p>
 
-        <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
           {options.map((option) => (
             <button
               key={`${option.code}--${option.name}`}
               type="button"
               aria-pressed={selectedCode === option.code}
               onClick={() => onSelect(option)}
-              className={`flex w-full items-center justify-between gap-3 rounded-lg border px-4 py-3.5 text-left text-sm font-semibold text-[#231F20] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A]/50 ${
+              className={`flex min-h-[4.5rem] items-center justify-center rounded-lg border px-3 py-3 text-center text-sm font-semibold leading-snug break-words text-[#231F20] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A]/50 ${
                 selectedCode === option.code
                   ? 'border-[#5D082A] bg-[#FFF7FA]'
                   : 'border-[#E8D7B0] bg-white hover:border-[#5D082A] hover:bg-[#FFF7FA]'
               }`}
             >
-              <span className="min-w-0">{option.name}</span>
-              <ChevronRight size={16} className="shrink-0 text-[#D2BB8A]" />
+              {option.name}
             </button>
           ))}
         </div>
+
+        {onNone && (
+          <Button
+            type="button"
+            onClick={onNone}
+            variant="outline"
+            className="mt-4 w-full border-2 border-dashed border-[#5D082A]/40 text-[#5D082A] hover:bg-[#FFF7FA]"
+          >
+            Nenhuma dessas — digitar meu CEP
+          </Button>
+        )}
       </div>
     </div>
   )

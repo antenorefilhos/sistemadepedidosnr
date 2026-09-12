@@ -273,6 +273,18 @@ export default function Checkout() {
   // CEP como 25750-222 cobre de Chafariz a um condominio 2km mais longe --
   // sem essa escolha o backend so libera passar de step (ver
   // requiresLocalitySelection acima), entao reverifica na hora.
+  // Divisa de CEP entre duas localidades: nenhuma opcao bate com o endereco
+  // real do cliente. Limpa CEP + deliveryCalc (senao precisaEscolherLocalidade
+  // continua true e o efeito acima reabre o modal sozinho) e volta o foco pro
+  // campo de CEP.
+  const handleNoneOfThese = useCallback(() => {
+    cepComModalAbertoRef.current = null
+    setLocalityModalOpen(false)
+    setDeliveryCalc(null)
+    setFormData((prev) => ({ ...prev, zipCode: '', locality: '', deliveryPointCode: '' }))
+    setTimeout(() => document.getElementById('zipCode')?.focus(), 50)
+  }, [])
+
   const handleSelectLocality = async (option: { name: string; code: string }) => {
     setLocalityModalOpen(false)
     setFormData((prev) => ({ ...prev, locality: option.name, deliveryPointCode: option.code }))
@@ -1480,6 +1492,7 @@ export default function Checkout() {
         selectedCode={formData.deliveryPointCode}
         onSelect={handleSelectLocality}
         onClose={() => setLocalityModalOpen(false)}
+        onNone={handleNoneOfThese}
       />
     </div>
   )

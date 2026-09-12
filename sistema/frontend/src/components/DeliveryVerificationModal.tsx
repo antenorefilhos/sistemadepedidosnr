@@ -239,6 +239,20 @@ export function DeliveryVerificationModal() {
   // CEP calculado e faz autoCalculateByCep sair cedo, entao redigitar o
   // MESMO CEP nao recalculava nada. A localidade escolhida antes tambem nao
   // vale pro endereco novo.
+  // Cliente na divisa de duas localidades (mesmo CEP) nao acha nenhuma opcao
+  // correta -- limpa o CEP em vez de deixar escolher por eliminacao, e o
+  // guard de reabertura (calc?.requiresLocalitySelection) fica falso com
+  // calc=null ate um novo CEP ser calculado.
+  const handleNoneOfThese = useCallback(() => {
+    lastAutoCalculatedCepRef.current = null
+    setLocalityModalOpen(false)
+    setCalc(null)
+    setAddress((prev) => ({ ...prev, zipCode: '', locality: null, deliveryPointCode: null }))
+    setErrorMessage(null)
+    setMode('edit')
+    setTimeout(() => document.getElementById('delivery-modal-cep')?.focus(), 50)
+  }, [])
+
   const handleChangeAddress = useCallback(() => {
     lastAutoCalculatedCepRef.current = null
     setAddress((prev) => ({ ...prev, locality: null, deliveryPointCode: null }))
@@ -559,6 +573,7 @@ export function DeliveryVerificationModal() {
         selectedCode={address.deliveryPointCode}
         onSelect={(option) => handleSelectLocality({ name: option.name, code: option.code })}
         onClose={() => setLocalityModalOpen(false)}
+        onNone={handleNoneOfThese}
       />
     </>
   )
