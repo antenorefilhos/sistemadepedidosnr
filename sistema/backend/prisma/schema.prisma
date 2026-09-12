@@ -1489,6 +1489,8 @@ model PromotionCampaign {
   endDate         DateTime
   active          Boolean   @default(true)
   highlightInHome Boolean   @default(false)
+  startNotifiedAt   DateTime?
+  endingNotifiedAt  DateTime?
 
   items           PromotionCampaignItem[]
 

@@ -46,4 +46,13 @@ export class PromotionsScheduler {
       this.logger.error('Falha na limpeza de campanhas vencidas:', error instanceof Error ? error.stack : String(error))
     }
   }
+
+  @Cron(process.env.PROMOTIONS_NOTIFY_CRON || '*/15 * * * *', { name: 'promotions-notify-lifecycle' })
+  async handleNotifyLifecycle(): Promise<void> {
+    try {
+      await this.promotionsService.notifyCampaignLifecycle()
+    } catch (error) {
+      this.logger.error('Falha no aviso de inicio/fim de encarte:', error instanceof Error ? error.stack : String(error))
+    }
+  }
 }

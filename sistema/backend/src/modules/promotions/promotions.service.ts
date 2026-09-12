@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
 import { SolidcomERPService } from '../integrations/solidcom-erp.service'
+import { NotificationsService } from '../notifications/notifications.service'
 
 function slugify(value: string): string {
   return value
@@ -18,6 +19,7 @@ export class PromotionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly solidcomERPService: SolidcomERPService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -146,6 +148,53 @@ export class PromotionsService {
     }
 
     return { campaignsExpired: expiring.length, productsCleared }
+  }
+
+  /**
+   * Avisa por push quando um encarte entra em vigencia e quando esta perto
+   * de acabar (endDate dentro de 3h). Cada aviso dispara uma vez so, marcado
+   * por startNotifiedAt/endingNotifiedAt.
+   */
+  async notifyCampaignLifecycle(): Promise<{ started: number; ending: number }> {
+    const now = new Date()
+
+    const starting = await this.prisma.promotionCampaign.findMany({
+      where: { active: true, startDate: { lte: now }, startNotifiedAt: null },
+    })
+    for (const campaign of starting) {
+      const customerIds = await this.notificationsService.getAllCustomerIds()
+      await this.notificationsService.broadcastToCustomers(customerIds, {
+        type: 'CAMPAIGN',
+        title: `🛍️ Chegou o encarte ${campaign.name}!`,
+        body: 'Confira as ofertas antes que acabem.',
+        url: '/promocoes',
+      })
+      await this.prisma.promotionCampaign.update({ where: { id: campaign.id }, data: { startNotifiedAt: now } })
+    }
+
+    const endingSoon = await this.prisma.promotionCampaign.findMany({
+      where: {
+        active: true,
+        endDate: { gte: now, lte: new Date(now.getTime() + 3 * 60 * 60 * 1000) },
+        endingNotifiedAt: null,
+      },
+    })
+    for (const campaign of endingSoon) {
+      const customerIds = await this.notificationsService.getAllCustomerIds()
+      await this.notificationsService.broadcastToCustomers(customerIds, {
+        type: 'CAMPAIGN',
+        title: `⏰ Ultimas horas do encarte ${campaign.name}!`,
+        body: 'As ofertas terminam em breve, aproveite agora.',
+        url: '/promocoes',
+      })
+      await this.prisma.promotionCampaign.update({ where: { id: campaign.id }, data: { endingNotifiedAt: now } })
+    }
+
+    if (starting.length || endingSoon.length) {
+      this.logger.log(`Aviso de encarte: ${starting.length} inicio(s), ${endingSoon.length} fim proximo.`)
+    }
+
+    return { started: starting.length, ending: endingSoon.length }
   }
 
   findAllAdmin() {

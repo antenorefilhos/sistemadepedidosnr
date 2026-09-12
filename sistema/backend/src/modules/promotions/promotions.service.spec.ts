@@ -1,6 +1,7 @@
 import { PromotionsService } from './promotions.service'
 import { PrismaService } from '../../common/prisma.service'
 import { SolidcomERPService } from '../integrations/solidcom-erp.service'
+import { NotificationsService } from '../notifications/notifications.service'
 
 const mockPrismaService = {
   product: {
@@ -22,6 +23,11 @@ const mockSolidcomERPService = {
   fetchActivePromotionCampaigns: jest.fn(),
 }
 
+const mockNotificationsService = {
+  getAllCustomerIds: jest.fn(),
+  broadcastToCustomers: jest.fn(),
+}
+
 describe('PromotionsService', () => {
   let service: PromotionsService
 
@@ -29,7 +35,9 @@ describe('PromotionsService', () => {
     service = new PromotionsService(
       mockPrismaService as unknown as PrismaService,
       mockSolidcomERPService as unknown as SolidcomERPService,
+      mockNotificationsService as unknown as NotificationsService,
     )
+    mockNotificationsService.getAllCustomerIds.mockResolvedValue(['c1'])
   })
 
   afterEach(() => {
@@ -128,6 +136,55 @@ describe('PromotionsService', () => {
 
       expect(result).toEqual({ campaignsExpired: 0, productsCleared: 0 })
       expect(mockPrismaService.product.update).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('notifyCampaignLifecycle', () => {
+    it('notifies start and marks startNotifiedAt for a campaign that just began', async () => {
+      mockPrismaService.promotionCampaign.findMany
+        .mockResolvedValueOnce([{ id: 'campaign-1', name: 'SEGUNDA DA CARNE NV' }])
+        .mockResolvedValueOnce([])
+
+      const result = await service.notifyCampaignLifecycle()
+
+      expect(mockNotificationsService.broadcastToCustomers).toHaveBeenCalledTimes(1)
+      expect(mockPrismaService.promotionCampaign.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'campaign-1' }, data: { startNotifiedAt: expect.any(Date) } }),
+      )
+      expect(result).toEqual({ started: 1, ending: 0 })
+    })
+
+    it('does not notify a campaign already marked as notified', async () => {
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+      const result = await service.notifyCampaignLifecycle()
+
+      expect(mockNotificationsService.broadcastToCustomers).not.toHaveBeenCalled()
+      expect(result).toEqual({ started: 0, ending: 0 })
+    })
+
+    it('notifies ending for a campaign finishing within 3h', async () => {
+      mockPrismaService.promotionCampaign.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'campaign-2', name: 'OFERTA RELAMPAGO' }])
+
+      const result = await service.notifyCampaignLifecycle()
+
+      expect(mockNotificationsService.broadcastToCustomers).toHaveBeenCalledTimes(1)
+      expect(mockPrismaService.promotionCampaign.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'campaign-2' }, data: { endingNotifiedAt: expect.any(Date) } }),
+      )
+      expect(result).toEqual({ started: 0, ending: 1 })
+    })
+
+    it('does nothing outside the start/ending windows', async () => {
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+      const result = await service.notifyCampaignLifecycle()
+
+      expect(mockNotificationsService.broadcastToCustomers).not.toHaveBeenCalled()
+      expect(mockPrismaService.promotionCampaign.update).not.toHaveBeenCalled()
+      expect(result).toEqual({ started: 0, ending: 0 })
     })
   })
 })
