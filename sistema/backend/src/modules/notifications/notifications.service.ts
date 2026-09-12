@@ -19,6 +19,11 @@ export interface CreateNotificationDto {
    * dois vierem.
    */
   bannerId?: string
+  /**
+   * URL do push, vence banner/produto/fallback quando informada. Nao e
+   * persistida (Notification nao tem coluna de url) -- so afeta o push.
+   */
+  url?: string
 }
 
 /**
@@ -96,7 +101,7 @@ export class NotificationsService {
         title: notification.title,
         body: notification.body,
         image: notification.imageUrl || undefined,
-        url: urlDoBanner || (notification.productId ? `/produto/${notification.productId}` : '/'),
+        url: dto.url || urlDoBanner || (notification.productId ? `/produto/${notification.productId}` : '/'),
       })
     }
 
@@ -374,6 +379,7 @@ export class NotificationsService {
         title: `${meta.emoji} ${meta.label}`,
         body: meta.body(shortId),
         customerId: order.customerId,
+        url: '/account',
       })
 
       if (order.customer?.whatsapp) {
