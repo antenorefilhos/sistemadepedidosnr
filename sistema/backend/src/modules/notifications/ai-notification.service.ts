@@ -173,16 +173,13 @@ export class AiNotificationService {
       }
 
       const customerIds = await this.notificationsService.getAllCustomerIds()
-      for (const customerId of customerIds) {
-        await this.notificationsService.create({
-          type: 'PROMO',
-          title: decision.title,
-          body: decision.body,
-          imageUrl: `/uploads/products/${product.ean}.webp`,
-          productId: product.id,
-          customerId,
-        })
-      }
+      await this.notificationsService.broadcastToCustomers(customerIds, {
+        type: 'PROMO',
+        title: decision.title,
+        body: decision.body,
+        imageUrl: `/uploads/products/${product.ean}.webp`,
+        productId: product.id,
+      })
 
       await this.prisma.product.update({ where: { id: product.id }, data: { aiNotifiedAt: new Date() } })
       notified += 1

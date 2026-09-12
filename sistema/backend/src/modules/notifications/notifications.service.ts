@@ -21,20 +21,34 @@ export interface CreateNotificationDto {
   bannerId?: string
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pedido Recebido',
-  CONFIRMED: 'Pedido Confirmado',
-  PICKING_PENDING: 'Na Fila de Separacao',
-  PICKING: 'Em Separacao',
-  CONFERENCE_PENDING: 'Em Conferencia',
-  READY_FOR_CHECKOUT: 'No Caixa',
-  READY_FOR_DELIVERY: 'Pronto para Entrega',
-  READY_FOR_PICKUP: 'Pronto para Retirada',
-  OUT_FOR_DELIVERY: 'Saiu para Entrega',
-  DELIVERED: 'Entregue',
-  COMPLETED: 'Concluido',
-  CANCELLED: 'Cancelado',
-  FAILED_DELIVERY: 'Entrega Falhou',
+/**
+ * Fonte UNICA de titulo/emoji/corpo por status de pedido.
+ *
+ * Ate 12/09/2026 existiam DUAS copias manuais disso -- uma aqui (so label,
+ * sem emoji, usada no sino) e outra em push-notification.service.ts (com
+ * emoji + frase completa, usada so no push). As duas precisavam ser mantidas
+ * em sincronia a mao e nunca eram: READY_FOR_CHECKOUT chegou a faltar dos
+ * dois lados em momentos diferentes. Pior, os DOIS caminhos eram chamados pra
+ * cada mudanca de status (ver notifyOrderStatusChange), entao o cliente
+ * recebia dois pushes diferentes pro mesmo evento.
+ *
+ * Agora e um mapa so, e notifyOrderStatusChange chama create() uma unica vez
+ * -- o sino e o push usam exatamente o mesmo titulo/corpo.
+ */
+const ORDER_STATUS_META: Record<string, { emoji: string; label: string; body: (shortId: string) => string }> = {
+  PENDING: { emoji: '⏳', label: 'Pedido Recebido', body: (id) => `Pedido #${id} recebido` },
+  CONFIRMED: { emoji: '✅', label: 'Pedido Confirmado', body: (id) => `Pedido #${id} confirmado e em preparo` },
+  PICKING_PENDING: { emoji: '📋', label: 'Na Fila de Separação', body: (id) => `Pedido #${id} na fila de separação` },
+  PICKING: { emoji: '🛒', label: 'Em Separação', body: (id) => `Pedido #${id} sendo separado` },
+  CONFERENCE_PENDING: { emoji: '🔍', label: 'Em Conferência', body: (id) => `Pedido #${id} separado, em conferência` },
+  READY_FOR_CHECKOUT: { emoji: '💳', label: 'No Caixa', body: (id) => `Pedido #${id} no caixa` },
+  READY_FOR_DELIVERY: { emoji: '📦', label: 'Pronto para Entrega', body: (id) => `Pedido #${id} pronto para entrega` },
+  READY_FOR_PICKUP: { emoji: '📦', label: 'Pronto para Retirada', body: (id) => `Pedido #${id} pronto para retirada na loja` },
+  OUT_FOR_DELIVERY: { emoji: '🚚', label: 'Saiu para Entrega', body: (id) => `Pedido #${id} saiu para entrega` },
+  DELIVERED: { emoji: '✅', label: 'Entregue', body: (id) => `Pedido #${id} entregue com sucesso!` },
+  COMPLETED: { emoji: '🎉', label: 'Concluído', body: (id) => `Pedido #${id} concluído!` },
+  CANCELLED: { emoji: '⚠️', label: 'Cancelado', body: (id) => `Pedido #${id} cancelado` },
+  FAILED_DELIVERY: { emoji: '⚠️', label: 'Entrega Falhou', body: (id) => `Não conseguimos entregar o pedido #${id}` },
 }
 
 @Injectable()
@@ -77,14 +91,7 @@ export class NotificationsService {
       },
     })
 
-    // ORDER_UPDATE fica de fora: notifyOrderStatusChange ja manda o push dele
-    // por pushNotificationService.notifyStatusChange (copy rica, com emoji
-    // por status) logo depois de chamar create() aqui. Ate 12/09/2026 os dois
-    // caminhos rodavam juntos e o cliente recebia DOIS pushes por mudanca de
-    // status -- um generico (este) e um com emoji (aquele). create() so cria
-    // o registro pro sino/historico nesse caso; PROMO/CAMPAIGN continuam
-    // mandando o push por aqui normalmente.
-    if (notification.customerId && dto.type !== 'ORDER_UPDATE') {
+    if (notification.customerId) {
       await this.pushNotificationService.sendNotification(notification.customerId, {
         title: notification.title,
         body: notification.body,
@@ -94,6 +101,56 @@ export class NotificationsService {
     }
 
     return notification
+  }
+
+  /**
+   * Broadcast pra varios clientes de uma vez (admin/broadcast, ciclo de IA).
+   *
+   * Ate 12/09/2026 o controller fazia um loop `for` chamando create() uma vez
+   * por cliente: cada iteracao refazia a MESMA consulta do banner (se houver)
+   * e mandava os pushes um de cada vez, em serie. Pra loja pequena nao doia,
+   * mas escala mal -- resolve o banner UMA vez aqui e manda os pushes em
+   * paralelo.
+   */
+  async broadcastToCustomers(customerIds: string[], dto: Omit<CreateNotificationDto, 'customerId'>) {
+    if (customerIds.length === 0) return { count: 0 }
+
+    let urlDoBanner: string | undefined
+    let imageUrl = dto.imageUrl
+    if (dto.bannerId) {
+      const banner = await this.prisma.storeBanner.findUnique({
+        where: { id: dto.bannerId },
+        select: { linkType: true, linkValue: true, desktopImageUrl: true },
+      })
+      if (!banner) throw new NotFoundException('Banner nao encontrado')
+      urlDoBanner = resolveBannerLink(banner.linkValue, banner.linkType)
+      if (!imageUrl) imageUrl = banner.desktopImageUrl || undefined
+    }
+
+    await this.prisma.notification.createMany({
+      data: customerIds.map((customerId) => ({
+        type: dto.type,
+        title: dto.title,
+        body: dto.body,
+        customerId,
+        imageUrl,
+        productId: dto.productId,
+      })),
+    })
+
+    const url = urlDoBanner || (dto.productId ? `/produto/${dto.productId}` : '/')
+    await Promise.all(
+      customerIds.map((customerId) =>
+        this.pushNotificationService.sendNotification(customerId, {
+          title: dto.title,
+          body: dto.body,
+          image: imageUrl,
+          url,
+        }),
+      ),
+    )
+
+    return { count: customerIds.length }
   }
 
   /**
@@ -305,15 +362,17 @@ export class NotificationsService {
       })
       if (!order?.customerId) return
 
-      const label = STATUS_LABEL[status]
-      if (!label) return
+      const meta = ORDER_STATUS_META[status]
+      if (!meta) return
 
       const shortId = orderId.slice(-8).toUpperCase()
 
+      // Uma chamada so: create() ja manda o push (ver acima). Sino e push
+      // usam o MESMO titulo/corpo agora -- nao tem segundo caminho de envio.
       await this.create({
         type: 'ORDER_UPDATE',
-        title: label,
-        body: `Pedido #${shortId}: ${label}`,
+        title: `${meta.emoji} ${meta.label}`,
+        body: meta.body(shortId),
         customerId: order.customerId,
       })
 
@@ -322,10 +381,6 @@ export class NotificationsService {
           this.logger.warn(`WhatsApp falhou para pedido ${orderId}: ${err.message}`)
         })
       }
-
-      this.pushNotificationService.notifyStatusChange(order.customerId, shortId, status).catch((err) => {
-        this.logger.warn(`Push falhou para pedido ${orderId}: ${err.message}`)
-      })
     } catch (err) {
       this.logger.error(`Erro ao notificar status ${status} do pedido ${orderId}:`, err)
     }

@@ -131,21 +131,14 @@ export class NotificationsController {
       ? [body.customerId]
       : await this.notificationsService.getAllCustomerIds()
 
-    const created = []
-    for (const customerId of customers) {
-      const notification = await this.notificationsService.create({
-        type: body.type,
-        title: body.title,
-        body: body.body,
-        customerId,
-        imageUrl: body.imageUrl,
-        productId: body.productId,
-        bannerId: body.bannerId,
-      })
-      created.push(notification)
-    }
-
-    return { count: created.length, notifications: created }
+    return this.notificationsService.broadcastToCustomers(customers, {
+      type: body.type,
+      title: body.title,
+      body: body.body,
+      imageUrl: body.imageUrl,
+      productId: body.productId,
+      bannerId: body.bannerId,
+    })
   }
 
   @Get('admin/history')
