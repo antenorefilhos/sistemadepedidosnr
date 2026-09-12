@@ -9,11 +9,13 @@ import { CartController } from './cart.controller'
 import { AdminCheckoutController, CheckoutSessionsController } from './checkout.controller'
 import { CartService } from './cart.service'
 import { CheckoutService } from './checkout.service'
+import { AbandonedCartScheduler } from './abandoned-cart.scheduler'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
-  imports: [PricingModule, InventoryModule, DeliveryModule, OrdersModule],
+  imports: [PricingModule, InventoryModule, DeliveryModule, OrdersModule, NotificationsModule],
   controllers: [CartController, CheckoutSessionsController, AdminCheckoutController],
-  providers: [CartService, CheckoutService, PrismaService, TenantAccessGuard],
+  providers: [CartService, CheckoutService, PrismaService, TenantAccessGuard, AbandonedCartScheduler],
   exports: [CartService, CheckoutService],
 })
 export class CheckoutModule {}

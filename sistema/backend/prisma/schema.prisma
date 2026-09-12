@@ -897,6 +897,7 @@ model Cart {
   customerId String?
   deviceId   String?
   status     String     @default("ACTIVE")
+  abandonedNotifiedAt DateTime?
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
   items      CartItem[]
