@@ -24,6 +24,8 @@ describe('NotificationsService', () => {
       },
       order: {
         findUnique: jest.fn(),
+        findMany: jest.fn(),
+        groupBy: jest.fn(),
       },
     }
     const pushNotificationService = {
@@ -156,6 +158,62 @@ describe('NotificationsService', () => {
         auth: 'auth-key',
         p256dh: 'p256dh-key',
       },
+    })
+  })
+
+  describe('findCustomerIdsBySegment', () => {
+    it('sem filtro: retorna todos os clientes (comportamento antigo)', async () => {
+      const { service, prisma } = makeService()
+      prisma.customer.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }])
+
+      const ids = await service.findCustomerIdsBySegment({})
+
+      expect(ids).toEqual(['c1', 'c2'])
+      expect(prisma.order.findMany).not.toHaveBeenCalled()
+      expect(prisma.order.groupBy).not.toHaveBeenCalled()
+    })
+
+    it('so purchasedCategory: retorna clientes com pedido na categoria', async () => {
+      const { service, prisma } = makeService()
+      prisma.order.findMany.mockResolvedValue([{ customerId: 'c1' }, { customerId: 'c2' }])
+
+      const ids = await service.findCustomerIdsBySegment({ purchasedCategory: 'vinhos' })
+
+      expect(ids).toEqual(['c1', 'c2'])
+      expect(prisma.order.findMany).toHaveBeenCalledWith({
+        where: { items: { some: { product: { category: 'vinhos' } } } },
+        select: { customerId: true },
+        distinct: ['customerId'],
+      })
+      expect(prisma.customer.findMany).not.toHaveBeenCalled()
+    })
+
+    it('so inactiveDays: exclui quem comprou depois do corte', async () => {
+      const { service, prisma } = makeService()
+      const now = Date.now()
+      prisma.order.groupBy.mockResolvedValue([
+        { customerId: 'ativo', _max: { createdAt: new Date(now - 1 * 24 * 60 * 60 * 1000) } },
+        { customerId: 'inativo', _max: { createdAt: new Date(now - 60 * 24 * 60 * 60 * 1000) } },
+      ])
+      prisma.customer.findMany.mockResolvedValue([{ id: 'ativo' }, { id: 'inativo' }, { id: 'sempedido' }])
+
+      const ids = await service.findCustomerIdsBySegment({ inactiveDays: 30 })
+
+      expect(ids.sort()).toEqual(['inativo', 'sempedido'].sort())
+    })
+
+    it('inactiveDays + purchasedCategory: intersecao (E, nao OU)', async () => {
+      const { service, prisma } = makeService()
+      const now = Date.now()
+      prisma.order.findMany.mockResolvedValue([{ customerId: 'c1' }, { customerId: 'c2' }])
+      prisma.order.groupBy.mockResolvedValue([
+        { customerId: 'c1', _max: { createdAt: new Date(now - 60 * 24 * 60 * 60 * 1000) } },
+      ])
+      prisma.customer.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }])
+
+      const ids = await service.findCustomerIdsBySegment({ inactiveDays: 30, purchasedCategory: 'vinhos' })
+
+      expect(ids.sort()).toEqual(['c1', 'c2'])
     })
   })
 })
