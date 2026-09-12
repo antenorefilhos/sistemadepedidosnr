@@ -153,6 +153,7 @@ export class AiNotificationService {
     let notified = 0
     let skipped = 0
     let failed = 0
+    let throttled = 0
 
     for (const product of candidates) {
       const decision = await this.askModel(product)
@@ -173,7 +174,24 @@ export class AiNotificationService {
       }
 
       const customerIds = await this.notificationsService.getAllCustomerIds()
-      await this.notificationsService.broadcastToCustomers(customerIds, {
+
+      // teto de 1 notificacao automatica de IA por cliente por dia -- ciclo roda
+      // 3x/dia e pode aprovar produtos diferentes em cada rodada, sem isso o
+      // mesmo cliente leva multiplas notificacoes no mesmo dia.
+      const recentlyNotified = await this.prisma.notification.findMany({
+        where: { type: 'PROMO', createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+        select: { customerId: true },
+        distinct: ['customerId'],
+      })
+      const recentIds = new Set(recentlyNotified.map((n) => n.customerId))
+      const eligibleIds = customerIds.filter((id) => !recentIds.has(id))
+
+      if (eligibleIds.length === 0) {
+        throttled += 1
+        continue
+      }
+
+      await this.notificationsService.broadcastToCustomers(eligibleIds, {
         type: 'PROMO',
         title: decision.title,
         body: decision.body,
@@ -185,9 +203,9 @@ export class AiNotificationService {
       notified += 1
     }
 
-    const resumo = `Ciclo de notificacao IA: ${candidates.length} candidatos, ${notified} notificados, ${skipped} descartados pelo modelo, ${failed} com falha na chamada.`
+    const resumo = `Ciclo de notificacao IA: ${candidates.length} candidatos, ${notified} notificados, ${skipped} descartados pelo modelo, ${failed} com falha na chamada, ${throttled} bloqueados pelo teto diario.`
     if (failed > 0) this.logger.error(resumo)
     else this.logger.log(resumo)
-    return { candidates: candidates.length, notified, skipped, failed }
+    return { candidates: candidates.length, notified, skipped, failed, throttled }
   }
 }
