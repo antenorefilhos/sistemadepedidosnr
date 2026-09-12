@@ -27,6 +27,12 @@ export const ADMIN_CHANGELOG: ChangelogRelease[] = [
       { type: 'fix', description: 'Ficha de produto pesável ou de produção própria às vezes mostrava "Estoque informado: -11" pro cliente, um número negativo do sistema interno que não faz sentido pra quem está comprando.' },
       { type: 'fix', description: 'Nome do sistema de origem do catálogo aparecia errado ("Solidcom") em vários lugares do painel — corrigido pra "Solidcon", com aviso claro de que está desligado desde a migração pro sistema próprio.' },
       { type: 'fix', description: 'Tela de Integrações dava erro ao clicar em "Mostrar Módulos" desde que o sistema próprio (Solidcon) foi adicionado à lista.' },
+      { type: 'feat', description: 'Cancelamento automático: quando o pedido é cancelado no site, o sistema próprio agora cancela sozinho na retaguarda também, sem precisar de ninguém fazer isso na mão.' },
+      { type: 'feat', description: 'Cliente cadastrado no clube de fidelidade da loja física e nota fiscal do pedido agora ficam disponíveis para consulta pelo sistema próprio.' },
+      { type: 'fix', description: 'No aplicativo de separação, nome de produto comprido aparecia cortado com "...". Agora quebra em quantas linhas precisar, sem esconder nada.' },
+      { type: 'fix', description: 'No aplicativo de separação, abrir um pedido já cancelado ou concluído mostrava "Nenhum item para separar" — confundia com bug. Agora avisa claramente que o pedido não está mais disponível.' },
+      { type: 'fix', description: 'No checkout, quando o CEP cobre mais de um ponto de entrega (comum perto de divisa de bairro), a lista de opções agora aparece centralizada e em cards mais fáceis de ler, com um botão de destaque pra digitar o CEP na mão quando nenhuma opção bate com o endereço do cliente.' },
+      { type: 'fix', description: 'No checkout, clicar em "Tentar GPS novamente" podia deixar a localidade escolhida antes travada, mesmo com o endereço já diferente.' },
     ],
   },
   {
