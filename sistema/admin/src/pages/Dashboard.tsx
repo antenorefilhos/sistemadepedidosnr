@@ -40,6 +40,7 @@ export type Section =
   | 'businessHours'
   | 'fraudAudit'
   | 'notifications'
+  | 'coupons'
   | 'recipes'
   | 'storeBanners'
   | 'brandIdentity'
@@ -252,6 +253,7 @@ const DeliveryRoutesSection = lazy(() => import('./sections/DeliveryRoutesSectio
 const BusinessHours = lazy(() => import('./BusinessHours'))
 const FraudAudit = lazy(() => import('./FraudAudit'))
 const NotificationsBroadcast = lazy(() => import('./NotificationsBroadcast'))
+const Coupons = lazy(() => import('./Coupons'))
 const Recipes = lazy(() => import('./Recipes'))
 const StoreBannersManager = lazy(() => import('./StoreBannersManager'))
 const BrandIdentity = lazy(() => import('./BrandIdentity'))
@@ -268,7 +270,7 @@ const TeamPerformanceSection = lazy(() => import('./sections/TeamPerformanceSect
 const VALID_SECTIONS: Section[] = [
   'dashboard', 'products', 'orders', 'picking', 'staff', 'teamPerformance',
   'businessAccounts', 'customers', 'layout', 'categories', 'deliveryZones',
-  'businessHours', 'fraudAudit', 'notifications', 'recipes', 'storeBanners', 'deliveryRoutes',
+  'businessHours', 'fraudAudit', 'notifications', 'coupons', 'recipes', 'storeBanners', 'deliveryRoutes',
   'brandIdentity', 'intelligence', 'integrations', 'payments',
 ]
 
@@ -1377,6 +1379,12 @@ export default function AdminDashboard() {
           {activeSection === 'notifications' && (
             <Suspense fallback={lazySectionFallback}>
               <NotificationsBroadcast />
+            </Suspense>
+          )}
+
+          {activeSection === 'coupons' && (
+            <Suspense fallback={lazySectionFallback}>
+              <Coupons />
             </Suspense>
           )}
 

@@ -63,6 +63,7 @@ const MENU_GROUPS: MenuGroup[] = [
       { key: 'intelligence', label: 'Inteligência IA', icon: Bot },
       { key: 'integrations', label: 'Integrações', icon: Workflow },
       { key: 'notifications', label: 'Notificações', icon: BellRing },
+      { key: 'coupons', label: 'Cupons', icon: Tag },
       { key: 'fraudAudit', label: 'Anti-fraude', icon: ShieldAlert },
     ],
   },

@@ -1699,6 +1699,34 @@ export const notificationsAdminAPI = {
   runAiCycleNow: () => api.post('/notifications/admin/ai-cycle/run'),
 }
 
+export interface CouponPromotion {
+  id: string
+  name: string
+  status: string
+  startsAt: string
+  endsAt: string
+  rules: Array<{ condition: Record<string, unknown>; effect: Record<string, unknown> }>
+  coupons: Array<{ id: string; code: string; maxUses: number | null; maxUsesPerCustomer: number | null; status: string }>
+  _count: { usages: number }
+}
+
+export const couponsAdminAPI = {
+  list: () => api.get<CouponPromotion[]>('/admin/promotions'),
+  create: (data: {
+    name: string
+    couponCode: string
+    /** 'PERCENT_OFF' | 'FIXED_OFF' -- vira o `effect.type` lido pelo PricingService. */
+    effect: { type: 'PERCENT_OFF' | 'FIXED_OFF'; percent?: number; amount?: number; maxDiscount?: number }
+    condition?: { minSubtotal?: number }
+    /** Ausente = vale a partir de agora. Futuro = so passa a validar no checkout dai. */
+    startsAt?: string
+    endsAt?: string
+    maxUses?: number
+    maxUsesPerCustomer?: number
+    status?: 'ACTIVE' | 'DRAFT'
+  }) => api.post<CouponPromotion>('/admin/promotions', data),
+}
+
 export interface StaffMember {
   id: string
   email: string
