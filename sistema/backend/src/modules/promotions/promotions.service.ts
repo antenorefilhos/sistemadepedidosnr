@@ -101,6 +101,32 @@ export class PromotionsService {
         })
         productsUpdated += 1
       }
+
+      // Poda: sem isso, item que sai do encarte (ou que entrou errado por um
+      // bug de join do lado do ERP -- foi exatamente o que aconteceu com o
+      // encarte 372 na v1.10.0, AEF-033/JON-108) nunca sai do nosso banco. O
+      // upsert acima so cria/atualiza os itens ATUAIS; o que sobrou de uma
+      // sincronizacao anterior fica orfao pra sempre.
+      const currentProductIds = new Set(erpCampaign.items.map((item) => productIdByEan.get(item.ean)).filter(Boolean) as string[])
+      const staleItems = await this.prisma.promotionCampaignItem.findMany({
+        where: { campaignId: campaign.id, productId: { notIn: [...currentProductIds] } },
+        include: { product: { select: { id: true, promotionalPrice: true } } },
+      })
+      for (const stale of staleItems) {
+        // So limpa o promotionalPrice do produto se ele ainda bate com o que
+        // ESTE item de campanha aplicou -- mesma cautela de expireCampaigns,
+        // pra nao apagar uma promocao mais nova que outra coisa aplicou por cima.
+        const currentPrice = stale.product.promotionalPrice
+        const stillCampaignPrice = currentPrice != null && Math.abs(Number(currentPrice) - Number(stale.promotionalPrice)) < 0.005
+        if (stillCampaignPrice) {
+          await this.prisma.product.update({ where: { id: stale.productId }, data: { promotionalPrice: null } })
+        }
+      }
+      if (staleItems.length > 0) {
+        await this.prisma.promotionCampaignItem.deleteMany({
+          where: { id: { in: staleItems.map((s) => s.id) } },
+        })
+      }
     }
 
     if (campaigns.length > 0) {

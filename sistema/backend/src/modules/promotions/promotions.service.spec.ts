@@ -17,6 +17,8 @@ const mockPrismaService = {
   },
   promotionCampaignItem: {
     upsert: jest.fn(),
+    findMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
 }
 
@@ -41,6 +43,7 @@ describe('PromotionsService', () => {
     )
     mockNotificationsService.getAllCustomerIds.mockResolvedValue(['c1'])
     mockAntenorApiService.isConfigured.mockReturnValue(true)
+    mockPrismaService.promotionCampaignItem.findMany.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -102,6 +105,52 @@ describe('PromotionsService', () => {
       expect(mockPrismaService.promotionCampaignItem.upsert).not.toHaveBeenCalled()
       expect(mockPrismaService.product.update).not.toHaveBeenCalled()
       expect(result.productsUpdated).toBe(0)
+    })
+
+    it('prunes campaign items that no longer come back from the ERP (ex: bug de join corrigido na origem, AEF-033)', async () => {
+      mockAntenorApiService.getEncartesAtivos.mockResolvedValue([
+        {
+          erpCampaignId: 372,
+          name: 'ENCARTE FINAL SEMANA NR',
+          startDate: '2026-09-12T00:00:00.000Z',
+          endDate: '2026-09-13T00:00:00.000Z',
+          items: [{ ean: '111', regularPrice: 30, promotionalPrice: 20 }],
+        },
+      ])
+      mockPrismaService.product.findMany.mockResolvedValue([{ id: 'p-certo', ean: '111' }])
+      mockPrismaService.promotionCampaign.upsert.mockResolvedValue({ id: 'campaign-372' })
+      // Item orfao de uma sincronizacao anterior (o produto errado que o join
+      // quebrado da v1.10.0 tinha trazido) -- nao vem mais no retorno do ERP.
+      mockPrismaService.promotionCampaignItem.findMany.mockResolvedValue([
+        { id: 'item-orfao', productId: 'p-errado', promotionalPrice: 8.99, product: { id: 'p-errado', promotionalPrice: 8.99 } },
+      ])
+
+      await service.syncFromERP()
+
+      expect(mockPrismaService.product.update).toHaveBeenCalledWith({ where: { id: 'p-errado' }, data: { promotionalPrice: null } })
+      expect(mockPrismaService.promotionCampaignItem.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['item-orfao'] } } })
+    })
+
+    it('does not touch the product price when it no longer matches the stale campaign item (outra promocao aplicou por cima)', async () => {
+      mockAntenorApiService.getEncartesAtivos.mockResolvedValue([
+        {
+          erpCampaignId: 372,
+          name: 'ENCARTE FINAL SEMANA NR',
+          startDate: '2026-09-12T00:00:00.000Z',
+          endDate: '2026-09-13T00:00:00.000Z',
+          items: [],
+        },
+      ])
+      mockPrismaService.product.findMany.mockResolvedValue([])
+      mockPrismaService.promotionCampaign.upsert.mockResolvedValue({ id: 'campaign-372' })
+      mockPrismaService.promotionCampaignItem.findMany.mockResolvedValue([
+        { id: 'item-orfao', productId: 'p-outro', promotionalPrice: 8.99, product: { id: 'p-outro', promotionalPrice: 5.0 } },
+      ])
+
+      await service.syncFromERP()
+
+      expect(mockPrismaService.product.update).not.toHaveBeenCalled()
+      expect(mockPrismaService.promotionCampaignItem.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['item-orfao'] } } })
     })
 
     it('does nothing when the AntenorApi connector is not configured', async () => {
