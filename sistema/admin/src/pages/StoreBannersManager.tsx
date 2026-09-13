@@ -7,8 +7,6 @@ import {
   ArrowUp,
   Calendar,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Eye,
   EyeOff,
   Image as ImageIcon,
@@ -917,32 +915,6 @@ export default function StoreBannersManager() {
   const [uploadingDesktop, setUploadingDesktop] = useState(false);
   const [uploadingMobile, setUploadingMobile] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const advancedRef = useRef<HTMLDivElement>(null);
-
-  /**
-   * A seção avançada abre abaixo da dobra do formulário: sem rolar junto, o
-   * clique não produz nenhuma mudança visível e a pessoa clica de novo achando
-   * que não funcionou. Rola até o conteúdo recém-aberto pra deixar claro que
-   * algo aconteceu.
-   *
-   * `block: 'nearest'` rola o mínimo necessário (não joga a seção pro topo,
-   * o que tiraria o próprio botão de vista). O scroll acontece depois do
-   * paint, senão o ref ainda é null no clique que abre.
-   */
-  const toggleAdvanced = () => {
-    const abrindo = !advancedOpen;
-    setAdvancedOpen(abrindo);
-    if (!abrindo) return;
-
-    const semAnimacao = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    requestAnimationFrame(() => {
-      advancedRef.current?.scrollIntoView({
-        behavior: semAnimacao ? 'auto' : 'smooth',
-        block: 'nearest',
-      });
-    });
-  };
   const [categories, setCategories] = useState<{ id: string; name: string; active: boolean }[]>([]);
   const [productQuery, setProductQuery] = useState('');
   const [productResults, setProductResults] = useState<{ id: string; name: string; ean: string }[]>([]);
@@ -1009,7 +981,6 @@ export default function StoreBannersManager() {
     setEditing(null);
     setForm({ ...emptyForm(), slot: activeTab === 'all' ? 'hero' : activeTab });
     setErrors({});
-    setAdvancedOpen(false);
     setProductQuery('');
     setProductResults([]);
     setSelectedProductLabel('');
@@ -1033,7 +1004,6 @@ export default function StoreBannersManager() {
       align: template.align ?? prev.align,
     }));
     setAppliedTemplateId(template.id);
-    setAdvancedOpen(true); // titulo/badge/cta/overlay do modelo estao na Camada 2
   };
 
   const openEdit = (item: StoreBanner) => {
@@ -1063,7 +1033,6 @@ export default function StoreBannersManager() {
       campaignErpId: item.campaignErpId != null ? String(item.campaignErpId) : '',
     });
     setErrors({});
-    setAdvancedOpen(false);
     setProductQuery('');
     setProductResults([]);
     setSelectedProductLabel(item.linkType === 'product' ? (item.linkValue || '') : '');
@@ -1531,8 +1500,10 @@ export default function StoreBannersManager() {
                 </section>
               )}
 
-              {/* ══════════ CAMADA 1 — CONFIGURAÇÃO BÁSICA ══════════ */}
+              {/* ══════════ SEÇÃO 1 — CONTEÚDO ══════════ */}
               <section className="space-y-4">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Conteúdo</h4>
+
                 {/* Active toggle */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">Banner ativo</span>
@@ -1708,6 +1679,46 @@ export default function StoreBannersManager() {
                     Se não definida, exibirá a foto desktop redimensionada.
                   </p>
                 </div>
+              </section>
+
+              {/* ══════════ SEÇÃO 2 — CLIQUE E VIGÊNCIA ══════════ */}
+              <section className="space-y-4 border-t border-gray-100 pt-4">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Clique e vigência</h4>
+
+                {/* Encarte / campanha -- vem ANTES do bloco de clique de proposito:
+                    o botao "Produtos do Encarte" ali embaixo so habilita depois
+                    de preencher este codigo. */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1">Vincular a um encarte <span className="font-normal text-gray-400">(opcional)</span></p>
+                  <p className="text-[11px] text-gray-400 mb-2">
+                    Informe o código do encarte no Solidcon e o banner fica ativo automaticamente
+                    enquanto o encarte estiver vigente lá — sem precisar mexer em datas abaixo.
+                  </p>
+                  <Label className="block text-xs font-medium text-gray-600 mb-1">Código do encarte (Solidcon)</Label>
+                  <Input
+                    type="number"
+                    value={form.campaignErpId}
+                    onChange={(e) => set('campaignErpId', e.target.value)}
+                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                    placeholder="Ex: 375"
+                  />
+                  {form.campaignErpId.trim() && (
+                    editing?.campaignErpId === Number(form.campaignErpId) ? (
+                      editing.campaignFound ? (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          Vinculado a "{editing.campaignName}"
+                          {editing.campaignEndDate && ` · vigente até ${new Date(editing.campaignEndDate).toLocaleDateString('pt-BR')}`}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-amber-600 mt-1">
+                          Encarte {form.campaignErpId} ainda não sincronizado — até lá, o banner usa o agendamento manual abaixo.
+                        </p>
+                      )
+                    ) : (
+                      <p className="text-[11px] text-gray-400 mt-1">Salve para conferir se o código já existe.</p>
+                    )
+                  )}
+                </div>
 
                 {/* O que acontece ao clicar? -- 4 botoes diretos */}
                 <div>
@@ -1718,7 +1729,7 @@ export default function StoreBannersManager() {
                       { value: 'category' as LinkType, label: 'Abrir Categoria', icon: Tag },
                       { value: 'url' as LinkType, label: 'Link Externo', icon: Link2 },
                       // Habilitado so com um codigo de encarte preenchido -- sem
-                      // ele nao ha pra onde levar o clique (ver campanhaErpId acima).
+                      // ele nao ha pra onde levar o clique (ver campo acima).
                       { value: 'campaign' as LinkType, label: 'Produtos do Encarte', icon: Layers, needsCampaign: true },
                     ].map((opt) => {
                       const Icon = opt.icon;
@@ -1730,7 +1741,7 @@ export default function StoreBannersManager() {
                           type="button"
                           disabled={disabled}
                           onClick={() => set('linkType', opt.value)}
-                          title={disabled ? 'Preencha o código do encarte abaixo primeiro' : undefined}
+                          title={disabled ? 'Preencha o código do encarte acima primeiro' : undefined}
                           className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-center transition-colors ${
                             disabled
                               ? 'cursor-not-allowed border-gray-100 text-gray-300'
@@ -1814,7 +1825,7 @@ export default function StoreBannersManager() {
                     </>
                   )}
 
-                  {/* URL -- campo simples */}
+                  {/* URL -- campo simples + janela de destino junto, direto abaixo */}
                   {form.linkType === 'url' && (
                     <>
                       <Input
@@ -1827,379 +1838,337 @@ export default function StoreBannersManager() {
                       {!isValidUrl(form.linkValue) && (
                         <p className="text-xs text-amber-500 mt-1">URL inválida</p>
                       )}
+                      {form.linkValue.trim() && (
+                        <div className="mt-3">
+                          <Label className="block text-xs font-medium text-gray-600 mb-1">Quando clicar no link<FieldHint>Mesma janela mantém o cliente na loja. Nova janela é para link de fora (site de fornecedor), pra não perder o carrinho.</FieldHint></Label>
+                          <div className="flex gap-2">
+                            {[
+                              { value: '_self', label: 'Mesma janela' },
+                              { value: '_blank', label: 'Nova janela' },
+                            ].map((opt) => (
+                              <Button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => set('linkTarget', opt.value as LinkTarget)}
+                                variant={form.linkTarget === opt.value ? 'default' : 'outline'}
+                                size="sm"
+                                className={`flex-1 rounded-lg text-xs ${form.linkTarget === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+                              >
+                                {opt.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
-              </section>
 
-              {/* ══════════ CAMADA 2 — OPÇÕES AVANÇADAS (acordeão) ══════════ */}
-              <section className="border-t border-gray-100 pt-4">
-                <button
-                  type="button"
-                  onClick={() => toggleAdvanced()}
-                  aria-expanded={advancedOpen}
-                  className="flex w-full items-center justify-between text-sm font-semibold text-gray-700"
-                >
-                  Opções avançadas
-                  {advancedOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </button>
-
-                {advancedOpen && (
-                  <div ref={advancedRef} className="mt-4 space-y-4">
-                    {/* Sponsor */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <Label className="block text-xs font-medium text-gray-600">
-                          Patrocinador <span className="font-normal text-gray-400">(opcional)</span>
-                        </Label>
-                        <CharCounter value={form.sponsorName} max={FIELD_LIMITS.sponsorName} />
-                      </div>
-                      <Input
-                        type="text"
-                        maxLength={FIELD_LIMITS.sponsorName}
-                        value={form.sponsorName}
-                        onChange={(e) => set('sponsorName', e.target.value)}
-                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                        placeholder="Ex: Patrocinado por Ambev"
-                      />
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        O selo mostra exatamente o que você digitar — escreva "Patrocinado por X",
-                        "Oferecimento Y" ou o que preferir. Em branco, não aparece nada.
-                      </p>
-                    </div>
-
-                    {/* Pages */}
-                    <div>
-                      <Label className="block text-xs font-medium text-gray-600 mb-1">Página de publicação<FieldHint>Em que telas este banner pode sair. Acompanha sozinho o tipo escolhido acima; troque para "Todas as páginas" só se quiser o mesmo banner na home e nas categorias.</FieldHint></Label>
-                      <Select
-                        value={form.pages}
-                        onChange={(e) => set('pages', e.target.value as BannerPages)}
-                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                      >
-                        {PAGES_OPTIONS.map((p) => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </Select>
-                    </div>
-
-                    {/* Link target — only for url links */}
-                    {form.linkType === 'url' && form.linkValue.trim() && (
-                      <div>
-                        <Label className="block text-xs font-medium text-gray-600 mb-1">Quando clicar no link<FieldHint>Mesma janela mantém o cliente na loja. Nova janela é para link de fora (site de fornecedor), pra não perder o carrinho.</FieldHint></Label>
-                        <div className="flex gap-2">
-                          {[
-                            { value: '_self', label: 'Mesma janela' },
-                            { value: '_blank', label: 'Nova janela' },
-                          ].map((opt) => (
-                            <Button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => set('linkTarget', opt.value as LinkTarget)}
-                              variant={form.linkTarget === opt.value ? 'default' : 'outline'}
-                              size="sm"
-                              className={`flex-1 rounded-lg text-xs ${form.linkTarget === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
-                            >
-                              {opt.label}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Textos sobre a imagem */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <Label className="block text-xs font-medium text-gray-600">
-                          Título do banner <span className="font-normal text-gray-400">(opcional)</span>
-                        </Label>
-                        <CharCounter value={form.title} max={FIELD_LIMITS.title} />
-                      </div>
-                      <Input
-                        type="text"
-                        maxLength={FIELD_LIMITS.title}
-                        value={form.title}
-                        onChange={(e) => set('title', e.target.value)}
-                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                        placeholder="Ex: Promoção de Verão"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <Label className="block text-xs font-medium text-gray-600">
-                          Descrição <span className="font-normal text-gray-400">(opcional)</span>
-                        </Label>
-                        <CharCounter value={form.description} max={FIELD_LIMITS.description} />
-                      </div>
-                      <Textarea
-                        rows={2}
-                        maxLength={FIELD_LIMITS.description}
-                        value={form.description}
-                        onChange={(e) => set('description', e.target.value)}
-                        className="min-h-0 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                        placeholder="Texto de apoio exibido sob o título"
-                      />
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        Enter quebra a linha no banner. O texto ocupa no máximo 2/3 da largura pra
-                        não cobrir a foto.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <Label className="block text-xs font-medium text-gray-600">
-                            Selo <span className="font-normal text-gray-400">(opcional)</span>
-                          </Label>
-                          <CharCounter value={form.badgeText} max={FIELD_LIMITS.badgeText} />
-                        </div>
-                        <Input
-                          type="text"
-                          maxLength={FIELD_LIMITS.badgeText}
-                          value={form.badgeText}
-                          onChange={(e) => set('badgeText', e.target.value)}
-                          className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                          placeholder="Ex: Só hoje"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <Label className="block text-xs font-medium text-gray-600">
-                            Texto do botão <span className="font-normal text-gray-400">(opcional)</span>
-                          </Label>
-                          <CharCounter value={form.ctaLabel} max={FIELD_LIMITS.ctaLabel} />
-                        </div>
-                        <Input
-                          type="text"
-                          maxLength={FIELD_LIMITS.ctaLabel}
-                          value={form.ctaLabel}
-                          onChange={(e) => set('ctaLabel', e.target.value)}
-                          className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                          placeholder="Ex: Ver oferta"
-                        />
-                      </div>
-                    </div>
-
+                {/* Agendamento manual -- so trava quando a campanha do encarte ja
+                    foi confirmada (existe no catalogo); enquanto nao sincroniza,
+                    e o fallback de vigencia (ver store-banners.service.ts). */}
+                <div className={campaignConfirmed ? 'opacity-40 pointer-events-none' : ''}>
+                  <p className="text-xs font-semibold text-gray-500 mb-1">Agendamento manual</p>
+                  <p className="text-[11px] text-gray-400 mb-2">
+                    {campaignConfirmed
+                      ? 'Ignorado -- o banner segue a vigência do encarte acima.'
+                      : form.campaignErpId.trim()
+                        ? 'Encarte ainda não sincronizado: usado como fallback de vigência até lá.'
+                        : 'Opcional. Intervalo mínimo de 1h entre início e fim.'}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="block text-xs font-medium text-gray-600 mb-1">
-                        Cor do overlay <span className="font-normal text-gray-400">(opcional — escurece a foto pra dar contraste ao texto)</span>
+                        <Calendar size={10} className="inline mr-1" />
+                        Início
                       </Label>
-
-                      {/* Chips de presets */}
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        {OVERLAY_PRESETS.map((preset) => {
-                          const isActive = form.overlayColor.trim() && overlayHex.toLowerCase() === preset.hex.toLowerCase();
-                          return (
-                            <button
-                              key={preset.hex}
-                              type="button"
-                              title={preset.label}
-                              onClick={() => set('overlayColor', composeOverlayColor(preset.hex, overlayOpacity))}
-                              className={`h-7 w-7 rounded-full border-2 transition-transform ${isActive ? 'scale-110 border-gray-900' : 'border-white shadow-sm hover:scale-105'}`}
-                              style={{ background: preset.hex, boxShadow: isActive ? undefined : '0 0 0 1px #e5e7eb' }}
-                            />
-                          );
-                        })}
-                        {form.overlayColor.trim() && (
-                          <Button
-                            type="button"
-                            onClick={() => set('overlayColor', '')}
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 rounded-full px-2 text-[11px] text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                          >
-                            Remover
-                          </Button>
-                        )}
-                      </div>
-
-                      {/* Seletor nativo + opacidade */}
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          aria-label="Escolher cor do overlay"
-                          value={overlayHex}
-                          onChange={(e) => set('overlayColor', composeOverlayColor(e.target.value, overlayOpacity))}
-                          className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-transparent p-0.5"
-                        />
-                        <div className="flex-1">
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            value={overlayOpacity}
-                            onChange={(e) => set('overlayColor', composeOverlayColor(overlayHex, Number(e.target.value)))}
-                            className="w-full accent-gray-900"
-                            aria-label="Opacidade do overlay"
-                          />
-                        </div>
-                        <span className="w-9 shrink-0 text-right text-xs text-gray-400">{overlayOpacity}%</span>
-                      </div>
-
-                      {/* Preview */}
-                      <div
-                        className="mt-2 h-9 rounded-lg border border-gray-200"
-                        style={{ background: form.overlayColor.trim() || 'repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 6px, #fff 6px, #fff 12px)' }}
+                      <Input
+                        type="datetime-local"
+                        value={form.startDate}
+                        onChange={(e) => set('startDate', e.target.value)}
+                        disabled={campaignConfirmed}
+                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
                       />
                     </div>
-
-                    {/* Nota do produto exaltado -- so relevante pra banners intercalados em par (duo) */}
-                    {form.slot === 'intercalado' && (
-                      <div>
-                        <Label className="block text-xs font-medium text-gray-600 mb-1">
-                          Nota do produto exaltado
-                          <span className="ml-1 font-normal text-gray-400">(opcional — usada quando o link é um produto)</span>
-                        </Label>
-                        <Input
-                          type="text"
-                          value={form.highlightNote}
-                          onChange={(e) => set('highlightNote', e.target.value)}
-                          className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                          placeholder="Ex: Direto da nossa boutique"
-                        />
-                      </div>
-                    )}
-
-                    {/* Alinhamento -- hero e intercalado sao os slots com texto/CTA sobrepostos
-                        na imagem, onde faz sentido escolher onde o bloco fica ancorado. */}
-                    {(form.slot === 'hero' || form.slot === 'intercalado') && (
-                      <div>
-                        <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do conteúdo<FieldHint>De que lado ficam título, texto e botão. O escurecimento da foto acompanha: alinhou à direita, a sombra vai pra direita e libera o outro lado pra imagem aparecer.</FieldHint></Label>
-                        <div className="flex gap-2">
-                          {[
-                            { value: 'left', label: 'Esquerda' },
-                            { value: 'center', label: 'Centro' },
-                            { value: 'right', label: 'Direita' },
-                          ].map((opt) => (
-                            <Button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => set('align', opt.value as 'left' | 'center' | 'right')}
-                              variant={form.align === opt.value ? 'default' : 'outline'}
-                              size="sm"
-                              className={`flex-1 rounded-lg text-xs ${form.align === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
-                            >
-                              {opt.label}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Tempo em tela -- so o hero roda em carrossel, os outros
-                        slots ficam parados, entao a duracao nao se aplica. */}
-                    {form.slot === 'hero' && (
-                      <div>
-                        <Label className="block text-xs font-medium text-gray-600 mb-1">Tempo em tela</Label>
-                        <div className="flex gap-2">
-                          {[3, 5, 7, 10].map((seconds) => (
-                            <Button
-                              key={seconds}
-                              type="button"
-                              onClick={() => set('displayDuration', seconds)}
-                              variant={form.displayDuration === seconds ? 'default' : 'outline'}
-                              size="sm"
-                              className={`flex-1 rounded-lg text-xs ${form.displayDuration === seconds ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
-                            >
-                              {seconds}s
-                            </Button>
-                          ))}
-                          <Input
-                            type="number"
-                            min={1}
-                            max={60}
-                            value={form.displayDuration}
-                            onChange={(e) => set('displayDuration', Number(e.target.value))}
-                            className="w-20 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                            aria-label="Tempo em tela em segundos"
-                          />
-                        </div>
-                        <p className="text-[11px] text-gray-500 mt-1">
-                          Segundos que este banner fica visível antes do carrossel avançar (1 a 60).
-                          Texto mais longo pede mais tempo de leitura.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Encarte / campanha */}
-                    <div className="border-t border-gray-100 pt-4">
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Vincular a um encarte</p>
-                      <p className="text-[11px] text-gray-400 mb-2">
-                        Opcional. Informe o código do encarte no Solidcon e o banner fica ativo automaticamente
-                        enquanto o encarte estiver vigente lá — sem precisar mexer em datas abaixo.
-                      </p>
-                      <Label className="block text-xs font-medium text-gray-600 mb-1">Código do encarte (Solidcon)</Label>
+                    <div>
+                      <Label className="block text-xs font-medium text-gray-600 mb-1">
+                        <Calendar size={10} className="inline mr-1" />
+                        Fim
+                      </Label>
                       <Input
-                        type="number"
-                        value={form.campaignErpId}
-                        onChange={(e) => set('campaignErpId', e.target.value)}
-                        className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                        placeholder="Ex: 375"
+                        type="datetime-local"
+                        value={form.endDate}
+                        onChange={(e) => set('endDate', e.target.value)}
+                        disabled={campaignConfirmed}
+                        className={`rounded-lg text-sm focus-visible:ring-gray-900 ${errors.endDate ? 'border-red-400' : 'border-gray-200'}`}
                       />
-                      {form.campaignErpId.trim() && (
-                        editing?.campaignErpId === Number(form.campaignErpId) ? (
-                          editing.campaignFound ? (
-                            <p className="text-xs text-emerald-600 mt-1">
-                              Vinculado a "{editing.campaignName}"
-                              {editing.campaignEndDate && ` · vigente até ${new Date(editing.campaignEndDate).toLocaleDateString('pt-BR')}`}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-amber-600 mt-1">
-                              Encarte {form.campaignErpId} ainda não sincronizado — até lá, o banner usa o agendamento manual abaixo.
-                            </p>
-                          )
-                        ) : (
-                          <p className="text-[11px] text-gray-400 mt-1">Salve para conferir se o código já existe.</p>
-                        )
+                      {errors.endDate && (
+                        <p className="text-xs text-red-500 mt-1">{errors.endDate}</p>
                       )}
                     </div>
+                  </div>
+                </div>
+              </section>
 
-                    {/* Agendamento manual -- so trava quando a campanha do encarte ja
-                        foi confirmada (existe no catalogo); enquanto nao sincroniza,
-                        e o fallback de vigencia (ver store-banners.service.ts). */}
-                    <div className={campaignConfirmed ? 'opacity-40 pointer-events-none' : ''}>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Agendamento manual</p>
-                      <p className="text-[11px] text-gray-400 mb-2">
-                        {campaignConfirmed
-                          ? 'Ignorado -- o banner segue a vigência do encarte acima.'
-                          : form.campaignErpId.trim()
-                            ? 'Encarte ainda não sincronizado: usado como fallback de vigência até lá.'
-                            : 'Opcional. Intervalo mínimo de 1h entre início e fim.'}
-                      </p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="block text-xs font-medium text-gray-600 mb-1">
-                            <Calendar size={10} className="inline mr-1" />
-                            Início
-                          </Label>
-                          <Input
-                            type="datetime-local"
-                            value={form.startDate}
-                            onChange={(e) => set('startDate', e.target.value)}
-                            disabled={campaignConfirmed}
-                            className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
-                          />
-                        </div>
-                        <div>
-                          <Label className="block text-xs font-medium text-gray-600 mb-1">
-                            <Calendar size={10} className="inline mr-1" />
-                            Fim
-                          </Label>
-                          <Input
-                            type="datetime-local"
-                            value={form.endDate}
-                            onChange={(e) => set('endDate', e.target.value)}
-                            disabled={campaignConfirmed}
-                            className={`rounded-lg text-sm focus-visible:ring-gray-900 ${errors.endDate ? 'border-red-400' : 'border-gray-200'}`}
-                          />
-                          {errors.endDate && (
-                            <p className="text-xs text-red-500 mt-1">{errors.endDate}</p>
-                          )}
-                        </div>
-                      </div>
+              {/* ══════════ SEÇÃO 3 — TEXTOS E APARÊNCIA ══════════ */}
+              <section className="space-y-4 border-t border-gray-100 pt-4">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Textos e aparência</h4>
+
+                {/* Textos sobre a imagem */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="block text-xs font-medium text-gray-600">
+                      Título do banner <span className="font-normal text-gray-400">(opcional)</span>
+                    </Label>
+                    <CharCounter value={form.title} max={FIELD_LIMITS.title} />
+                  </div>
+                  <Input
+                    type="text"
+                    maxLength={FIELD_LIMITS.title}
+                    value={form.title}
+                    onChange={(e) => set('title', e.target.value)}
+                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                    placeholder="Ex: Promoção de Verão"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="block text-xs font-medium text-gray-600">
+                      Descrição <span className="font-normal text-gray-400">(opcional)</span>
+                    </Label>
+                    <CharCounter value={form.description} max={FIELD_LIMITS.description} />
+                  </div>
+                  <Textarea
+                    rows={2}
+                    maxLength={FIELD_LIMITS.description}
+                    value={form.description}
+                    onChange={(e) => set('description', e.target.value)}
+                    className="min-h-0 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                    placeholder="Texto de apoio exibido sob o título"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Enter quebra a linha no banner. O texto ocupa no máximo 2/3 da largura pra
+                    não cobrir a foto.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="block text-xs font-medium text-gray-600">
+                        Selo <span className="font-normal text-gray-400">(opcional)</span>
+                      </Label>
+                      <CharCounter value={form.badgeText} max={FIELD_LIMITS.badgeText} />
+                    </div>
+                    <Input
+                      type="text"
+                      maxLength={FIELD_LIMITS.badgeText}
+                      value={form.badgeText}
+                      onChange={(e) => set('badgeText', e.target.value)}
+                      className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                      placeholder="Ex: Só hoje"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="block text-xs font-medium text-gray-600">
+                        Texto do botão <span className="font-normal text-gray-400">(opcional)</span>
+                      </Label>
+                      <CharCounter value={form.ctaLabel} max={FIELD_LIMITS.ctaLabel} />
+                    </div>
+                    <Input
+                      type="text"
+                      maxLength={FIELD_LIMITS.ctaLabel}
+                      value={form.ctaLabel}
+                      onChange={(e) => set('ctaLabel', e.target.value)}
+                      className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                      placeholder="Ex: Ver oferta"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="block text-xs font-medium text-gray-600 mb-1">
+                    Cor do overlay <span className="font-normal text-gray-400">(opcional — escurece a foto pra dar contraste ao texto)</span>
+                  </Label>
+
+                  {/* Chips de presets */}
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    {OVERLAY_PRESETS.map((preset) => {
+                      const isActive = form.overlayColor.trim() && overlayHex.toLowerCase() === preset.hex.toLowerCase();
+                      return (
+                        <button
+                          key={preset.hex}
+                          type="button"
+                          title={preset.label}
+                          onClick={() => set('overlayColor', composeOverlayColor(preset.hex, overlayOpacity))}
+                          className={`h-7 w-7 rounded-full border-2 transition-transform ${isActive ? 'scale-110 border-gray-900' : 'border-white shadow-sm hover:scale-105'}`}
+                          style={{ background: preset.hex, boxShadow: isActive ? undefined : '0 0 0 1px #e5e7eb' }}
+                        />
+                      );
+                    })}
+                    {form.overlayColor.trim() && (
+                      <Button
+                        type="button"
+                        onClick={() => set('overlayColor', '')}
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 rounded-full px-2 text-[11px] text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                      >
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Seletor nativo + opacidade */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      aria-label="Escolher cor do overlay"
+                      value={overlayHex}
+                      onChange={(e) => set('overlayColor', composeOverlayColor(e.target.value, overlayOpacity))}
+                      className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-transparent p-0.5"
+                    />
+                    <div className="flex-1">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={overlayOpacity}
+                        onChange={(e) => set('overlayColor', composeOverlayColor(overlayHex, Number(e.target.value)))}
+                        className="w-full accent-gray-900"
+                        aria-label="Opacidade do overlay"
+                      />
+                    </div>
+                    <span className="w-9 shrink-0 text-right text-xs text-gray-400">{overlayOpacity}%</span>
+                  </div>
+
+                  {/* Preview */}
+                  <div
+                    className="mt-2 h-9 rounded-lg border border-gray-200"
+                    style={{ background: form.overlayColor.trim() || 'repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 6px, #fff 6px, #fff 12px)' }}
+                  />
+                </div>
+
+                {/* Nota do produto exaltado -- so relevante pra banners intercalados em par (duo) */}
+                {form.slot === 'intercalado' && (
+                  <div>
+                    <Label className="block text-xs font-medium text-gray-600 mb-1">
+                      Nota do produto exaltado
+                      <span className="ml-1 font-normal text-gray-400">(opcional — usada quando o link é um produto)</span>
+                    </Label>
+                    <Input
+                      type="text"
+                      value={form.highlightNote}
+                      onChange={(e) => set('highlightNote', e.target.value)}
+                      className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                      placeholder="Ex: Direto da nossa boutique"
+                    />
+                  </div>
+                )}
+
+                {/* Alinhamento -- hero e intercalado sao os slots com texto/CTA sobrepostos
+                    na imagem, onde faz sentido escolher onde o bloco fica ancorado. */}
+                {(form.slot === 'hero' || form.slot === 'intercalado') && (
+                  <div>
+                    <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do conteúdo<FieldHint>De que lado ficam título, texto e botão. O escurecimento da foto acompanha: alinhou à direita, a sombra vai pra direita e libera o outro lado pra imagem aparecer.</FieldHint></Label>
+                    <div className="flex gap-2">
+                      {[
+                        { value: 'left', label: 'Esquerda' },
+                        { value: 'center', label: 'Centro' },
+                        { value: 'right', label: 'Direita' },
+                      ].map((opt) => (
+                        <Button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => set('align', opt.value as 'left' | 'center' | 'right')}
+                          variant={form.align === opt.value ? 'default' : 'outline'}
+                          size="sm"
+                          className={`flex-1 rounded-lg text-xs ${form.align === opt.value ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+                        >
+                          {opt.label}
+                        </Button>
+                      ))}
                     </div>
                   </div>
                 )}
+
+                {/* Tempo em tela -- so o hero roda em carrossel, os outros
+                    slots ficam parados, entao a duracao nao se aplica. */}
+                {form.slot === 'hero' && (
+                  <div>
+                    <Label className="block text-xs font-medium text-gray-600 mb-1">Tempo em tela</Label>
+                    <div className="flex gap-2">
+                      {[3, 5, 7, 10].map((seconds) => (
+                        <Button
+                          key={seconds}
+                          type="button"
+                          onClick={() => set('displayDuration', seconds)}
+                          variant={form.displayDuration === seconds ? 'default' : 'outline'}
+                          size="sm"
+                          className={`flex-1 rounded-lg text-xs ${form.displayDuration === seconds ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+                        >
+                          {seconds}s
+                        </Button>
+                      ))}
+                      <Input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={form.displayDuration}
+                        onChange={(e) => set('displayDuration', Number(e.target.value))}
+                        className="w-20 rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                        aria-label="Tempo em tela em segundos"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Segundos que este banner fica visível antes do carrossel avançar (1 a 60).
+                      Texto mais longo pede mais tempo de leitura.
+                    </p>
+                  </div>
+                )}
+              </section>
+
+              {/* ══════════ SEÇÃO 4 — AVANÇADO ══════════ */}
+              <section className="space-y-4 border-t border-gray-100 pt-4">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Avançado</h4>
+
+                {/* Sponsor */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="block text-xs font-medium text-gray-600">
+                      Patrocinador <span className="font-normal text-gray-400">(opcional)</span>
+                    </Label>
+                    <CharCounter value={form.sponsorName} max={FIELD_LIMITS.sponsorName} />
+                  </div>
+                  <Input
+                    type="text"
+                    maxLength={FIELD_LIMITS.sponsorName}
+                    value={form.sponsorName}
+                    onChange={(e) => set('sponsorName', e.target.value)}
+                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                    placeholder="Ex: Patrocinado por Ambev"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    O selo mostra exatamente o que você digitar — escreva "Patrocinado por X",
+                    "Oferecimento Y" ou o que preferir. Em branco, não aparece nada.
+                  </p>
+                </div>
+
+                {/* Pages */}
+                <div>
+                  <Label className="block text-xs font-medium text-gray-600 mb-1">Página de publicação<FieldHint>Em que telas este banner pode sair. Acompanha sozinho o tipo escolhido acima; troque para "Todas as páginas" só se quiser o mesmo banner na home e nas categorias.</FieldHint></Label>
+                  <Select
+                    value={form.pages}
+                    onChange={(e) => set('pages', e.target.value as BannerPages)}
+                    className="rounded-lg border-gray-200 text-sm focus-visible:ring-gray-900"
+                  >
+                    {PAGES_OPTIONS.map((p) => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </Select>
+                </div>
               </section>
             </div>
 
