@@ -4,7 +4,6 @@ import { Tag, Plus, X, Ticket, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { couponsAdminAPI, notificationsAdminAPI } from '../services/api'
 
@@ -99,67 +98,104 @@ export default function Coupons() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-5">
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-gray-600">Código *</Label>
-              <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="Ex: BEMVINDO10" className="font-mono uppercase" />
+              <Label className="mb-1 block text-sm font-semibold text-gray-800">1. Qual palavra o cliente vai digitar?</Label>
+              <p className="mb-2 text-xs text-gray-500">É o código do cupom. Escolha algo fácil de lembrar e escrever.</p>
+              <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="Ex: FRETEGRATIS" className="font-mono text-lg uppercase" />
             </div>
+
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-gray-600">Nome interno</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Boas-vindas 10%" />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-gray-600">Tipo de desconto</Label>
-              <Select value={discountType} onChange={(e) => setDiscountType(e.target.value as 'PERCENT_OFF' | 'FIXED_OFF')}>
-                <option value="PERCENT_OFF">Percentual (%)</option>
-                <option value="FIXED_OFF">Valor fixo (R$)</option>
-              </Select>
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-gray-600">
-                Valor {discountType === 'PERCENT_OFF' ? '(%)' : '(R$)'} *
-              </Label>
-              <Input type="number" min="0" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} />
-            </div>
-            {discountType === 'PERCENT_OFF' && (
-              <div>
-                <Label className="mb-1 block text-xs font-semibold text-gray-600">Desconto máximo (R$, opcional)</Label>
-                <Input type="number" min="0" step="0.01" value={maxDiscount} onChange={(e) => setMaxDiscount(e.target.value)} placeholder="Sem limite" />
+              <Label className="mb-1 block text-sm font-semibold text-gray-800">2. Que desconto o cliente ganha?</Label>
+              <p className="mb-2 text-xs text-gray-500">Escolha se é um percentual (como "10% de desconto") ou um valor certo em reais (como "R$ 20 de desconto").</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('PERCENT_OFF')}
+                  className={`rounded-lg border-2 p-3 text-left text-sm font-semibold transition ${discountType === 'PERCENT_OFF' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 text-gray-600'}`}
+                >
+                  Porcentagem (%)
+                  <p className="mt-0.5 text-xs font-normal text-gray-500">Ex: 10% de desconto</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('FIXED_OFF')}
+                  className={`rounded-lg border-2 p-3 text-left text-sm font-semibold transition ${discountType === 'FIXED_OFF' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 text-gray-600'}`}
+                >
+                  Valor em reais (R$)
+                  <p className="mt-0.5 text-xs font-normal text-gray-500">Ex: R$ 20 de desconto</p>
+                </button>
               </div>
-            )}
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-gray-600">Pedido mínimo (R$, opcional)</Label>
-              <Input type="number" min="0" step="0.01" value={minSubtotal} onChange={(e) => setMinSubtotal(e.target.value)} placeholder="Sem mínimo" />
+              <div className="mt-3 flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder={discountType === 'PERCENT_OFF' ? 'Ex: 10' : 'Ex: 20'}
+                  className="text-lg"
+                />
+                <span className="text-lg font-bold text-gray-500">{discountType === 'PERCENT_OFF' ? '%' : 'R$'}</span>
+              </div>
+              {discountType === 'PERCENT_OFF' && (
+                <div className="mt-2">
+                  <Label className="mb-1 block text-xs font-medium text-gray-500">Quer travar um valor máximo de desconto em reais? (não obrigatório)</Label>
+                  <Input type="number" min="0" step="0.01" value={maxDiscount} onChange={(e) => setMaxDiscount(e.target.value)} placeholder="Deixe em branco = sem limite" />
+                </div>
+              )}
             </div>
+
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-gray-600">Início (opcional, agenda pra depois)</Label>
-              <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+              <Label className="mb-1 block text-sm font-semibold text-gray-800">3. Quantas pessoas podem usar?</Label>
+              <p className="mb-2 text-xs text-gray-500">Deixe em branco para "sem limite". Para uma promoção de poucas vagas (ex: "10 cupons, corre!"), coloque o número aqui.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="mb-1 block text-xs font-medium text-gray-500">Quantidade total de vezes</Label>
+                  <Input type="number" min="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="Sem limite" />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs font-medium text-gray-500">Vezes por cliente</Label>
+                  <Input type="number" min="1" value={maxUsesPerCustomer} onChange={(e) => setMaxUsesPerCustomer(e.target.value)} placeholder="Sem limite" />
+                </div>
+              </div>
             </div>
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-gray-600">Validade até (opcional)</Label>
-              <Input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-gray-600">Limite total de usos (opcional)</Label>
-              <Input type="number" min="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="Sem limite" />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-gray-600">Limite por cliente (opcional)</Label>
-              <Input type="number" min="1" value={maxUsesPerCustomer} onChange={(e) => setMaxUsesPerCustomer(e.target.value)} placeholder="Sem limite" />
-            </div>
+
+            <details className="group rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-gray-700">Mais opções (só se precisar)</summary>
+              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <Label className="mb-1 block text-xs font-medium text-gray-500">Nome pra você lembrar (não aparece pro cliente)</Label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Promoção de aniversário" />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs font-medium text-gray-500">Só vale a partir de quanto no carrinho?</Label>
+                  <Input type="number" min="0" step="0.01" value={minSubtotal} onChange={(e) => setMinSubtotal(e.target.value)} placeholder="Sem mínimo" />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs font-medium text-gray-500">Programar pra começar depois (data e hora)</Label>
+                  <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+                  <p className="mt-1 text-xs text-gray-400">Deixe em branco pra valer agora mesmo.</p>
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs font-medium text-gray-500">Até quando vale?</Label>
+                  <Input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+                </div>
+              </div>
+            </details>
           </div>
 
-          <div className="mt-4 flex items-center gap-2 rounded-md bg-amber-50 p-3">
+          <div className="mt-5 flex items-center gap-3 rounded-md bg-amber-50 p-3">
             <Switch checked={notifyCustomers} onChange={setNotifyCustomers} />
-            <Users size={16} className="text-amber-700" />
-            <span className="text-sm text-amber-800">Notificar todos os clientes por push ao criar</span>
+            <Users size={18} className="shrink-0 text-amber-700" />
+            <span className="text-sm text-amber-800">Avisar todos os clientes no celular quando eu criar esse cupom</span>
           </div>
 
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
 
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-5 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button disabled={!canSubmit || createMutation.isPending} onClick={() => createMutation.mutate()}>
+            <Button disabled={!canSubmit || createMutation.isPending} onClick={() => createMutation.mutate()} className="px-6 text-base">
               {createMutation.isPending ? 'Criando...' : 'Criar cupom'}
             </Button>
           </div>
@@ -181,9 +217,9 @@ export default function Coupons() {
                 <th className="px-4 py-3">Código</th>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Desconto</th>
-                <th className="px-4 py-3">Usos</th>
-                <th className="px-4 py-3">Validade</th>
-                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Quantas vezes já foi usado</th>
+                <th className="px-4 py-3">Vale até</th>
+                <th className="px-4 py-3">Está ativo?</th>
               </tr>
             </thead>
             <tbody>
