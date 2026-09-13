@@ -1,13 +1,26 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common'
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { CouponsService } from './coupons.service'
+import { PricingService } from '../pricing/pricing.service'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Coupons')
 @RelaxedThrottle()
 @Controller('coupons')
 export class CouponsController {
-  constructor(private readonly couponsService: CouponsService) {}
+  constructor(
+    private readonly couponsService: CouponsService,
+    private readonly pricingService: PricingService,
+  ) {}
+
+  @Get(':code/availability')
+  @ApiOperation({
+    summary: 'Quantos usos restam de um cupom (contador de escassez pro storefront)',
+    description: 'Publico de proposito -- usado na home/banner antes do cliente logar. So expoe quantidade, nada do resto do cupom.',
+  })
+  async availability(@Param('code') code: string) {
+    return this.pricingService.getCouponAvailability(code)
+  }
 
   @Get('validate')
   @ApiOperation({

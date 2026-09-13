@@ -20,12 +20,13 @@ vi.stubGlobal('localStorage', localStorageMock)
 vi.mock('../services/api', () => ({
   couponsAPI: {
     validate: vi.fn(),
+    availability: vi.fn(),
   },
 }))
 
 import { couponsAPI } from '../services/api'
 
-const mockCouponsAPI = couponsAPI as { validate: ReturnType<typeof vi.fn> }
+const mockCouponsAPI = couponsAPI as { validate: ReturnType<typeof vi.fn>; availability: ReturnType<typeof vi.fn> }
 
 const makeProduct = (overrides: Partial<Product> = {}): Product => ({
   id: 'prod-1',

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { useEffect, useState } from 'react'
+import { couponsAPI } from '../services/api'
 import type { Product } from '../types'
 import { useProductRecommendations, useSmartSubstitutes } from '../hooks/useCart'
 import { useTopSellingProducts } from '../hooks/useCMS'
@@ -64,6 +65,7 @@ export default function Cart() {
   const totalWithDelivery = total + (verifiedDeliveryFee ?? 0)
   const [couponInput, setCouponInput] = useState(couponCode || '')
   const [couponFeedback, setCouponFeedback] = useState<string | null>(null)
+  const [couponRemaining, setCouponRemaining] = useState<{ remaining: number; maxUses: number } | null>(null)
   const [unitModeByItem, setUnitModeByItem] = useState<Record<string, 'unit' | 'weight'>>({})
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0)
   const anchorProductId = cart[0]?.productId || ''
@@ -85,6 +87,24 @@ export default function Cart() {
   useEffect(() => {
     setCouponInput(couponCode || '')
   }, [couponCode])
+
+  // Contador de escassez ("restam X de Y") -- so aparece pra cupom com
+  // maxUses configurado. Busca enquanto digita (debounce curto) pra mostrar
+  // a corrida antes mesmo de clicar "Aplicar".
+  useEffect(() => {
+    const code = couponInput.trim()
+    if (code.length < 3) {
+      setCouponRemaining(null)
+      return
+    }
+    const timer = setTimeout(() => {
+      couponsAPI
+        .availability(code)
+        .then(({ data }) => setCouponRemaining(data.maxUses != null ? { remaining: data.remaining ?? 0, maxUses: data.maxUses } : null))
+        .catch(() => setCouponRemaining(null))
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [couponInput])
 
   const handleApplyCoupon = async () => {
     const result = await applyCoupon(couponInput)
@@ -322,6 +342,13 @@ export default function Cart() {
                         Remover
                       </Button>
                     </div>
+                  )}
+                  {couponRemaining && (
+                    <p className={`text-xs font-semibold ${couponRemaining.remaining <= 0 ? 'text-red-600' : 'text-[#B8860B]'}`}>
+                      {couponRemaining.remaining <= 0
+                        ? 'Esgotado — todos os cupons já foram usados.'
+                        : `⚡ Restam ${couponRemaining.remaining} de ${couponRemaining.maxUses} cupons!`}
+                    </p>
                   )}
                   {couponFeedback && <p className="text-xs text-[#5d4f33]">{couponFeedback}</p>}
                 </div>

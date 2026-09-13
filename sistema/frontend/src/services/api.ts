@@ -350,6 +350,9 @@ export const couponsAPI = {
     api.get<CouponValidationResult>('/coupons/validate', {
       params: { code, subtotal },
     }),
+  /** Contador de escassez ("restam X de Y") pra cupom com maxUses -- publico. */
+  availability: (code: string) =>
+    api.get<{ valid: boolean; remaining: number | null; maxUses: number | null }>(`/coupons/${encodeURIComponent(code)}/availability`),
 }
 
 // Auth

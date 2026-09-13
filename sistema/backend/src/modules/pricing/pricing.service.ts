@@ -691,6 +691,20 @@ export class PricingService {
     })
   }
 
+  /**
+   * "Restam X de Y" pro storefront mostrar contador de escassez (dropa de
+   * cupom limitado) sem expor nada do resto do cupom/promocao. Publico de
+   * proposito -- o cliente ve isso ANTES de logar, na home/banner.
+   */
+  async getCouponAvailability(code: string, context?: PricingContext) {
+    const coupon = await this.findCoupon(code, context)
+    if (!coupon) return { valid: false, remaining: null, maxUses: null }
+    if (coupon.maxUses == null) return { valid: true, remaining: null, maxUses: null }
+
+    const used = await this.prisma.promotionUsage.count({ where: { couponId: coupon.id } })
+    return { valid: used < coupon.maxUses, remaining: Math.max(0, coupon.maxUses - used), maxUses: coupon.maxUses }
+  }
+
   private async assertCouponUsageLimit(coupon: NonNullable<Awaited<ReturnType<PricingService['findCoupon']>>>, customerId?: string) {
     if (coupon.maxUses != null) {
       const globalUses = await this.prisma.promotionUsage.count({ where: { couponId: coupon.id } })
