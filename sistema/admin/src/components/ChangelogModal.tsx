@@ -14,6 +14,23 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.9.0',
+    date: '13/09/2026',
+    title: 'Cupons de Desconto, Encartes Ligados aos Banners e Notificações Mais Espertas',
+    highlights: [
+      { type: 'feat', description: 'Nova tela de Cupons: crie cupons de desconto em porcentagem, valor fixo ou frete grátis, com limite de usos (total e por cliente), início programado e opção de avisar todos os clientes por notificação quando criar. No carrinho, o cliente vê em tempo real quantas vagas restam de um cupom limitado.' },
+      { type: 'feat', description: 'Banner agora pode ser vinculado a um encarte de verdade: informe o código do encarte e o clique já leva o cliente direto pros produtos daquela promoção, com preço "de/por" — sem precisar cadastrar nada duplicado.' },
+      { type: 'feat', description: 'Notificações automáticas de início e fim de encarte: os clientes recebem um aviso quando um encarte começa e outro nas últimas horas antes de terminar.' },
+      { type: 'feat', description: 'Notificação de carrinho abandonado: cliente que deixa item no carrinho e some recebe um lembrete depois de um tempo, só uma vez por carrinho.' },
+      { type: 'feat', description: 'Broadcast de notificação ganhou segmentação (por inatividade ou categoria comprada) e agendamento pra data/hora futura, além de um histórico organizado por abas (campanhas, pedidos, tudo).' },
+      { type: 'fix', description: 'Cliente às vezes recebia duas notificações da mesma mudança de status de pedido — agora é sempre uma.' },
+      { type: 'fix', description: 'Cupom esgotado ou fora do prazo agora mostra uma mensagem clara explicando o motivo (ex: "Esse cupom já esgotou" ou "Só vale a partir de R$ 50,00"), em vez de simplesmente não funcionar.' },
+      { type: 'fix', description: 'Upload de foto de banner às vezes travava com "sem conexão com o servidor" mesmo com a internet normal — era um problema de configuração interna, já corrigido.' },
+      { type: 'fix', description: 'Janela de criar/editar banner ficava colada na borda direita da tela, desperdiçando o resto do espaço em monitores largos — agora abre centralizada e mais larga, com os campos reorganizados em blocos mais fáceis de seguir.' },
+      { type: 'fix', description: 'Aviso de "produto adicionado ao carrinho" demorava pra sumir e aparecia colado na parte de baixo da tela, atrapalhando no celular — agora é mais rápido e aparece no topo.' },
+    ],
+  },
+  {
     version: '1.8.0',
     date: '10/09/2026',
     title: 'Loja Migrou pro Sistema Próprio e Separação Ganhou Correções Importantes',
