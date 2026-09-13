@@ -404,7 +404,7 @@ function ProductPurchasePanel({ product }: { product: Product }) {
   const handleAdd = () => {
     addItem(product, 1)
     fireAddToCartEvent()
-    toast.success(`${formatProductTitle(product.name)} no carrinho`, { id: `add-${product.id}` })
+    toast.success(`${formatProductTitle(product.name)} no carrinho`, { id: `add-${product.id}`, duration: 1500, position: 'top-center' })
   }
 
   const handleDecrease = () => {

@@ -78,7 +78,7 @@ export function StoreProductCard({
           </button>
         </span>
       ),
-      { id: `add-${product.id}` },
+      { id: `add-${product.id}`, duration: 1500, position: 'top-center' },
     )
   }
 
