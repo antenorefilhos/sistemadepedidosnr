@@ -1448,9 +1448,9 @@ export default function StoreBannersManager() {
 
       {/* ── Form Modal ────────────────────────────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-end">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
-          <div className="relative z-10 w-full max-w-lg h-full bg-white shadow-2xl flex flex-col overflow-hidden">
+          <div className="relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
             {/* modal header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
@@ -1538,7 +1538,7 @@ export default function StoreBannersManager() {
                 {/* Onde vai aparecer? -- cards visuais */}
                 <div>
                   <Label className="block text-xs font-medium text-gray-600 mb-2">Onde vai aparecer?<FieldHint>O formato e o lugar do banner. Hero é o carrossel grande do topo; Intercalado fica entre as prateleiras; Categoria abre na página do departamento; Tarja é a faixa fina; Popup abre sobre a tela.</FieldHint></Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {SLOT_OPTIONS.map((opt) => {
                       const Icon = opt.icon;
                       const isActive = form.slot === opt.value;
