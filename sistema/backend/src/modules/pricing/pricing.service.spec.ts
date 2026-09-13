@@ -156,6 +156,41 @@ describe('PricingService', () => {
     expect(result.message).toContain('Frete grátis')
   })
 
+  it('should return valid:false (not throw) when the coupon usage limit was already reached', async () => {
+    // Achado testando em produção: previewCouponDiscount lanca
+    // BadRequestException via assertCouponUsageLimit quando o limite bateu.
+    // Sem tratar isso dentro de validateCoupon, o GET /coupons/validate
+    // devolvia 400 cru -- e o "Aplicar" do carrinho (CartContext.applyCoupon)
+    // nao tem try/catch, so le response.data.valid: o clique falhava calado.
+    mockPrismaService.coupon.findFirst.mockResolvedValue({
+      id: 'coupon-esgotado',
+      tenantId: 'tenant_default',
+      code: 'ESGOTADO',
+      maxUses: 1,
+      maxUsesPerCustomer: null,
+      promotion: {
+        id: 'promo-esgotado',
+        tenantId: 'tenant_default',
+        name: 'Esgotado',
+        type: 'FIXED_OFF',
+        status: 'ACTIVE',
+        priority: 10,
+        stackable: false,
+        startsAt: now,
+        endsAt: future,
+        rules: [{ condition: {}, effect: { type: 'FIXED_OFF', amount: 15 } }],
+        coupons: [{ id: 'coupon-esgotado' }],
+      },
+    })
+    mockPrismaService.promotionUsage.count.mockResolvedValue(1)
+
+    const result = await service.validateCoupon('ESGOTADO', 100, { tenantId: 'tenant_default', storeId: 'store_default' })
+
+    expect(result.valid).toBe(false)
+    expect(result.discountAmount).toBe(0)
+    expect(result.message).toContain('limite')
+  })
+
   it('should resolve promotion conflict by priority', async () => {
     mockPrismaService.promotion.findMany.mockResolvedValue([
       {

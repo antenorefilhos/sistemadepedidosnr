@@ -339,12 +339,21 @@ export class PricingService {
         return { valid: false, code: normalizedCode, message: 'Cupom invalido ou inativo.', discountAmount: 0 }
       }
 
-      const { amount, freeShipping } = await this.previewCouponDiscount(coupon, Number(subtotal || 0), context?.customerId)
-      return {
-        valid: amount > 0 || freeShipping,
-        code: normalizedCode,
-        message: freeShipping ? 'Frete grátis aplicado!' : amount > 0 ? 'Cupom aplicado com sucesso.' : 'Cupom sem beneficio para este pedido.',
-        discountAmount: amount,
+      try {
+        const { amount, freeShipping } = await this.previewCouponDiscount(coupon, Number(subtotal || 0), context?.customerId)
+        return {
+          valid: amount > 0 || freeShipping,
+          code: normalizedCode,
+          message: freeShipping ? 'Frete grátis aplicado!' : amount > 0 ? 'Cupom aplicado com sucesso.' : 'Cupom sem beneficio para este pedido.',
+          discountAmount: amount,
+        }
+      } catch (limitError) {
+        // previewCouponDiscount lanca BadRequestException quando o limite de
+        // uso foi atingido (assertCouponUsageLimit) -- sem esse catch, o
+        // "Aplicar" do carrinho recebia 400 cru e falhava calado (o
+        // CartContext nao trata erro de rede aqui, so response.data.valid).
+        const message = limitError instanceof Error ? limitError.message : 'Cupom atingiu o limite de usos.'
+        return { valid: false, code: normalizedCode, message, discountAmount: 0 }
       }
     }
   }
