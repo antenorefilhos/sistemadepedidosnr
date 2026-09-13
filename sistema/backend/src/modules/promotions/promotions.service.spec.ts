@@ -11,6 +11,7 @@ const mockPrismaService = {
   promotionCampaign: {
     upsert: jest.fn(),
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
@@ -110,6 +111,42 @@ describe('PromotionsService', () => {
 
       expect(result).toEqual({ campaignsSynced: 0, itemsSynced: 0, productsUpdated: 0 })
       expect(mockAntenorApiService.getEncartesAtivos).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('findOneForStorefront', () => {
+    it('returns the campaign with items when it exists and is active', async () => {
+      mockPrismaService.promotionCampaign.findUnique.mockResolvedValue({
+        id: 'campaign-1',
+        name: 'SEGUNDA DA CARNE NV',
+        slug: 'segunda-da-carne-nv',
+        type: 'encarte',
+        bannerUrl: null,
+        startDate: new Date(),
+        endDate: new Date(),
+        highlightInHome: false,
+        active: true,
+        items: [{ product: { id: 'p1', name: 'Picanha' }, regularPrice: 50, promotionalPrice: 40, discountPercent: 20 }],
+      })
+
+      const result = await service.findOneForStorefront(375)
+
+      expect(result?.items).toEqual([expect.objectContaining({ id: 'p1', promotionalPrice: 40 })])
+    })
+
+    it('returns null when the campaign does not exist or is inactive', async () => {
+      mockPrismaService.promotionCampaign.findUnique.mockResolvedValue(null)
+
+      const result = await service.findOneForStorefront(999)
+
+      expect(result).toBeNull()
+    })
+
+    it('returns null for a non-numeric erpCampaignId without querying the database', async () => {
+      const result = await service.findOneForStorefront(NaN)
+
+      expect(result).toBeNull()
+      expect(mockPrismaService.promotionCampaign.findUnique).not.toHaveBeenCalled()
     })
   })
 

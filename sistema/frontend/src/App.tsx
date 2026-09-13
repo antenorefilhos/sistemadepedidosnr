@@ -31,6 +31,7 @@ const NotFound = lazy(() => import('./pages/NotFound'))
 const RecipeList = lazy(() => import('./pages/RecipeList'))
 const RecipeDetail = lazy(() => import('./pages/RecipeDetail'))
 const Promocoes = lazy(() => import('./pages/Promocoes'))
+const Encarte = lazy(() => import('./pages/Encarte'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 const TermsOfUse = lazy(() => import('./pages/TermsOfUse'))
 
@@ -117,6 +118,7 @@ function AppRoutes() {
           <Route path="/receitas" element={<PageTransition><RecipeList /></PageTransition>} />
           <Route path="/receitas/:slug" element={<PageTransition><RecipeDetail /></PageTransition>} />
           <Route path="/promocoes" element={<PageTransition><Promocoes /></PageTransition>} />
+          <Route path="/encarte/:erpCampaignId" element={<PageTransition><Encarte /></PageTransition>} />
           <Route path="/privacidade" element={<PageTransition><PrivacyPolicy /></PageTransition>} />
           <Route path="/termos" element={<PageTransition><TermsOfUse /></PageTransition>} />
 

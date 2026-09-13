@@ -229,7 +229,38 @@ export class PromotionsService {
       },
     })
 
-    return campaigns.map((campaign) => ({
+    return campaigns.map((campaign) => this.mapCampaignForStorefront(campaign))
+  }
+
+  /**
+   * Um encarte especifico com seus itens, pelo `erpCampaignId` (o mesmo
+   * numero que o lojista digita no campo "Código do encarte" do banner) --
+   * destino do clique quando o banner aponta pra "Produtos do encarte"
+   * (linkType='campaign'). `null` se nao existir, ja acabou ou o numero for
+   * invalido -- o storefront mostra "encarte nao encontrado" nesse caso.
+   */
+  async findOneForStorefront(erpCampaignId: number) {
+    if (!Number.isFinite(erpCampaignId)) return null
+    const campaign = await this.prisma.promotionCampaign.findUnique({
+      where: { erpCampaignId },
+      include: { items: { orderBy: { order: 'asc' }, include: { product: true } } },
+    })
+    if (!campaign || !campaign.active) return null
+    return this.mapCampaignForStorefront(campaign)
+  }
+
+  private mapCampaignForStorefront(campaign: {
+    id: string
+    name: string
+    slug: string
+    type: string
+    bannerUrl: string | null
+    startDate: Date
+    endDate: Date
+    highlightInHome: boolean
+    items: Array<{ product: unknown; regularPrice: unknown; promotionalPrice: unknown; discountPercent: unknown }>
+  }) {
+    return {
       id: campaign.id,
       name: campaign.name,
       slug: campaign.slug,
@@ -239,12 +270,12 @@ export class PromotionsService {
       endDate: campaign.endDate,
       highlightInHome: campaign.highlightInHome,
       items: campaign.items.map((item) => ({
-        ...item.product,
+        ...(item.product as object),
         regularPrice: item.regularPrice,
         promotionalPrice: item.promotionalPrice,
         discountPercent: item.discountPercent,
       })),
-    }))
+    }
   }
 
   async setActive(id: string, active: boolean) {

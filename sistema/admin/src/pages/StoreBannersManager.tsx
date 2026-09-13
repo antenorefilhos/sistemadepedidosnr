@@ -43,7 +43,7 @@ import type { BannerPages, BannerSlot } from '../utils/bannerRules';
 
 /* ─── Types ─────────────────────────────────────────── */
 
-type LinkType = 'url' | 'category' | 'product' | 'search';
+type LinkType = 'url' | 'category' | 'product' | 'search' | 'campaign';
 type LinkTarget = '_self' | '_blank';
 
 interface StoreBanner {
@@ -1136,7 +1136,10 @@ export default function StoreBannersManager() {
         targetCategory: form.slot === 'category' ? (form.targetCategory.trim() || null) : null,
         active: form.active,
         linkType: form.linkType,
-        linkValue: form.linkValue.trim() || null,
+        // linkType='campaign' nao tem campo de valor proprio -- o destino e
+        // sempre o campaignErpId que ja preencheu acima, evita duplicar o
+        // numero em dois campos que podiam ficar dessincronizados.
+        linkValue: form.linkType === 'campaign' ? form.campaignErpId.trim() || null : form.linkValue.trim() || null,
         linkTarget: form.linkTarget,
         title: form.title.trim() || null,
         description: form.description.trim() || null,
@@ -1706,24 +1709,34 @@ export default function StoreBannersManager() {
                   </p>
                 </div>
 
-                {/* O que acontece ao clicar? -- 3 botoes diretos */}
+                {/* O que acontece ao clicar? -- 4 botoes diretos */}
                 <div>
                   <Label className="block text-xs font-medium text-gray-600 mb-2">O que acontece ao clicar?</Label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
                       { value: 'product' as LinkType, label: 'Abrir Produto', icon: Package },
                       { value: 'category' as LinkType, label: 'Abrir Categoria', icon: Tag },
                       { value: 'url' as LinkType, label: 'Link Externo', icon: Link2 },
+                      // Habilitado so com um codigo de encarte preenchido -- sem
+                      // ele nao ha pra onde levar o clique (ver campanhaErpId acima).
+                      { value: 'campaign' as LinkType, label: 'Produtos do Encarte', icon: Layers, needsCampaign: true },
                     ].map((opt) => {
                       const Icon = opt.icon;
                       const isActive = form.linkType === opt.value;
+                      const disabled = Boolean(opt.needsCampaign) && !form.campaignErpId.trim();
                       return (
                         <button
                           key={opt.value}
                           type="button"
+                          disabled={disabled}
                           onClick={() => set('linkType', opt.value)}
+                          title={disabled ? 'Preencha o código do encarte abaixo primeiro' : undefined}
                           className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-center transition-colors ${
-                            isActive ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                            disabled
+                              ? 'cursor-not-allowed border-gray-100 text-gray-300'
+                              : isActive
+                                ? 'border-gray-900 bg-gray-900 text-white'
+                                : 'border-gray-200 text-gray-600 hover:border-gray-400'
                           }`}
                         >
                           <Icon size={18} />
@@ -1732,6 +1745,11 @@ export default function StoreBannersManager() {
                       );
                     })}
                   </div>
+                  {form.linkType === 'campaign' && (
+                    <p className="mt-2 text-[11px] text-gray-400">
+                      Ao clicar, o cliente vai para a página com todos os produtos do encarte {form.campaignErpId.trim() || '—'}.
+                    </p>
+                  )}
 
                   {/* Produto -- autocomplete */}
                   {form.linkType === 'product' && (

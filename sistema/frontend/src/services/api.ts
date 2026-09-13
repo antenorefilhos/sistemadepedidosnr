@@ -455,6 +455,7 @@ export const cmsAPI = {
 export const promotionsAPI = {
   campaigns: {
     getActive: () => api.get('/promotions/campaigns/active'),
+    getByErpId: (erpCampaignId: string | number) => api.get(`/promotions/campaigns/by-erp/${erpCampaignId}`),
   },
 }
 

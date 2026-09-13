@@ -303,6 +303,12 @@ export const resolveBannerLink = (linkValue?: string | null, linkType?: string):
     return trimmed.startsWith('/produto/') ? trimmed : `/produto/${trimmed}`
   }
 
+  // Encarte: linkValue e o campaignErpId (o mesmo numero do campo "Codigo do
+  // encarte" no admin) -- rota fixa /encarte/:erpCampaignId (ver App.tsx).
+  if (linkType === 'campaign') {
+    return trimmed.startsWith('/encarte/') ? trimmed : `/encarte/${trimmed}`
+  }
+
   // Rota relativa ja formatada (ex: link avulso tipo "url" apontando /promocoes)
   if (trimmed.startsWith('/') && !trimmed.includes(' ') && !trimmed.includes('&')) {
     return normalizeWineLink(trimmed)

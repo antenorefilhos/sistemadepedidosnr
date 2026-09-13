@@ -15,6 +15,16 @@ export class PromotionsController {
     return this.promotionsService.findActiveForStorefront()
   }
 
+  /**
+   * Um encarte especifico com seus itens -- destino do clique quando um
+   * StoreBanner esta vinculado a um encarte (linkType='campaign'). Publico:
+   * o cliente clica no banner antes de logar.
+   */
+  @Get('by-erp/:erpCampaignId')
+  findOneByErpId(@Param('erpCampaignId') erpCampaignId: string) {
+    return this.promotionsService.findOneForStorefront(Number(erpCampaignId))
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
