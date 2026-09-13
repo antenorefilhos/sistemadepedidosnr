@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Tag, Plus, X, Ticket, Users } from 'lucide-react'
+import { Tag, Plus, X, Ticket, Users, Truck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,7 +15,7 @@ export default function Coupons() {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [discountType, setDiscountType] = useState<'PERCENT_OFF' | 'FIXED_OFF'>('PERCENT_OFF')
+  const [discountType, setDiscountType] = useState<'PERCENT_OFF' | 'FIXED_OFF' | 'FREE_SHIPPING'>('PERCENT_OFF')
   const [value, setValue] = useState('')
   const [maxDiscount, setMaxDiscount] = useState('')
   const [minSubtotal, setMinSubtotal] = useState('')
@@ -37,11 +37,14 @@ export default function Coupons() {
       const promo = await couponsAdminAPI.create({
         name: name.trim() || `Cupom ${code.trim().toUpperCase()}`,
         couponCode: code.trim().toUpperCase(),
-        effect: {
-          type: discountType,
-          ...(discountType === 'PERCENT_OFF' ? { percent: Number(value) } : { amount: Number(value) }),
-          ...(maxDiscount ? { maxDiscount: Number(maxDiscount) } : {}),
-        },
+        effect:
+          discountType === 'FREE_SHIPPING'
+            ? { type: 'FREE_SHIPPING' }
+            : {
+                type: discountType,
+                ...(discountType === 'PERCENT_OFF' ? { percent: Number(value) } : { amount: Number(value) }),
+                ...(maxDiscount ? { maxDiscount: Number(maxDiscount) } : {}),
+              },
         condition: minSubtotal ? { minSubtotal: Number(minSubtotal) } : undefined,
         startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
         endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
@@ -50,7 +53,12 @@ export default function Coupons() {
         status: 'ACTIVE',
       })
       if (notifyCustomers) {
-        const desconto = discountType === 'PERCENT_OFF' ? `${value}% de desconto` : `${formatMoney(Number(value))} de desconto`
+        const desconto =
+          discountType === 'FREE_SHIPPING'
+            ? 'frete grátis'
+            : discountType === 'PERCENT_OFF'
+              ? `${value}% de desconto`
+              : `${formatMoney(Number(value))} de desconto`
         const dispara = startsAt ? new Date(startsAt) : null
         await notificationsAdminAPI.broadcast({
           type: 'CAMPAIGN',
@@ -73,7 +81,7 @@ export default function Coupons() {
     onError: (err: any) => setError(err?.response?.data?.message || 'Erro ao criar cupom.'),
   })
 
-  const canSubmit = code.trim().length > 0 && Number(value) > 0
+  const canSubmit = code.trim().length > 0 && (discountType === 'FREE_SHIPPING' || Number(value) > 0)
 
   return (
     <div className="space-y-6">
@@ -107,8 +115,8 @@ export default function Coupons() {
 
             <div>
               <Label className="mb-1 block text-sm font-semibold text-gray-800">2. Que desconto o cliente ganha?</Label>
-              <p className="mb-2 text-xs text-gray-500">Escolha se é um percentual (como "10% de desconto") ou um valor certo em reais (como "R$ 20 de desconto").</p>
-              <div className="grid grid-cols-2 gap-3">
+              <p className="mb-2 text-xs text-gray-500">Escolha um percentual (ex: "10% de desconto"), um valor em reais (ex: "R$ 20 de desconto") ou frete grátis.</p>
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setDiscountType('PERCENT_OFF')}
@@ -125,19 +133,29 @@ export default function Coupons() {
                   Valor em reais (R$)
                   <p className="mt-0.5 text-xs font-normal text-gray-500">Ex: R$ 20 de desconto</p>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('FREE_SHIPPING')}
+                  className={`rounded-lg border-2 p-3 text-left text-sm font-semibold transition ${discountType === 'FREE_SHIPPING' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 text-gray-600'}`}
+                >
+                  <span className="flex items-center gap-1"><Truck size={14} /> Frete grátis</span>
+                  <p className="mt-0.5 text-xs font-normal text-gray-500">Zera a taxa de entrega</p>
+                </button>
               </div>
-              <div className="mt-3 flex items-center gap-2">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                  placeholder={discountType === 'PERCENT_OFF' ? 'Ex: 10' : 'Ex: 20'}
-                  className="text-lg"
-                />
-                <span className="text-lg font-bold text-gray-500">{discountType === 'PERCENT_OFF' ? '%' : 'R$'}</span>
-              </div>
+              {discountType !== 'FREE_SHIPPING' && (
+                <div className="mt-3 flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder={discountType === 'PERCENT_OFF' ? 'Ex: 10' : 'Ex: 20'}
+                    className="text-lg"
+                  />
+                  <span className="text-lg font-bold text-gray-500">{discountType === 'PERCENT_OFF' ? '%' : 'R$'}</span>
+                </div>
+              )}
               {discountType === 'PERCENT_OFF' && (
                 <div className="mt-2">
                   <Label className="mb-1 block text-xs font-medium text-gray-500">Quer travar um valor máximo de desconto em reais? (não obrigatório)</Label>
@@ -231,7 +249,13 @@ export default function Coupons() {
                     <td className="px-4 py-3 font-mono font-semibold">{coupon?.code}</td>
                     <td className="px-4 py-3">{p.name}</td>
                     <td className="px-4 py-3">
-                      {effect?.type === 'PERCENT_OFF' ? `${effect.percent}%` : effect?.amount ? formatMoney(effect.amount) : '—'}
+                      {effect?.type === 'FREE_SHIPPING'
+                        ? 'Frete grátis'
+                        : effect?.type === 'PERCENT_OFF'
+                          ? `${effect.percent}%`
+                          : effect?.amount
+                            ? formatMoney(effect.amount)
+                            : '—'}
                     </td>
                     <td className="px-4 py-3">{p._count?.usages ?? 0}{coupon?.maxUses ? ` / ${coupon.maxUses}` : ''}</td>
                     <td className="px-4 py-3">{new Date(p.endsAt).toLocaleDateString('pt-BR')}</td>

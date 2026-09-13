@@ -121,6 +121,41 @@ describe('PricingService', () => {
     ).rejects.toThrow('limite global')
   })
 
+  it('should validate a FREE_SHIPPING coupon as valid even with zero subtotal discount', async () => {
+    // validateCoupon sempre cai no fallback (previewCouponDiscount): o
+    // quote() interno usa um productId placeholder que nunca existe de
+    // verdade, entao sempre lanca e cai no catch. Regressao real: sem o
+    // flag freeShipping, um cupom FREE_SHIPPING sempre reportava
+    // valid=false (discountAmount fica 0, o desconto e no frete, que essa
+    // preview nem recebe) -- o cliente nunca conseguia aplicar no carrinho.
+    mockPrismaService.coupon.findFirst.mockResolvedValue({
+      id: 'coupon-frete',
+      tenantId: 'tenant_default',
+      code: 'FRETEGRATIS',
+      maxUses: null,
+      maxUsesPerCustomer: null,
+      promotion: {
+        id: 'promo-frete',
+        tenantId: 'tenant_default',
+        name: 'Frete gratis',
+        type: 'FREE_SHIPPING',
+        status: 'ACTIVE',
+        priority: 10,
+        stackable: false,
+        startsAt: now,
+        endsAt: future,
+        rules: [{ condition: {}, effect: { type: 'FREE_SHIPPING' } }],
+        coupons: [{ id: 'coupon-frete' }],
+      },
+    })
+
+    const result = await service.validateCoupon('FRETEGRATIS', 50, { tenantId: 'tenant_default', storeId: 'store_default' })
+
+    expect(result.valid).toBe(true)
+    expect(result.discountAmount).toBe(0)
+    expect(result.message).toContain('Frete grátis')
+  })
+
   it('should resolve promotion conflict by priority', async () => {
     mockPrismaService.promotion.findMany.mockResolvedValue([
       {

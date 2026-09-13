@@ -1716,7 +1716,7 @@ export const couponsAdminAPI = {
     name: string
     couponCode: string
     /** 'PERCENT_OFF' | 'FIXED_OFF' -- vira o `effect.type` lido pelo PricingService. */
-    effect: { type: 'PERCENT_OFF' | 'FIXED_OFF'; percent?: number; amount?: number; maxDiscount?: number }
+    effect: { type: 'PERCENT_OFF' | 'FIXED_OFF' | 'FREE_SHIPPING'; percent?: number; amount?: number; maxDiscount?: number }
     condition?: { minSubtotal?: number }
     /** Ausente = vale a partir de agora. Futuro = so passa a validar no checkout dai. */
     startsAt?: string

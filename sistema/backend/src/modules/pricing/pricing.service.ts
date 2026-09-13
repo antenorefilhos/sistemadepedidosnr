@@ -324,10 +324,13 @@ export class PricingService {
         couponCode: normalizedCode,
         items: [{ productId: '__coupon_validation__', quantity: 1 }],
       })
+      // FREE_SHIPPING nao aparece em discountAmount (o desconto e no frete,
+      // que esse quote de preview nem recebeu -- deliveryAmount default 0).
+      const freeShipping = result.appliedPromotions?.some((p: any) => p.freeShipping)
       return {
-        valid: result.discountAmount > 0,
+        valid: result.discountAmount > 0 || Boolean(freeShipping),
         code: normalizedCode,
-        message: result.discountAmount > 0 ? 'Cupom aplicado com sucesso.' : 'Cupom sem beneficio para este pedido.',
+        message: freeShipping ? 'Frete grátis aplicado!' : result.discountAmount > 0 ? 'Cupom aplicado com sucesso.' : 'Cupom sem beneficio para este pedido.',
         discountAmount: result.discountAmount,
       }
     } catch {
@@ -336,11 +339,11 @@ export class PricingService {
         return { valid: false, code: normalizedCode, message: 'Cupom invalido ou inativo.', discountAmount: 0 }
       }
 
-      const amount = await this.previewCouponDiscount(coupon, Number(subtotal || 0), context?.customerId)
+      const { amount, freeShipping } = await this.previewCouponDiscount(coupon, Number(subtotal || 0), context?.customerId)
       return {
-        valid: amount > 0,
+        valid: amount > 0 || freeShipping,
         code: normalizedCode,
-        message: amount > 0 ? 'Cupom aplicado com sucesso.' : 'Cupom sem beneficio para este pedido.',
+        message: freeShipping ? 'Frete grátis aplicado!' : amount > 0 ? 'Cupom aplicado com sucesso.' : 'Cupom sem beneficio para este pedido.',
         discountAmount: amount,
       }
     }
@@ -716,20 +719,31 @@ export class PricingService {
     }
   }
 
+  /**
+   * Retorna { amount, freeShipping } em vez de so o numero -- cupom de
+   * FREE_SHIPPING nao tem valor em cima do subtotal (o desconto e no frete,
+   * que essa preview nao conhece), mas precisa ser sinalizado como "valido"
+   * mesmo com amount=0. Sem o flag, `validateCoupon` via essa preview (usada
+   * quando o quote() completo falha, ex: sem produto real no carrinho ainda)
+   * reportava o cupom como invalido so por dar zero de desconto no subtotal.
+   */
   private async previewCouponDiscount(coupon: NonNullable<Awaited<ReturnType<PricingService['findCoupon']>>>, subtotal: number, customerId?: string) {
-    if (!Number.isFinite(subtotal) || subtotal <= 0) return 0
     await this.assertCouponUsageLimit(coupon, customerId)
     const rule = coupon.promotion.rules[0]
-    if (!rule) return 0
+    if (!rule) return { amount: 0, freeShipping: false }
     const condition = rule.condition as Record<string, any>
     const effect = rule.effect as Record<string, any>
-    if (typeof condition.minSubtotal === 'number' && subtotal < condition.minSubtotal) return 0
-    let amount = 0
+    if (typeof condition.minSubtotal === 'number' && subtotal < condition.minSubtotal) return { amount: 0, freeShipping: false }
+
     const effectType = String(effect.type || '').toUpperCase()
+    if (effectType === 'FREE_SHIPPING') return { amount: 0, freeShipping: true }
+    if (!Number.isFinite(subtotal) || subtotal <= 0) return { amount: 0, freeShipping: false }
+
+    let amount = 0
     if (effectType === 'PERCENT_OFF' || effectType === 'PERCENT') amount = subtotal * (Number(effect.percent || effect.value || 0) / 100)
     if (effectType === 'FIXED_OFF' || effectType === 'FIXED') amount = Number(effect.amount || effect.value || 0)
     if (typeof effect.maxDiscount === 'number') amount = Math.min(amount, effect.maxDiscount)
-    return this.round2(Math.max(0, Math.min(amount, subtotal)))
+    return { amount: this.round2(Math.max(0, Math.min(amount, subtotal))), freeShipping: false }
   }
 
   private aggregateItems(items: QuoteItemInput[]) {
