@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
-import { SolidcomERPService } from '../integrations/solidcom-erp.service'
+import { AntenorApiService } from '../integrations/antenor-api.service'
 import { NotificationsService } from '../notifications/notifications.service'
 
 function slugify(value: string): string {
@@ -18,21 +18,24 @@ export class PromotionsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly solidcomERPService: SolidcomERPService,
+    private readonly antenorApiService: AntenorApiService,
     private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
-   * Puxa os encartes/campanhas ativos do ERP (filial Nova Real, flag
-   * ecommerce=true) e grava/atualiza PromotionCampaign + itens, aplicando
-   * o promotionalPrice no catalogo enquanto a campanha estiver vigente.
+   * Puxa os encartes/campanhas ativos da AntenorApi (AEF-032/JON-107,
+   * v1.10.0) e grava/atualiza PromotionCampaign + itens, aplicando o
+   * promotionalPrice no catalogo enquanto a campanha estiver vigente.
    *
-   * fetchActivePromotionCampaigns() ainda e um stub (endpoint do Solidcom
-   * nao confirmado) -- ver comentario em solidcom-erp.service.ts. Ate la
-   * este metodo roda e nao encontra nada pra sincronizar, sem quebrar nada.
+   * Antes disso o metodo lia um stub do Solidcom (endpoint nunca confirmado)
+   * e nunca sincronizava nada. `isConfigured()` sem endereco/credencial ainda
+   * deixa o cron rodar sem quebrar -- so nao ha nada pra sincronizar.
    */
   async syncFromERP(): Promise<{ campaignsSynced: number; itemsSynced: number; productsUpdated: number }> {
-    const campaigns = await this.solidcomERPService.fetchActivePromotionCampaigns()
+    if (!this.antenorApiService.isConfigured()) {
+      return { campaignsSynced: 0, itemsSynced: 0, productsUpdated: 0 }
+    }
+    const campaigns = await this.antenorApiService.getEncartesAtivos()
 
     let itemsSynced = 0
     let productsUpdated = 0

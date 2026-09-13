@@ -1,6 +1,6 @@
 import { PromotionsService } from './promotions.service'
 import { PrismaService } from '../../common/prisma.service'
-import { SolidcomERPService } from '../integrations/solidcom-erp.service'
+import { AntenorApiService } from '../integrations/antenor-api.service'
 import { NotificationsService } from '../notifications/notifications.service'
 
 const mockPrismaService = {
@@ -19,8 +19,9 @@ const mockPrismaService = {
   },
 }
 
-const mockSolidcomERPService = {
-  fetchActivePromotionCampaigns: jest.fn(),
+const mockAntenorApiService = {
+  isConfigured: jest.fn(),
+  getEncartesAtivos: jest.fn(),
 }
 
 const mockNotificationsService = {
@@ -34,10 +35,11 @@ describe('PromotionsService', () => {
   beforeEach(() => {
     service = new PromotionsService(
       mockPrismaService as unknown as PrismaService,
-      mockSolidcomERPService as unknown as SolidcomERPService,
+      mockAntenorApiService as unknown as AntenorApiService,
       mockNotificationsService as unknown as NotificationsService,
     )
     mockNotificationsService.getAllCustomerIds.mockResolvedValue(['c1'])
+    mockAntenorApiService.isConfigured.mockReturnValue(true)
   })
 
   afterEach(() => {
@@ -46,7 +48,7 @@ describe('PromotionsService', () => {
 
   describe('syncFromERP', () => {
     it('does nothing when the ERP returns no campaigns', async () => {
-      mockSolidcomERPService.fetchActivePromotionCampaigns.mockResolvedValue([])
+      mockAntenorApiService.getEncartesAtivos.mockResolvedValue([])
 
       const result = await service.syncFromERP()
 
@@ -55,7 +57,7 @@ describe('PromotionsService', () => {
     })
 
     it('creates the campaign and applies promotionalPrice to matched products', async () => {
-      mockSolidcomERPService.fetchActivePromotionCampaigns.mockResolvedValue([
+      mockAntenorApiService.getEncartesAtivos.mockResolvedValue([
         {
           erpCampaignId: 375,
           name: 'SEGUNDA DA CARNE NV',
@@ -82,7 +84,7 @@ describe('PromotionsService', () => {
     })
 
     it('skips campaign items without a matching product in the catalog', async () => {
-      mockSolidcomERPService.fetchActivePromotionCampaigns.mockResolvedValue([
+      mockAntenorApiService.getEncartesAtivos.mockResolvedValue([
         {
           erpCampaignId: 375,
           name: 'SEGUNDA DA CARNE NV',
@@ -99,6 +101,15 @@ describe('PromotionsService', () => {
       expect(mockPrismaService.promotionCampaignItem.upsert).not.toHaveBeenCalled()
       expect(mockPrismaService.product.update).not.toHaveBeenCalled()
       expect(result.productsUpdated).toBe(0)
+    })
+
+    it('does nothing when the AntenorApi connector is not configured', async () => {
+      mockAntenorApiService.isConfigured.mockReturnValue(false)
+
+      const result = await service.syncFromERP()
+
+      expect(result).toEqual({ campaignsSynced: 0, itemsSynced: 0, productsUpdated: 0 })
+      expect(mockAntenorApiService.getEncartesAtivos).not.toHaveBeenCalled()
     })
   })
 

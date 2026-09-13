@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import axios, { AxiosError, AxiosInstance } from 'axios'
 import * as fs from 'fs'
 import * as https from 'https'
-import type { ERPProduct } from './solidcom-erp.service'
+import type { ERPProduct, ERPCampaign } from './solidcom-erp.service'
 
 /**
  * Cliente da AntenorApi -- a API propria que le o SQL Server da loja
@@ -70,6 +70,17 @@ export type NfeAntenorApi = {
   serie?: number
   protocolo?: string
   xml?: string
+}
+
+/** Formato bruto de `GET /api/integracao/encartes` (AEF-032/JON-107, v1.10.0). */
+type EncartesAntenorApiResponse = {
+  encartes: Array<{
+    erpCampaignId: number
+    name: string
+    startDate: string
+    endDate: string
+    itens: Array<{ ean: string; precoNormal: number; precoPromocional: number }>
+  }>
 }
 
 export type CreateAntenorApiOrderPayload = {
@@ -379,6 +390,30 @@ export class AntenorApiService {
       if ((error as AxiosError)?.response?.status === 404) return null
       throw error
     }
+  }
+
+  /**
+   * Encartes/campanhas ativos do ERP com itens aninhados (AEF-032/JON-107,
+   * v1.10.0) -- traduz o formato deles (`itens[].precoNormal/precoPromocional`)
+   * pro nosso `ERPCampaign` interno (`items[].regularPrice/promotionalPrice`).
+   * Usado por `PromotionsService.syncFromERP()` pra ligar a vigencia do
+   * banner ao encarte real, sem depender mais do stub do Solidcom.
+   */
+  async getEncartesAtivos(): Promise<ERPCampaign[]> {
+    const { data } = await this.cliente.get<EncartesAntenorApiResponse>('/api/integracao/encartes', {
+      params: { loja: this.loja, ativasApenas: true, comItens: true },
+    })
+    return (data?.encartes ?? []).map((encarte) => ({
+      erpCampaignId: encarte.erpCampaignId,
+      name: encarte.name,
+      startDate: encarte.startDate,
+      endDate: encarte.endDate,
+      items: (encarte.itens ?? []).map((item) => ({
+        ean: item.ean,
+        regularPrice: item.precoNormal,
+        promotionalPrice: item.precoPromocional,
+      })),
+    }))
   }
 
   /**
