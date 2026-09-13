@@ -118,7 +118,7 @@ describe('PricingService', () => {
         couponCode: 'SAVE10',
         items: [{ productId: 'prod-1', quantity: 1 }],
       }),
-    ).rejects.toThrow('limite global')
+    ).rejects.toThrow('esgotou')
   })
 
   it('should validate a FREE_SHIPPING coupon as valid even with zero subtotal discount', async () => {
@@ -188,7 +188,60 @@ describe('PricingService', () => {
 
     expect(result.valid).toBe(false)
     expect(result.discountAmount).toBe(0)
-    expect(result.message).toContain('limite')
+    expect(result.message).toContain('esgotou')
+  })
+
+  it('should explain the exact missing amount when the coupon requires a higher minimum subtotal', async () => {
+    mockPrismaService.coupon.findFirst.mockResolvedValue({
+      id: 'coupon-min',
+      tenantId: 'tenant_default',
+      code: 'MINIMO50',
+      maxUses: null,
+      maxUsesPerCustomer: null,
+      promotion: {
+        id: 'promo-min',
+        tenantId: 'tenant_default',
+        name: 'Minimo 50',
+        type: 'FIXED_OFF',
+        status: 'ACTIVE',
+        priority: 10,
+        stackable: false,
+        startsAt: now,
+        endsAt: future,
+        rules: [{ condition: { minSubtotal: 50 }, effect: { type: 'FIXED_OFF', amount: 15 } }],
+        coupons: [{ id: 'coupon-min' }],
+      },
+    })
+
+    const result = await service.validateCoupon('MINIMO50', 30, { tenantId: 'tenant_default', storeId: 'store_default' })
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('50,00')
+    expect(result.message).toContain('20,00')
+  })
+
+  it('should tell the customer the coupon does not exist when nothing is found at all', async () => {
+    mockPrismaService.coupon.findFirst.mockResolvedValueOnce(null) // findCoupon (busca estrita)
+    mockPrismaService.coupon.findFirst.mockResolvedValueOnce(null) // explainInvalidCoupon (busca livre)
+
+    const result = await service.validateCoupon('NAOEXISTE', 100, { tenantId: 'tenant_default', storeId: 'store_default' })
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('Não encontramos esse cupom')
+  })
+
+  it('should tell the customer when the coupon has already expired', async () => {
+    const past = new Date(Date.now() - 60_000)
+    mockPrismaService.coupon.findFirst.mockResolvedValueOnce(null) // findCoupon: fora da vigencia, nao acha
+    mockPrismaService.coupon.findFirst.mockResolvedValueOnce({
+      status: 'ACTIVE',
+      promotion: { status: 'ACTIVE', startsAt: past, endsAt: past },
+    })
+
+    const result = await service.validateCoupon('VENCIDO', 100, { tenantId: 'tenant_default', storeId: 'store_default' })
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('já venceu')
   })
 
   it('should resolve promotion conflict by priority', async () => {

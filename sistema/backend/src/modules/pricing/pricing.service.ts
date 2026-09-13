@@ -336,17 +336,20 @@ export class PricingService {
     } catch {
       const coupon = await this.findCoupon(normalizedCode, context)
       if (!coupon) {
-        return { valid: false, code: normalizedCode, message: 'Cupom invalido ou inativo.', discountAmount: 0 }
+        const message = await this.explainInvalidCoupon(normalizedCode, context)
+        return { valid: false, code: normalizedCode, message, discountAmount: 0 }
       }
 
       try {
-        const { amount, freeShipping } = await this.previewCouponDiscount(coupon, Number(subtotal || 0), context?.customerId)
-        return {
-          valid: amount > 0 || freeShipping,
-          code: normalizedCode,
-          message: freeShipping ? 'Frete grátis aplicado!' : amount > 0 ? 'Cupom aplicado com sucesso.' : 'Cupom sem beneficio para este pedido.',
-          discountAmount: amount,
-        }
+        const { amount, freeShipping, minSubtotalMissing } = await this.previewCouponDiscount(coupon, Number(subtotal || 0), context?.customerId)
+        const message = freeShipping
+          ? 'Frete grátis aplicado!'
+          : amount > 0
+            ? 'Cupom aplicado com sucesso.'
+            : minSubtotalMissing != null
+              ? `Esse cupom só vale a partir de ${this.formatMoney(Number(subtotal || 0) + minSubtotalMissing)} no carrinho. Faltam ${this.formatMoney(minSubtotalMissing)}.`
+              : 'Esse cupom não dá desconto para este pedido.'
+        return { valid: amount > 0 || freeShipping, code: normalizedCode, message, discountAmount: amount }
       } catch (limitError) {
         // previewCouponDiscount lanca BadRequestException quando o limite de
         // uso foi atingido (assertCouponUsageLimit) -- sem esse catch, o
@@ -720,11 +723,11 @@ export class PricingService {
   private async assertCouponUsageLimit(coupon: NonNullable<Awaited<ReturnType<PricingService['findCoupon']>>>, customerId?: string) {
     if (coupon.maxUses != null) {
       const globalUses = await this.prisma.promotionUsage.count({ where: { couponId: coupon.id } })
-      if (globalUses >= coupon.maxUses) throw new BadRequestException('Cupom atingiu o limite global de usos.')
+      if (globalUses >= coupon.maxUses) throw new BadRequestException('Esse cupom já esgotou. Todas as vagas já foram usadas.')
     }
     if (coupon.maxUsesPerCustomer != null && customerId) {
       const customerUses = await this.prisma.promotionUsage.count({ where: { couponId: coupon.id, customerId } })
-      if (customerUses >= coupon.maxUsesPerCustomer) throw new BadRequestException('Cupom atingiu o limite por cliente.')
+      if (customerUses >= coupon.maxUsesPerCustomer) throw new BadRequestException('Você já usou esse cupom o máximo de vezes permitido.')
     }
   }
 
@@ -739,20 +742,51 @@ export class PricingService {
   private async previewCouponDiscount(coupon: NonNullable<Awaited<ReturnType<PricingService['findCoupon']>>>, subtotal: number, customerId?: string) {
     await this.assertCouponUsageLimit(coupon, customerId)
     const rule = coupon.promotion.rules[0]
-    if (!rule) return { amount: 0, freeShipping: false }
+    if (!rule) return { amount: 0, freeShipping: false, minSubtotalMissing: null as number | null }
     const condition = rule.condition as Record<string, any>
     const effect = rule.effect as Record<string, any>
-    if (typeof condition.minSubtotal === 'number' && subtotal < condition.minSubtotal) return { amount: 0, freeShipping: false }
+    // `minSubtotalMissing` (quanto falta pra bater o minimo) sobe pra
+    // validateCoupon montar uma mensagem com o valor exato, em vez do
+    // generico "sem beneficio" que nao diz ao cliente o que fazer.
+    if (typeof condition.minSubtotal === 'number' && subtotal < condition.minSubtotal) {
+      return { amount: 0, freeShipping: false, minSubtotalMissing: this.round2(condition.minSubtotal - subtotal) }
+    }
 
     const effectType = String(effect.type || '').toUpperCase()
-    if (effectType === 'FREE_SHIPPING') return { amount: 0, freeShipping: true }
-    if (!Number.isFinite(subtotal) || subtotal <= 0) return { amount: 0, freeShipping: false }
+    if (effectType === 'FREE_SHIPPING') return { amount: 0, freeShipping: true, minSubtotalMissing: null }
+    if (!Number.isFinite(subtotal) || subtotal <= 0) return { amount: 0, freeShipping: false, minSubtotalMissing: null }
 
     let amount = 0
     if (effectType === 'PERCENT_OFF' || effectType === 'PERCENT') amount = subtotal * (Number(effect.percent || effect.value || 0) / 100)
     if (effectType === 'FIXED_OFF' || effectType === 'FIXED') amount = Number(effect.amount || effect.value || 0)
     if (typeof effect.maxDiscount === 'number') amount = Math.min(amount, effect.maxDiscount)
-    return { amount: this.round2(Math.max(0, Math.min(amount, subtotal))), freeShipping: false }
+    return { amount: this.round2(Math.max(0, Math.min(amount, subtotal))), freeShipping: false, minSubtotalMissing: null }
+  }
+
+  /**
+   * So chamado quando findCoupon (que exige status ACTIVE + dentro da
+   * vigencia) nao acha nada -- refaz a busca sem esses filtros pra dizer ao
+   * cliente POR QUE o cupom nao vale, em vez do generico "invalido ou
+   * inativo" que nao ajuda ninguem a entender o que aconteceu.
+   */
+  private async explainInvalidCoupon(code: string, context?: PricingContext) {
+    const tenantId = context?.tenantId || DEFAULT_TENANT_ID
+    const raw = await this.prisma.coupon.findFirst({
+      where: { tenantId, code: String(code || '').trim().toUpperCase() },
+      include: { promotion: true },
+    })
+    if (!raw) return 'Não encontramos esse cupom. Confira se digitou o código certinho.'
+    if (raw.status !== 'ACTIVE') return 'Esse cupom não está mais disponível.'
+    if (raw.promotion.status !== 'ACTIVE') return 'Esse cupom não está mais disponível.'
+
+    const now = new Date()
+    if (raw.promotion.startsAt > now) {
+      const quando = raw.promotion.startsAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+      return `Esse cupom ainda não começou. Ele passa a valer em ${quando}.`
+    }
+    if (raw.promotion.endsAt < now) return 'Esse cupom já venceu.'
+
+    return 'Esse cupom não está disponível para a sua loja.'
   }
 
   private aggregateItems(items: QuoteItemInput[]) {
@@ -785,6 +819,10 @@ export class PricingService {
 
   private round2(value: number) {
     return Number(value.toFixed(2))
+  }
+
+  private formatMoney(value: number) {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
   private toDecimal(value: number) {
