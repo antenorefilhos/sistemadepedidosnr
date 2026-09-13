@@ -36,7 +36,7 @@ export interface StoreBannerPayload {
 // (todo consumidor filtra por igualdade estrita com esses valores) -- silencioso
 // e dificil de debugar, por isso valida na entrada em vez de deixar passar.
 const VALID_SLOTS = ['hero', 'intercalado', 'category', 'tarja', 'popup'];
-const VALID_LINK_TYPES = ['url', 'category', 'product', 'search'];
+const VALID_LINK_TYPES = ['url', 'category', 'product', 'search', 'campaign'];
 const VALID_LINK_TARGETS = ['_self', '_blank'];
 const VALID_PAGES = ['home', 'all', 'category', 'product'];
 const VALID_ALIGN = ['left', 'center', 'right'];

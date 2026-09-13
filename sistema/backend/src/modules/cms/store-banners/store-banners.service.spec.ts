@@ -135,6 +135,12 @@ describe('StoreBannersService', () => {
       expect(() => service.create({ ...validPayload(), linkType: 'whatsapp' })).toThrow(/linkType inválido/i);
     });
 
+    it('aceita linkType=campaign (destino "Produtos do Encarte")', async () => {
+      await expect(
+        service.create({ ...validPayload(), linkType: 'campaign', linkValue: '375', campaignErpId: 375 }),
+      ).resolves.toBeDefined();
+    });
+
     it('exige targetCategory quando slot = category', () => {
       expect(() => service.create({ ...validPayload(), slot: 'category', targetCategory: null })).toThrow(
         /targetCategory é obrigatório/i,
