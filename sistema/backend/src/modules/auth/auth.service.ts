@@ -81,7 +81,9 @@ export class AuthService {
     const password = await bcrypt.hash(newPassword, 10)
     await this.prisma.admin.update({
       where: { id: admin.id },
-      data: { password, resetTokenHash: null, resetTokenExpiresAt: null },
+      // JON-138: incrementa tokenVersion -- qualquer JWT emitido antes
+      // deste reset passa a falhar em JwtStrategy.validate().
+      data: { password, resetTokenHash: null, resetTokenExpiresAt: null, tokenVersion: { increment: 1 } },
     })
     return { message: 'Senha redefinida com sucesso.' }
   }
@@ -118,7 +120,8 @@ export class AuthService {
     const password = await bcrypt.hash(newPassword, 10)
     await this.prisma.customer.update({
       where: { id: customer.id },
-      data: { password, resetTokenHash: null, resetTokenExpiresAt: null },
+      // JON-138: mesma revogacao do reset de admin.
+      data: { password, resetTokenHash: null, resetTokenExpiresAt: null, tokenVersion: { increment: 1 } },
     })
     return { message: 'Senha redefinida com sucesso.' }
   }
@@ -140,6 +143,10 @@ export class AuthService {
   async customerSetPassword(customerId: string, newPassword: string, currentPassword?: string) {
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId } })
     if (!customer) throw new UnauthorizedException('Sessao invalida.')
+    // JON-119: reforco explicito -- JwtStrategy ja bloqueia blocked=true antes
+    // de chegar aqui, mas nao depende so disso pra impedir reativar conta
+    // anonimizada por essa via.
+    if (customer.blocked) throw new UnauthorizedException('Conta bloqueada.')
 
     if (customer.password) {
       if (!currentPassword || !(await bcrypt.compare(currentPassword, customer.password))) {
@@ -148,13 +155,16 @@ export class AuthService {
     }
 
     const password = await bcrypt.hash(newPassword, 10)
-    await this.prisma.customer.update({
+    const updated = await this.prisma.customer.update({
       where: { id: customer.id },
       // Invalida qualquer link de redefinicao pendente: quem acabou de definir
       // senha nao deve continuar alcancavel por um token antigo no e-mail.
-      data: { password, resetTokenHash: null, resetTokenExpiresAt: null },
+      // JON-138: tokenVersion revoga tambem o JWT em uso na hora da troca --
+      // por isso devolve um access_token novo abaixo: senao a propria pessoa
+      // que acabou de trocar a senha ficaria deslogada da propria sessao.
+      data: { password, resetTokenHash: null, resetTokenExpiresAt: null, tokenVersion: { increment: 1 } },
     })
-    return { message: 'Senha definida com sucesso.' }
+    return { message: 'Senha definida com sucesso.', ...this.buildCustomerTokenResponse(updated) }
   }
 
   async login(loginDto: LoginDto) {
@@ -188,6 +198,7 @@ export class AuthService {
         moduleAccess,
         tenantId,
         storeId,
+        tokenVersion: admin.tokenVersion,
       },
       // picker/driver: sessao longa (celular do funcionario). admin: fica no
       // padrao de 24h do modulo. Ver STAFF_TOKEN_TTL.
@@ -317,6 +328,7 @@ export class AuthService {
       name: admin.name,
       role,
       moduleAccess: effectiveModuleAccess,
+      tokenVersion: admin.tokenVersion,
       tenantId,
       storeId,
     })
@@ -409,6 +421,7 @@ export class AuthService {
         role: 'customer',
         tenantId,
         storeId,
+        tokenVersion: customer.tokenVersion,
       },
       // Cliente fica logado por 30 dias; equipe (admin/separacao/entrega)
       // continua nas 24h do padrao do modulo -- conta que opera a loja tem
@@ -473,6 +486,22 @@ export class AuthService {
     })
 
     if (existing) {
+      // Auditoria 360 JON-131: o OR acima casa por QUALQUER UM dos tres
+      // identificadores -- so o e-mail da vitima ja bastava pra emitir o JWT
+      // completo dela, mesmo numa conta protegida por senha (ex: cliente que
+      // se cadastrou de verdade, nao um guest). Conta com senha exige prova
+      // de posse (login normal); conta de origem guest (sem senha) continua
+      // reconhecendo o cliente que volta sem senha nenhuma, que e o
+      // comportamento que o checkout convidado sempre teve por decisao de
+      // produto (ver comentario em buildCustomerTokenResponse).
+      if (existing.password) {
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Ja existe uma conta com esses dados. Faca login para continuar.',
+          error: 'Conta ja cadastrada',
+        })
+      }
+
       // So autocorrige o caso especifico de DDD faltando (numero salvo
       // truncado por um bug antigo) -- o novo numero precisa terminar
       // exatamente com o numero salvo, senao seria dar a qualquer um que
@@ -520,8 +549,11 @@ export class AuthService {
     return staff.map((s) => ({ ...s, permissions: permissionsByUserId.get(s.id) || [] }))
   }
 
-  async updateStaff(id: string, dto: UpdateStaffDto, actorId?: string) {
-    const staff = await this.prisma.admin.findUnique({ where: { id } })
+  async updateStaff(id: string, dto: UpdateStaffDto, actorId?: string, actorTenantId?: string) {
+    // JON-142 (Auditoria 360, High): findUnique so por id deixava admin de UM
+    // tenant editar/reativar staff de OUTRO so adivinhando o id -- nada aqui
+    // conferia tenant. findFirst com tenantId do ator fecha isso.
+    const staff = await this.prisma.admin.findFirst({ where: { id, tenantId: actorTenantId || DEFAULT_TENANT_ID } })
     if (!staff) throw new NotFoundException('Membro nao encontrado')
     // Admin so edita a propria conta de admin, nunca a de outro -- senao uma
     // conta admin comprometida troca email/senha de qualquer outra (account
@@ -533,7 +565,11 @@ export class AuthService {
     const data: Record<string, unknown> = {}
     if (dto.name) data.name = dto.name
     if (dto.email) data.email = dto.email
-    if (dto.password) data.password = await bcrypt.hash(dto.password, 10)
+    if (dto.password) {
+      data.password = await bcrypt.hash(dto.password, 10)
+      // JON-138: revoga qualquer JWT emitido antes desta troca.
+      data.tokenVersion = { increment: 1 }
+    }
 
     const isMaster = staff.role === 'admin'
     if (!isMaster && dto.moduleAccess) data.moduleAccess = dto.moduleAccess
@@ -555,8 +591,8 @@ export class AuthService {
     return updated
   }
 
-  async toggleStaffActive(id: string) {
-    const staff = await this.prisma.admin.findUnique({ where: { id } })
+  async toggleStaffActive(id: string, actorTenantId?: string) {
+    const staff = await this.prisma.admin.findFirst({ where: { id, tenantId: actorTenantId || DEFAULT_TENANT_ID } })
     if (!staff) throw new NotFoundException('Membro nao encontrado')
     if (staff.role === 'admin') {
       throw new ForbiddenException('Conta admin nao pode ser desativada por aqui')
@@ -578,6 +614,7 @@ export class AuthService {
     blocked?: boolean
     blockedReason?: string | null
     password?: string | null
+    tokenVersion?: number
   }) {
     if (customer.blocked) {
       throw new ForbiddenException({
@@ -599,6 +636,7 @@ export class AuthService {
         role: 'customer',
         tenantId,
         storeId,
+        tokenVersion: customer.tokenVersion ?? 0,
       },
       // Cliente fica logado por 30 dias; equipe (admin/separacao/entrega)
       // continua nas 24h do padrao do modulo -- conta que opera a loja tem

@@ -73,6 +73,60 @@ export function DeliveryVerificationModal() {
     closeModal()
   }, [closeModal])
 
+  // JON-164 (Auditoria 360): role=dialog/aria-modal=true nao trava foco por
+  // si so -- abrir nao movia o foco pra dentro, Tab passava pelo fundo
+  // (carrinho, busca, categorias) e Escape nao fechava. Foco manual: entra
+  // no primeiro elemento focavel, prende Tab/Shift+Tab dentro do dialogo,
+  // Escape fecha, e o foco volta pra quem abriu.
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    triggerRef.current = document.activeElement as HTMLElement | null
+
+    const getFocusable = () =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) || [],
+      ).filter((el) => el.offsetParent !== null)
+
+    const focusFirst = () => {
+      const focusable = getFocusable()
+      ;(focusable[0] || dialogRef.current)?.focus()
+    }
+    // Espera o DOM do conteudo (view/edit) montar antes de focar.
+    const raf = requestAnimationFrame(focusFirst)
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        handleCloseModal()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusable = getFocusable()
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      cancelAnimationFrame(raf)
+      document.removeEventListener('keydown', handleKeyDown)
+      triggerRef.current?.focus()
+    }
+  }, [isOpen, mode, handleCloseModal])
+
   const isSecureContext = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1'
   // GPS so no aparelho que o cliente carrega consigo -- no desktop a
   // geolocalizacao resolve por Wi-Fi/IP e erra por quilometros mesmo "com
@@ -306,9 +360,11 @@ export function DeliveryVerificationModal() {
       {isOpen && (
         <div className="fixed inset-0 z-[100] bg-black/40 flex items-end md:items-center justify-center">
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="delivery-verification-title"
+            tabIndex={-1}
             className={surfaceClasses({
               tone: 'warm',
               className: 'w-full md:max-w-lg rounded-t-2xl md:rounded-lg p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain',

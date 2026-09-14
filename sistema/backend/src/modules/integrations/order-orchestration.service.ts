@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { PrismaService } from '../../common/prisma.service'
 import { InternalOrderAddressContract, InternalOrderContract } from './dto/order-contract.dto'
 import { SolidcomPedidoDto } from './dto/solidcom-order.dto'
@@ -259,7 +260,7 @@ export class OrderOrchestrationService {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: {
           include: {
             product: true,

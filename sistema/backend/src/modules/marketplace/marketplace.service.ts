@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
-import { createHash } from 'crypto'
+import { createHash, timingSafeEqual } from 'crypto'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { PrismaService } from '../../common/prisma.service'
 import { OrdersService } from '../orders/orders.service'
@@ -37,9 +37,13 @@ export class MarketplaceService {
     private readonly ordersService: OrdersService,
   ) {}
 
-  async upsertSalesChannel(body: any) {
-    const tenantId = body.tenantId || DEFAULT_TENANT_ID
-    const storeId = body.storeId || DEFAULT_STORE_ID
+  async upsertSalesChannel(body: any, context?: ChannelContext) {
+    // JON-116: tenantId/storeId vinham do BODY (cliente decide em qual
+    // tenant esta criando/editando o canal). Prioriza o contexto
+    // autenticado (getTenantContext) quando existe; body so serve de
+    // fallback pra chamada nao autenticada (nenhuma hoje) ou teste direto.
+    const tenantId = context?.tenantId || body.tenantId || DEFAULT_TENANT_ID
+    const storeId = context?.storeId || body.storeId || DEFAULT_STORE_ID
     const type = this.normalizeCode(body.type || body.provider || 'STOREFRONT')
     const provider = this.normalizeCode(body.provider || type)
     const name = String(body.name || `${type} ${provider}`).trim()
@@ -89,8 +93,8 @@ export class MarketplaceService {
     return { total: channels.length, items: channels }
   }
 
-  async upsertChannelProduct(channelId: string, body: any) {
-    const channel = await this.requireChannel(channelId)
+  async upsertChannelProduct(channelId: string, body: any, context?: ChannelContext) {
+    const channel = await this.requireChannel(channelId, context)
     const productId = String(body.productId || '').trim()
     if (!productId) throw new BadRequestException('productId e obrigatorio.')
 
@@ -125,8 +129,8 @@ export class MarketplaceService {
     })
   }
 
-  async upsertPricePolicy(channelId: string, body: any) {
-    const channel = await this.requireChannel(channelId)
+  async upsertPricePolicy(channelId: string, body: any, context?: ChannelContext) {
+    const channel = await this.requireChannel(channelId, context)
     const mode = this.normalizeCode(body.mode || 'INHERIT')
     return this.prisma.channelPricePolicy.upsert({
       where: { channelId_mode: { channelId, mode } },
@@ -149,8 +153,8 @@ export class MarketplaceService {
     })
   }
 
-  async upsertStockPolicy(channelId: string, body: any) {
-    const channel = await this.requireChannel(channelId)
+  async upsertStockPolicy(channelId: string, body: any, context?: ChannelContext) {
+    const channel = await this.requireChannel(channelId, context)
     const stockMode = this.normalizeCode(body.stockMode || 'AVAILABLE')
     return this.prisma.channelStockPolicy.upsert({
       where: { channelId_stockMode: { channelId, stockMode } },
@@ -282,18 +286,37 @@ export class MarketplaceService {
     }
   }
 
-  private async requireChannel(channelId: string) {
-    const channel = await this.prisma.salesChannel.findUnique({ where: { id: channelId } })
+  // JON-116 (Auditoria 360, High): rotas admin de canal so consultavam por id
+  // -- admin do tenant A com channelId de B (instalacao com mais de um
+  // tenant) lia/alterava configuracao alheia. `context` e opcional so pra
+  // preservar o webhook publico de ingestao (ingestMarketplaceOrder), que
+  // nao tem tenant autenticado nenhum pra comparar -- ali o segredo do
+  // canal (JON-115) e a unica credencial que faz sentido.
+  private async requireChannel(channelId: string, context?: ChannelContext) {
+    const channel = await this.prisma.salesChannel.findFirst({
+      where: {
+        id: channelId,
+        ...(context?.tenantId ? { tenantId: context.tenantId } : {}),
+        ...(context?.storeId ? { storeId: context.storeId } : {}),
+      },
+    })
     if (!channel) throw new NotFoundException('Canal de venda nao encontrado.')
     return channel
   }
 
   private assertWebhookSecret(channel: any, headers?: Record<string, string | string[] | undefined>) {
+    // JON-115 (Auditoria 360, High): sem segredo configurado no canal, isso
+    // retornava normalmente -- quem soubesse o channelId inseria pedido sem
+    // nenhuma credencial. Canal sem segredo agora e recusado, nao liberado.
     const config = this.asObject(channel.config)
     const expected = String(config.webhookSecret || '').trim()
-    if (!expected) return
-    const received = this.getHeader(headers, 'x-marketplace-secret')
-    if (received !== expected) throw new ForbiddenException('Segredo do canal invalido.')
+    if (!expected) throw new ForbiddenException('Canal sem autenticacao configurada.')
+
+    const received = String(this.getHeader(headers, 'x-marketplace-secret') || '')
+    const expectedBuf = Buffer.from(expected)
+    const receivedBuf = Buffer.from(received)
+    const valid = expectedBuf.length === receivedBuf.length && timingSafeEqual(expectedBuf, receivedBuf)
+    if (!valid) throw new ForbiddenException('Segredo do canal invalido.')
   }
 
   private async ensureCustomer(channel: any, payload: ExternalOrderPayload) {

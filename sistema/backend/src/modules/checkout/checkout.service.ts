@@ -184,7 +184,19 @@ export class CheckoutService {
       const result = await this.ordersService.create({
         customerId,
         idempotencyKey: this.orderIdempotencyKey(quote.session),
-        items: quote.cart.items.map((item) => ({ productId: item.productId, quantity: Number(item.quantity) })),
+        // JON-46 (Auditoria 360): so mandava productId/quantity -- a recusa
+        // de substituicao que o cliente marcou no carrinho (allowSubstitution)
+        // se perdia aqui, e OrdersService.create() gravava ALLOW pra todo
+        // item, deixando a separacao trocar produto que o cliente recusou.
+        items: quote.cart.items.map((item) => ({
+          productId: item.productId,
+          quantity: Number(item.quantity),
+          substitutionPolicy: item.allowSubstitution ? 'ALLOW' as const : 'DENY' as const,
+        })),
+        // JON-47 (Auditoria 360): total que o cliente ja viu/aprovou aqui em
+        // confirmSession -- create() roda o pricing de novo (3a vez) e sem
+        // este valor nao tinha como comparar contra o que foi aprovado.
+        expectedTotal: confirmedTotal,
         delivery: Number(quote.delivery.fee || 0),
         paymentMethod,
         notes: dto.notes,

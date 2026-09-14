@@ -22,6 +22,7 @@ const mockPrisma = {
     findFirst: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
+    upsert: jest.fn(),
     update: jest.fn(),
     groupBy: jest.fn(),
   },
@@ -108,13 +109,17 @@ describe('IntegrationOutboxService', () => {
     )
   })
 
-  it('processa evento pendente e registra job e tentativa enviados', async () => {
+  // JON-48 (Auditoria 360, High): este teste validava o falso sucesso --
+  // dispatchEvent nunca chamava integracao nenhuma e o worker marcava SENT
+  // mesmo assim. Sem dispatcher real registrado, o resultado honesto e
+  // FAILED explicito (nao "sumir" a falha atras de um SENT mentiroso).
+  it('nao marca SENT sem um dispatcher real -- falha explicita em vez de falso sucesso', async () => {
     const event = {
       id: 'evt-1',
       tenantId: 'tenant_default',
       storeId: 'store_default',
       connectorId: 'conn-1',
-      connector: { id: 'conn-1', status: 'ACTIVE' },
+      connector: { id: 'conn-1', status: 'ACTIVE', provider: 'SOLIDCOM' },
       aggregate: 'ORDER',
       aggregateId: 'order-1',
       type: 'ORDER_SYNC_TO_ERP',
@@ -126,7 +131,7 @@ describe('IntegrationOutboxService', () => {
       lastError: null,
     }
     mockPrisma.outboxEvent.findUnique.mockResolvedValue(event)
-    mockPrisma.integrationJob.create.mockResolvedValue({ id: 'job-1' })
+    mockPrisma.integrationJob.upsert.mockResolvedValue({ id: 'job-1' })
     mockPrisma.integrationAttempt.create.mockResolvedValue({ id: 'attempt-1' })
     mockPrisma.integrationAttempt.update.mockResolvedValue({})
     mockPrisma.integrationJob.update.mockResolvedValue({})
@@ -134,19 +139,61 @@ describe('IntegrationOutboxService', () => {
 
     const result = await service.processOutboxEvent('evt-1')
 
-    expect(result).toEqual(expect.objectContaining({ status: 'SENT', jobId: 'job-1' }))
+    expect(result).toEqual(expect.objectContaining({ status: 'FAILED', jobId: 'job-1' }))
     expect(mockPrisma.integrationAttempt.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'attempt-1' },
-        data: expect.objectContaining({ status: 'SENT' }),
+        data: expect.objectContaining({ status: 'FAILED' }),
       }),
     )
-    expect(mockPrisma.outboxEvent.update).toHaveBeenLastCalledWith(
+    expect(mockPrisma.outboxEvent.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'SENT' }) }),
+    )
+  })
+
+  // JON-49 (Auditoria 360, High): a mesma idempotencyKey era usada em
+  // integrationJob.create() em toda tentativa, contra um @@unique -- a
+  // segunda tentativa de um evento que falhou antes estourava P2002 e o
+  // retry nunca rodava de verdade. upsert() evita isso.
+  it('processa retry do mesmo evento sem duplicar job (upsert, nao create)', async () => {
+    const event = {
+      id: 'evt-retry',
+      tenantId: 'tenant_default',
+      storeId: 'store_default',
+      connectorId: 'conn-1',
+      connector: { id: 'conn-1', status: 'ACTIVE', provider: 'SOLIDCOM' },
+      aggregate: 'ORDER',
+      aggregateId: 'order-1',
+      type: 'ORDER_SYNC_TO_ERP',
+      payload: { orderId: 'order-1' },
+      status: 'FAILED',
+      attempts: 1,
+      maxAttempts: 5,
+      idempotencyKey: 'idem-retry',
+      lastError: 'falha anterior',
+    }
+    mockPrisma.outboxEvent.findUnique.mockResolvedValue(event)
+    mockPrisma.integrationJob.upsert.mockResolvedValue({ id: 'job-1' })
+    mockPrisma.integrationAttempt.create.mockResolvedValue({ id: 'attempt-2' })
+    mockPrisma.integrationAttempt.update.mockResolvedValue({})
+    mockPrisma.outboxEvent.update.mockResolvedValue({})
+
+    const result = await service.processOutboxEvent('evt-retry')
+
+    expect(mockPrisma.integrationJob.create).not.toHaveBeenCalled()
+    expect(mockPrisma.integrationJob.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'evt-1' },
-        data: expect.objectContaining({ status: 'SENT' }),
+        where: {
+          tenantId_storeId_connectorId_idempotencyKey: {
+            tenantId: 'tenant_default',
+            storeId: 'store_default',
+            connectorId: 'conn-1',
+            idempotencyKey: 'job:idem-retry',
+          },
+        },
       }),
     )
+    expect(result.status).toBe('FAILED') // sem dispatcher real (JON-48), mas chegou ate aqui sem estourar P2002
   })
 
   it('move para DLQ quando excede maxAttempts', async () => {

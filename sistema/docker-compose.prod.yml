@@ -87,6 +87,24 @@ services:
       SOLIDCOM_API_URL: ${SOLIDCOM_API_URL:-}
       SOLIDCOM_CNPJ: ${SOLIDCOM_CNPJ:-}
       SOLIDCOM_CODECOM: ${SOLIDCOM_CODECOM:-}
+      # JON-53 (Auditoria 360): SOLIDCOM_BALCAO_CPF nao vinha aqui -- o
+      # backend le por requireEnv() em construtor de provider (boot eager),
+      # entao a API nem subia mesmo com o .env.production preenchido certo
+      # (sem env_file, so o que esta em `environment:` chega no container).
+      SOLIDCOM_BALCAO_CPF: ${SOLIDCOM_BALCAO_CPF:-}
+      # AntenorApi (conector proprio, ver docs/solidcom-api.md e
+      # ANTENOR_API_* em sistema/.env.example) tambem nao era repassado --
+      # preencher .env.production pra ligar o conector nao tinha efeito
+      # nenhum. INTEGRATION_ANTENORAPI_ENABLED continua default 'false'
+      # ("nasce desligado", ver .env.example) -- ligar exige decisao
+      # explicita, nao so a env existir.
+      INTEGRATION_ANTENORAPI_ENABLED: ${INTEGRATION_ANTENORAPI_ENABLED:-false}
+      ANTENOR_API_URL: ${ANTENOR_API_URL:-}
+      ANTENOR_API_LOJA: ${ANTENOR_API_LOJA:-1}
+      ANTENOR_API_TIMEOUT_MS: ${ANTENOR_API_TIMEOUT_MS:-30000}
+      ANTENOR_API_KEY: ${ANTENOR_API_KEY:-}
+      ANTENOR_API_WEBHOOK_SECRET: ${ANTENOR_API_WEBHOOK_SECRET:-}
+      ANTENOR_API_CA_PATH: ${ANTENOR_API_CA_PATH:-}
       # Lidas pelo prisma/seed.ts (admin master + contas de picker/driver de
       # teste) -- faltavam aqui, entao "prisma db seed" nunca funcionou contra
       # uma imagem real de producao (so testado localmente, onde a env vem de

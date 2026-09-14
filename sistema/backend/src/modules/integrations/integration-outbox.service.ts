@@ -279,8 +279,24 @@ export class IntegrationOutboxService {
 
     const startedAt = new Date()
     const attemptNo = event.attempts + 1
-    const job = await this.prisma.integrationJob.create({
-      data: {
+    const jobIdempotencyKey = event.idempotencyKey ? `job:${event.idempotencyKey}` : null
+    // JON-49 (Auditoria 360, High): create() aqui sempre usava a MESMA
+    // idempotencyKey (derivada do evento, nao muda entre tentativas) contra
+    // um @@unique(tenantId, storeId, connectorId, idempotencyKey) -- a
+    // primeira tentativa criava a linha, a segunda estourava P2002 antes de
+    // sequer chamar dispatchEvent, e o retry nunca progredia. upsert mantem
+    // uma unica identidade de job por evento (a historia por tentativa ja
+    // vive em IntegrationAttempt, com attemptNo distinto abaixo).
+    const job = await this.prisma.integrationJob.upsert({
+      where: {
+        tenantId_storeId_connectorId_idempotencyKey: {
+          tenantId: event.tenantId,
+          storeId: event.storeId,
+          connectorId: event.connector.id,
+          idempotencyKey: jobIdempotencyKey,
+        },
+      },
+      create: {
         tenantId: event.tenantId,
         storeId: event.storeId,
         connectorId: event.connector.id,
@@ -289,8 +305,16 @@ export class IntegrationOutboxService {
         status: 'PROCESSING',
         payload: event.payload,
         attempts: attemptNo,
-        idempotencyKey: event.idempotencyKey ? `job:${event.idempotencyKey}` : null,
+        idempotencyKey: jobIdempotencyKey,
         startedAt,
+      },
+      update: {
+        status: 'PROCESSING',
+        payload: event.payload,
+        attempts: attemptNo,
+        startedAt,
+        finishedAt: null,
+        error: null,
       },
     })
 
@@ -314,7 +338,12 @@ export class IntegrationOutboxService {
       },
     })
 
-    const dispatched = await this.dispatchEvent(event.connector.status, event.payload as Record<string, unknown>)
+    const dispatched = await this.dispatchEvent(
+      event.connector.status,
+      event.connector.provider,
+      event.type,
+      event.payload as Record<string, unknown>,
+    )
     const finishedAt = new Date()
     const durationMs = finishedAt.getTime() - startedAt.getTime()
 
@@ -511,14 +540,35 @@ export class IntegrationOutboxService {
     })
   }
 
-  private async dispatchEvent(connectorStatus: string, payload: Record<string, unknown>): Promise<DispatchResult> {
+  /**
+   * JON-48 (Auditoria 360, High): isto sempre devolvia ok:true depois de so
+   * checar status do conector e a flag `simulateFailure` (usada nos proprios
+   * testes) -- nenhuma integracao externa era chamada de verdade. Pedido com
+   * falha real de sync (ex: Solidcom fora do ar) entrava na outbox e o
+   * worker de retry marcava SENT sem o ERP jamais ter recebido nada.
+   *
+   * Nao existe hoje um dispatcher real por provider/type (isso e decisao de
+   * produto: qual client chamar pra cada combinacao, como mapear o payload
+   * de volta pro formato de cada integracao). Ate existir, falha explicita
+   * e o unico resultado honesto -- SENT falso e pior que FAILED verdadeiro,
+   * porque esconde que o pedido nunca chegou no ERP.
+   */
+  private async dispatchEvent(
+    connectorStatus: string,
+    provider: string,
+    type: string,
+    payload: Record<string, unknown>,
+  ): Promise<DispatchResult> {
     if (this.normalizeCode(connectorStatus) !== 'ACTIVE') {
       return { ok: false, error: 'Conector inativo.' }
     }
     if (payload?.simulateFailure === true) {
       return { ok: false, error: 'Falha simulada para validacao de retry/DLQ.' }
     }
-    return { ok: true, result: { acceptedAt: new Date().toISOString(), queuedBy: 'postgres-outbox' } }
+    return {
+      ok: false,
+      error: `Conector sem implementacao real de envio (provider=${provider}, type=${type}). Retry manual nao substitui reenvio de verdade a integracao externa.`,
+    }
   }
 
   private backoffMs(attempt: number) {

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
@@ -72,7 +73,7 @@ export class BusinessService {
         role: String(body.role || 'BUYER').toUpperCase(),
         status: String(body.status || 'ACTIVE').toUpperCase(),
       },
-      include: { account: true, customer: true },
+      include: { account: true, customer: { select: CUSTOMER_SAFE_SELECT } },
     })
   }
 
@@ -145,7 +146,7 @@ export class BusinessService {
     const account = await this.findAccountOrThrow(accountId, context)
     return this.prisma.shoppingList.findMany({
       where: { tenantId: account.tenantId, storeId: account.storeId, businessAccountId: account.id, status: 'ACTIVE' },
-      include: { customer: true, items: { orderBy: { sortOrder: 'asc' } } },
+      include: { customer: { select: CUSTOMER_SAFE_SELECT }, items: { orderBy: { sortOrder: 'asc' } } },
       orderBy: { updatedAt: 'desc' },
     })
   }
@@ -183,7 +184,7 @@ export class BusinessService {
           })),
         },
       },
-      include: { customer: true, items: { orderBy: { sortOrder: 'asc' } } },
+      include: { customer: { select: CUSTOMER_SAFE_SELECT }, items: { orderBy: { sortOrder: 'asc' } } },
     })
   }
 
@@ -339,7 +340,7 @@ export class BusinessService {
     const storeId = context?.storeId || DEFAULT_STORE_ID
     return this.prisma.order.findMany({
       where: { tenantId, storeId, businessApprovalStatus: 'PENDING' },
-      include: { customer: true, businessAccount: true, items: { include: { product: true } } },
+      include: { customer: { select: CUSTOMER_SAFE_SELECT }, businessAccount: true, items: { include: { product: true } } },
       orderBy: { createdAt: 'asc' },
     })
   }

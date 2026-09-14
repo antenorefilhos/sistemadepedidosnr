@@ -82,9 +82,23 @@ export class AddressesService {
         })
       }
 
+      // JON-142 (Auditoria 360, High): `...data` espalhava o body inteiro --
+      // como o DTO e uma interface (sem metadata de classe pro
+      // ValidationPipe filtrar), campo extra que exista como coluna real
+      // (id, tenantId, createdAt) passava direto pro Prisma. Whitelist
+      // explicita fecha isso; tenantId/customerId sempre vem do server.
       return tx.address.create({
         data: {
-          ...data,
+          street: data.street,
+          number: data.number,
+          complement: data.complement ?? null,
+          neighborhood: data.neighborhood,
+          city: data.city,
+          state: data.state,
+          zipCode: data.zipCode,
+          locality: data.locality ?? null,
+          deliveryPointCode: data.deliveryPointCode ?? null,
+          isDefault: Boolean(data.isDefault),
           customerId,
         },
       })

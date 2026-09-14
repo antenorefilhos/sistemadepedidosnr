@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma.service';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { isAbsolute, join, relative, resolve, sep } from 'path';
 
 export interface StoreBannerPayload {
   name: string;
@@ -91,9 +91,20 @@ export class StoreBannersService {
 
   private async deleteFile(filename: string): Promise<void> {
     if (!filename) return;
+    // JON-135 (Auditoria 360, High): mesma checagem de UploadsManagementService
+    // -- filename vem direto de uma URL gravada no CMS (extractFilenameFromUrl
+    // so faz regex, nao valida nada), e join() sem confinamento deixava
+    // "../../.env" apagar arquivo fora de uploads/. ponytail: essa classe
+    // duplica UploadsManagementService inteiro; migrar pra injetar o
+    // servico compartilhado em vez de reimplementar aqui.
+    const candidate = resolve(this.uploadsDir, filename);
+    const rel = relative(this.uploadsDir, candidate);
+    if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+      console.warn(`[StoreBanners] Caminho fora da pasta de uploads recusado: ${filename}`);
+      return;
+    }
     try {
-      const filepath = join(this.uploadsDir, filename);
-      await fs.unlink(filepath);
+      await fs.unlink(candidate);
     } catch (err) {
       // Arquivo já deletado ou não existe — continuar silenciosamente
       console.warn(`[StoreBanners] Arquivo não encontrado ou já deletado: ${filename}`, err.message);

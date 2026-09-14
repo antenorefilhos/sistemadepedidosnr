@@ -3,6 +3,13 @@ import { createHash, randomBytes } from 'crypto'
 import { PrismaService } from '../../common/prisma.service'
 import { CreateCustomerDto } from './dto/create-customer.dto'
 import { IntegrationsService } from '../integrations/integrations.service'
+import { TenantContext } from '../../common/tenant/tenant-context'
+
+// JON-142 (Auditoria 360, High): nenhum metodo aqui filtrava por tenant --
+// admin de UM tenant listava/editava/bloqueava/apagava cliente de OUTRO
+// tenant so por adivinhar o id. tenantId no `data` de create/update tambem
+// vinha do body, entao o proprio chamador escolhia o tenant do registro.
+type TenantScope = Pick<TenantContext, 'tenantId'>
 
 type UpdateCustomerDto = Partial<CreateCustomerDto>
 
@@ -27,10 +34,11 @@ export class CustomersService {
     private integrations: IntegrationsService,
   ) {}
 
-  async findAll(search?: string) {
+  async findAll(scope: TenantScope, search?: string) {
     const customers = search
       ? await this.prisma.customer.findMany({
           where: {
+            tenantId: scope.tenantId,
             OR: [
               { name: { contains: search } },
               { cpf: { contains: search } },
@@ -40,6 +48,7 @@ export class CustomersService {
           include: { addresses: true },
         })
       : await this.prisma.customer.findMany({
+          where: { tenantId: scope.tenantId },
           include: { addresses: true },
           orderBy: { createdAt: 'desc' },
         })
@@ -80,26 +89,28 @@ export class CustomersService {
     }))
   }
 
-  async findOne(id: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id },
+  async findOne(id: string, scope: TenantScope) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id, tenantId: scope.tenantId },
       include: { addresses: true },
     })
     return customer ? stripSecrets(customer) : customer
   }
 
-  async findByCPF(cpf: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { cpf },
+  async findByCPF(cpf: string, scope: TenantScope) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { cpf, tenantId: scope.tenantId },
       include: { addresses: true },
     })
     return customer ? stripSecrets(customer) : customer
   }
 
-  async create(createCustomerDto: CreateCustomerDto) {
-    // Check if customer already exists by CPF or whatsapp
+  async create(createCustomerDto: CreateCustomerDto, scope: TenantScope) {
+    // Check if customer already exists by CPF or whatsapp, dentro do MESMO
+    // tenant -- CPF/whatsapp repetido em tenant diferente e cliente distinto.
     const existing = await this.prisma.customer.findFirst({
       where: {
+        tenantId: scope.tenantId,
         OR: [
           { cpf: createCustomerDto.cpf },
           { whatsapp: createCustomerDto.whatsapp },
@@ -111,8 +122,10 @@ export class CustomersService {
       return existing
     }
 
+    // tenantId sempre vem do contexto autenticado, nunca do body: senao o
+    // proprio chamador escolhe em qual tenant o cliente nasce.
     const customer = await this.prisma.customer.create({
-      data: createCustomerDto,
+      data: { ...createCustomerDto, tenantId: scope.tenantId },
     })
 
     if (this.integrations) {
@@ -124,22 +137,24 @@ export class CustomersService {
     return customer
   }
 
-  async update(id: string, data: UpdateCustomerDto) {
-    return this.prisma.customer.update({
-      where: { id },
-      data,
-      include: { addresses: true },
+  async update(id: string, data: UpdateCustomerDto, scope: TenantScope) {
+    const { tenantId: _ignoredTenantId, ...safeData } = data as UpdateCustomerDto & { tenantId?: string }
+    const result = await this.prisma.customer.updateMany({
+      where: { id, tenantId: scope.tenantId },
+      data: safeData,
     })
+    if (result.count === 0) throw new NotFoundException('Cliente nao encontrado')
+    return this.prisma.customer.findFirst({ where: { id, tenantId: scope.tenantId }, include: { addresses: true } })
   }
 
-  async remove(id: string) {
-    return this.prisma.customer.delete({
-      where: { id },
-    })
+  async remove(id: string, scope: TenantScope) {
+    const result = await this.prisma.customer.deleteMany({ where: { id, tenantId: scope.tenantId } })
+    if (result.count === 0) throw new NotFoundException('Cliente nao encontrado')
+    return { id }
   }
 
-  async setBlocked(id: string, blocked: boolean, reason?: string) {
-    const customer = await this.prisma.customer.findUnique({ where: { id } })
+  async setBlocked(id: string, blocked: boolean, scope: TenantScope, reason?: string) {
+    const customer = await this.prisma.customer.findFirst({ where: { id, tenantId: scope.tenantId } })
     if (!customer) throw new NotFoundException('Cliente nao encontrado')
 
     return this.prisma.customer.update({
@@ -156,8 +171,8 @@ export class CustomersService {
    * convidado pode nao ter e-mail cadastrado, so WhatsApp, entao o admin
    * decide o canal (copiar, WhatsApp ou e-mail) na hora.
    */
-  async generateResetLink(id: string) {
-    const customer = await this.prisma.customer.findUnique({ where: { id } })
+  async generateResetLink(id: string, scope: TenantScope) {
+    const customer = await this.prisma.customer.findFirst({ where: { id, tenantId: scope.tenantId } })
     if (!customer) throw new NotFoundException('Cliente nao encontrado')
 
     const token = randomBytes(32).toString('hex')
@@ -172,8 +187,9 @@ export class CustomersService {
   }
 
   /** Phase 17 – Canal de aquisição de clientes */
-  async getOriginAnalytics() {
+  async getOriginAnalytics(scope: TenantScope) {
     const customers = await this.prisma.customer.findMany({
+      where: { tenantId: scope.tenantId },
       select: { origin: true },
     })
 

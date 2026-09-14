@@ -437,4 +437,69 @@ describe('DeliveryService', () => {
       expect(result.drivers).toEqual([])
     })
   })
+
+  // JON-72 (Auditoria 360, High): as tres mutacoes (start/updateStopStatus/
+  // complete) so verificavam tenant/store, nao dono -- motorista A com o
+  // routeId de B (mesma loja) conseguia mexer na rota alheia.
+  describe('isolamento por dono da rota (JON-72)', () => {
+    it('startRoute: 404 quando a rota pertence a outro motorista', async () => {
+      mockPrisma.deliveryRoute.findFirst.mockResolvedValue(null) // filtro por driverId nao acha nada
+
+      await expect(
+        service.startRoute('route-de-b', { tenantId: 'tenant_default', storeId: 'store_default' }, undefined, 'driver-a'),
+      ).rejects.toThrow('Rota de entrega nao encontrada.')
+
+      expect(mockPrisma.deliveryRoute.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: 'route-de-b', driverId: 'driver-a' }) }),
+      )
+      expect(mockPrisma.deliveryRoute.update).not.toHaveBeenCalled()
+    })
+
+    it('startRoute: funciona normalmente na propria rota', async () => {
+      mockPrisma.deliveryRoute.findFirst.mockResolvedValue({
+        id: 'route-a', driverId: 'driver-a', status: 'PLANNED', startsAt: null,
+        stops: [{ id: 'stop-1', orderId: 'order-1', status: 'PENDING' }],
+      })
+      mockPrisma.deliveryRoute.update.mockResolvedValue({})
+      mockPrisma.deliveryStop.updateMany.mockResolvedValue({ count: 1 })
+      mockPrisma.order.findFirst.mockResolvedValue({ id: 'order-1', status: 'OUT_FOR_DELIVERY' })
+      mockPrisma.order.update.mockResolvedValue({})
+      mockPrisma.orderEvent.create.mockResolvedValue({})
+      mockPrisma.fulfillmentEvent.create.mockResolvedValue({})
+
+      await service.startRoute('route-a', { tenantId: 'tenant_default', storeId: 'store_default' }, undefined, 'driver-a')
+
+      expect(mockPrisma.deliveryRoute.update).toHaveBeenCalled()
+    })
+
+    it('completeRoute: 404 quando a rota pertence a outro motorista', async () => {
+      mockPrisma.deliveryRoute.findFirst.mockResolvedValue(null)
+
+      await expect(
+        service.completeRoute('route-de-b', { tenantId: 'tenant_default', storeId: 'store_default' }, undefined, 'driver-a'),
+      ).rejects.toThrow('Rota de entrega nao encontrada.')
+    })
+
+    it('gestao administrativa (sem ownerDriverId) continua acessando qualquer rota da loja', async () => {
+      mockPrisma.deliveryRoute.findFirst.mockResolvedValue({
+        id: 'route-de-qualquer-motorista', driverId: 'outro-driver', status: 'PLANNED', startsAt: null,
+        stops: [{ id: 'stop-1', orderId: 'order-1', status: 'PENDING' }],
+      })
+      mockPrisma.deliveryRoute.update.mockResolvedValue({})
+      mockPrisma.deliveryStop.updateMany.mockResolvedValue({ count: 1 })
+      mockPrisma.order.findFirst.mockResolvedValue({ id: 'order-1', status: 'OUT_FOR_DELIVERY' })
+      mockPrisma.order.update.mockResolvedValue({})
+      mockPrisma.orderEvent.create.mockResolvedValue({})
+      mockPrisma.fulfillmentEvent.create.mockResolvedValue({})
+
+      // Sem o 4o argumento (ownerDriverId) -- e a chamada que o
+      // DeliveryController (admin) faz.
+      await service.startRoute('route-de-qualquer-motorista', { tenantId: 'tenant_default', storeId: 'store_default' })
+
+      expect(mockPrisma.deliveryRoute.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.not.objectContaining({ driverId: expect.anything() }) }),
+      )
+      expect(mockPrisma.deliveryRoute.update).toHaveBeenCalled()
+    })
+  })
 })

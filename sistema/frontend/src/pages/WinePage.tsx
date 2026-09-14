@@ -151,7 +151,12 @@ export default function WinePage() {
       {/* Header Specialized -- glassmorphism escuro com acabamento dourado */}
       <header className="fixed top-0 w-full z-50 border-b border-[#D2BB8A]/20 bg-[#120e0e]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="text-[#D2BB8A] hover:scale-110 transition-transform" aria-label="Voltar para Home">
+          {/* JON-168 (Auditoria 360): 24x24 ficava abaixo do alvo minimo de 44x44. */}
+          <Link
+            to="/"
+            className="-ml-2.5 flex min-h-11 min-w-11 items-center justify-center text-[#D2BB8A] transition-transform hover:scale-110"
+            aria-label="Voltar para Home"
+          >
             <ArrowLeft size={24} />
           </Link>
           <div className="text-center flex-1">
@@ -232,7 +237,10 @@ export default function WinePage() {
                   }`}
                 >
                   {cat.label}
-                  <span className={isActive ? 'text-[#231F20]/60' : 'text-[#D2BB8A]/50'}>({count})</span>
+                  {/* JON-161 (Auditoria 360): as duas variantes com opacidade
+                      reduzida mediam 3,30:1/3,42:1, abaixo do 4,5:1 de texto
+                      pequeno -- cor solida (sem /50 ou /60) resolve as duas. */}
+                  <span className={isActive ? 'text-[#231F20]' : 'text-[#D2BB8A]'}>({count})</span>
                 </button>
               )
             })}

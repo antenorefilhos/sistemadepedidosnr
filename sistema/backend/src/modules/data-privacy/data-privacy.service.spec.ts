@@ -98,8 +98,11 @@ describe('DataPrivacyService', () => {
 
   it('anonymizes customer PII, revokes consents and audits sensitive change', async () => {
     mockPrisma.order.count.mockResolvedValue(0)
+    const customerUpdate = jest.fn().mockResolvedValue({ id: 'customer-1', name: 'Cliente anonimizado tomer-1' })
+    const pushDeleteMany = jest.fn().mockResolvedValue({ count: 2 })
     mockPrisma.$transaction.mockImplementation(async (callback: any) => callback({
-      customer: { update: jest.fn().mockResolvedValue({ id: 'customer-1', name: 'Cliente anonimizado tomer-1' }) },
+      customer: { update: customerUpdate },
+      pushSubscription: { deleteMany: pushDeleteMany },
       address: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       customerProfile: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       customerConsent: { updateMany: jest.fn().mockResolvedValue({ count: 3 }) },
@@ -117,5 +120,18 @@ describe('DataPrivacyService', () => {
       action: 'LGPD_CUSTOMER_ANONYMIZED',
       adminId: 'admin-1',
     }))
+
+    // JON-119: sem isso, JWT/reset/push emitidos antes da anonimizacao
+    // continuavam validos e reabriam acesso a conta anonimizada.
+    expect(customerUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        password: null,
+        resetTokenHash: null,
+        resetTokenExpiresAt: null,
+        tokenVersion: { increment: 1 },
+        blocked: true,
+      }),
+    }))
+    expect(pushDeleteMany).toHaveBeenCalledWith({ where: { customerId: 'customer-1' } })
   })
 })

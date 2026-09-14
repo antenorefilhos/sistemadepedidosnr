@@ -612,6 +612,85 @@ describe('OrdersService', () => {
 
       expect(await criarPedido({ businessAccountId: 'ba-1', requiresApproval: true })).toBe('PENDING_APPROVAL');
     });
+
+    // JON-46 (Auditoria 360): confirmSession so mandava productId/quantity --
+    // a recusa de substituicao escolhida no carrinho se perdia e o pedido
+    // nascia com 'ALLOW' pra todo item, deixando o separador trocar produto
+    // que o cliente recusou.
+    it('preserva substitutionPolicy DENY por item, nao forca ALLOW pra todos', async () => {
+      mockPrismaService.product.findFirst
+        .mockResolvedValueOnce({ id: 'prod-1', name: 'Product 1', ean: '111', price: 15, promotionalPrice: null })
+        .mockResolvedValueOnce({ id: 'prod-2', name: 'Product 2', ean: '222', price: 10, promotionalPrice: null });
+      mockPrismaService.order.create.mockResolvedValue({
+        id: 'order-1', customerId: 'customer-1', subtotal: 25, delivery: 0, discount: 0, total: 25,
+        status: 'CONFIRMED', paymentMethod: 'CASH', customer: { whatsapp: '5511999999999', name: 'John' }, items: [],
+      });
+      mockOrderOrchestrationService.syncCreatedOrder.mockResolvedValue(undefined);
+      mockWhatsAppService.sendOrderConfirmation.mockResolvedValue({ url: 'wa.me' });
+
+      await service.create({
+        customerId: 'customer-1',
+        idempotencyKey: 'idem-substitution',
+        items: [
+          { productId: 'prod-1', quantity: 1, substitutionPolicy: 'DENY' },
+          { productId: 'prod-2', quantity: 1 },
+        ],
+        delivery: 0,
+        paymentMethod: 'CASH',
+      } as any);
+
+      const itemsCreated = mockPrismaService.order.create.mock.calls.at(-1)[0].data.items.create;
+      expect(itemsCreated.find((i: any) => i.productId === 'prod-1').substitutionPolicy).toBe('DENY');
+      expect(itemsCreated.find((i: any) => i.productId === 'prod-2').substitutionPolicy).toBe('ALLOW');
+    });
+
+    // JON-47 (Auditoria 360): OrdersService.create roda o pricing pela
+    // TERCEIRA vez no mesmo checkout (buildQuote -> confirmSession ->
+    // create) -- sem comparar contra o total que o cliente ja aprovou,
+    // promocao/produto mudando de preco entre a confirmacao e esta gravacao
+    // cobrava um valor diferente do aprovado, sem aviso nenhum.
+    describe('expectedTotal (divergencia entre confirmacao e gravacao)', () => {
+      it('deixa passar quando o total recalculado bate com o aprovado', async () => {
+        mockPrismaService.order.create.mockResolvedValue({
+          id: 'order-1', customerId: 'customer-1', subtotal: 15, delivery: 0, discount: 0, total: 15,
+          status: 'CONFIRMED', paymentMethod: 'CASH', customer: { whatsapp: '5511999999999', name: 'John' }, items: [],
+        });
+        mockOrderOrchestrationService.syncCreatedOrder.mockResolvedValue(undefined);
+        mockWhatsAppService.sendOrderConfirmation.mockResolvedValue({ url: 'wa.me' });
+
+        await expect(
+          service.create({
+            customerId: 'customer-1',
+            idempotencyKey: 'idem-total-ok',
+            items: [{ productId: 'prod-1', quantity: 1 }],
+            delivery: 0,
+            paymentMethod: 'CASH',
+            expectedTotal: 15,
+          } as any),
+        ).resolves.toBeDefined();
+        expect(mockPrismaService.order.create).toHaveBeenCalled();
+      });
+
+      it('recusa e NAO cria pedido quando o total recalculado diverge do aprovado', async () => {
+        mockPrismaService.fraudLog.create.mockResolvedValue({ id: 'fraud-1' });
+
+        await expect(
+          service.create({
+            customerId: 'customer-1',
+            idempotencyKey: 'idem-total-divergente',
+            items: [{ productId: 'prod-1', quantity: 1 }],
+            delivery: 0,
+            paymentMethod: 'CASH',
+            expectedTotal: 100, // aprovado a 100, mas o catalogo do mock cobra 15
+          } as any),
+        ).rejects.toThrow(/preco do pedido mudou/);
+
+        expect(mockPrismaService.order.create).not.toHaveBeenCalled();
+        expect(mockPrismaService.fraudLog.create).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({ vector: 'PRICE_DIVERGED' }),
+        }));
+      });
+    });
   });
 
   describe('findOne', () => {

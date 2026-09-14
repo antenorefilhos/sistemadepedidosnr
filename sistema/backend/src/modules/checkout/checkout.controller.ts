@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
@@ -10,14 +11,27 @@ import { CartService } from './cart.service'
 import { CheckoutService } from './checkout.service'
 import { ConfirmCheckoutSessionDto, CreateCheckoutSessionDto, QuoteCheckoutSessionDto } from './dto/checkout.dto'
 
+type RequestUser = { id?: string; role?: string }
+type AuthedRequest = TenantContextRequest & { user?: RequestUser }
+
+// JON-132 (Auditoria 360, High): quando ha token de cliente valido, ele
+// sempre vence o customerId enviado no corpo -- sem isso um corpo
+// adulterado atribuia sessao/pedido a outra conta so citando o id dela.
+// Sem token, segue exatamente como sempre foi (guest checkout).
+export function withVerifiedCustomerId<T extends { customerId?: string }>(dto: T, req?: AuthedRequest): T {
+  const verifiedCustomerId = req?.user?.role === 'customer' ? req.user.id : undefined
+  return verifiedCustomerId ? { ...dto, customerId: verifiedCustomerId } : dto
+}
+
 @Controller('checkout/sessions')
 export class CheckoutSessionsController {
   constructor(private readonly checkoutService: CheckoutService) {}
 
   @Post()
+  @UseGuards(OptionalJwtAuthGuard)
   @Throttle({ checkout: { limit: 30, ttl: 60000 } })
-  async create(@Body() dto: CreateCheckoutSessionDto, @Req() req?: TenantContextRequest) {
-    return this.checkoutService.createSession(req ? getTenantContext(req) : undefined, dto)
+  async create(@Body() dto: CreateCheckoutSessionDto, @Req() req?: AuthedRequest) {
+    return this.checkoutService.createSession(req ? getTenantContext(req) : undefined, withVerifiedCustomerId(dto, req))
   }
 
   @Post(':id/quote')
@@ -27,13 +41,17 @@ export class CheckoutSessionsController {
   }
 
   @Post(':id/confirm')
+  @UseGuards(OptionalJwtAuthGuard)
   @Throttle({ checkout: { limit: 20, ttl: 60000 } })
-  async confirm(@Param('id') id: string, @Body() dto: ConfirmCheckoutSessionDto, @Req() req?: TenantContextRequest) {
+  async confirm(@Param('id') id: string, @Body() dto: ConfirmCheckoutSessionDto, @Req() req?: AuthedRequest) {
     const clientIp =
       (req?.headers?.['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
       req?.ip ||
       undefined
-    return this.checkoutService.confirmSession(req ? getTenantContext(req) : undefined, id, { ...dto, clientIp })
+    return this.checkoutService.confirmSession(req ? getTenantContext(req) : undefined, id, {
+      ...withVerifiedCustomerId(dto, req),
+      clientIp,
+    })
   }
 
   @Post(':id/cancel')

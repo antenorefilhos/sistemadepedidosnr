@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { createHash, randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
@@ -21,7 +22,7 @@ import { resolveEffectiveFractional } from '../../common/fractional.util'
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
   include: {
-    customer: true
+    customer: { select: typeof CUSTOMER_SAFE_SELECT }
     items: { include: { product: true } }
   }
 }>
@@ -253,7 +254,7 @@ export class OrdersService {
     return this.prisma.order.findMany({
       where: Object.keys(where).length > 0 ? where : undefined,
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
         // JON-12: tela de conta precisa mostrar DAV, tipo de entrega,
         // endereco usado e se ja foi entregue -- sem isso o cliente so via
@@ -267,7 +268,7 @@ export class OrdersService {
   async findOne(id: string, context?: Partial<OrderTenantContext>) {
     const scopedWhere = tenantStoreWhere(context)
     const include = {
-      customer: true,
+      customer: { select: CUSTOMER_SAFE_SELECT },
       items: { include: { product: true } },
     }
 
@@ -307,6 +308,7 @@ export class OrdersService {
       deliverySnapshot,
       businessAccountId,
       requiresApproval,
+      expectedTotal,
     } = createOrderDto
     const tenantId = rawTenantId || DEFAULT_TENANT_ID
     const storeId = rawStoreId || DEFAULT_STORE_ID
@@ -322,6 +324,14 @@ export class OrdersService {
       await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
       throw new BadRequestException('Pedido deve conter ao menos um item.')
     }
+
+    // JON-46 (Auditoria 360): confirmSession so mandava productId/quantity
+    // -- a recusa de substituicao que o cliente escolheu no carrinho se
+    // perdia aqui, e o pedido nascia com substitutionPolicy='ALLOW' pra
+    // todo item (linha mais abaixo, na criacao do OrderItem).
+    const substitutionByProductId = new Map(
+      items.map((item) => [item.productId, item.substitutionPolicy === 'DENY' ? 'DENY' : 'ALLOW']),
+    )
 
     const customer = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId } })
     if (!customer) {
@@ -417,6 +427,22 @@ export class OrdersService {
     const discountAmount = quote.discountAmount
     const quotedDeliveryAmount = quote.deliveryAmount
     const total = quote.total
+
+    // JON-47 (Auditoria 360): este e o TERCEIRO quote do mesmo checkout (ver
+    // comentario em CLAUDE.md sobre buildQuote/confirmSession/create). O
+    // confirmSession ja compara o preco exibido contra o dele proprio, mas
+    // nunca repassava esse total aprovado pra ca -- promocao/ERP mudando o
+    // preco entre a confirmacao e esta gravacao passava batido, cobrando
+    // valor diferente do que o cliente viu e aprovou.
+    if (expectedTotal != null && Number.isFinite(expectedTotal) && Math.abs(total - expectedTotal) > 0.01) {
+      await this.prisma.fraudLog.create({
+        data: { tenantId, storeId, vector: 'PRICE_DIVERGED', value: `expected:${expectedTotal};actual:${total}`, customerId },
+      }).catch(() => null)
+      await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+      throw new BadRequestException(
+        'O preco do pedido mudou entre a confirmacao e a gravacao (promocao ou produto pode ter sido atualizado). Revise o pedido antes de confirmar.',
+      )
+    }
 
     // ── Anti-fraude: frete grátis no primeiro pedido ──────────────────
     // Roda depois do quote de proposito: precisa do subtotal real pra saber
@@ -621,12 +647,12 @@ export class OrdersService {
             finalUnitPrice: this.decimal2(item.unitPrice),
             finalSubtotal: this.decimal2(item.subtotal),
             status: 'PENDING',
-            substitutionPolicy: 'ALLOW',
+            substitutionPolicy: substitutionByProductId.get(item.productId) || 'ALLOW',
           })),
         },
       },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     }).catch(async (error) => {
@@ -686,7 +712,7 @@ export class OrdersService {
       where: { id },
       data: updateData,
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -702,7 +728,7 @@ export class OrdersService {
     const previousOrder = await this.prisma.order.findUnique({
       where: { id },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -730,7 +756,7 @@ export class OrdersService {
         ...(reason && { cancellationReason: reason })
       },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -788,7 +814,7 @@ export class OrdersService {
   async remove(id: string) {
     const order = await this.prisma.order.findUnique({
       where: { id },
-      include: { customer: true, items: { include: { product: true } } },
+      include: { customer: { select: CUSTOMER_SAFE_SELECT }, items: { include: { product: true } } },
     })
     if (order) {
       // Deletar o pedido nao deve deixar a reserva de vaga presa no slot --
@@ -813,7 +839,7 @@ export class OrdersService {
     return this.prisma.order.findMany({
       where,
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -847,7 +873,7 @@ export class OrdersService {
           where: { id },
           data,
           include: {
-            customer: true,
+            customer: { select: CUSTOMER_SAFE_SELECT },
             items: { include: { product: true } },
           },
         })
@@ -1009,7 +1035,7 @@ export class OrdersService {
   private async findOrderForOms(id: string, context?: Partial<OrderTenantContext>): Promise<OrderWithRelations> {
     const scopedWhere = tenantStoreWhere(context)
     const include = {
-      customer: true,
+      customer: { select: CUSTOMER_SAFE_SELECT },
       items: { include: { product: true } },
     }
 
@@ -1049,7 +1075,7 @@ export class OrdersService {
         total,
       },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })

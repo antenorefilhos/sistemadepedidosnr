@@ -32,6 +32,10 @@ export interface WebhookPayload {
   data?: Record<string, unknown>
 }
 
+// Pedido nesses estados nunca deve ser mexido por webhook de pagamento --
+// ver comentario no processEvent (JON-134).
+const FINAL_ORDER_STATUSES = ['CANCELLED', 'COMPLETED', 'DELIVERED', 'REFUNDED', 'FAILED_SYNC']
+
 const EVENT_STATUS_MAP: Record<string, string> = {
   'charge.authorized': 'CONFIRMED',
   'payment.authorized': 'CONFIRMED',
@@ -139,12 +143,18 @@ export class PaymentsWebhookService {
   verifySignature(rawBody: Buffer, signature: string): boolean {
     const secret = this.webhookSecret
     if (!secret) {
-      if (this.gatewayActive) {
-        this.logger.warn('PAYMENTS_WEBHOOK_SECRET ausente com gateway de pagamento ativo.')
-        return false
-      }
-      this.logger.warn('PAYMENTS_WEBHOOK_SECRET nao configurado; gateway de pagamento inativo.')
-      return true
+      // Auditoria 360 JON-133: sem segredo configurado, NENHUMA assinatura
+      // pode ser verificada -- devolver `true` aqui (mesmo com o gateway
+      // "inativo") deixava qualquer requisicao com um header nao-vazio
+      // passar pro processEvent(), que atualiza status/paymentStatus do
+      // pedido sem prova nenhuma de que veio do gateway de verdade.
+      // Endpoint publico sem segredo tem que rejeitar sempre, nao confiar.
+      this.logger.warn(
+        this.gatewayActive
+          ? 'PAYMENTS_WEBHOOK_SECRET ausente com gateway de pagamento ativo -- webhook rejeitado.'
+          : 'PAYMENTS_WEBHOOK_SECRET nao configurado -- webhook rejeitado (nao ha como verificar assinatura nenhuma).',
+      )
+      return false
     }
 
     try {
@@ -198,6 +208,41 @@ export class PaymentsWebhookService {
     if (!order) {
       this.logger.warn(`Webhook: pedido ${orderId} nao encontrado para evento ${payload.event}.`)
       return { processed: false, reason: 'order_not_found', orderId }
+    }
+
+    // JON-134 (Auditoria 360): o update de status era incondicional -- um
+    // webhook atrasado ou fora de ordem (retry do gateway, replay de evento
+    // antigo) regredia pedido ja DELIVERED de volta pra CONFIRMED. Estado
+    // final nao aceita mais transicao nenhuma via webhook; se precisar
+    // corrigir manualmente e decisao de admin, nao de evento de terceiro.
+    // ponytail: FINAL_ORDER_STATUSES ja existe duplicado em
+    // data-privacy.service.ts e pdv-cancellation.scheduler.ts -- unificar
+    // os tres numa constante compartilhada quando mexer de novo aqui.
+    if (FINAL_ORDER_STATUSES.includes(order.status)) {
+      this.logger.warn(`Webhook ignorado - pedido ${orderId} ja esta em estado final (${order.status}), evento ${payload.event} nao aplicado.`)
+      return { processed: false, reason: 'order_already_final', orderId }
+    }
+
+    // Valor divergente (inclusive centavos pra pedido de valor bem maior)
+    // nao pode aprovar o pedido -- so aceita dentro de 1 centavo de
+    // tolerancia, mesmo padrao ja usado no antifraude do checkout
+    // (PRICE_DIVERGED). Sem isso, um evento com amount ausente ou errado
+    // confirmava pagamento pelo valor cheio do pedido sem checar nada.
+    const normalizedAmount = this.normalizeGatewayAmount(payload.amount, order.total)
+    const amountDiverged = Math.abs(normalizedAmount - Number(order.total)) > 0.01
+    if (amountDiverged && targetPaymentStatus === 'PAID') {
+      this.logger.warn(
+        `Webhook ignorado - valor divergente pro pedido ${orderId}: recebido ${normalizedAmount}, esperado ${order.total}.`,
+      )
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'PAYMENT_AMOUNT_DIVERGED',
+          entity: 'ORDER',
+          entityId: orderId,
+          changes: JSON.stringify({ received: normalizedAmount, expected: Number(order.total), event: payload.event, chargeId: payload.chargeId }),
+        },
+      })
+      return { processed: false, reason: 'amount_diverged', orderId }
     }
 
     const provider = this.resolveProvider(payload)

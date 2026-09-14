@@ -1,8 +1,10 @@
 import { Injectable, ForbiddenException, UnauthorizedException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common'
+import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { Prisma } from '@prisma/client'
 import * as crypto from 'crypto'
 import axios from 'axios'
 import { PrismaService } from '../../common/prisma.service'
+import { assertPublicHttpsEndpoint } from '../../common/security/assert-public-endpoint'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 
 type ApiRequestMeta = {
@@ -20,18 +22,22 @@ export class PublicApiService {
     return crypto.createHash('sha256').update(secret).digest('hex')
   }
 
-  async createClient(input: {
-    name: string
-    scopes: string[]
-    status?: string
-    rateLimitPerMinute?: number
-    tenantId?: string
-    storeId?: string
-  }) {
+  async createClient(
+    input: {
+      name: string
+      scopes: string[]
+      status?: string
+      rateLimitPerMinute?: number
+    },
+    scope: { tenantId: string; storeId: string },
+  ) {
     const secret = crypto.randomBytes(24).toString('hex')
     const clientId = `ak_${crypto.randomBytes(12).toString('hex')}`
-    const tenantId = input.tenantId || DEFAULT_TENANT_ID
-    const storeId = input.storeId || DEFAULT_STORE_ID
+    // JON-142 (Auditoria 360, High): tenantId/storeId vinham do body -- quem
+    // chamava escolhia pra quem gerar credencial de API. Agora sempre vem do
+    // contexto autenticado do admin que criou o client.
+    const tenantId = scope.tenantId || DEFAULT_TENANT_ID
+    const storeId = scope.storeId || DEFAULT_STORE_ID
     const client = await this.prisma.apiClient.create({
       data: {
         tenantId,
@@ -48,8 +54,9 @@ export class PublicApiService {
     return { client, secret, apiKey: `${clientId}.${secret}` }
   }
 
-  async listClients() {
+  async listClients(scope: { tenantId: string }) {
     const items = await this.prisma.apiClient.findMany({
+      where: { tenantId: scope.tenantId },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -119,7 +126,7 @@ export class PublicApiService {
         where: { tenantId: client.tenantId, storeId: client.storeId },
         orderBy: { createdAt: 'desc' },
         take,
-        include: { items: true, customer: true },
+        include: { items: true, customer: { select: CUSTOMER_SAFE_SELECT } },
       }),
     ])
     return { total, items }
@@ -128,7 +135,7 @@ export class PublicApiService {
   async getOrder(client: { tenantId: string; storeId: string }, id: string) {
     const order = await this.prisma.order.findFirst({
       where: { id, tenantId: client.tenantId, storeId: client.storeId },
-      include: { items: true, customer: true },
+      include: { items: true, customer: { select: CUSTOMER_SAFE_SELECT } },
     })
     if (!order) throw new NotFoundException('Pedido nao encontrado.')
     const events = await this.prisma.orderEvent.findMany({
@@ -179,6 +186,11 @@ export class PublicApiService {
     tenantId?: string
     storeId?: string
   }) {
+    // JON-141 (Auditoria 360): webhook de saida sem validar destino era o
+    // mesmo SSRF do JON-140, so que o worker (nao o navegador) faz a
+    // requisicao -- admin (ou sessao comprometida) cadastra URL apontando
+    // pra rede interna da propria VPS e o servidor vira proxy pra ela mesma.
+    await assertPublicHttpsEndpoint(input.url)
     return this.prisma.webhookEndpoint.create({
       data: {
         tenantId: input.tenantId || DEFAULT_TENANT_ID,
@@ -277,8 +289,15 @@ export class PublicApiService {
     const body = JSON.stringify(delivery.payload)
     const signature = this.signPayload(delivery.endpoint.secret, body)
     try {
+      // JON-141: revalida no momento do ENVIO, nao so no cadastro -- entre
+      // registrar o webhook e o worker processar a entrega, o DNS do
+      // dominio pode ter mudado pra apontar pra um IP privado (rebinding).
+      // maxRedirects:0 fecha o outro flanco: destino publico que redireciona
+      // (3xx) pra interno na hora da requisicao.
+      await assertPublicHttpsEndpoint(delivery.endpoint.url)
       await axios.post(delivery.endpoint.url, delivery.payload, {
         timeout: 5000,
+        maxRedirects: 0,
         headers: {
           'content-type': 'application/json',
           'x-antenor-event': delivery.eventType,

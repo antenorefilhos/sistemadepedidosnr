@@ -241,4 +241,41 @@ describe('InventoryService', () => {
     )
     expect(result.adjustedQuantity).toBe(1)
   })
+
+  // JON-157 (Auditoria 360, High): duas execucoes concorrentes de
+  // consumeOrderReservations pro mesmo pedido liam a mesma reserva ACTIVE
+  // e as duas decrementavam estoque. O claim agora e atomico (updateMany
+  // condicionado a status:'ACTIVE'); a segunda so ve 0 linhas casadas.
+  describe('consumeOrderReservations (JON-157)', () => {
+    const reservation = { id: 'res-1', tenantId: 't1', storeId: 's1', productId: 'prod-1', quantity: 3, orderId: 'order-1', status: 'ACTIVE' }
+
+    it('decrementa estoque so uma vez quando o claim (updateMany) casa a linha', async () => {
+      mockPrismaService.stockReservation.findMany.mockResolvedValue([reservation])
+      mockPrismaService.stockReservation.updateMany.mockResolvedValue({ count: 1 })
+      mockPrismaService.stockPosition.update.mockResolvedValue({})
+      mockPrismaService.stockPosition.findUniqueOrThrow.mockResolvedValue({ available: 7 })
+      mockPrismaService.stockLedger.create.mockResolvedValue({})
+
+      await service.consumeOrderReservations('order-1')
+
+      expect(mockPrismaService.stockReservation.updateMany).toHaveBeenCalledWith({
+        where: { id: 'res-1', status: 'ACTIVE' },
+        data: { status: 'CONSUMED' },
+      })
+      expect(mockPrismaService.stockPosition.update).toHaveBeenCalledTimes(1)
+      expect(mockPrismaService.stockLedger.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('nao decrementa de novo quando a reserva ja foi consumida por outra chamada concorrente (count=0)', async () => {
+      mockPrismaService.stockReservation.findMany.mockResolvedValue([reservation])
+      // Simula a corrida: outra transacao ja consumiu essa reserva entre o
+      // findMany e este updateMany -- 0 linhas casam o WHERE status:'ACTIVE'.
+      mockPrismaService.stockReservation.updateMany.mockResolvedValue({ count: 0 })
+
+      await service.consumeOrderReservations('order-1')
+
+      expect(mockPrismaService.stockPosition.update).not.toHaveBeenCalled()
+      expect(mockPrismaService.stockLedger.create).not.toHaveBeenCalled()
+    })
+  })
 })

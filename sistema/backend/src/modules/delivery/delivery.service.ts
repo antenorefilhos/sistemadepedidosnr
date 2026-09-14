@@ -872,9 +872,14 @@ export class DeliveryService {
     return this.findRouteOrThrow(routeId, scoped)
   }
 
-  async startRoute(routeId: string, context: Partial<FulfillmentContext> | undefined, actor?: { actorType?: string; actorId?: string }) {
+  async startRoute(
+    routeId: string,
+    context: Partial<FulfillmentContext> | undefined,
+    actor?: { actorType?: string; actorId?: string },
+    ownerDriverId?: string,
+  ) {
     const scoped = this.resolveContext(context)
-    const route = await this.findRouteOrThrow(routeId, scoped)
+    const route = await this.findRouteOrThrow(routeId, scoped, ownerDriverId)
     if (route.status === 'OUT_FOR_DELIVERY') return route
     if (route.status !== 'PLANNED' && route.status !== 'READY') {
       throw new BadRequestException('Rota nao pode sair para entrega neste status.')
@@ -904,7 +909,7 @@ export class DeliveryService {
       actor,
     })
 
-    return this.findRouteOrThrow(routeId, scoped)
+    return this.findRouteOrThrow(routeId, scoped, ownerDriverId)
   }
 
   async updateStopStatus(
@@ -913,9 +918,10 @@ export class DeliveryService {
     context: Partial<FulfillmentContext> | undefined,
     dto: UpdateDeliveryStopStatusDto,
     actor?: { actorType?: string; actorId?: string },
+    ownerDriverId?: string,
   ) {
     const scoped = this.resolveContext(context)
-    await this.findRouteOrThrow(routeId, scoped)
+    await this.findRouteOrThrow(routeId, scoped, ownerDriverId)
     const stop = await this.prisma.deliveryStop.findFirst({
       where: { id: stopId, routeId, tenantId: scoped.tenantId, storeId: scoped.storeId },
     })
@@ -979,9 +985,14 @@ export class DeliveryService {
     return updated
   }
 
-  async completeRoute(routeId: string, context: Partial<FulfillmentContext> | undefined, actor?: { actorType?: string; actorId?: string }) {
+  async completeRoute(
+    routeId: string,
+    context: Partial<FulfillmentContext> | undefined,
+    actor?: { actorType?: string; actorId?: string },
+    ownerDriverId?: string,
+  ) {
     const scoped = this.resolveContext(context)
-    const route = await this.findRouteOrThrow(routeId, scoped)
+    const route = await this.findRouteOrThrow(routeId, scoped, ownerDriverId)
     const incomplete = route.stops.filter((stop) => !['DELIVERED', 'FAILED'].includes(stop.status))
     if (incomplete.length > 0) {
       throw new BadRequestException('Rota ainda possui paradas pendentes.')
@@ -1146,9 +1157,20 @@ export class DeliveryService {
     return driver
   }
 
-  private async findRouteOrThrow(routeId: string, context: FulfillmentContext) {
+  // JON-72 (Auditoria 360, High): ownerDriverId e opcional de proposito --
+  // gestao administrativa (DeliveryController, guardado por @Roles('admin'))
+  // continua vendo/mexendo em qualquer rota da loja sem passar isso. So o
+  // DriverController (motorista autenticado) passa o proprio driver.id, e
+  // so entao a rota de OUTRO motorista vira 404 em vez de ficar acessivel
+  // por quem souber o routeId.
+  private async findRouteOrThrow(routeId: string, context: FulfillmentContext, ownerDriverId?: string) {
     const route = await this.prisma.deliveryRoute.findFirst({
-      where: { id: routeId, tenantId: context.tenantId, storeId: context.storeId },
+      where: {
+        id: routeId,
+        tenantId: context.tenantId,
+        storeId: context.storeId,
+        ...(ownerDriverId ? { driverId: ownerDriverId } : {}),
+      },
       include: {
         driver: true,
         stops: { orderBy: [{ sequence: 'asc' }] },

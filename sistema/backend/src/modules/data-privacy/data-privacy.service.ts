@@ -4,6 +4,7 @@ import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.
 import { TenantContext } from '../../common/tenant/tenant-context'
 import { AuditLogService } from '../audit-log/audit-log.service'
 import { PrismaService } from '../../common/prisma.service'
+import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 
 type PrivacyContext = Partial<Pick<TenantContext, 'tenantId' | 'storeId'>> & {
   actorId?: string
@@ -71,7 +72,8 @@ export class DataPrivacyService {
     const { tenantId, storeId } = this.resolveContext(context)
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, tenantId },
-      include: {
+      select: {
+        ...CUSTOMER_SAFE_SELECT,
         addresses: true,
         profile: true,
         consents: true,
@@ -143,6 +145,12 @@ export class DataPrivacyService {
 
     const suffix = customerId.slice(-8).replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'customer'
     const anonymized = await this.prisma.$transaction(async (tx) => {
+      // JON-119 (Auditoria 360, High): so zerar password nao bastava -- JWT
+      // ja emitido continua valido (nao muda tokenVersion), link de reset
+      // pendente continua aceito (resetTokenHash intocado) e a conta
+      // permanecia blocked=false, entao setPassword reabria acesso sem senha
+      // atual. tokenVersion.increment revoga o JWT em uso (mesmo mecanismo
+      // do JON-138); blocked=true e checado no JwtStrategy e bloqueia login.
       const customer = await tx.customer.update({
         where: { id: customerId },
         data: {
@@ -151,8 +159,15 @@ export class DataPrivacyService {
           whatsapp: `ANON${suffix}`,
           email: `anon-${suffix}@lgpd.local`,
           password: null,
+          resetTokenHash: null,
+          resetTokenExpiresAt: null,
+          tokenVersion: { increment: 1 },
+          blocked: true,
+          blockedReason: 'LGPD_ANONYMIZED',
         },
+        select: CUSTOMER_SAFE_SELECT,
       })
+      await tx.pushSubscription.deleteMany({ where: { customerId } })
       await tx.address.updateMany({
         where: { tenantId, customerId },
         data: {

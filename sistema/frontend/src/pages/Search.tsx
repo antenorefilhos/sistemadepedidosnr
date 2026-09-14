@@ -550,6 +550,7 @@ export default function MercadoPage() {
                   setIsInputFocused(true)
                 }}
                 placeholder="Digite o que você quer levar hoje"
+                aria-label="Buscar produtos"
                 className="h-auto border-0 bg-transparent p-0 text-title shadow-none ring-0 placeholder:text-[#6B7280] focus-visible:ring-0"
               />
               {isSuggesting && <Loader2 size={14} className="animate-spin text-[#5D082A]" />}
@@ -594,8 +595,13 @@ export default function MercadoPage() {
             )}
           </div>
 
-          <Link to="/cart" className="relative p-2 shrink-0 text-[#231F20] hover:text-[#5D082A] transition-colors">
-            <ShoppingCart size={22} />
+          {/* JON-163 (Auditoria 360): link so com icone, sem nome acessivel. */}
+          <Link
+            to="/cart"
+            aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
+            className="relative flex min-h-11 min-w-11 shrink-0 items-center justify-center text-[#231F20] transition-colors hover:text-[#5D082A]"
+          >
+            <ShoppingCart size={22} aria-hidden="true" />
             {count > 0 && (
               <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
                 {count > 9 ? '9+' : count}
@@ -655,7 +661,8 @@ export default function MercadoPage() {
                 variant={showFilters || activeFilterCount > 0 ? 'primary' : 'outline'}
                 size="sm"
                 className={cn(
-                  'h-auto min-h-9 rounded-full px-3 py-2 text-xs',
+                  // JON-168 (Auditoria 360): min-h-9 (36px) ficava abaixo do alvo minimo.
+                  'h-auto min-h-11 rounded-full px-3 py-2 text-xs',
                   !(showFilters || activeFilterCount > 0) && 'text-[#231F20]',
                 )}
                 aria-label="Filtros"
@@ -882,7 +889,8 @@ export default function MercadoPage() {
                 onClick={() => chooseSuggestion(item)}
                 variant="subtle"
                 size="sm"
-                className="h-auto px-3 py-1.5 text-xs"
+                // JON-168 (Auditoria 360): altura 28 ficava abaixo do alvo minimo de 44.
+                className="h-auto min-h-11 px-3 py-1.5 text-xs"
               >
                 {item}
               </Button>
@@ -896,7 +904,9 @@ export default function MercadoPage() {
             <SkeletonCard count={10} />
           </div>
         ) : allProducts.length === 0 ? (
-          <div className="text-center py-24 text-gray-400">
+          // JON-161 (Auditoria 360): text-gray-400 media 2,54:1 contra branco,
+          // abaixo do 4,5:1 de texto -- Casca (#5D4F33) mede 7,98:1.
+          <div className="text-center py-24 text-[#5D4F33]">
             <Search size={48} className="mx-auto mb-4 opacity-30" />
             <p className="font-semibold text-gray-500">Não achamos esse produto por aqui</p>
             <p className="text-sm mt-1">Tente outra palavra, escolha uma categoria ou ajuste o preço</p>

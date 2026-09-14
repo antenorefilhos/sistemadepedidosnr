@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nest
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
+import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
+import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { PublicApiKeyGuard } from '../../common/guards/public-api-key.guard'
 import { RequireApiScope } from '../../common/decorators/require-api-scope.decorator'
@@ -54,7 +56,7 @@ export class PublicApiV1Controller {
 @ApiTags('Public API Portal')
 @RelaxedThrottle()
 @Controller('integrations/public-api')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @Roles('admin')
 @ApiBearerAuth()
 export class PublicApiAdminController {
@@ -62,14 +64,17 @@ export class PublicApiAdminController {
 
   @Get('clients')
   @ApiOperation({ summary: 'Listar clientes da API publica' })
-  listClients() {
-    return this.publicApi.listClients()
+  listClients(@Req() req: TenantContextRequest) {
+    return this.publicApi.listClients(getTenantContext(req))
   }
 
+  // JON-142 (Auditoria 360, High): tenantId/storeId vinham do body do DTO --
+  // admin de um tenant gerava credencial de API para OUTRO tenant. Agora vem
+  // sempre do contexto autenticado (ver comentario em public-api.service.ts).
   @Post('clients')
   @ApiOperation({ summary: 'Criar cliente da API publica com scopes' })
-  createClient(@Body() body: CreateApiClientDto) {
-    return this.publicApi.createClient(body)
+  createClient(@Body() body: CreateApiClientDto, @Req() req: TenantContextRequest) {
+    return this.publicApi.createClient(body, getTenantContext(req))
   }
 
   @Get('webhook-endpoints')

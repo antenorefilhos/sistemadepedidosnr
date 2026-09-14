@@ -42,23 +42,29 @@ export default function Login({ onLogin }: { onLogin: (name: string) => void }) 
           <p className="text-white/60 text-sm mt-1">Antenor & Filhos</p>
         </div>
 
+        {/* JON-162 (Auditoria 360): so havia placeholder -- a indicacao visual
+            do campo desaparecia ao digitar, sem rotulo persistente. */}
+        <label htmlFor="driver-email" className="sr-only">E-mail</label>
         <input
+          id="driver-email"
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
           required
-          className="w-full h-12 px-4 rounded-xl bg-white/10 text-white placeholder:text-white/40 border border-white/20 focus:outline-none focus:border-white/50 text-base"
+          className="w-full h-12 px-4 rounded-xl bg-white/10 text-white placeholder:text-white/80 border border-white/20 focus:outline-none focus:border-white/50 text-base"
         />
+        <label htmlFor="driver-password" className="sr-only">Senha</label>
         <input
+          id="driver-password"
           type="password"
           placeholder="Senha"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
           required
-          className="w-full h-12 px-4 rounded-xl bg-white/10 text-white placeholder:text-white/40 border border-white/20 focus:outline-none focus:border-white/50 text-base"
+          className="w-full h-12 px-4 rounded-xl bg-white/10 text-white placeholder:text-white/80 border border-white/20 focus:outline-none focus:border-white/50 text-base"
         />
         <button
           type="submit"

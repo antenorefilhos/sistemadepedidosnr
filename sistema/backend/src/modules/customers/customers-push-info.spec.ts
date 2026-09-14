@@ -24,7 +24,7 @@ describe('CustomersService — flag de push', () => {
     const { service, prisma } = build([{ customerId: 'c1', _count: { _all: 2 } }])
     prisma.customer.findMany.mockResolvedValue(CLIENTES)
 
-    const [ana, bruno] = (await service.findAll()) as Array<Record<string, unknown>>
+    const [ana, bruno] = (await service.findAll({ tenantId: 'tenant_default' })) as Array<Record<string, unknown>>
     expect(ana).toMatchObject({ id: 'c1', pushEnabled: true, pushSubscriptionCount: 2 })
     expect(bruno).toMatchObject({ id: 'c2', pushEnabled: false, pushSubscriptionCount: 0 })
   })
@@ -34,7 +34,7 @@ describe('CustomersService — flag de push', () => {
     const { service, prisma } = build([])
     prisma.customer.findMany.mockResolvedValue(CLIENTES)
 
-    const resultado = (await service.findAll()) as Array<Record<string, unknown>>
+    const resultado = (await service.findAll({ tenantId: 'tenant_default' })) as Array<Record<string, unknown>>
     for (const c of resultado) {
       expect(c.pushEnabled).toBe(false)
       expect(c.pushSubscriptionCount).toBe(0)
@@ -45,7 +45,7 @@ describe('CustomersService — flag de push', () => {
     const { service, prisma } = build([])
     prisma.customer.findMany.mockResolvedValue([])
 
-    await expect(service.findAll()).resolves.toEqual([])
+    await expect(service.findAll({ tenantId: 'tenant_default' })).resolves.toEqual([])
     expect(prisma.pushSubscription.groupBy).not.toHaveBeenCalled()
   })
 
@@ -55,7 +55,7 @@ describe('CustomersService — flag de push', () => {
       { id: 'c1', name: 'Ana', password: 'hash', resetTokenHash: 'tok', resetTokenExpiresAt: new Date() },
     ])
 
-    const [ana] = (await service.findAll()) as Array<Record<string, unknown>>
+    const [ana] = (await service.findAll({ tenantId: 'tenant_default' })) as Array<Record<string, unknown>>
     expect(ana.password).toBeUndefined()
     expect(ana.resetTokenHash).toBeUndefined()
     expect(ana.resetTokenExpiresAt).toBeUndefined()
@@ -66,7 +66,7 @@ describe('CustomersService — flag de push', () => {
     const { service, prisma } = build([{ customerId: 'c2', _count: { _all: 1 } }])
     prisma.customer.findMany.mockResolvedValue([CLIENTES[1]])
 
-    const [bruno] = (await service.findAll('Bruno')) as Array<Record<string, unknown>>
+    const [bruno] = (await service.findAll({ tenantId: 'tenant_default' }, 'Bruno')) as Array<Record<string, unknown>>
     expect(bruno).toMatchObject({ pushEnabled: true, pushSubscriptionCount: 1 })
   })
 })

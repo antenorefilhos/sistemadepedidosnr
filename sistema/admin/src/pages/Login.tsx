@@ -58,7 +58,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="h-10 rounded-lg border-gray-200 px-4 py-2 focus-visible:ring-[#5d082a]"
+              className="h-11 rounded-lg border-gray-200 px-4 py-2 focus-visible:ring-[#5d082a]"
             />
           </div>
 
@@ -72,14 +72,14 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="h-10 rounded-lg border-gray-200 px-4 py-2 focus-visible:ring-[#5d082a]"
+              className="h-11 rounded-lg border-gray-200 px-4 py-2 focus-visible:ring-[#5d082a]"
             />
           </div>
 
           <Button
             type="submit"
             disabled={loading}
-            className="h-10 w-full rounded-lg bg-[#5d082a] py-2 font-medium text-white hover:bg-[#4a0622]"
+            className="h-11 w-full rounded-lg bg-[#5d082a] py-2 font-medium text-white hover:bg-[#4a0622]"
           >
             {loading && <Loader2 className="animate-spin" size={20} />}
             Entrar

@@ -13,6 +13,10 @@ type JwtPayload = {
   storeId?: string
   permissions?: string[]
   moduleAccess?: string[]
+  // JON-138: ausente em token emitido antes desta mudanca -- trata como 0,
+  // mesmo default de quem nunca trocou senha, pra nao derrubar sessao valida
+  // so por ser anterior ao deploy.
+  tokenVersion?: number
 }
 
 @Injectable()
@@ -49,17 +53,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.role === 'customer') {
       const customer = await this.prisma.customer.findUnique({
         where: { id: payload.id },
-        select: { id: true, blocked: true },
+        select: { id: true, blocked: true, tokenVersion: true },
       })
       if (!customer) throw new UnauthorizedException('Conta nao encontrada.')
       if (customer.blocked) throw new UnauthorizedException('Conta suspensa.')
+      // JON-138: token emitido antes de uma troca/reset de senha tem
+      // tokenVersion desatualizado -- rejeita mesmo com assinatura valida.
+      if ((payload.tokenVersion ?? 0) !== (customer.tokenVersion ?? 0)) {
+        throw new UnauthorizedException('Sessao expirada por troca de senha. Faca login novamente.')
+      }
     } else {
       const admin = await this.prisma.admin.findUnique({
         where: { id: payload.id },
-        select: { id: true, active: true, role: true, moduleAccess: true },
+        select: { id: true, active: true, role: true, moduleAccess: true, tokenVersion: true },
       })
       if (!admin) throw new UnauthorizedException('Conta nao encontrada.')
       if (!admin.active) throw new UnauthorizedException('Conta desativada.')
+      if ((payload.tokenVersion ?? 0) !== (admin.tokenVersion ?? 0)) {
+        throw new UnauthorizedException('Sessao expirada por troca de senha. Faca login novamente.')
+      }
 
       // Papel e modulos vem do BANCO, nao do token: tirar o modulo `delivery`
       // de alguem na tela Equipe passa a valer na hora, sem esperar o token

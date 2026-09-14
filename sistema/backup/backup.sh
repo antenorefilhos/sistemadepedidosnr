@@ -6,10 +6,11 @@
 # longa, "rodar 1x por dia" nao precisa de mais do que isso.
 set -eu
 
-DAILY_DIR=/backup/daily
-WEEKLY_DIR=/backup/weekly
+DAILY_DIR="${DAILY_DIR:-/backup/daily}"
+WEEKLY_DIR="${WEEKLY_DIR:-/backup/weekly}"
 RETENTION_DAILY="${RETENTION_DAILY:-7}"
 RETENTION_WEEKLY="${RETENTION_WEEKLY:-4}"
+UPLOADS_DIR="${UPLOADS_DIR:-/uploads}"
 
 mkdir -p "$DAILY_DIR" "$WEEKLY_DIR"
 
@@ -18,14 +19,26 @@ run_backup() {
   weekday=$(date +%u) # 7 = domingo
 
   echo "[backup] $stamp: iniciando dump do Postgres"
-  if ! PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h db -U postgres -d antenor_db \
-      | gzip > "$DAILY_DIR/db_${stamp}.sql.gz"; then
+  # JON-52 (Auditoria 360): `pg_dump | gzip > arquivo` com `sh` (dash, sem
+  # pipefail) reporta o status do GZIP, nao do pg_dump -- gzip engole stdin
+  # vazio/truncado e sai 0 mesmo com o dump tendo falhado (erro de auth,
+  # conexao caindo no meio), entao o script seguia pra retencao/rclone/
+  # "concluido" com um .sql.gz inutil. Dump pra arquivo pra checar o status
+  # dele isoladamente antes de compactar.
+  db_tmp="$DAILY_DIR/db_${stamp}.sql"
+  if ! PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h db -U postgres -d antenor_db > "$db_tmp"; then
     echo "[backup] $stamp: FALHOU o dump do Postgres" >&2
+    rm -f "$db_tmp"
+    return 1
+  fi
+  if ! gzip "$db_tmp"; then
+    echo "[backup] $stamp: FALHOU ao compactar o dump" >&2
+    rm -f "$db_tmp" "$db_tmp.gz"
     return 1
   fi
 
   echo "[backup] $stamp: compactando fotos de produto"
-  if ! tar czf "$DAILY_DIR/uploads_${stamp}.tar.gz" -C /uploads .; then
+  if ! tar czf "$DAILY_DIR/uploads_${stamp}.tar.gz" -C "$UPLOADS_DIR" .; then
     echo "[backup] $stamp: FALHOU o tar dos uploads" >&2
     return 1
   fi
@@ -52,7 +65,11 @@ run_backup() {
   echo "[backup] $stamp: concluido"
 }
 
-while true; do
-  run_backup || echo "[backup] rodada com falha, tentando de novo na proxima janela"
-  sleep 86400
-done
+# BACKUP_LOOP=0 (usado por backup.test.sh) so define run_backup sem entrar no
+# loop -- deixa o teste chamar run_backup direto e checar o resultado.
+if [ "${BACKUP_LOOP:-1}" != "0" ]; then
+  while true; do
+    run_backup || echo "[backup] rodada com falha, tentando de novo na proxima janela"
+    sleep 86400
+  done
+fi

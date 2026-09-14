@@ -74,6 +74,13 @@ services:
       VAPID_PUBLIC_KEY: ${STAGING_VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${STAGING_VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${STAGING_VAPID_SUBJECT:-mailto:admin@antenorefilhos.com.br}
+      # JON-53 (Auditoria 360): faltavam por completo -- SOLIDCOM_CNPJ/
+      # CODECOM/BALCAO_CPF sao lidos via requireEnv() em construtor de
+      # provider (boot eager), entao a API staging nem subia sem esses tres.
+      SOLIDCOM_API_URL: ${STAGING_SOLIDCOM_API_URL:-}
+      SOLIDCOM_CNPJ: ${STAGING_SOLIDCOM_CNPJ:-}
+      SOLIDCOM_CODECOM: ${STAGING_SOLIDCOM_CODECOM:-}
+      SOLIDCOM_BALCAO_CPF: ${STAGING_SOLIDCOM_BALCAO_CPF:-}
     depends_on:
       - db_staging
       - redis_staging

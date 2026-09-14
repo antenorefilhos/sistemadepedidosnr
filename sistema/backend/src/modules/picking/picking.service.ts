@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { NotificationsService } from '../notifications/notifications.service'
@@ -32,7 +33,7 @@ type PickingTaskWithItems = Prisma.PickingTaskGetPayload<{
 }>
 
 type OrderForPicking = Prisma.OrderGetPayload<{
-  include: { customer: true; items: { include: { product: true } } }
+  include: { customer: { select: typeof CUSTOMER_SAFE_SELECT }; items: { include: { product: true } } }
 }>
 
 const FINAL_ITEM_STATUSES = ['PICKED', 'MISSING', 'SUBSTITUTED', 'CANCELLED']
@@ -78,7 +79,7 @@ export class PickingService {
     const orders = await this.prisma.order.findMany({
       where,
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
       orderBy: [{ createdAt: 'desc' }],
@@ -130,7 +131,7 @@ export class PickingService {
     const updated = await this.prisma.order.update({
       where: { id: order.id },
       data: updateData,
-      include: { customer: true, items: { include: { product: true } } },
+      include: { customer: { select: CUSTOMER_SAFE_SELECT }, items: { include: { product: true } } },
     })
 
     await this.recordOrderEvent(updated, 'order.sent_to_cashier', {
@@ -200,7 +201,7 @@ export class PickingService {
         status: { in: ['CONFIRMED', 'PICKING_PENDING'] },
       },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
       orderBy: [{ createdAt: 'asc' }],
@@ -286,7 +287,7 @@ export class PickingService {
       where: { id: order.id },
       data: { status: 'PICKING_PENDING' },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -354,7 +355,7 @@ export class PickingService {
       where: { id: task.orderId },
       data: { status: 'PICKING' },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -481,7 +482,7 @@ export class PickingService {
       where: { id: task.orderId },
       data: { status: requestSubstitution ? 'WAITING_CUSTOMER_SUBSTITUTION' : 'PICKING' },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -804,7 +805,7 @@ export class PickingService {
       where: { id: task.orderId },
       data: { status: 'CONFERENCE_PENDING' },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -865,7 +866,7 @@ export class PickingService {
       where: { id: task.orderId },
       data: { status: 'PACKING' },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -938,7 +939,7 @@ export class PickingService {
       where: { id: task.orderId },
       data: { status: readyStatus },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -1058,7 +1059,7 @@ export class PickingService {
       this.prisma.order.findMany({
         where: { ...scopedWhere, id: { in: orderIds } },
         include: {
-          customer: true,
+          customer: { select: CUSTOMER_SAFE_SELECT },
           items: { include: { product: true } },
         },
       }),
@@ -1096,7 +1097,7 @@ export class PickingService {
     const order = await this.prisma.order.findFirst({
       where: { id, ...tenantStoreWhere(context) },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -1156,7 +1157,7 @@ export class PickingService {
         total,
       },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })

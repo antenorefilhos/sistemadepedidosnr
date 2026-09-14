@@ -6,6 +6,15 @@ jest.mock('axios', () => ({
   post: jest.fn(),
 }))
 
+// JON-141: assertPublicHttpsEndpoint faz DNS real -- 'example.local' e
+// reservado (mDNS) e nao resolve em CI/dev. Mocka aqui; a validacao em si
+// tem spec propria (assert-public-endpoint.spec.ts).
+jest.mock('../../common/security/assert-public-endpoint', () => ({
+  assertPublicHttpsEndpoint: jest.fn().mockResolvedValue(undefined),
+}))
+
+import { assertPublicHttpsEndpoint } from '../../common/security/assert-public-endpoint'
+
 const mockPrisma: any = {
   apiClient: {
     create: jest.fn(),
@@ -66,7 +75,7 @@ describe('PublicApiService', () => {
       name: 'ERP externo',
       scopes: ['Orders.Read', 'stock.read'],
       rateLimitPerMinute: 50,
-    })
+    }, { tenantId: 'tenant_default', storeId: 'store_default' })
 
     expect(result.apiKey).toMatch(/^ak_[a-f0-9]+\.[a-f0-9]+$/)
     expect(result.secret).not.toBe(result.client.secretHash)
@@ -212,5 +221,40 @@ describe('PublicApiService', () => {
         data: expect.objectContaining({ status: 'FAILED', attempts: { increment: 1 }, nextRetryAt: expect.any(Date) }),
       }),
     )
+  })
+
+  // JON-141 (Auditoria 360): webhook de saida sem validar destino e SSRF --
+  // admin (ou sessao comprometida) cadastra URL de rede interna e o worker
+  // vira proxy pra ela. Confere que a validacao e chamada de verdade nos
+  // dois pontos: cadastro e no instante do envio (rebinding).
+  it('recusa cadastrar webhook quando o destino nao e publico', async () => {
+    ;(assertPublicHttpsEndpoint as jest.Mock).mockRejectedValueOnce(new Error('destino nao permitido'))
+
+    await expect(
+      service.createWebhookEndpoint({ url: 'https://169.254.169.254/latest/meta-data', events: ['order.created'] }),
+    ).rejects.toThrow('destino nao permitido')
+    expect(mockPrisma.webhookEndpoint.create).not.toHaveBeenCalled()
+  })
+
+  it('nao chama axios.post quando o destino deixou de ser publico entre o cadastro e o envio (DNS rebinding)', async () => {
+    const endpoint = {
+      id: 'wh-2', tenantId: 'tenant_default', storeId: 'store_default',
+      url: 'https://dominio-que-mudou.example/webhook', secret: 'whsec', events: ['order.created'], status: 'ACTIVE',
+    }
+    mockPrisma.webhookDelivery.findUnique.mockResolvedValue({
+      id: 'del-2', eventType: 'order.created', payload: { id: 'evt-2', type: 'order.created', data: {} },
+      status: 'PENDING', attempts: 0, maxAttempts: 5, endpoint,
+    })
+    ;(assertPublicHttpsEndpoint as jest.Mock).mockRejectedValueOnce(new Error('destino nao permitido'))
+    ;(axios.post as jest.Mock).mockClear()
+    mockPrisma.webhookDelivery.update.mockResolvedValue({ id: 'del-2', status: 'FAILED' })
+
+    // Cai no mesmo catch/retry de qualquer falha de entrega -- nao lanca,
+    // vira FAILED/DEAD como um timeout de rede normal faria.
+    const result = await service.processWebhookDelivery('del-2')
+
+    expect(axios.post).not.toHaveBeenCalled()
+    expect(result.status).toMatch(/FAILED|DEAD/)
+    expect(result.error).toContain('destino nao permitido')
   })
 })

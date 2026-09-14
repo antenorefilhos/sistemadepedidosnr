@@ -119,6 +119,12 @@ model Admin {
   // o token sozinho nao serve pra resetar a senha de ninguem.
   resetTokenHash      String?
   resetTokenExpiresAt DateTime?
+  // JON-138 (Auditoria 360): token assinado nao tem revogacao por si so --
+  // JwtStrategy ja confere active/blocked por requisicao (ver comentario
+  // la), mas nao pegava "senha trocada, token antigo continua valido".
+  // Incrementado em toda troca/reset de senha; JwtStrategy rejeita token
+  // cujo tokenVersion nao bate mais com o do banco.
+  tokenVersion Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -140,6 +146,8 @@ model Customer {
   // token enviado por e-mail, nunca o valor em si.
   resetTokenHash      String?
   resetTokenExpiresAt DateTime?
+  // JON-138 (Auditoria 360): ver comentario equivalente em Admin.tokenVersion.
+  tokenVersion Int @default(0)
   blocked       Boolean  @default(false)
   blockedReason String?
   addresses Address[]

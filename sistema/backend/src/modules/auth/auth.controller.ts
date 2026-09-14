@@ -249,7 +249,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Editar membro da equipe' })
   updateStaff(@Param('id') id: string, @Body() dto: UpdateStaffDto, @Req() req: any) {
-    return this.authService.updateStaff(id, dto, req.user?.id)
+    return this.authService.updateStaff(id, dto, req.user?.id, req.user?.tenantId)
   }
 
   @Post('staff/:id/toggle-active')
@@ -258,7 +258,7 @@ export class AuthController {
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ativar/desativar membro da equipe' })
-  toggleStaffActive(@Param('id') id: string) {
-    return this.authService.toggleStaffActive(id)
+  toggleStaffActive(@Param('id') id: string, @Req() req: any) {
+    return this.authService.toggleStaffActive(id, req.user?.tenantId)
   }
 }

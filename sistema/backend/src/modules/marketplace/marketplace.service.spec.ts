@@ -5,6 +5,7 @@ const mockPrisma: any = {
   salesChannel: {
     upsert: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
   },
   channelProduct: {
@@ -65,7 +66,7 @@ describe('MarketplaceService', () => {
   })
 
   it('blocks external order ingestion when channel secret is wrong', async () => {
-    mockPrisma.salesChannel.findUnique.mockResolvedValue({
+    mockPrisma.salesChannel.findFirst.mockResolvedValue({
       id: 'channel-1',
       tenantId: 'tenant_default',
       storeId: 'store_default',
@@ -80,8 +81,33 @@ describe('MarketplaceService', () => {
     }, { 'x-marketplace-secret': 'wrong' })).rejects.toThrow(ForbiddenException)
   })
 
+  // JON-115 (Auditoria 360, High): canal sem webhookSecret configurado
+  // liberava a ingestao sem exigir credencial nenhuma -- quem soubesse o
+  // channelId inseria pedido. Agora recusa sempre que nao ha segredo, com
+  // ou sem header.
+  it('blocks external order ingestion when the channel has no secret configured at all', async () => {
+    mockPrisma.salesChannel.findFirst.mockResolvedValue({
+      id: 'channel-1',
+      tenantId: 'tenant_default',
+      storeId: 'store_default',
+      type: 'IFOOD',
+      provider: 'IFOOD',
+      config: {}, // sem webhookSecret
+    })
+
+    await expect(service.ingestMarketplaceOrder('channel-1', {
+      externalId: 'ext-1',
+      items: [{ productId: 'prod-1', quantity: 1 }],
+    })).rejects.toThrow(ForbiddenException)
+
+    await expect(service.ingestMarketplaceOrder('channel-1', {
+      externalId: 'ext-1',
+      items: [{ productId: 'prod-1', quantity: 1 }],
+    }, { 'x-marketplace-secret': 'qualquer-coisa' })).rejects.toThrow(ForbiddenException)
+  })
+
   it('consolidates external marketplace order into the same OMS order service', async () => {
-    mockPrisma.salesChannel.findUnique.mockResolvedValue({
+    mockPrisma.salesChannel.findFirst.mockResolvedValue({
       id: 'channel-1',
       tenantId: 'tenant_default',
       storeId: 'store_default',

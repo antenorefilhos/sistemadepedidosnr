@@ -265,7 +265,11 @@ describe('CheckoutService', () => {
         fulfillmentSlotId: 'slot-1',
         fulfillmentSlotItemCount: 2,
         deliveryAreaId: 'zone-1',
-        items: [{ productId: 'prod-1', quantity: 2 }],
+        // JON-46/JON-47: substitutionPolicy e expectedTotal agora vao
+        // sempre pro OrdersService.create -- ver comentario em
+        // checkout.service.ts.
+        items: [{ productId: 'prod-1', quantity: 2, substitutionPolicy: 'DENY' }],
+        expectedTotal: 27,
       }),
     )
     expect(mockCartService.markConverted).toHaveBeenCalledWith('cart-1', {

@@ -14,11 +14,15 @@ const build = (customer: Record<string, unknown> | null) => {
   const prisma = {
     customer: {
       findUnique: jest.fn().mockResolvedValue(customer),
-      update: jest.fn().mockResolvedValue({}),
+      // JON-138: customerSetPassword agora devolve um access_token novo
+      // (buildCustomerTokenResponse), entao o update() precisa devolver um
+      // registro com o suficiente pra assinar o JWT.
+      update: jest.fn().mockResolvedValue({ id: 'c1', email: null, name: 'Cliente', cpf: '00000000000', whatsapp: '21900000000', tokenVersion: 1 }),
     },
   }
-  const service = new AuthService(prisma as never, {} as never, {} as never)
-  return { service, prisma }
+  const jwt = { sign: jest.fn().mockReturnValue('token-novo') }
+  const service = new AuthService(prisma as never, jwt as never, {} as never)
+  return { service, prisma, jwt }
 }
 
 describe('customerSetPassword', () => {
@@ -57,8 +61,23 @@ describe('customerSetPassword', () => {
     })
   })
 
+  // JON-138: tokenVersion revoga o token antigo, mas quem acabou de trocar
+  // a propria senha nao pode ficar deslogado -- devolve um token novo.
+  it('devolve access_token novo pra nao deslogar quem acabou de trocar a senha', async () => {
+    const { service } = build({ id: 'c1', password: null })
+    const result = await service.customerSetPassword('c1', 'novaSenha123')
+    expect(result.access_token).toBe('token-novo')
+  })
+
   it('cliente que nao existe mais nao passa', async () => {
     const { service } = build(null)
     await expect(service.customerSetPassword('sumiu', 'novaSenha123')).rejects.toBeInstanceOf(UnauthorizedException)
+  })
+
+  // JON-119: conta anonimizada (blocked=true) nao pode reabrir acesso
+  // definindo senha nova, mesmo que a sessao/JWT ainda chegue at aqui.
+  it('conta bloqueada (anonimizada) nao pode definir senha', async () => {
+    const { service } = build({ id: 'c1', password: null, blocked: true })
+    await expect(service.customerSetPassword('c1', 'novaSenha123')).rejects.toBeInstanceOf(UnauthorizedException)
   })
 })

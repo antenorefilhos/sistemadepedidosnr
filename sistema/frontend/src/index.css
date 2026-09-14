@@ -131,4 +131,14 @@
   .toast-in-anim {
     animation: none;
   }
+
+  /* JON-169 (Auditoria 360): .fade-in-section comecava em opacity:0 e so o
+     keyframe revelava o conteudo -- com reduce essa regra nunca era
+     coberta, entao o conteudo ficava sempre invisivel (opacity:0 estatico)
+     em vez de so perder a translacao/entrada decorativa. */
+  .fade-in-section {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }

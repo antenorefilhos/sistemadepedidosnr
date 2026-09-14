@@ -94,7 +94,7 @@ export function Footer() {
                   href={whatsappUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#25D366]/40 bg-[#25D366]/10 px-4 py-2 text-sm font-semibold text-[#1c8f4d] transition-colors hover:bg-[#25D366]/20"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#25D366]/40 bg-[#25D366]/10 px-4 py-2 text-sm font-semibold text-[#0d5c36] transition-colors hover:bg-[#25D366]/20"
                 >
                   <MessageCircle size={16} className="shrink-0" />
                   WhatsApp
@@ -105,7 +105,7 @@ export function Footer() {
                   href={whatsappSecondaryUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#25D366]/40 bg-[#25D366]/10 px-4 py-2 text-sm font-semibold text-[#1c8f4d] transition-colors hover:bg-[#25D366]/20"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#25D366]/40 bg-[#25D366]/10 px-4 py-2 text-sm font-semibold text-[#0d5c36] transition-colors hover:bg-[#25D366]/20"
                 >
                   <MessageCircle size={16} className="shrink-0" />
                   WhatsApp 2

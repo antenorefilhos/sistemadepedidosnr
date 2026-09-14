@@ -150,3 +150,21 @@ corrompido. Restaurar de fato num banco separado antes de confiar de vez.
 - **Ver logs**: `docker compose -f docker-compose.prod.yml logs -f <serviço>`.
 - **Renovação de certificado**: automática, Caddy cuida sozinho. Só investigar
   se o cadeado sumir — geralmente é DNS que mudou ou porta 80 bloqueada.
+
+## Sincronizar fotos de produtos
+
+As fotos de catálogo ficam no volume Docker `uploads_data` da API em produção;
+copiar arquivos apenas para `/opt/antenor/sistema/backend/uploads/products` não
+atualiza esse volume. Use o sincronizador, que consulta os hashes dentro do
+container, envia somente arquivos novos ou alterados e preserva arquivos que
+existam apenas na VPS:
+
+```powershell
+.\scripts\sincronizar-fotos-vps.ps1 -SshKey "$env:USERPROFILE\.ssh\antenor_vps"
+.\scripts\sincronizar-fotos-vps.ps1 -SshKey "$env:USERPROFILE\.ssh\antenor_vps" -Apply
+```
+
+O primeiro comando é dry-run. Só use `-Apply` depois de conferir o delta no
+relatório `PRODUTOS\TRIAGEM\automacao\sync-vps-last.json`. O envio não exige
+rebuild da API: os arquivos são gravados no volume montado em
+`/app/uploads/products` e passam a ser servidos pela mesma URL baseada no EAN.

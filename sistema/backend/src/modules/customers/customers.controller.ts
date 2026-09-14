@@ -4,14 +4,18 @@ import { CustomersService } from './customers.service'
 import { CreateCustomerDto } from './dto/create-customer.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
+import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
+import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 
 type UpdateCustomerDto = Partial<CreateCustomerDto>
 
+// JON-142 (Auditoria 360, High): todo endpoint aqui virou tenant-scoped --
+// ver comentario equivalente em customers.service.ts.
 @ApiTags('Customers')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantAccessGuard, RolesGuard)
 @RelaxedThrottle()
 @Controller('customers')
 export class CustomersController {
@@ -38,8 +42,8 @@ export class CustomersController {
       ],
     },
   })
-  async findAll(@Query('search') search?: string) {
-    return this.customersService.findAll(search)
+  async findAll(@Req() req: TenantContextRequest, @Query('search') search?: string) {
+    return this.customersService.findAll(getTenantContext(req), search)
   }
 
   @Roles('admin')
@@ -49,8 +53,8 @@ export class CustomersController {
     description: 'Retorna a distribuição de clientes por origem (Instagram, WhatsApp, Google, etc.).',
   })
   @ApiResponse({ status: 200, description: 'Array com origin e count' })
-  async getOriginAnalytics() {
-    return this.customersService.getOriginAnalytics()
+  async getOriginAnalytics(@Req() req: TenantContextRequest) {
+    return this.customersService.getOriginAnalytics(getTenantContext(req))
   }
 
   @Get(':id')
@@ -67,7 +71,7 @@ export class CustomersController {
     status: 404,
     description: 'Cliente não encontrado',
   })
-  async findOne(@Param('id') id: string, @Req() req: { user?: { id?: string; role?: string } }) {
+  async findOne(@Param('id') id: string, @Req() req: TenantContextRequest) {
     const role = String(req.user?.role || '').toLowerCase()
     const requesterId = String(req.user?.id || '')
 
@@ -75,7 +79,7 @@ export class CustomersController {
       throw new ForbiddenException('Acesso negado para este cliente')
     }
 
-    return this.customersService.findOne(id)
+    return this.customersService.findOne(id, getTenantContext(req))
   }
 
   @Roles('admin')
@@ -92,8 +96,8 @@ export class CustomersController {
     status: 400,
     description: 'Dados inválidos',
   })
-  async create(@Body() createCustomerDto: CreateCustomerDto) {
-    return this.customersService.create(createCustomerDto)
+  async create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: TenantContextRequest) {
+    return this.customersService.create(createCustomerDto, getTenantContext(req))
   }
 
   @Roles('admin')
@@ -111,8 +115,8 @@ export class CustomersController {
     status: 404,
     description: 'Cliente não encontrado',
   })
-  async update(@Param('id') id: string, @Body() data: UpdateCustomerDto) {
-    return this.customersService.update(id, data)
+  async update(@Param('id') id: string, @Body() data: UpdateCustomerDto, @Req() req: TenantContextRequest) {
+    return this.customersService.update(id, data, getTenantContext(req))
   }
 
   @Roles('admin')
@@ -122,8 +126,8 @@ export class CustomersController {
     description: 'Suspende ou reativa o login do cliente (antifraude).',
   })
   @ApiParam({ name: 'id', type: String, description: 'ID do cliente' })
-  async setBlocked(@Param('id') id: string, @Body() data: { blocked: boolean; reason?: string }) {
-    return this.customersService.setBlocked(id, Boolean(data.blocked), data.reason)
+  async setBlocked(@Param('id') id: string, @Body() data: { blocked: boolean; reason?: string }, @Req() req: TenantContextRequest) {
+    return this.customersService.setBlocked(id, Boolean(data.blocked), getTenantContext(req), data.reason)
   }
 
   @Roles('admin')
@@ -133,8 +137,8 @@ export class CustomersController {
     description: 'Gera um link seguro de redefinicao de senha para o admin copiar/enviar ao cliente.',
   })
   @ApiParam({ name: 'id', type: String, description: 'ID do cliente' })
-  async generateResetLink(@Param('id') id: string) {
-    return this.customersService.generateResetLink(id)
+  async generateResetLink(@Param('id') id: string, @Req() req: TenantContextRequest) {
+    return this.customersService.generateResetLink(id, getTenantContext(req))
   }
 
   @Roles('admin')
@@ -152,7 +156,7 @@ export class CustomersController {
     status: 404,
     description: 'Cliente não encontrado',
   })
-  async remove(@Param('id') id: string) {
-    return this.customersService.remove(id)
+  async remove(@Param('id') id: string, @Req() req: TenantContextRequest) {
+    return this.customersService.remove(id, getTenantContext(req))
   }
 }

@@ -131,6 +131,7 @@ export class NotificationsController {
       /** ISO datetime opcional: no futuro, agenda em vez de mandar na hora. */
       sendAt?: string
     },
+    @Req() req: { user?: { tenantId?: string } },
   ) {
     const sendAt = body.sendAt ? new Date(body.sendAt) : undefined
     if (sendAt && !isNaN(sendAt.getTime()) && sendAt.getTime() > Date.now()) {
@@ -145,7 +146,7 @@ export class NotificationsController {
         inactiveDays: body.inactiveDays,
         purchasedCategory: body.purchasedCategory,
         sendAt,
-      })
+      }, String(req.user?.tenantId || 'tenant_default'))
       return { scheduled: true, sendAt: scheduled.sendAt }
     }
 
@@ -171,8 +172,8 @@ export class NotificationsController {
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Broadcasts agendados, ainda nao disparados' })
-  async listScheduledBroadcasts() {
-    return this.notificationsService.listScheduledBroadcasts()
+  async listScheduledBroadcasts(@Req() req: { user?: { tenantId?: string } }) {
+    return this.notificationsService.listScheduledBroadcasts(String(req.user?.tenantId || 'tenant_default'))
   }
 
   @Post('admin/broadcast/scheduled/:id/cancel')
@@ -180,8 +181,8 @@ export class NotificationsController {
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cancela um broadcast agendado antes de disparar' })
-  async cancelScheduledBroadcast(@Param('id') id: string) {
-    return this.notificationsService.cancelScheduledBroadcast(id)
+  async cancelScheduledBroadcast(@Param('id') id: string, @Req() req: { user?: { tenantId?: string } }) {
+    return this.notificationsService.cancelScheduledBroadcast(id, String(req.user?.tenantId || 'tenant_default'))
   }
 
   @Get('admin/broadcast/segment-count')

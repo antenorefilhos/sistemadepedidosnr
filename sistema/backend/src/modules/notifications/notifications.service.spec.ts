@@ -1,3 +1,11 @@
+// JON-140: assertPublicHttpsEndpoint faz DNS real -- 'push.example' e um
+// dominio reservado (RFC 2606) que nunca resolve. Mocka aqui pra testar
+// savePushSubscription sem depender de rede/DNS real; a validacao em si
+// tem spec propria (assert-public-endpoint.spec.ts).
+jest.mock('../../common/security/assert-public-endpoint', () => ({
+  assertPublicHttpsEndpoint: jest.fn().mockResolvedValue(undefined),
+}))
+
 import { NotificationsService } from './notifications.service'
 
 describe('NotificationsService', () => {

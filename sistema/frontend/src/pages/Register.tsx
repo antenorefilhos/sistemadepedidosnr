@@ -11,7 +11,9 @@ import { Select } from '../components/ui/select'
 import { surfaceClasses } from '../components/ui/surface'
 import { cn } from '../lib/cn'
 
-const HORIZONTAL_LOGO_SRC = '/branding/logo-horizontal-branco.png'
+// JON-170 (Auditoria 360): logo branco sobre painel branco do cadastro
+// desaparecia -- login usa a versao bordo sobre o mesmo painel e fica legivel.
+const HORIZONTAL_LOGO_SRC = '/branding/logo-horizontal-bordo.png'
 
 function fieldClass(touched: boolean, error: string | undefined) {
   const base = 'mt-1 h-12 px-4 placeholder:text-gray-500'
@@ -21,9 +23,13 @@ function fieldClass(touched: boolean, error: string | undefined) {
     : cn(base, 'border-green-400 bg-green-50/30 focus-visible:ring-green-400')
 }
 
-function FieldError({ msg }: { msg?: string }) {
+// JON-166 (Auditoria 360): aria-describedby apontava pra um id que
+// FieldError nunca criava (ou nem existia, nos demais campos) -- o alerta
+// aparecia visualmente mas nao se reconstituia como descricao do campo pra
+// quem usa leitor de tela.
+function FieldError({ id, msg }: { id: string; msg?: string }) {
   if (!msg) return null
-  return <p className="mt-1 text-xs text-red-600" role="alert">{msg}</p>
+  return <p id={id} className="mt-1 text-xs text-red-600" role="alert">{msg}</p>
 }
 
 function passwordStrength(pw: string): { label: string; width: string; color: string } {
@@ -156,14 +162,14 @@ export default function Register() {
                 autoComplete="name"
                 aria-required="true"
                 aria-invalid={touched.name && !!errors.name}
-                aria-describedby={errors.name ? 'name-error' : undefined}
+                aria-describedby={touched.name && errors.name ? 'name-error' : undefined}
                 className={fieldClass(!!touched.name, errors.name)}
                 placeholder="João Silva"
                 value={formData.name}
                 onChange={handleChange}
                 onBlur={handleBlur}
               />
-              <FieldError msg={touched.name ? errors.name : undefined} />
+              <FieldError id="name-error" msg={touched.name ? errors.name : undefined} />
             </div>
 
             <div>
@@ -177,13 +183,14 @@ export default function Register() {
                 autoComplete="email"
                 aria-required="true"
                 aria-invalid={touched.email && !!errors.email}
+                aria-describedby={touched.email && errors.email ? 'email-error' : undefined}
                 className={fieldClass(!!touched.email, errors.email)}
                 placeholder="joao@example.com"
                 value={formData.email}
                 onChange={handleChange}
                 onBlur={handleBlur}
               />
-              <FieldError msg={touched.email ? errors.email : undefined} />
+              <FieldError id="email-error" msg={touched.email ? errors.email : undefined} />
             </div>
 
             <div>
@@ -198,6 +205,7 @@ export default function Register() {
                 autoComplete="off"
                 aria-required="true"
                 aria-invalid={touched.cpf && !!errors.cpf}
+                aria-describedby={touched.cpf && errors.cpf ? 'cpf-error' : undefined}
                 className={fieldClass(!!touched.cpf, errors.cpf)}
                 placeholder="12345678900"
                 maxLength={14}
@@ -205,7 +213,7 @@ export default function Register() {
                 onChange={handleChange}
                 onBlur={handleBlur}
               />
-              <FieldError msg={touched.cpf ? errors.cpf : undefined} />
+              <FieldError id="cpf-error" msg={touched.cpf ? errors.cpf : undefined} />
             </div>
 
             <div>
@@ -219,6 +227,7 @@ export default function Register() {
                 inputMode="numeric"
                 autoComplete="tel"
                 aria-invalid={touched.whatsapp && !!errors.whatsapp}
+                aria-describedby={touched.whatsapp && errors.whatsapp ? 'whatsapp-error' : undefined}
                 className={fieldClass(!!touched.whatsapp, errors.whatsapp)}
                 placeholder="11987654321"
                 maxLength={11}
@@ -226,7 +235,7 @@ export default function Register() {
                 onChange={handleChange}
                 onBlur={handleBlur}
               />
-              <FieldError msg={touched.whatsapp ? errors.whatsapp : undefined} />
+              <FieldError id="whatsapp-error" msg={touched.whatsapp ? errors.whatsapp : undefined} />
             </div>
 
             <div>
@@ -239,6 +248,7 @@ export default function Register() {
                 autoComplete="new-password"
                 aria-required="true"
                 aria-invalid={touched.password && !!errors.password}
+                aria-describedby={touched.password && errors.password ? 'password-error' : undefined}
                 className={fieldClass(!!touched.password, errors.password)}
                 placeholder="••••••"
                 value={formData.password}
@@ -256,7 +266,7 @@ export default function Register() {
                   <p className="text-xs text-gray-500">Força: <span className="font-medium">{pwStrength.label}</span></p>
                 </div>
               )}
-              <FieldError msg={touched.password ? errors.password : undefined} />
+              <FieldError id="password-error" msg={touched.password ? errors.password : undefined} />
             </div>
 
             <div>
@@ -269,13 +279,14 @@ export default function Register() {
                 autoComplete="new-password"
                 aria-required="true"
                 aria-invalid={touched.confirmPassword && !!errors.confirmPassword}
+                aria-describedby={touched.confirmPassword && errors.confirmPassword ? 'confirmPassword-error' : undefined}
                 className={fieldClass(!!touched.confirmPassword, errors.confirmPassword)}
                 placeholder="••••••"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 onBlur={handleBlur}
               />
-              <FieldError msg={touched.confirmPassword ? errors.confirmPassword : undefined} />
+              <FieldError id="confirmPassword-error" msg={touched.confirmPassword ? errors.confirmPassword : undefined} />
             </div>
 
             <div>

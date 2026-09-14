@@ -1,5 +1,19 @@
 const LOCAL_ENVS = new Set(['', 'development', 'test'])
-const INSECURE_SECRETS = new Set(['secret', 'change-me', 'changeme', 'jwt-secret'])
+// JON-144 (Auditoria 360, High): docker-compose.yml e docker-compose.staging.yml
+// tem fallback ${JWT_SECRET:-...} com um valor LITERAL commitado no repo, com
+// 32+ chars -- passava batido no check de comprimento abaixo. Se a env real
+// nao for configurada (staging/producao rodando sem .env completo), a API
+// sobe normalmente usando um segredo que qualquer um le no git. Comprimento
+// nao prova segredo: os dois valores commitados entram aqui INDEPENDENTE do
+// tamanho, mesmo padrao das strings curtas ja bloqueadas.
+const INSECURE_SECRETS = new Set([
+  'secret',
+  'change-me',
+  'changeme',
+  'jwt-secret',
+  'antenor_local_stack_jwt_secret_2026_min_32_chars',
+  'staging-jwt-secret-change-before-production',
+])
 
 export function resolveJwtSecret() {
   const env = String(process.env.NODE_ENV || '').trim().toLowerCase()

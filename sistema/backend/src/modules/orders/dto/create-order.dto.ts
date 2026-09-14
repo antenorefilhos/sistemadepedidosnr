@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsArray, IsOptional, IsNotEmpty, IsObject, IsISO8601, Min } from 'class-validator'
+import { IsString, IsNumber, IsArray, IsOptional, IsNotEmpty, IsObject, IsISO8601, IsIn, Min } from 'class-validator'
 
 export class CreateOrderItemDto {
   @IsString()
@@ -11,6 +11,13 @@ export class CreateOrderItemDto {
   @IsOptional()
   @IsString()
   scannedCode?: string
+
+  // JON-46 (Auditoria 360): o cliente escolhe item a item no carrinho se
+  // aceita substituicao ou nao; confirmSession precisa repassar isso aqui,
+  // senao create() grava 'ALLOW' pra todo mundo (ver comentario mais abaixo).
+  @IsOptional()
+  @IsIn(['ALLOW', 'DENY'])
+  substitutionPolicy?: 'ALLOW' | 'DENY'
 }
 
 export class CreateOrderDto {
@@ -103,4 +110,13 @@ export class CreateOrderDto {
   @IsOptional()
   @IsObject()
   deliverySnapshot?: Record<string, unknown>
+
+  // JON-47 (Auditoria 360): total que o cliente ja viu e aprovou na
+  // confirmacao do checkout (confirmSession compara contra o priceSnapshot
+  // exibido). create() roda o PRICING pela TERCEIRA vez (buildQuote,
+  // confirmSession, e este) -- sem comparar contra este valor, promocao/
+  // preco mudando entre a confirmacao e a gravacao do pedido passava batido.
+  @IsOptional()
+  @IsNumber()
+  expectedTotal?: number
 }

@@ -74,10 +74,45 @@ describe('AddressesService', () => {
 
       const result = await service.create('customer-1', payload)
 
+      // JON-142: create agora grava whitelist explicita, nao mais o body
+      // espalhado -- confirma que so os campos conhecidos do model chegam.
       expect(prisma.address.create).toHaveBeenCalledWith({
-        data: { ...payload, customerId: 'customer-1' },
+        data: {
+          ...payload,
+          complement: null,
+          locality: null,
+          deliveryPointCode: null,
+          isDefault: false,
+          customerId: 'customer-1',
+        },
       })
       expect(result).toEqual({ ...mockAddress, id: 'addr-2' })
+    })
+
+    // JON-142 (Auditoria 360, High): create espalhava o body inteiro no
+    // Prisma -- id/tenantId/createdAt sao colunas reais do model, entao um
+    // body malicioso conseguia sobrescrever a qual tenant/registro o
+    // endereco pertencia.
+    it('ignora id/tenantId/createdAt injetados no body', async () => {
+      prisma.address.findMany.mockResolvedValue([])
+      prisma.address.create.mockResolvedValue({ ...mockAddress, id: 'addr-2' })
+
+      await service.create('customer-1', {
+        street: 'Rua B',
+        number: '999',
+        neighborhood: 'Jardim',
+        city: 'Sao Paulo',
+        state: 'SP',
+        zipCode: '02000000',
+        id: 'addr-attacker',
+        tenantId: 'outro-tenant',
+        createdAt: new Date('2000-01-01'),
+      } as never)
+
+      const dataSent = prisma.address.create.mock.calls[0][0].data
+      expect(dataSent).not.toHaveProperty('id')
+      expect(dataSent).not.toHaveProperty('tenantId')
+      expect(dataSent).not.toHaveProperty('createdAt')
     })
 
     it('reuses an existing address ignoring case', async () => {

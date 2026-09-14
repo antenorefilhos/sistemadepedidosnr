@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { resolveBannerLink } from '../cms/store-banners/banner-link'
 import { PrismaService } from '../../common/prisma.service'
+import { assertPublicHttpsEndpoint } from '../../common/security/assert-public-endpoint'
 import { PushNotificationService } from './push-notification.service'
 import { WhatsAppService } from './whatsapp.service'
 
@@ -283,6 +284,8 @@ export class NotificationsService {
       }
     },
   ) {
+    // JON-140: SSRF -- ver assert-public-endpoint.ts.
+    await assertPublicHttpsEndpoint(subscription.endpoint)
     const auth = subscription.auth || subscription.keys?.auth || ''
     const p256dh = subscription.p256dh || subscription.keys?.p256dh || ''
 
@@ -305,6 +308,8 @@ export class NotificationsService {
     adminId: string,
     subscription: { endpoint: string; auth?: string; p256dh?: string; keys?: { auth?: string; p256dh?: string } },
   ) {
+    // JON-140: SSRF -- ver assert-public-endpoint.ts.
+    await assertPublicHttpsEndpoint(subscription.endpoint)
     const auth = subscription.auth || subscription.keys?.auth || ''
     const p256dh = subscription.p256dh || subscription.keys?.p256dh || ''
 
@@ -330,7 +335,19 @@ export class NotificationsService {
     return customers.map((c) => c.id)
   }
 
-  /** Agenda um broadcast pra rodar depois -- ScheduledNotificationScheduler dispara quando sendAt chegar. */
+  /**
+   * Agenda um broadcast pra rodar depois -- ScheduledNotificationScheduler
+   * dispara quando sendAt chegar.
+   *
+   * JON-142 (Auditoria 360, High): tenantId nao vinha em `dto` (o controller
+   * so repassava campos do body) e o Prisma gravava o default do schema --
+   * admin de um tenant listava/cancelava agendamento de outro so por
+   * conhecer o id, porque listScheduledBroadcasts/cancelScheduledBroadcast
+   * tambem nao filtravam por tenant. O dispatch em si (mais abaixo,
+   * `dispatchDueScheduledBroadcasts`, chamado pelo cron) continua olhando
+   * todos os tenants de proposito -- e o worker do sistema, nao uma rota
+   * autenticada por tenant.
+   */
   async scheduleBroadcast(dto: {
     type: 'PROMO' | 'CAMPAIGN'
     title: string
@@ -342,19 +359,19 @@ export class NotificationsService {
     inactiveDays?: number
     purchasedCategory?: string
     sendAt: Date
-  }) {
-    return this.prisma.scheduledNotification.create({ data: dto })
+  }, tenantId: string) {
+    return this.prisma.scheduledNotification.create({ data: { ...dto, tenantId } })
   }
 
-  async listScheduledBroadcasts() {
+  async listScheduledBroadcasts(tenantId: string) {
     return this.prisma.scheduledNotification.findMany({
-      where: { sentAt: null },
+      where: { sentAt: null, tenantId },
       orderBy: { sendAt: 'asc' },
     })
   }
 
-  async cancelScheduledBroadcast(id: string) {
-    const result = await this.prisma.scheduledNotification.deleteMany({ where: { id, sentAt: null } })
+  async cancelScheduledBroadcast(id: string, tenantId: string) {
+    const result = await this.prisma.scheduledNotification.deleteMany({ where: { id, sentAt: null, tenantId } })
     if (result.count === 0) throw new NotFoundException('Agendamento nao encontrado ou ja disparado')
     return { ok: true }
   }

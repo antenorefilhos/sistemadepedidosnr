@@ -92,8 +92,8 @@ export default function ProductDetail() {
               <ArrowLeft size={18} />
               {backLabel}
             </Button>
-            <Link to="/cart" className="relative p-2 text-[#231F20] hover:text-[#5D082A] transition-colors">
-              <ShoppingCart size={22} />
+            <Link to="/cart" aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'} className="relative flex min-h-11 min-w-11 items-center justify-center text-[#231F20] transition-colors hover:text-[#5D082A]">
+              <ShoppingCart size={22} aria-hidden="true" />
               {count > 0 && (
                 <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
                   {count > 9 ? '9+' : count}
@@ -179,8 +179,8 @@ export default function ProductDetail() {
           </Button>
 
           <div className="flex items-center gap-1">
-            <Link to="/cart" className="relative p-2 text-[#231F20] hover:text-[#5D082A] transition-colors">
-              <ShoppingCart size={22} />
+            <Link to="/cart" aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'} className="relative flex min-h-11 min-w-11 items-center justify-center text-[#231F20] transition-colors hover:text-[#5D082A]">
+              <ShoppingCart size={22} aria-hidden="true" />
               {count > 0 && (
                 <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
                   {count > 9 ? '9+' : count}

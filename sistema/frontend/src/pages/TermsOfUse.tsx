@@ -28,8 +28,8 @@ export default function TermsOfUse() {
       />
 
       <header className="sticky top-0 z-40 flex items-center gap-3 bg-[#5D082A] px-4 py-4 text-white">
-        <Link to="/" className="-ml-1 rounded-lg p-1 transition-colors hover:bg-white/10">
-          <ArrowLeft size={22} />
+        <Link to="/" className="-ml-1 rounded-lg p-1 transition-colors hover:bg-white/10" aria-label="Voltar para a loja">
+          <ArrowLeft size={22} aria-hidden="true" />
         </Link>
         <div className="flex flex-1 items-center gap-2">
           <FileText size={20} className="text-[#D2BB8A]" />

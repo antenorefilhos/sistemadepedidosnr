@@ -71,10 +71,15 @@ describe('PaymentsWebhookService', () => {
       expect(service.verifySignature(raw, 'aabbccdd')).toBe(false)
     })
 
-    it('retorna true quando secret não está configurado (modo permissivo)', () => {
+    // JON-133 (Auditoria 360, Urgent): sem secret configurado, qualquer
+    // header nao-vazio passava e processEvent() marcava pedido como
+    // PAID/etc sem nenhuma prova de que veio do gateway. Corrigido pra
+    // rejeitar sempre que nao ha como verificar assinatura nenhuma --
+    // "gateway inativo" nao e motivo pra confiar num payload nao assinado.
+    it('rejeita quando secret nao esta configurado, mesmo com gateway inativo', () => {
       delete process.env.PAYMENTS_WEBHOOK_SECRET
       const raw = Buffer.from('{}')
-      expect(service.verifySignature(raw, 'qualquer')).toBe(true)
+      expect(service.verifySignature(raw, 'qualquer')).toBe(false)
     })
 
     it('rejeita webhook sem secret quando gateway esta ativo', () => {
@@ -113,6 +118,28 @@ describe('PaymentsWebhookService', () => {
         where: { id: 'order-xyz-456' },
         data: { status: 'CONFIRMED', paymentStatus: 'PAID' },
       })
+    })
+
+    // JON-134 (Auditoria 360, High): webhook atrasado nao pode regredir
+    // pedido ja em estado final, nem confirmar pagamento com valor errado.
+    it('nao regride pedido ja DELIVERED (webhook atrasado/fora de ordem)', async () => {
+      mockPrisma.auditLog.findFirst.mockResolvedValue(null)
+      mockPrisma.order.findUnique.mockResolvedValue({ id: 'order-xyz-456', status: 'DELIVERED', paymentStatus: 'PAID', total: 100 })
+
+      const result = await service.processEvent(basePayload)
+
+      expect(result).toEqual({ processed: false, reason: 'order_already_final', orderId: 'order-xyz-456' })
+      expect(mockPrisma.order.update).not.toHaveBeenCalled()
+    })
+
+    it('nao confirma pagamento quando o valor recebido diverge do total do pedido', async () => {
+      mockPrisma.auditLog.findFirst.mockResolvedValue(null)
+      mockPrisma.order.findUnique.mockResolvedValue({ id: 'order-xyz-456', status: 'PENDING', paymentStatus: 'UNPAID', total: 100 })
+
+      const result = await service.processEvent({ ...basePayload, amount: 0.01 })
+
+      expect(result).toEqual({ processed: false, reason: 'amount_diverged', orderId: 'order-xyz-456' })
+      expect(mockPrisma.order.update).not.toHaveBeenCalled()
     })
 
     it('atualiza pedido para CANCELLED em charge.failed', async () => {

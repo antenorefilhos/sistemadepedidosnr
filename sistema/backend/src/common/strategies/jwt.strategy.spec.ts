@@ -61,4 +61,25 @@ describe('JwtStrategy.validate', () => {
     const strategy = build({})
     await expect(strategy.validate({} as never)).rejects.toBeInstanceOf(UnauthorizedException)
   })
+
+  // JON-138 (Auditoria 360, High): reset/troca de senha incrementa
+  // tokenVersion no banco. JWT antigo (assinado com a versao anterior)
+  // continua com assinatura valida ate expirar sozinho -- sem essa
+  // comparacao, a revogacao nao acontecia de verdade.
+  it('JWT de admin com tokenVersion desatualizado (senha trocada) perde acesso', async () => {
+    const strategy = build({ admin: { id: 'u1', active: true, role: 'admin', moduleAccess: [], tokenVersion: 2 } })
+    await expect(strategy.validate(token({ tokenVersion: 1 }))).rejects.toBeInstanceOf(UnauthorizedException)
+  })
+
+  it('JWT de cliente com tokenVersion desatualizado (senha trocada) perde acesso', async () => {
+    const strategy = build({ customer: { id: 'c1', blocked: false, tokenVersion: 1 } })
+    await expect(
+      strategy.validate(token({ id: 'c1', role: 'customer', tokenVersion: 0 })),
+    ).rejects.toBeInstanceOf(UnauthorizedException)
+  })
+
+  it('JWT com tokenVersion atual continua valido apos a comparacao', async () => {
+    const strategy = build({ admin: { id: 'u1', active: true, role: 'admin', moduleAccess: [], tokenVersion: 3 } })
+    await expect(strategy.validate(token({ tokenVersion: 3 }))).resolves.toMatchObject({ id: 'u1' })
+  })
 })

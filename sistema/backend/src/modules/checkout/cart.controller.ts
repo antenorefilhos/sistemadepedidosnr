@@ -1,8 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { CartService } from './cart.service'
 import { CreateCartDto, UpdateCartItemDto, UpsertCartItemDto } from './dto/cart.dto'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard'
+
+type RequestUser = { id?: string; role?: string }
 
 @RelaxedThrottle()
 @Controller('cart')
@@ -10,8 +13,13 @@ export class CartController {
   constructor(private readonly cartService: CartService) {}
 
   @Post()
-  async create(@Body() dto: CreateCartDto, @Req() req?: TenantContextRequest) {
-    return this.cartService.createCart(req ? getTenantContext(req) : undefined, dto)
+  @UseGuards(OptionalJwtAuthGuard)
+  async create(@Body() dto: CreateCartDto, @Req() req?: TenantContextRequest & { user?: RequestUser }) {
+    // JON-132: cliente logado nunca decide o proprio customerId pelo corpo --
+    // o token manda. Sem token, guest checkout continua como sempre foi.
+    const verifiedCustomerId = req?.user?.role === 'customer' ? req.user.id : undefined
+    const payload = verifiedCustomerId ? { ...dto, customerId: verifiedCustomerId } : dto
+    return this.cartService.createCart(req ? getTenantContext(req) : undefined, payload)
   }
 
   @Get(':id')

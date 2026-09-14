@@ -196,10 +196,20 @@ export class InventoryService {
       })
 
       for (const reservation of reservations) {
-        await tx.stockReservation.update({
-          where: { id: reservation.id },
+        // JON-157 (Auditoria 360, High): a leitura ACTIVE la em cima e o
+        // update por id aqui embaixo nao sao atomicos entre si -- duas
+        // chamadas concorrentes pro mesmo pedido (webhook + retry, ex.)
+        // liam a mesma reserva ACTIVE antes de qualquer uma commitar, e as
+        // duas decrementavam estoque pra reserva. updateMany com a condicao
+        // status:'ACTIVE' no WHERE faz o "claim" da reserva atomico: so a
+        // primeira transacao a commitar realmente muda o status; a segunda
+        // (que so enxerga o commit da primeira ao tentar o proprio update,
+        // READ COMMITTED) casa zero linhas e pula sem decrementar de novo.
+        const claimed = await tx.stockReservation.updateMany({
+          where: { id: reservation.id, status: 'ACTIVE' },
           data: { status: 'CONSUMED' },
         })
+        if (claimed.count !== 1) continue
 
         await tx.stockPosition.update({
           where: {

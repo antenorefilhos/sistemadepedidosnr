@@ -21,8 +21,16 @@ export class ObservabilityController {
     return this.observabilityService.getOperationalMetrics()
   }
 
+  // JON-147 (Auditoria 360, High): scrape Prometheus estava sem guard nenhum
+  // -- qualquer leitor anonimo lia rota/latencia/taxa de erro de todo
+  // endpoint. Mesmo guard do endpoint /metrics ao lado; nao ha scraper
+  // Prometheus real configurado neste projeto (sem env/infra pra token de
+  // scrape dedicado), ficaria so YAGNI.
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Get('metrics/prometheus')
   @Header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Metricas HTTP em formato Prometheus exposition' })
   prometheus() {
     return this.observabilityService.getPrometheusMetrics()

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { isAbsolute, join, relative, resolve, sep } from 'path';
 
 /**
  * Serviço compartilhado para gerenciar limpeza de arquivos de upload.
@@ -28,9 +28,20 @@ export class UploadsManagementService {
    */
   async deleteFile(filename: string): Promise<void> {
     if (!filename) return;
+    // JON-135 (Auditoria 360, High): filename vem de extractFilenameFromUrl,
+    // que so faz um regex sobre tudo depois de "/uploads/" -- uma URL
+    // gravada no CMS com "../../.env" (ou path absoluto, ou barra invertida
+    // no Windows) chegava aqui, join() normalizava pra FORA de uploadsDir,
+    // e o unlink rodava sem checagem nenhuma. Resolve o candidato e confere
+    // que ele continua dentro da raiz antes de apagar qualquer coisa.
+    const candidate = resolve(this.uploadsDir, filename);
+    const rel = relative(this.uploadsDir, candidate);
+    if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+      console.warn(`[UploadsManagement] Caminho fora da pasta de uploads recusado: ${filename}`);
+      return;
+    }
     try {
-      const filepath = join(this.uploadsDir, filename);
-      await fs.unlink(filepath);
+      await fs.unlink(candidate);
     } catch (err) {
       // Arquivo já deletado ou não existe — continuar silenciosamente
       console.warn(

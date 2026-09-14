@@ -714,6 +714,7 @@ export class ProductsService {
         safeLimit,
         effectiveCategory,
         mercadologicalFilters,
+        context,
       )
       return {
         ...accentAware,
@@ -809,22 +810,30 @@ export class ProductsService {
       .replace(/[cç]/gi, '[cç]')
   }
 
+  // JON-142 (Auditoria 360, High): esta busca raw SQL nao filtrava por
+  // tenant/store -- caminho Prisma (buildPrismaWhere, mais abaixo em findAll)
+  // ja aplica tenantStoreWhere(context), so este SELECT bruto ficou de fora.
   private async findAllAccentTolerant(
     parsed: ParsedSearch,
     page: number,
     limit: number,
     category?: string,
     mercadologicalFilters?: MercadologicalFilters,
+    context?: Partial<ProductTenantContext>,
   ) {
     const offset = (page - 1) * limit
     const regex = this.toAccentInsensitiveRegex(parsed.text)
     const excludes = parsed.excludes.map((term) => this.toAccentInsensitiveRegex(term)).filter(Boolean)
+    const tenantId = context?.tenantId || null
+    const storeId = context?.storeId || null
 
     const data = await this.prisma.$queryRaw<any[]>`
       SELECT *
       FROM "products"
       WHERE "active" = true
         AND "syncOption" != 'NUNCA'
+        AND (${tenantId}::text IS NULL OR "tenantId" = ${tenantId})
+        AND (${storeId}::text IS NULL OR "storeId" = ${storeId})
         AND (("syncOption" = 'SEMPRE') OR ("syncOption" IN ('ESTOQUE', 'ESTQOUE') AND COALESCE("stock", 0) > 0))
         AND (${category}::text IS NULL OR "category" = ${category})
         AND (${parsed.minPrice}::double precision IS NULL OR "price" >= ${parsed.minPrice})
@@ -856,6 +865,8 @@ export class ProductsService {
       FROM "products"
       WHERE "active" = true
         AND "syncOption" != 'NUNCA'
+        AND (${tenantId}::text IS NULL OR "tenantId" = ${tenantId})
+        AND (${storeId}::text IS NULL OR "storeId" = ${storeId})
         AND (("syncOption" = 'SEMPRE') OR ("syncOption" IN ('ESTOQUE', 'ESTQOUE') AND COALESCE("stock", 0) > 0))
         AND (${category}::text IS NULL OR "category" = ${category})
         AND (${parsed.minPrice}::double precision IS NULL OR "price" >= ${parsed.minPrice})

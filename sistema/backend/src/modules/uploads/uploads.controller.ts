@@ -5,8 +5,6 @@ import {
   Post,
   UseInterceptors,
   UploadedFile,
-  ParseFilePipe,
-  MaxFileSizeValidator,
   UseGuards,
   Param,
 } from '@nestjs/common';
@@ -80,14 +78,22 @@ export class UploadsController {
       limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
       storage: diskStorage({
         destination: './uploads',
+        // JON-137 (Auditoria 360, High): a extensao vinha de extname(originalname),
+        // controlado pelo cliente -- um arquivo "evil.html" com
+        // Content-Type: image/png forjado passava no fileFilter (que so olha
+        // mimetype, tambem do cliente) e era servido como HTML na mesma
+        // origem do app (stored XSS). Sempre grava como .tmp; a extensao/
+        // Content-Type final so nascem depois, do formato REAL decodificado
+        // pelo sharp abaixo -- nunca do que o cliente declarou.
         filename: (req, file, callback) => {
-          const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
-          callback(null, uniqueName);
+          callback(null, `${uuidv4()}.tmp`);
         },
       }),
       // Rejeita pelo fileFilter (antes de gravar em disco) em vez de checar
       // so depois -- senao arquivo com mimetype invalido ja tinha sido
       // gravado com nome unico e ficava orfao em ./uploads pra sempre.
+      // Continua sendo so a primeira barreira (mimetype ainda e do
+      // cliente) -- a decodificacao real do sharp abaixo e quem decide.
       fileFilter: (req, file, callback) => {
         if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
           callback(new BadRequestException('Formato de imagem inválido. Envie JPG, PNG, WebP, AVIF, GIF, TIFF ou BMP.'), false);
@@ -97,19 +103,39 @@ export class UploadsController {
       },
     }),
   )
-  uploadFile(
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-        ],
-      }),
-    )
-    file: Express.Multer.File,
-  ) {
+  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+    const tempPath = file.path;
+    const finalName = `${uuidv4()}.webp`;
+    const finalPath = join('./uploads', finalName);
+
+    // JON-113 (Auditoria 360): o limite "de verdade" (5MB) era checado por um
+    // ParseFilePipe, que roda como PARAMETRO -- antes do corpo do metodo, e
+    // portanto antes do try/finally que limpa o tempPath. Arquivo entre 5 e
+    // 25MB (dentro do teto generoso do multer, acima do nosso) era gravado
+    // por inteiro e ficava orfao pra sempre, porque a rejeicao acontecia
+    // fora de qualquer bloco com cleanup. Agora a checagem de tamanho mora
+    // DENTRO do try, coberta pelo mesmo finally que limpa tudo.
+    try {
+      if (file.size > 5 * 1024 * 1024) {
+        throw new BadRequestException('Arquivo muito grande (maximo 5MB).');
+      }
+      // sharp so decodifica bytes de imagem de verdade -- HTML/SVG/JS
+      // disfarcado de image/png estoura aqui, antes de virar arquivo
+      // publico. limitInputPixels evita decompression bomb.
+      await sharp(tempPath, { limitInputPixels: MAX_INPUT_PIXELS })
+        .resize(MAX_CANVAS_PX, MAX_CANVAS_PX, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 90, effort: 6 })
+        .toFile(finalPath);
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException('Arquivo enviado nao e uma imagem valida: ' + (error as Error).message);
+    } finally {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    }
+
     return {
-      url: `/uploads/${file.filename}`,
-      filename: file.filename,
+      url: `/uploads/${finalName}`,
+      filename: finalName,
       originalName: file.originalname,
     };
   }
@@ -136,32 +162,28 @@ export class UploadsController {
           callback(null, tempName);
         },
       }),
+      // JON-113/JON-137 (Auditoria 360): faltava aqui -- so o endpoint
+      // generico rejeitava MIME no fileFilter (antes de gravar). Este
+      // endpoint so checava mimetype DEPOIS de escrever o arquivo, e nem
+      // isso dentro do try/finally que limpa o disco.
+      fileFilter: (req, file, callback) => {
+        if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
+          callback(new BadRequestException('Formato de imagem inválido. Envie JPG, PNG, WebP, AVIF, GIF, TIFF ou BMP.'), false);
+          return;
+        }
+        callback(null, true);
+      },
     }),
   )
   async uploadProductImage(
     @Param('ean') ean: string,
     @Param('slot') slot: string | undefined,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-        ],
-      }),
-    )
-    file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
   ) {
     assertValidEan(ean);
-    if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Formato de imagem inválido. Envie JPG, PNG, WebP, AVIF, GIF, TIFF ou BMP.');
-    }
 
     const tempPath = file.path;
     const finalDir = './uploads/products';
-    
-    if (!fs.existsSync(finalDir)) {
-      fs.mkdirSync(finalDir, { recursive: true });
-    }
-    
     const suffix = slot === '2' ? '_2' : '';
     const finalPath = join(finalDir, `${ean}${suffix}.webp`);
     // Escreve num arquivo a parte e so entao substitui: se o sharp falhar no
@@ -169,6 +191,17 @@ export class UploadsController {
     const stagingPath = `${finalPath}.new`;
 
     try {
+      // JON-113: checagem de tamanho movida pra dentro do try -- antes vinha
+      // de um ParseFilePipe que rejeitava ANTES deste bloco rodar, deixando
+      // arquivo entre 5 e 25MB (multer ja tinha escrito por inteiro) orfao
+      // em uploads/products pra sempre.
+      if (file.size > 5 * 1024 * 1024) {
+        throw new BadRequestException('Arquivo muito grande (maximo 5MB).');
+      }
+      if (!fs.existsSync(finalDir)) {
+        fs.mkdirSync(finalDir, { recursive: true });
+      }
+
       const metadata = await sharp(tempPath, { limitInputPixels: MAX_INPUT_PIXELS }).metadata();
       // 800px e o minimo e MAX_CANVAS_PX o teto. Imagem de origem maior nao e
       // reduzida ate o teto; o canvas quadrado acompanha o maior lado pra

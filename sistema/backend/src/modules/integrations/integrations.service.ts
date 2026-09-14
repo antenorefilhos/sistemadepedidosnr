@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { PrismaService } from '../../common/prisma.service'
 import { CrmContactContract, CrmContactPreviewResponse } from './dto/crm-contact.dto'
 import { HubSpotService } from './hubspot.service'
@@ -291,7 +292,7 @@ export class IntegrationsService {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        customer: true,
+        customer: { select: CUSTOMER_SAFE_SELECT },
         items: { include: { product: true } },
       },
     })
@@ -340,7 +341,7 @@ export class IntegrationsService {
   async buildChargePreview(orderId: string): Promise<ChargePreviewResponse> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { customer: true },
+      include: { customer: { select: CUSTOMER_SAFE_SELECT } },
     })
 
     if (!order) {

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common'
+import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { RequireModule } from '../../common/decorators/require-module.decorator'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
@@ -66,7 +67,7 @@ export class DriverController {
         driver: true,
         stops: {
           orderBy: [{ sequence: 'asc' }],
-          include: { order: { include: { customer: true } } } as any,
+          include: { order: { include: { customer: { select: CUSTOMER_SAFE_SELECT } } } } as any,
         },
       },
       orderBy: [{ createdAt: 'desc' }],
@@ -86,7 +87,7 @@ export class DriverController {
           include: {
             order: {
               include: {
-                customer: true,
+                customer: { select: CUSTOMER_SAFE_SELECT },
                 items: { include: { product: true } },
               },
             },
@@ -101,8 +102,12 @@ export class DriverController {
   @Post('routes/:id/start')
   @ApiOperation({ summary: 'Sair para entrega' })
   async startRoute(@Param('id') id: string, @Req() req: TenantContextRequest) {
-    await this.findDriverByAdmin(req)
-    return this.deliveryService.startRoute(id, getTenantContext(req), this.actorFromRequest(req))
+    // JON-72 (Auditoria 360, High): findDriverByAdmin era chamado so pra
+    // confirmar QUE existe perfil de motorista -- o driver.id nunca era
+    // repassado ao service, entao id de rota de OUTRO motorista da mesma
+    // loja passava direto (so tenant/store eram filtrados).
+    const driver = await this.findDriverByAdmin(req)
+    return this.deliveryService.startRoute(id, getTenantContext(req), this.actorFromRequest(req), driver.id)
   }
 
   @Post('routes/:id/stops/:stopId/status')
@@ -113,15 +118,15 @@ export class DriverController {
     @Body() dto: UpdateDeliveryStopStatusDto,
     @Req() req: TenantContextRequest,
   ) {
-    await this.findDriverByAdmin(req)
-    return this.deliveryService.updateStopStatus(id, stopId, getTenantContext(req), dto, this.actorFromRequest(req))
+    const driver = await this.findDriverByAdmin(req)
+    return this.deliveryService.updateStopStatus(id, stopId, getTenantContext(req), dto, this.actorFromRequest(req), driver.id)
   }
 
   @Post('routes/:id/complete')
   @ApiOperation({ summary: 'Concluir rota' })
   async completeRoute(@Param('id') id: string, @Req() req: TenantContextRequest) {
-    await this.findDriverByAdmin(req)
-    return this.deliveryService.completeRoute(id, getTenantContext(req), this.actorFromRequest(req))
+    const driver = await this.findDriverByAdmin(req)
+    return this.deliveryService.completeRoute(id, getTenantContext(req), this.actorFromRequest(req), driver.id)
   }
 
   private async findDriverByAdmin(req: TenantContextRequest) {
