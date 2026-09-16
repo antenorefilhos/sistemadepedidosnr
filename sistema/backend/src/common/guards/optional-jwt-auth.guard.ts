@@ -22,7 +22,7 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
     return super.canActivate(context) as Promise<boolean>
   }
 
-  handleRequest(err: unknown, user: unknown) {
+  handleRequest(_err: unknown, user: unknown) {
     // Nunca lanca: sem token (ou token invalido/expirado), segue anonimo.
     return (user as never) || null
   }

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import axios from 'axios'
 import { FiscalDocumentContract } from './dto/fiscal-document.dto'
 
@@ -12,8 +12,6 @@ export interface NfePushResult {
 
 @Injectable()
 export class NfeService {
-  private readonly logger = new Logger(NfeService.name)
-
   private get providerUrl(): string {
     return (process.env.NFE_PROVIDER_URL || '').replace(/\/$/, '')
   }

@@ -1306,7 +1306,6 @@ export class CategoryHierarchyService {
   ) {
     const c1 = this.normalizeSourceText(String(classification01 || ''))
     const c2 = this.normalizeSourceText(String(classification02 || ''))
-    const c3 = this.normalizeSourceText(String(classification03 || ''))
     const productName = this.normalizeSourceText(String(name || ''))
 
     // Regras de alta confiança para evitar distorções conhecidas.
@@ -1393,7 +1392,6 @@ export class CategoryHierarchyService {
     existingByName: Map<string, { id: string; name: string; parentId: string | null }>,
     plannedNames: Set<string>,
   ) {
-    const baseKey = this.normalizeKey(baseName)
     const parentKey = this.normalizeKey(parentName)
 
     const variants = [

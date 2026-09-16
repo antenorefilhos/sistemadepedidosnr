@@ -55,9 +55,6 @@ export class SolidcomERPService {
   // de sincronizar contra o ERP errado calado. Trocar "funciona errado em
   // silencio" por "quebra na cara" e a decisao deliberada aqui.
   private readonly SOLIDCOM_API_URL = requireEnv('SOLIDCOM_API_URL', process.env.ERP_API_URL)
-  /** Opcional de verdade: a API deles nao exige chave hoje. */
-  private readonly SOLIDCOM_API_KEY =
-    process.env.SOLIDCOM_API_KEY || process.env.ERP_API_KEY || ''
   private readonly defaultCnpj = Number(requireEnv('SOLIDCOM_CNPJ'))
   private readonly defaultCodEcom = Number(requireEnv('SOLIDCOM_CODECOM'))
 
@@ -398,37 +395,11 @@ export class SolidcomERPService {
   }
 
   /**
-   * Obtém estoque de um produto específico
-   */
-  async getProductStock(ean: string): Promise<number> {
-    try {
-      // Implementação real chamaria Solidcom
-      // const response = await axios.get(
-      //   `${this.SOLIDCOM_API_URL}/products/${ean}/stock`,
-      //   { headers: { 'Authorization': `Bearer ${this.SOLIDCOM_API_KEY}` } }
-      // )
-      // return response.data.stock
-
-      return 0
-    } catch (error) {
-      this.logger.error('Erro ao buscar estoque:', error)
-      throw error
-    }
-  }
-
-  /**
    * Atualiza preço de um produto
    */
   async updateProductPrice(ean: string, price: number): Promise<void> {
     try {
       this.logger.log(`Atualizando preço do produto ${ean} para R$ ${price}`)
-
-      // Implementação real:
-      // await axios.put(
-      //   `${this.SOLIDCOM_API_URL}/products/${ean}/price`,
-      //   { price },
-      //   { headers: { 'Authorization': `Bearer ${this.SOLIDCOM_API_KEY}` } }
-      // )
     } catch (error) {
       this.logger.error('Erro ao atualizar preço:', error)
       throw error

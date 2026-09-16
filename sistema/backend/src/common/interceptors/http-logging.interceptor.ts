@@ -5,7 +5,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common'
 import { Observable, tap, catchError, throwError } from 'rxjs'
-import { Request, Response } from 'express'
+import { Response } from 'express'
 import { winstonLogger } from '../logger'
 import { MetricsRegistry } from '../observability/metrics-registry'
 import { ObservabilityRequest } from '../observability/request-context.middleware'

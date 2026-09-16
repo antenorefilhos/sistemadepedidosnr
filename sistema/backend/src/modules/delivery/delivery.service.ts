@@ -7,7 +7,7 @@ import * as path from 'path'
 import { PrismaService } from '../../common/prisma.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
-import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
+import { TenantContext } from '../../common/tenant/tenant-context'
 import { resolveDateRange } from '../../common/date-range.util'
 import { CreateDeliveryZoneDto, UpdateDeliveryZoneDto } from './dto/delivery-zone.dto'
 import {
@@ -291,7 +291,6 @@ export class DeliveryService {
     cep: string,
     locality: string | undefined,
     deliveryPointCode: string | undefined,
-    subtotal?: number,
   ): DeliveryCalculation | null {
     const cepDigits = this.cleanCep(cep)
     const rawPoints = this.getBalcaoRates().filter((entry) => this.cleanCep(entry.cep) === cepDigits && cepDigits.length === 8)
@@ -1053,7 +1052,7 @@ export class DeliveryService {
     // CEP digitado a mao: a planilha de balcao tem o ponto exato (e as
     // varias localidades que dividem o mesmo CEP em bairros como Pedro do
     // Rio) -- so cai pra zona generica do banco se o CEP nao estiver nela.
-    const balcaoResult = this.resolveBalcaoLocality(cep, locality, deliveryPointCode, subtotal)
+    const balcaoResult = this.resolveBalcaoLocality(cep, locality, deliveryPointCode)
     if (balcaoResult) return balcaoResult
 
     const matched = zones.find((zone) => {
@@ -1359,10 +1358,6 @@ export class DeliveryService {
 
   private cleanCep(value?: string | null) {
     return String(value || '').replace(/\D/g, '')
-  }
-
-  private decimal2(value: number) {
-    return new Prisma.Decimal(Number(value || 0).toFixed(2))
   }
 
   private toJsonPayload(payload: Record<string, unknown>): Prisma.InputJsonObject {

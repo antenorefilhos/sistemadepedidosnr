@@ -228,7 +228,7 @@ describe('PublicApiService', () => {
   // vira proxy pra ela. Confere que a validacao e chamada de verdade nos
   // dois pontos: cadastro e no instante do envio (rebinding).
   it('recusa cadastrar webhook quando o destino nao e publico', async () => {
-    ;(assertPublicHttpsEndpoint as jest.Mock).mockRejectedValueOnce(new Error('destino nao permitido'))
+    (assertPublicHttpsEndpoint as jest.Mock).mockRejectedValueOnce(new Error('destino nao permitido'))
 
     await expect(
       service.createWebhookEndpoint({ url: 'https://169.254.169.254/latest/meta-data', events: ['order.created'] }),

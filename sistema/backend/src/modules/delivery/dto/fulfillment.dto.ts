@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer'
-import { IsArray, IsDateString, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
+import { IsArray, IsDateString, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
 
 export class CreateFulfillmentSlotDto {
   @IsIn(['DELIVERY', 'PICKUP'])

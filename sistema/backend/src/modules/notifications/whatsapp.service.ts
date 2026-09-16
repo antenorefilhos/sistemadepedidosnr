@@ -1,10 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
 
-interface WhatsAppMessage {
-  to: string
-  body: string
-}
-
 export interface WhatsAppDispatchResult {
   channel: 'whatsapp_web'
   to: string

@@ -22,7 +22,14 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    // JON-64 (Auditoria 360, Low): sem isso, import/simbolo obsoleto passa
+    // sem aviso -- nome/contrato morto so aparecia com --noUnusedLocals
+    // manual, nunca no typecheck padrao que roda no CI/pre-commit. Parametro
+    // exigido por assinatura externa (callback de lib, override) mas nao
+    // usado no corpo prefixa com `_` para ficar isento.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]

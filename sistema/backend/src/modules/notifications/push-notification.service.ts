@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PushSubscription } from '@prisma/client'
+import * as webpushModule from 'web-push'
 import { PrismaService } from '../../common/prisma.service'
 import { winstonLogger } from '../../common/logger'
 
@@ -11,7 +12,7 @@ type WebPush = {
   ) => Promise<unknown>
 }
 
-const webpush = require('web-push') as WebPush
+const webpush = webpushModule as unknown as WebPush
 
 interface PushNotification {
   title: string
