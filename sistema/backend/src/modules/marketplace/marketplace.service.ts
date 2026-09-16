@@ -178,17 +178,27 @@ export class MarketplaceService {
   async ingestMarketplaceOrder(channelId: string, payload: ExternalOrderPayload, headers?: Record<string, string | string[] | undefined>) {
     const channel = await this.requireChannel(channelId)
     this.assertWebhookSecret(channel, headers)
+    // JON-117 (Auditoria 360, Medium): requireChannel so exigia EXISTIR --
+    // desativar o canal operacionalmente (status != ACTIVE) nao impedia
+    // ingestao continuar com o mesmo segredo valido.
+    if (channel.status !== 'ACTIVE') {
+      throw new ForbiddenException('Canal inativo.')
+    }
 
     if (!payload?.externalId) throw new BadRequestException('externalId e obrigatorio.')
     if (!Array.isArray(payload.items) || payload.items.length === 0) throw new BadRequestException('Pedido externo deve conter itens.')
 
-    const existing = await this.prisma.marketplaceOrder.findUnique({
+    // JON-159 (Auditoria 360, Medium): findUnique+create tinha uma janela
+    // entre as duas chamadas -- marketplace reenviando o mesmo externalId em
+    // paralelo (comum apos timeout) fazia as duas passarem no findUnique
+    // (nenhuma via a outra ainda) e a segunda estourava violacao de unique
+    // (channelId_externalId) como erro 500 cru, fora do try/catch que trata
+    // o resto do fluxo. upsert resolve a corrida no proprio Postgres
+    // (INSERT ... ON CONFLICT), atomico, sem essa janela.
+    const marketplaceOrder = await this.prisma.marketplaceOrder.upsert({
       where: { channelId_externalId: { channelId, externalId: payload.externalId } },
-    })
-    if (existing?.orderId) return { marketplaceOrder: existing, duplicate: true }
-
-    const marketplaceOrder = existing || await this.prisma.marketplaceOrder.create({
-      data: {
+      update: {},
+      create: {
         tenantId: channel.tenantId,
         storeId: channel.storeId,
         channelId,
@@ -198,6 +208,7 @@ export class MarketplaceService {
         payload: this.toJson(payload as any),
       },
     })
+    if (marketplaceOrder.orderId) return { marketplaceOrder, duplicate: true }
 
     try {
       const customerId = await this.ensureCustomer(channel, payload)
@@ -252,10 +263,20 @@ export class MarketplaceService {
     })
 
     const byChannel = await Promise.all(channels.map(async (channel) => {
-      const orders = await this.prisma.order.findMany({
-        where: { tenantId, storeId, channel: channel.type, status: { not: 'CANCELLED' } },
-        select: { total: true, items: { select: { finalSubtotal: true, subtotal: true } } },
-      })
+      // JON-118 (Auditoria 360, Medium): filtrar por channel.type somava
+      // TODO pedido do tipo (ex.: marketplace) em CADA canal desse tipo --
+      // dois providers do mesmo type exibiam o total combinado nos dois,
+      // dobrando receita e distorcendo estimatedMargin. MarketplaceOrder.orderId
+      // e o vinculo real pedido<->canal especifico; filtra so por esses ids.
+      const orderIds = Array.from(
+        new Set(channel.marketplaceOrders.map((mo) => mo.orderId).filter((id): id is string => Boolean(id))),
+      )
+      const orders = orderIds.length
+        ? await this.prisma.order.findMany({
+            where: { id: { in: orderIds }, tenantId, storeId, status: { not: 'CANCELLED' } },
+            select: { total: true, items: { select: { finalSubtotal: true, subtotal: true } } },
+          })
+        : []
       const revenue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0)
       const estimatedMargin = revenue * 0.1
       return {
