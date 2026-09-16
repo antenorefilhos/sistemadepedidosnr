@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, RefreshCw, LogOut, Filter, X, Inbox, Package, ChevronRight, Clock } from 'lucide-react'
 import { pickerApi, Order } from '../services/api'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
@@ -68,7 +68,14 @@ export default function OrderList({
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
+  // JON-112 (Auditoria 360, Medium): o debounce cancelava so o timer -- a
+  // requisicao HTTP em voo nao era abortada nem identificada, entao uma
+  // busca antiga que resolvesse DEPOIS de uma mais nova sobrescrevia
+  // setOrders com resultado que nao corresponde mais aos filtros exibidos.
+  const searchRequestSeq = useRef(0)
+
   const fetchOrders = useCallback(async () => {
+    const seq = ++searchRequestSeq.current
     setLoading(true)
     try {
       const { data } = await pickerApi.searchOrders({
@@ -77,11 +84,13 @@ export default function OrderList({
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       })
+      if (seq !== searchRequestSeq.current) return // resposta antiga, ignorar
       setOrders(data)
     } catch {
+      if (seq !== searchRequestSeq.current) return
       toast.error('Erro ao buscar pedidos')
     } finally {
-      setLoading(false)
+      if (seq === searchRequestSeq.current) setLoading(false)
     }
   }, [search, statusFilter, dateFrom, dateTo])
 
