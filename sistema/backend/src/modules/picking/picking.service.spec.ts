@@ -25,8 +25,10 @@ const mockPrismaService = {
   pickingTask: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   pickingTaskItem: {
     update: jest.fn(),
@@ -256,5 +258,85 @@ describe('PickingService', () => {
       service.conferenceTask('task-1', {}, { tenantId: 'tenant_default', storeId: 'store_default' }),
     ).rejects.toThrow(BadRequestException)
     expect(mockPrismaService.packingChecklist.create).not.toHaveBeenCalled()
+  })
+
+  // JON-73 (Auditoria 360, Medium): dois separadores abrindo a mesma tarefa
+  // PENDING ao mesmo tempo -- so um pode ganhar a corrida.
+  describe('startTask (JON-73)', () => {
+    const pendingTask = { ...baseTask, status: 'PENDING', assignedToId: null }
+
+    it('claim atomico ganha quando o status ainda bate (nenhum concorrente venceu antes)', async () => {
+      mockPrismaService.pickingTask.findFirst.mockResolvedValue(pendingTask)
+      mockPrismaService.pickingTask.updateMany.mockResolvedValue({ count: 1 })
+      mockPrismaService.pickingTask.findUniqueOrThrow.mockResolvedValue({ ...pendingTask, status: 'IN_PROGRESS', assignedToId: 'picker-2' })
+      mockPrismaService.order.update.mockResolvedValue(baseOrder)
+
+      const result = await service.startTask(
+        'task-1',
+        { tenantId: 'tenant_default', storeId: 'store_default' },
+        { actorType: 'PICKER', actorId: 'picker-2' },
+      )
+
+      expect(mockPrismaService.pickingTask.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'task-1', status: 'PENDING' } }),
+      )
+      expect(result).toBeDefined()
+    })
+
+    it('perde a corrida quando outro separador ja mudou o status entre a leitura e o claim', async () => {
+      mockPrismaService.pickingTask.findFirst.mockResolvedValue(pendingTask)
+      // updateMany com where.status:'PENDING' nao acha mais a linha -- ja foi
+      // reivindicada por outro separador entre a leitura e este ponto.
+      mockPrismaService.pickingTask.updateMany.mockResolvedValue({ count: 0 })
+
+      await expect(
+        service.startTask(
+          'task-1',
+          { tenantId: 'tenant_default', storeId: 'store_default' },
+          { actorType: 'PICKER', actorId: 'picker-3' },
+        ),
+      ).rejects.toThrow(BadRequestException)
+
+      expect(mockPrismaService.pickingTask.findUniqueOrThrow).not.toHaveBeenCalled()
+      expect(mockPrismaService.order.update).not.toHaveBeenCalled()
+    })
+  })
+
+  // JON-73: tarefa JA em separacao por outro membro nao aceita item de um
+  // segundo separador (pickItem passa por ensureTaskCanReceiveItems).
+  describe('ensureTaskCanReceiveItems ownership (JON-73)', () => {
+    it('recusa pickItem de quem nao e o dono da tarefa IN_PROGRESS', async () => {
+      mockPrismaService.pickingTask.findFirst.mockResolvedValue(baseTask) // assignedToId: 'picker-1'
+
+      await expect(
+        service.pickItem(
+          'task-1',
+          'task-item-1',
+          { quantity: 1 },
+          { tenantId: 'tenant_default', storeId: 'store_default' },
+          { actorType: 'PICKER', actorId: 'picker-outro' },
+        ),
+      ).rejects.toThrow(BadRequestException)
+    })
+
+    it('admin continua sem restricao de posse', async () => {
+      mockPrismaService.pickingTask.findFirst.mockResolvedValue(baseTask)
+      mockPrismaService.orderItem.findFirst.mockResolvedValue(baseOrder.items[0])
+      mockPrismaService.pickingTaskItem.update.mockResolvedValue({ ...baseTask.items[0], status: 'PICKED' })
+      mockPrismaService.orderItem.update.mockResolvedValue({ ...baseOrder.items[0], status: 'PICKED' })
+      mockPrismaService.order.findFirst.mockResolvedValue(baseOrder)
+      mockPrismaService.orderItem.findMany.mockResolvedValue([baseOrder.items[0]])
+      mockPrismaService.order.update.mockResolvedValue(baseOrder)
+
+      await expect(
+        service.pickItem(
+          'task-1',
+          'task-item-1',
+          { quantity: 1 },
+          { tenantId: 'tenant_default', storeId: 'store_default' },
+          { actorType: 'ADMIN', actorId: 'admin-qualquer' },
+        ),
+      ).resolves.toBeDefined()
+    })
   })
 })

@@ -342,13 +342,27 @@ export class PickingService {
 
     const startedAt = task.startedAt || new Date()
     const assignedToId = task.assignedToId || actor?.actorId || null
-    const updated = await this.prisma.pickingTask.update({
-      where: { id: task.id },
+
+    // JON-73 (Auditoria 360, Medium): a checagem acima le e decide em
+    // memoria; o update por id nao confere se o status ainda e o mesmo que
+    // foi lido. Dois separadores abrindo a MESMA tarefa PENDING ao mesmo
+    // tempo passavam os dois pela checagem antes de qualquer um escrever, e
+    // os dois escreviam -- o segundo silenciosamente sobrescrevia o
+    // primeiro. Claim atomico: so grava se o status no banco ainda for o
+    // mesmo que foi lido aqui (igual ao padrao de reserva de estoque/outbox).
+    const claim = await this.prisma.pickingTask.updateMany({
+      where: { id: task.id, status: task.status },
       data: {
         status: 'IN_PROGRESS',
         startedAt,
         assignedToId,
       },
+    })
+    if (claim.count !== 1) {
+      throw new BadRequestException('Pedido ja esta sendo separado por outro membro da equipe.')
+    }
+    const updated = await this.prisma.pickingTask.findUniqueOrThrow({
+      where: { id: task.id },
       include: { items: true },
     })
     const order = await this.prisma.order.update({
@@ -769,7 +783,7 @@ export class PickingService {
     return this.findTask(task.id, context)
   }
 
-  async cancelTask(id: string, context: Partial<PickingTenantContext>, actor?: PickingActor) {
+  async cancelTask(id: string, context: Partial<PickingTenantContext>, _actor?: PickingActor) {
     const task = await this.findTaskForOperation(id, context)
     if (['COMPLETED', 'CANCELLED'].includes(task.status)) {
       throw new BadRequestException('Tarefa ja esta encerrada.')
@@ -1133,6 +1147,15 @@ export class PickingService {
     }
     if (!['IN_PROGRESS', 'WAITING_SUBSTITUTION'].includes(task.status)) {
       throw new BadRequestException('Tarefa nao esta em separacao.')
+    }
+    // JON-73 (Auditoria 360, Medium): startTask ja recusa um segundo
+    // separador pra tarefa PENDING (claim atomico acima), mas uma tarefa
+    // JA IN_PROGRESS chegava aqui sem checar de quem era -- outro separador
+    // conseguia separar/reportar falta em item de tarefa que nao era dele.
+    // Admin (actorType ADMIN) segue sem restricao, igual ao resto do modulo.
+    const isAdminActor = String(actor?.actorType || '').toUpperCase() === 'ADMIN'
+    if (!isAdminActor && task.assignedToId && actor?.actorId && task.assignedToId !== actor.actorId) {
+      throw new BadRequestException('Pedido esta sendo separado por outro membro da equipe.')
     }
     return task
   }
