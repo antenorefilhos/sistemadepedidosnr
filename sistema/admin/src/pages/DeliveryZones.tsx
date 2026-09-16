@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { brandAPI, deliveryAPI, fulfillmentAPI, getApiErrorMessage, type DeliveryZone, type DeliveryZonePayload, type FulfillmentSlotOccupancy } from '../services/api'
-import { Truck, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Save, X, CalendarClock, MapPin, Upload, CheckCircle2, AlertTriangle, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { brandAPI, deliveryAPI, fulfillmentAPI, getApiErrorMessage, type DeliveryZone, type DeliveryZonePayload } from '../services/api'
+import { Truck, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Save, X, CalendarClock, MapPin, Upload, CheckCircle2, AlertTriangle, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -13,241 +13,15 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
 import 'leaflet-draw'
 import './delivery-zones-map.css'
-
-const AREA_PRECISION: Record<string, number> = { km: 2, ha: 2, m: 0, mi: 2, ac: 2, yd: 0, ft: 0, nm: 2 }
-
-/**
- * Corrige um bug do leaflet-draw 1.0.4 (versao fixada aqui).
- *
- * `L.GeometryUtil.readableArea` faz `type = typeof isMetric` sem declarar
- * `type`. Em script solto isso criaria uma global silenciosa; modulo ES roda
- * sempre em strict mode e lanca `ReferenceError: type is not defined`, matando
- * o handler de desenho no primeiro mousemove. Na pratica o retangulo congelava
- * num ponto, e so dava para ajustar entrando em "Editar area" e separando os
- * vertices empilhados um a um.
- *
- * Atingia so o retangulo: e o unico com `showArea: true` por padrao — o
- * poligono vem `false` e o circulo usa `readableDistance`. Passar
- * `showArea: false` mascararia este caso e deixaria a funcao quebrada para
- * qualquer outro caminho, entao a correcao vai na origem.
- *
- * Precisa ser chamada de dentro de codigo que executa (o efeito do mapa): como
- * bloco solto no topo do modulo, o bundler descarta por parecer sem efeito.
- */
-function fixLeafletDrawReadableArea() {
-  const geometryUtil = (L as any).GeometryUtil
-  if (!geometryUtil?.readableArea || geometryUtil.__readableAreaFixed) return
-
-  geometryUtil.readableArea = function (
-    area: number,
-    isMetric: boolean | string | string[],
-    precision?: Record<string, number>,
-  ) {
-    const digits = { ...AREA_PRECISION, ...(precision || {}) }
-    const format = (value: number, casas: number) => geometryUtil.formattedNumber(value, casas)
-
-    if (isMetric) {
-      let units = ['ha', 'm']
-      const type = typeof isMetric
-      if (type === 'string') units = [isMetric as string]
-      else if (type !== 'boolean') units = isMetric as string[]
-
-      if (area >= 1000000 && units.indexOf('km') !== -1) return `${format(area * 0.000001, digits.km)} km²`
-      if (area >= 10000 && units.indexOf('ha') !== -1) return `${format(area * 0.0001, digits.ha)} ha`
-      return `${format(area, digits.m)} m²`
-    }
-
-    const squareYards = area / 0.836127
-    if (squareYards >= 3097600) return `${format(squareYards / 3097600, digits.mi)} mi²`
-    if (squareYards >= 4840) return `${format(squareYards / 4840, digits.ac)} acres`
-    return `${format(squareYards, digits.yd)} yd²`
-  }
-
-  geometryUtil.__readableAreaFixed = true
-}
-
-type Tab = 'zones' | 'slots' | 'rules'
-
-const EMPTY_FORM: DeliveryZonePayload = {
-  name: '',
-  type: 'CEP_RANGE',
-  cepStart: '',
-  cepEnd: '',
-  polygonGeoJSON: null,
-  fee: 0,
-  freeAbove: null,
-  active: true,
-  priority: 0,
-}
-
-const EMPTY_SLOT_FORM = {
-  type: 'DELIVERY' as 'DELIVERY' | 'PICKUP',
-  startsAt: '',
-  endsAt: '',
-  capacityOrders: 10,
-  capacityItems: '',
-  cutoffMinutes: 30,
-}
-
-const DEFAULT_CENTER: [number, number] = [-22.313628, -43.130604]
-const ESRI_ATTRIBUTION =
-  'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, FAO, USGS, OpenStreetMap contributors'
-const CARTO_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-
-/**
- * Mapas base disponiveis no seletor. Todos gratuitos e sem chave de API.
- *
- * "Satelite" e o mais util para desenhar zona de entrega: da para ver quarteirao,
- * condominio e barreira fisica (rio, morro) que o mapa de ruas nao mostra. Como
- * imagem de satelite nao tem nome de rua, ele vem com uma camada de rotulos por
- * cima. "Claro" deixa o poligono colorido saltar, bom para conferir cobertura.
- */
-const BASEMAPS: Record<string, { label: string; url: string; attribution: string; labelsOverlay?: string }> = {
-  ruas: {
-    label: 'Ruas',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    attribution: ESRI_ATTRIBUTION,
-  },
-  satelite: {
-    label: 'Satelite',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: ESRI_ATTRIBUTION,
-    labelsOverlay:
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-  },
-  claro: {
-    label: 'Claro',
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution: CARTO_ATTRIBUTION,
-  },
-  escuro: {
-    label: 'Escuro',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: CARTO_ATTRIBUTION,
-  },
-}
-
-const BASEMAP_STORAGE_KEY = 'antenor.deliveryZones.basemap'
-
-/** Cores das zonas ja cadastradas exibidas como referencia (nao editaveis). */
-const REFERENCE_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2']
-
-const EARTH_RADIUS_M = 6378137
-
-/**
- * O rotulo da zona vai para dentro de um L.divIcon, que recebe HTML cru. O nome
- * e digitado pelo operador, entao precisa ser escapado — senao vira XSS
- * armazenado no admin.
- */
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-/**
- * Converte um circulo desenhado no mapa em poligono.
- *
- * O backend so entende GeoJSON `Polygon` (ver `parsePolygonFeature` no
- * DeliveryService). O `toGeoJSON()` de um L.Circle devolve um `Point` com a
- * propriedade `radius` — que seria aceito no cadastro e depois NUNCA casaria com
- * endereco nenhum, sem erro visivel. Por isso o raio vira poligono aqui, no
- * momento do desenho: o que trafega e persiste e sempre um poligono comum.
- */
-function circleToPolygonLatLngs(center: L.LatLng, radiusMeters: number, segments = 64): Array<[number, number]> {
-  const latRad = (center.lat * Math.PI) / 180
-  const dLat = ((radiusMeters / EARTH_RADIUS_M) * 180) / Math.PI
-  const dLng = ((radiusMeters / (EARTH_RADIUS_M * Math.cos(latRad))) * 180) / Math.PI
-
-  const points: Array<[number, number]> = []
-  for (let i = 0; i < segments; i++) {
-    const theta = (i / segments) * 2 * Math.PI
-    points.push([center.lat + dLat * Math.sin(theta), center.lng + dLng * Math.cos(theta)])
-  }
-  points.push(points[0]) // anel fechado, exigido pelo GeoJSON
-  return points
-}
-
-const SLOTS_PER_PAGE = 10
-
-function maskCep(value: string) {
-  const d = value.replace(/\D/g, '').slice(0, 8)
-  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d
-}
-
-/**
- * A API devolve valores monetarios como string (Decimal do Prisma), mas o tipo
- * declarava `number` — e `String.prototype.toLocaleString` ignora as opcoes de
- * moeda em silencio, entao a taxa aparecia como "150" e "8.9" em vez de
- * "R$ 150,00" e "R$ 8,90". Coagimos aqui para nao depender da anotacao.
- */
-function formatFee(value: number | string | null | undefined) {
-  const amount = Number(value)
-  if (!Number.isFinite(amount)) return '—'
-  return amount === 0
-    ? 'Gratis'
-    : amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-function formatWindow(value: string) {
-  return new Date(value).toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function slotLabel(slot: FulfillmentSlotOccupancy) {
-  return slot.type === 'PICKUP' ? 'Retirada' : 'Entrega'
-}
-
-function localToIso(local: string): string {
-  return new Date(local).toISOString()
-}
-
-function isoToLocal(iso: string): string {
-  const d = new Date(iso)
-  const tz = d.getTimezoneOffset() * 60000
-  return new Date(d.getTime() - tz).toISOString().slice(0, 16)
-}
-
-function parsePolygonGeoJSON(raw: string | null | undefined): Array<[number, number]> {
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw)
-    const coords = parsed?.type === 'Feature'
-      ? parsed?.geometry?.coordinates
-      : parsed?.type === 'Polygon'
-      ? parsed?.coordinates
-      : null
-    if (!Array.isArray(coords) || !Array.isArray(coords[0])) return []
-    return coords[0].map((pair: number[]) => [pair[1], pair[0]])
-  } catch {
-    return []
-  }
-}
-
-function Toast({ tone, message, onClose }: { tone: 'success' | 'error'; message: string; onClose: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onClose, 3500)
-    return () => clearTimeout(t)
-  }, [onClose])
-  const cls = tone === 'success'
-    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-    : 'bg-red-50 border-red-200 text-red-800'
-  return (
-    <div className={`fixed bottom-4 right-4 z-[60] flex items-center gap-2 px-4 py-3 rounded-lg border shadow-lg ${cls} max-w-md`}>
-      {tone === 'success' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
-      <p className="text-sm">{message}</p>
-      <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100"><X size={14} /></button>
-    </div>
-  )
-}
+import { Toast } from '../components/DeliveryZonesToast'
+import { DeliveryZonesSlotsTab } from '../components/DeliveryZonesSlotsTab'
+import { DeliveryZonesRulesTab } from '../components/DeliveryZonesRulesTab'
+import {
+  fixLeafletDrawReadableArea, escapeHtml, circleToPolygonLatLngs, maskCep, formatFee,
+  localToIso, isoToLocal, parsePolygonGeoJSON,
+  type Tab, EMPTY_FORM, EMPTY_SLOT_FORM, DEFAULT_CENTER, BASEMAPS, BASEMAP_STORAGE_KEY,
+  REFERENCE_COLORS, SLOTS_PER_PAGE, ESRI_ATTRIBUTION,
+} from '../utils/deliveryZonesHelpers'
 
 export default function DeliveryZones() {
   const qc = useQueryClient()
@@ -1381,128 +1155,32 @@ export default function DeliveryZones() {
 
       {/* ============ SLOTS TAB ============ */}
       {tab === 'slots' && (
-        <>
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <Button type="button" onClick={openSlotForm} disabled={createSlotMut.isPending}>
-              <Plus size={16} />
-              Nova janela
-            </Button>
-            <div className="ml-auto flex items-center gap-2">
-              <Label className="text-xs text-gray-500">Filtrar:</Label>
-              <Select value={slotsFilter} onChange={(e) => { setSlotsFilter(e.target.value as any); setSlotsPage(1) }} className="w-40">
-                <option value="ALL">Todos</option>
-                <option value="DELIVERY">Entrega</option>
-                <option value="PICKUP">Retirada</option>
-              </Select>
-            </div>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4 shadow-sm">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                <p className="text-[11px] uppercase text-gray-400 font-bold">Ativas</p>
-                <p className="text-xl font-bold text-gray-800">{slotSummary.active}</p>
-              </div>
-              <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                <p className="text-[11px] uppercase text-gray-400 font-bold">Reservadas</p>
-                <p className="text-xl font-bold text-gray-800">{slotSummary.reserved}</p>
-              </div>
-              <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                <p className="text-[11px] uppercase text-gray-400 font-bold">Capacidade</p>
-                <p className="text-xl font-bold text-gray-800">{slotSummary.capacity}</p>
-              </div>
-              <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                <p className="text-[11px] uppercase text-gray-400 font-bold">Lotadas</p>
-                <p className="text-xl font-bold text-gray-800">{slotSummary.full}</p>
-              </div>
-            </div>
-          </div>
-
-          {slotsLoading ? (
-            <div className="h-16 bg-gray-100 rounded-lg animate-pulse" />
-          ) : filteredSlots.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <CalendarClock size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Nenhuma janela {slotsFilter === 'ALL' ? '' : slotsFilter === 'DELIVERY' ? 'de entrega' : 'de retirada'}.</p>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {paginatedSlots.map((slot) => (
-                  <div key={slot.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800">
-                        {slotLabel(slot)} · {formatWindow(slot.startsAt)} - {formatWindow(slot.endsAt)}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {slot.reservedOrders}/{slot.capacityOrders} pedidos
-                        {slot.capacityItems != null && ` · ${slot.reservedItems}/${slot.capacityItems} itens`}
-                        {slot.cutoffExpired && ' · cutoff encerrado'}
-                      </p>
-                    </div>
-                    <div className="w-full sm:w-36">
-                      <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                        <div className={`h-full ${slot.isFull ? 'bg-red-500' : 'bg-[#5D082A]'}`} style={{ width: `${Math.min(100, slot.occupancyPercent)}%` }} />
-                      </div>
-                      <p className="mt-1 text-right text-[11px] text-gray-400">{slot.occupancyPercent}%</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {slotsPageCount > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-4">
-                  <Button type="button" variant="ghost" size="icon" onClick={() => setSlotsPage((p) => Math.max(1, p - 1))} disabled={slotsPage === 1}>
-                    <ChevronLeft size={16} />
-                  </Button>
-                  <span className="text-sm text-gray-600">Pagina {slotsPage} de {slotsPageCount}</span>
-                  <Button type="button" variant="ghost" size="icon" onClick={() => setSlotsPage((p) => Math.min(slotsPageCount, p + 1))} disabled={slotsPage === slotsPageCount}>
-                    <ChevronRight size={16} />
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </>
+        <DeliveryZonesSlotsTab
+          onNewSlot={openSlotForm}
+          createPending={createSlotMut.isPending}
+          slotsFilter={slotsFilter}
+          onSlotsFilterChange={(value) => { setSlotsFilter(value); setSlotsPage(1) }}
+          slotSummary={slotSummary}
+          slotsLoading={slotsLoading}
+          filteredSlots={filteredSlots}
+          paginatedSlots={paginatedSlots}
+          slotsPage={slotsPage}
+          slotsPageCount={slotsPageCount}
+          onSlotsPageChange={setSlotsPage}
+        />
       )}
 
       {/* ============ RULES TAB ============ */}
       {tab === 'rules' && (
-        <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm max-w-2xl">
-          <p className="text-sm font-semibold text-gray-700 mb-2">Frete gratis global (regra do carrinho)</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={freeShippingThreshold ?? ''}
-              onChange={(e) => setFreeShippingThreshold(e.target.value ? Number(e.target.value) : null)}
-              onFocus={handleNumberFocus}
-              className="w-56"
-              placeholder="Ex: 150,00"
-            />
-            <Button
-              type="button"
-              onClick={() => updateThresholdMut.mutate(freeShippingThreshold)}
-              disabled={updateThresholdMut.isPending || !thresholdDirty}
-            >
-              {updateThresholdMut.isPending ? 'Salvando...' : 'Salvar valor minimo'}
-            </Button>
-            {thresholdDirty && !updateThresholdMut.isPending && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setFreeShippingThreshold(originalThreshold)}
-              >
-                Desfazer
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-gray-400 mt-2">
-            Deixe em branco para desativar. Essa regra convive com as regras por zona (CEP/poligono).
-          </p>
-        </div>
+        <DeliveryZonesRulesTab
+          freeShippingThreshold={freeShippingThreshold}
+          onFreeShippingThresholdChange={setFreeShippingThreshold}
+          onNumberFocus={handleNumberFocus}
+          onSave={() => updateThresholdMut.mutate(freeShippingThreshold)}
+          savePending={updateThresholdMut.isPending}
+          thresholdDirty={thresholdDirty}
+          onUndo={() => setFreeShippingThreshold(originalThreshold)}
+        />
       )}
 
       {/* Slot form modal */}
