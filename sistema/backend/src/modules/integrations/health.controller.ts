@@ -1,4 +1,5 @@
-import { Controller, Get } from '@nestjs/common'
+import { Controller, Get, UseGuards } from '@nestjs/common'
+import { ApiBearerAuth } from '@nestjs/swagger'
 import axios from 'axios'
 import { promises as fs } from 'fs'
 import net from 'net'
@@ -6,6 +7,10 @@ import { join } from 'path'
 import { PrismaService } from '../../common/prisma.service'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 import { requireEnv } from '../../common/require-env'
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
+import { RolesGuard } from '../../common/guards/roles.guard'
+import { Roles } from '../../common/decorators/roles.decorator'
+import { IntegrationModulesService } from './integration-modules.service'
 
 interface ServiceStatus {
   status: 'ok' | 'degraded' | 'down'
@@ -28,13 +33,44 @@ interface HealthReport {
   }
 }
 
+// JON-111 (Auditoria 360, Medium): endpoint sem auth disparava probe real de
+// banco/rede/ERP a CADA chamada, sob o bucket default (600/min) -- visitante
+// anonimo amplificava consulta pesada ao Solidcom (GetProdutos, ~10s) e via
+// path de armazenamento/mensagens de erro internas na resposta. Agora exige
+// admin e cacheia o resultado por CACHE_TTL_MS (single-flight: chamadas
+// concorrentes dentro da janela reaproveitam a mesma promise em voo).
+const CACHE_TTL_MS = 10_000
+
 @RelaxedThrottle()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 @Controller('health/detail')
 export class HealthController {
-  constructor(private readonly prisma: PrismaService) {}
+  private cached: { at: number; report: HealthReport } | null = null
+  private inFlight: Promise<HealthReport> | null = null
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly integrationModules: IntegrationModulesService,
+  ) {}
 
   @Get()
+  @ApiBearerAuth()
   async check(): Promise<HealthReport> {
+    if (this.cached && Date.now() - this.cached.at < CACHE_TTL_MS) {
+      return this.cached.report
+    }
+    if (this.inFlight) return this.inFlight
+
+    this.inFlight = this.runChecks().finally(() => {
+      this.inFlight = null
+    })
+    const report = await this.inFlight
+    this.cached = { at: Date.now(), report }
+    return report
+  }
+
+  private async runChecks(): Promise<HealthReport> {
     const [database, redis, meilisearch, solidcom, paymentsGateway, queue, storage] = await Promise.allSettled([
       this.checkDatabase(),
       this.checkRedis(),
@@ -45,10 +81,10 @@ export class HealthController {
       this.checkStorage(),
     ])
 
+    // JON-111: reason de uma promise rejeitada pode carregar stack/mensagem
+    // interna (path, connection string) -- generico em vez de String(reason).
     const resolve = (result: PromiseSettledResult<ServiceStatus>): ServiceStatus =>
-      result.status === 'fulfilled'
-        ? result.value
-        : { status: 'down', detail: String((result as PromiseRejectedResult).reason) }
+      result.status === 'fulfilled' ? result.value : { status: 'down', detail: 'falha inesperada na checagem' }
 
     const services = {
       database: resolve(database),
@@ -121,8 +157,42 @@ export class HealthController {
     }
   }
 
+  // JON-110 (Auditoria 360, Medium): catalogo prioriza AntenorApi quando
+  // habilitada (products.service.ts, resolveCatalogSource) mas este check
+  // sempre consultava SOLIDCOM_API_URL/GetProdutos -- painel podia mostrar
+  // ERP saudavel com o provedor ATIVO fora do ar (nunca consultado), ou
+  // marcar down por um legado que nao influencia mais o catalogo.
+  private async resolveActiveErpProvider(): Promise<'antenorapi' | 'solidcom' | null> {
+    if (await this.integrationModules.isEnabled('antenorapi')) return 'antenorapi'
+    if (await this.integrationModules.isEnabled('solidcom')) return 'solidcom'
+    return null
+  }
+
   private async checkSolidcom(): Promise<ServiceStatus> {
     const start = Date.now()
+    const provider = await this.resolveActiveErpProvider()
+    if (!provider) {
+      return { status: 'ok', latencyMs: Date.now() - start, detail: 'nenhum conector de ERP habilitado' }
+    }
+    if (provider === 'antenorapi') return this.checkAntenorApi(start)
+    return this.checkSolidcomLegacy(start)
+  }
+
+  private async checkAntenorApi(start: number): Promise<ServiceStatus> {
+    const url = requireEnv('ANTENOR_API_URL')
+    try {
+      await axios.get(`${url}/health`, { timeout: 5000 })
+      return { status: 'ok', latencyMs: Date.now() - start }
+    } catch (err) {
+      const latencyMs = Date.now() - start
+      if (axios.isAxiosError(err) && err.response) {
+        return { status: 'degraded', latencyMs, detail: `HTTP ${err.response.status}` }
+      }
+      return { status: 'down', latencyMs, detail: 'AntenorApi unreachable' }
+    }
+  }
+
+  private async checkSolidcomLegacy(start: number): Promise<ServiceStatus> {
     // requireEnv aqui dentro (nao no boot): faltando a config, o health check
     // reporta o Solidcom como indisponivel em vez de derrubar a API inteira.
     const url = requireEnv('SOLIDCOM_API_URL', process.env.ERP_API_URL)
@@ -174,9 +244,10 @@ export class HealthController {
     try {
       await fs.mkdir(uploadPath, { recursive: true })
       await fs.access(uploadPath)
-      return { status: 'ok', latencyMs: Date.now() - start, detail: uploadPath }
+      return { status: 'ok', latencyMs: Date.now() - start }
     } catch {
-      return { status: 'down', latencyMs: Date.now() - start, detail: `storage unavailable: ${uploadPath}` }
+      // JON-111: nao devolver o path real do filesystem interno.
+      return { status: 'down', latencyMs: Date.now() - start, detail: 'storage unavailable' }
     }
   }
 }
