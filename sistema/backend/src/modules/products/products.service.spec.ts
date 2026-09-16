@@ -100,7 +100,6 @@ const mockCategoryHierarchyService = {
 
 describe('ProductsService', () => {
   let service: ProductsService;
-  let prismaService: typeof mockPrismaService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -117,7 +116,6 @@ describe('ProductsService', () => {
     }).compile();
 
     service = module.get<ProductsService>(ProductsService);
-    prismaService = module.get(PrismaService);
     mockPrismaService.$transaction = jest.fn((arg: any) =>
       Array.isArray(arg) ? Promise.all(arg) : arg(mockPrismaService),
     );
@@ -345,6 +343,23 @@ describe('ProductsService', () => {
       await expect(service.syncFromERP()).rejects.toThrow();
     });
 
+    // JON-62: sync manual e cron nao compartilhavam a mesma trava --
+    // scheduler tinha a sua propria, o service nenhuma. Chamada concorrente
+    // agora e pulada em vez de rodar um segundo snapshot em paralelo.
+    it('pula sync concorrente em vez de rodar dois snapshots em paralelo', async () => {
+      let resolveFirst: (value: unknown) => void = () => {};
+      mockSolidcomERPService.syncProducts.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveFirst = resolve; }),
+      );
+
+      const first = service.syncFromERP();
+      const second = await service.syncFromERP();
+
+      expect((second as any).skipped).toBe(true);
+      resolveFirst({ status: 'success', data: [] });
+      await Promise.race([first, new Promise((resolve) => setTimeout(resolve, 500))]);
+    });
+
     it('should update existing products', async () => {
       mockSolidcomERPService.syncProducts.mockResolvedValue({
         status: 'success',
@@ -353,7 +368,7 @@ describe('ProductsService', () => {
       mockPrismaService.product.findFirst.mockResolvedValue({ id: '1', ean: '123' });
       mockPrismaService.product.update.mockResolvedValue({ id: '1', name: 'Updated' });
 
-      const result = await service.syncFromERP();
+      await service.syncFromERP();
 
       expect(mockPrismaService.product.update).toHaveBeenCalled();
     });

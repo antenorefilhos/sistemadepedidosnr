@@ -118,8 +118,6 @@ const CATEGORY_CATALOG: CategoryCatalogItem[] = [
   { code: 'PERFUMARIA', name: 'Perfumaria', keywords: ['perfumaria', 'perfume', 'colonia', 'colônia', 'hidratante', 'maquiagem'] },
 ]
 
-const CATEGORY_SEED_CODES = CATEGORY_CATALOG.map((item) => item.code)
-
 const CLASSIFICATION_ROOT_FALLBACKS: Array<{ pattern: string; category: string }> = [
   { pattern: '01-mercearia salgada', category: 'MERCEARIA' },
   { pattern: '02-mercearia doce', category: 'GULOSEIMAS' },
@@ -150,6 +148,15 @@ export class ProductsService {
     lastResult: unknown
     lastError: string | null
   } = { running: false, startedAt: null, finishedAt: null, lastResult: null, lastError: null }
+
+  // JON-62 (Auditoria 360, Medium): a trava de "so um sync por vez" morava
+  // no scheduler (isRunning) e nao aqui -- o cron chamava syncFromERP/
+  // syncRecentFromERP direto, sem passar por startSyncInBackground, entao a
+  // trava do scheduler nao via o sync manual e vice-versa. Dois snapshots
+  // simultaneos regravavam preco/estoque com o resultado mais antigo por
+  // cima do mais novo. Claim unico aqui, compartilhado por TODO caminho de
+  // entrada (manual, cron completo, cron incremental).
+  private erpSyncRunning = false
 
   constructor(
     private prisma: PrismaService,
@@ -1273,6 +1280,27 @@ export class ProductsService {
   }
 
   async syncFromERP() {
+    if (this.erpSyncRunning) {
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Sync do ERP ja em andamento (outra chamada em voo).',
+        products: 0,
+        synced: 0,
+        errors: 0,
+        taxonomy: null,
+        data: [],
+      }
+    }
+    this.erpSyncRunning = true
+    try {
+      return await this.syncFromERPUnclaimed()
+    } finally {
+      this.erpSyncRunning = false
+    }
+  }
+
+  private async syncFromERPUnclaimed() {
     const source = await this.resolveCatalogSource()
     if (!source) {
       return {
@@ -1572,6 +1600,18 @@ export class ProductsService {
    * `PriceAuditLog`, para dar rastro do que o ERP mexeu e quando.
    */
   async syncRecentFromERP(hours = 2) {
+    if (this.erpSyncRunning) {
+      return { success: true, skipped: true, reason: 'Sync do ERP ja em andamento (outra chamada em voo).', changed: 0 }
+    }
+    this.erpSyncRunning = true
+    try {
+      return await this.syncRecentFromERPUnclaimed(hours)
+    } finally {
+      this.erpSyncRunning = false
+    }
+  }
+
+  private async syncRecentFromERPUnclaimed(hours = 2) {
     const source = await this.resolveCatalogSource()
     if (!source) {
       return { success: true, skipped: true, reason: 'Nenhum conector de ERP habilitado (Solidcom ou AntenorApi)', changed: 0 }
@@ -2206,39 +2246,4 @@ export class ProductsService {
       .replace(/^_+|_+$/g, '')
   }
 
-  private toCmsCategoryName(categoryCode: string) {
-    const map: Record<string, string> = {
-      CHURRASCO: 'Churrasco',
-      CARNES_DIA_A_DIA: 'Carnes Dia a Dia',
-      PADARIA: 'Padaria',
-      CONSUMO_RAPIDO: 'Consumo Rapido',
-      GULOSEIMAS: 'Guloseimas',
-      BEBIDAS: 'Bebidas',
-      VINHOS: 'Vinhos',
-      CERVEJAS: 'Cervejas',
-      MERCEARIA: 'Mercearia',
-      LATICINIOS: 'Laticinios',
-      UTILIDADES: 'Utilidades',
-      CONGELADOS: 'Congelados',
-      PET_SHOP: 'Pet Shop',
-      BEBE: 'Bebe',
-      HORTIFRUTI: 'Hortifruti',
-      LIMPEZA: 'Limpeza',
-      HIGIENE_PESSOAL: 'Higiene Pessoal',
-      PERFUMARIA: 'Perfumaria',
-      ESPACO_GOURMET: 'Espaco Gourmet',
-      SERVICO: 'Servico',
-      PATRIMONIAL: 'Patrimonial',
-      NAO_CLASSIFICADO: 'Nao Classificado',
-    }
-
-    const normalizedCode = this.normalizeCategory(categoryCode) || 'GERAL'
-    if (map[normalizedCode]) return map[normalizedCode]
-
-    return normalizedCode
-      .toLowerCase()
-      .split('_')
-      .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-      .join(' ')
-  }
 }
