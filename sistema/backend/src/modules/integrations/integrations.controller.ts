@@ -3,7 +3,9 @@ import { Throttle, SkipThrottle } from '@nestjs/throttler'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
+import { ModuleAccessGuard } from '../../common/guards/module-access.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
+import { RequireModule } from '../../common/decorators/require-module.decorator'
 import { IntegrationsService } from './integrations.service'
 import { OrderOrchestrationService } from './order-orchestration.service'
 import { WebhookPayload } from './payments-webhook.service'
@@ -69,8 +71,12 @@ export class IntegrationsController {
   //
   // `picker` alem de `admin` porque o agente autentica com a conta do
   // separador -- e a mesma pessoa que opera o PDV.
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  // JON-153 (Auditoria 360, Medium): RolesGuard so confere o campo `role`
+  // (legado) da conta -- tirar o modulo `picking` de alguem na tela Equipe
+  // (moduleAccess) nao bloqueava essas 3 rotas, so o app picker em si.
+  @UseGuards(JwtAuthGuard, RolesGuard, ModuleAccessGuard)
   @Roles('admin', 'picker')
+  @RequireModule('picking')
   @ApiBearerAuth()
   @Get('solidcom/pending-invoice')
   @ApiOperation({ summary: 'Pedidos aguardando faturamento no PDV (com o DAV pra consultar no ERP)' })
@@ -78,8 +84,9 @@ export class IntegrationsController {
     return this.orderOrchestrationService.listPendingInvoice()
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ModuleAccessGuard)
   @Roles('admin', 'picker')
+  @RequireModule('picking')
   @ApiBearerAuth()
   @Post('solidcom/orders/:id/invoiced')
   @ApiOperation({ summary: 'Marca o pedido como faturado no PDV e libera pra entrega/retirada' })
@@ -92,8 +99,9 @@ export class IntegrationsController {
 
   // Simetrico do endpoint acima: o operador cancelou o pedido no PDV.
   // Mesmos papeis -- quem pode dizer "faturou" pode dizer "cancelou".
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ModuleAccessGuard)
   @Roles('admin', 'picker')
+  @RequireModule('picking')
   @ApiBearerAuth()
   @Post('solidcom/orders/:id/cancelled-in-erp')
   @ApiOperation({ summary: 'Marca o pedido como cancelado na retaguarda do ERP e avisa o cliente' })
