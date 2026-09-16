@@ -39,5 +39,5 @@ export function useAutoScroll(
 
     const intervalId = setInterval(tick, intervalMs)
     return () => clearInterval(intervalId)
-  }, [containerRef, enabled, step, intervalMs])
+  }, [containerRef, enabled, prefersReducedMotion, step, intervalMs])
 }
