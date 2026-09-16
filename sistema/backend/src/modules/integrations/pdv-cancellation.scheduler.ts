@@ -61,6 +61,12 @@ export class PdvCancellationScheduler {
       // Janela de 30 dias e so defesa: pedido ativo de verdade e sempre
       // recente, isso limita o escopo se algo ficar preso sem finalizar.
       const desde = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      // JON-61 (Auditoria 360, Medium): sem ordenacao, com mais de 200
+      // candidatos persistentes o lote de 200 podia sempre pegar os mesmos
+      // (ordem indefinida do banco) e o resto nunca era verificado. Do mais
+      // antigo pro mais novo: pedido preso ha mais tempo tem prioridade, e
+      // assim que ele resolve (sai de FINAL_ORDER_STATUSES) abre vaga pro
+      // proximo -- rotaciona sem precisar de coluna nova de watermark.
       const candidatos = await this.prisma.order.findMany({
         where: {
           erpDav: { not: null },
@@ -68,6 +74,7 @@ export class PdvCancellationScheduler {
           createdAt: { gte: desde },
         },
         select: { id: true, erpDav: true },
+        orderBy: { createdAt: 'asc' },
         take: 200,
       })
 

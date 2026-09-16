@@ -62,6 +62,16 @@ describe('PdvCancellationScheduler', () => {
     expect(mockPrisma.order.findMany).not.toHaveBeenCalled()
   })
 
+  it('busca os candidatos do mais antigo pro mais novo (JON-61)', async () => {
+    mockPrisma.order.findMany.mockResolvedValue([])
+
+    await scheduler.handleCheck()
+
+    expect(mockPrisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { createdAt: 'asc' } }),
+    )
+  })
+
   it('sem candidatos: nao chama a AntenorApi', async () => {
     mockPrisma.order.findMany.mockResolvedValue([])
 
