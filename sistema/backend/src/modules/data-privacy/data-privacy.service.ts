@@ -25,7 +25,13 @@ export class DataPrivacyService {
   async upsertConsentBundle(customerId: string, body: any, context?: PrivacyContext) {
     const { tenantId, storeId } = this.resolveContext(context)
     await this.ensureCustomer(customerId, tenantId)
-    const requested = Array.isArray(body?.consents) ? body.consents : LGPD_CONSENT_TYPES.map((type) => ({ type, status: body?.status || 'OPT_IN' }))
+    // JON-129 (Auditoria 360, Medium): body sem `consents` (ou nao-array)
+    // gravava opt-in em TODOS os canais, inclusive os que o cliente nao
+    // pediu -- convertia revogacao/opt-out existente em opt-in geral.
+    if (!Array.isArray(body?.consents) || body.consents.length === 0) {
+      throw new BadRequestException('Informe consents (array) com os canais explicitamente solicitados.')
+    }
+    const requested = body.consents
     const normalized = requested.map((item: any) => ({
       type: this.normalizeConsentType(item.type),
       status: this.normalizeConsentStatus(item.status || 'OPT_IN'),
@@ -85,17 +91,24 @@ export class DataPrivacyService {
     })
     if (!customer) throw new NotFoundException('Cliente nao encontrado.')
 
+    // JON-121 (Auditoria 360, Medium): take:1000 sem cursor truncava em
+    // silencio quem tem mais eventos que isso -- a request ainda fechava
+    // como COMPLETED, e repetir a exportacao devolvia os MESMOS 1000 mais
+    // recentes (nunca avancava). Pagina por (createdAt asc, id asc) ate
+    // esgotar; cap defensivo so contra loop infinito, nao contra volume real.
     const [analyticsEvents, recommendationEvents] = await Promise.all([
-      this.prisma.analyticsEvent.findMany({
+      this.exportAllRows((cursor) => this.prisma.analyticsEvent.findMany({
         where: { tenantId, customerId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: 1000,
-      }),
-      this.prisma.recommendationEvent.findMany({
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      })),
+      this.exportAllRows((cursor) => this.prisma.recommendationEvent.findMany({
         where: { tenantId, customerId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: 1000,
-      }),
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      })),
     ])
 
     const data = {
@@ -139,7 +152,12 @@ export class DataPrivacyService {
     const activeOrders = await this.prisma.order.count({
       where: { tenantId, customerId, status: { notIn: FINAL_ORDER_STATUSES } },
     })
-    if (activeOrders > 0 && !body?.force) {
+    // JON-122 (Auditoria 360, Medium): !body.force trata QUALQUER valor
+    // truthy-string como autorizacao -- 'false' (string) e truthy em JS, e
+    // um serializador de cliente que manda force como string (nao boolean)
+    // furava a trava de pedidos ativos sem ninguem pedir isso de verdade.
+    // Exige o boolean true explicito, nada de coercao.
+    if (activeOrders > 0 && body?.force !== true) {
       throw new BadRequestException('Cliente possui pedidos ativos; anonimização exige force=true ou encerramento operacional.')
     }
 
@@ -178,6 +196,12 @@ export class DataPrivacyService {
           city: 'Anonimizado',
           state: 'NA',
           zipCode: '00000000',
+          // JON-120 (Auditoria 360, Medium): updateMany zerava os campos
+          // postais mas deixava locality/deliveryPointCode intocados --
+          // referencia a condominio/localidade especifica (ex.: "Chafariz")
+          // sobrevivia a um endereco declarado anonimizado.
+          locality: null,
+          deliveryPointCode: null,
           isDefault: false,
         },
       })
@@ -263,6 +287,21 @@ export class DataPrivacyService {
       analytics: 'eventos podem ser retidos de forma pseudonimizada para BI operacional',
       auditLogs: 'mantidos para governanca e rastreabilidade de alteracoes sensiveis',
     }
+  }
+
+  // JON-121: pagina uma consulta ate esgotar (fetch devolve menos do que
+  // pediu). Cap de 200 paginas (200k linhas com take:1000) e so guarda-corpo
+  // contra bug de paginacao virar loop infinito -- nao um limite de negocio.
+  private async exportAllRows<T>(fetchPage: (cursor: string | null) => Promise<Array<T & { id: string }>>) {
+    const rows: Array<T & { id: string }> = []
+    let cursor: string | null = null
+    for (let page = 0; page < 200; page++) {
+      const batch = await fetchPage(cursor)
+      rows.push(...batch)
+      if (batch.length < 1000) break
+      cursor = batch[batch.length - 1].id
+    }
+    return rows
   }
 
   private resolveContext(context?: PrivacyContext) {

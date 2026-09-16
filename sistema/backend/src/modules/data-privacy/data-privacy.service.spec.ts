@@ -67,6 +67,18 @@ describe('DataPrivacyService', () => {
     }))
   })
 
+  // JON-129: body sem consents (ou nao-array) nao pode virar opt-in em
+  // todos os canais -- exige que os canais desejados venham explicitos.
+  it.each([
+    ['sem consents', {}],
+    ['consents vazio', { consents: [] }],
+    ['consents nao-array', { consents: 'TERMS' }],
+  ])('rejects consent bundle %s sem escrever nada', async (_label, body) => {
+    await expect(service.upsertConsentBundle('customer-1', body, { tenantId: 'tenant_default', storeId: 'store_default' }))
+      .rejects.toThrow(BadRequestException)
+    expect(mockPrisma.customerConsent.upsert).not.toHaveBeenCalled()
+  })
+
   it('exports customer data and creates an executable data subject request', async () => {
     mockPrisma.customer.findFirst.mockResolvedValue({
       id: 'customer-1',
@@ -96,14 +108,47 @@ describe('DataPrivacyService', () => {
       .rejects.toThrow(BadRequestException)
   })
 
+  // JON-122: !body.force tratava 'false' (string) como truthy -- so o
+  // boolean true explicito pode furar a trava de pedidos ativos.
+  it.each([
+    ['ausente', undefined],
+    ['string false', 'false'],
+    ['string true', 'true'],
+    ['numero 1', 1],
+    ['objeto vazio', {}],
+  ])('rejeita pedidos ativos quando force e %s (nao e boolean true)', async (_label, forceValue) => {
+    mockPrisma.order.count.mockResolvedValue(1)
+
+    await expect(
+      service.anonymizeCustomer('customer-1', { force: forceValue }, { tenantId: 'tenant_default', storeId: 'store_default' }),
+    ).rejects.toThrow(BadRequestException)
+  })
+
+  it('aceita apenas o boolean true explicito como forca', async () => {
+    mockPrisma.order.count.mockResolvedValue(1)
+    mockPrisma.$transaction.mockImplementation(async (callback: any) => callback({
+      customer: { update: jest.fn().mockResolvedValue({ id: 'customer-1' }) },
+      pushSubscription: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      address: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      customerProfile: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      customerConsent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      dataSubjectRequest: { create: jest.fn().mockResolvedValue({ id: 'dsr-3', status: 'COMPLETED' }) },
+    }))
+
+    const result = await service.anonymizeCustomer('customer-1', { force: true }, { tenantId: 'tenant_default', storeId: 'store_default' })
+
+    expect(result.request.status).toBe('COMPLETED')
+  })
+
   it('anonymizes customer PII, revokes consents and audits sensitive change', async () => {
     mockPrisma.order.count.mockResolvedValue(0)
     const customerUpdate = jest.fn().mockResolvedValue({ id: 'customer-1', name: 'Cliente anonimizado tomer-1' })
     const pushDeleteMany = jest.fn().mockResolvedValue({ count: 2 })
+    const addressUpdateMany = jest.fn().mockResolvedValue({ count: 1 })
     mockPrisma.$transaction.mockImplementation(async (callback: any) => callback({
       customer: { update: customerUpdate },
       pushSubscription: { deleteMany: pushDeleteMany },
-      address: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      address: { updateMany: addressUpdateMany },
       customerProfile: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       customerConsent: { updateMany: jest.fn().mockResolvedValue({ count: 3 }) },
       dataSubjectRequest: { create: jest.fn().mockResolvedValue({ id: 'dsr-2', status: 'COMPLETED' }) },
@@ -133,5 +178,32 @@ describe('DataPrivacyService', () => {
       }),
     }))
     expect(pushDeleteMany).toHaveBeenCalledWith({ where: { customerId: 'customer-1' } })
+
+    // JON-120: locality/deliveryPointCode nao eram zerados -- referencia a
+    // condominio/localidade especifica sobrevivia ao endereco "anonimizado".
+    expect(addressUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ locality: null, deliveryPointCode: null }),
+    }))
+  })
+
+  // JON-121: take:1000 sem cursor truncava a exportacao em silencio; agora
+  // pagina ate esgotar as duas colecoes.
+  it('exporta mais de 1000 eventos por colecao sem truncar', async () => {
+    mockPrisma.customer.findFirst.mockResolvedValue({
+      id: 'customer-1', orders: [], consents: [], addresses: [], profile: null,
+      loyaltyAccount: null, campaignDeliveries: [], shoppingLists: [],
+    })
+    const page1 = Array.from({ length: 1000 }, (_, i) => ({ id: `evt-${i}` }))
+    const page2 = [{ id: 'evt-1000' }]
+    mockPrisma.analyticsEvent.findMany
+      .mockResolvedValueOnce(page1)
+      .mockResolvedValueOnce(page2)
+    mockPrisma.recommendationEvent.findMany.mockResolvedValue([])
+    mockPrisma.dataSubjectRequest.create.mockResolvedValue({ id: 'dsr-4', status: 'COMPLETED' })
+
+    const result = await service.exportCustomerData('customer-1', { tenantId: 'tenant_default', storeId: 'store_default' })
+
+    expect(result.data.analyticsEvents).toHaveLength(1001)
+    expect(mockPrisma.analyticsEvent.findMany).toHaveBeenCalledTimes(2)
   })
 })
