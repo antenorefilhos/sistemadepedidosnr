@@ -12,6 +12,16 @@ Plataforma completa de e-commerce e gestao de pedidos para o Mercado Antenor & F
 
 ## Execucao
 
+Clone novo precisa gerar o certificado local uma vez (o `docker-compose.yml`
+monta `sistema/certs/` no nginx do storefront/admin; sem ele o container nao
+sobe -- ver JON-149, o cert saiu do git por boa pratica, so serve pra um
+`server{} 443` de teste local, nunca e trafego real):
+
+```bash
+mkdir -p sistema/certs
+openssl req -x509 -newkey rsa:2048 -keyout sistema/certs/key.pem -out sistema/certs/cert.pem -days 825 -nodes -subj "/CN=localhost"
+```
+
 ```bash
 cd sistema
 docker compose up -d

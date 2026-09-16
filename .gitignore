@@ -8,6 +8,11 @@ artifacts/
 *.log
 sistema/frontend/stats.html
 
+# JON-149 (Auditoria 360): certificado de dev/teste local -- so serve pra um
+# server{} 443 dormente (Caddy fala so com a porta 80). Producao le de
+# /etc/antenor-certs (fora do git, gerado direto na VPS), nunca daqui.
+sistema/certs/*.pem
+
 # External agent/tool state (nao faz parte do runtime do projeto)
 .opencode/
 .gemini/
