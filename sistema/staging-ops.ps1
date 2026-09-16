@@ -17,10 +17,15 @@ switch ($Command) {
   "up" {
     Write-Step "Subindo stack de staging..."
     Invoke-Expression "$Compose up -d --build"
+    # JON-101 (Auditoria 360, Medium): ErrorActionPreference=Stop nao cobre
+    # exit code de comando nativo -- sem isso, build/up falho seguia direto
+    # pra rodar migration contra uma stack que nao subiu.
+    if ($LASTEXITCODE -ne 0) { Write-Error "docker compose up falhou: exit code $LASTEXITCODE"; exit $LASTEXITCODE }
     Write-Step "Aguardando API inicializar (30s)..."
     Start-Sleep -Seconds 30
     Write-Step "Rodando migrations..."
     Invoke-Expression "$Compose exec api_staging npx prisma migrate deploy"
+    if ($LASTEXITCODE -ne 0) { Write-Error "prisma migrate deploy falhou: exit code $LASTEXITCODE"; exit $LASTEXITCODE }
     Write-Step "Stack staging iniciada."
     Write-Host "  loja:  http://localhost:4000" -ForegroundColor Green
     Write-Host "  api:   http://localhost:4001" -ForegroundColor Green
@@ -49,8 +54,8 @@ switch ($Command) {
     try {
       npm run prisma:seed
       npm run seed:qa
-      Write-Host "Seed staging aplicado: admin@antenor.com.br / (senha definida no seed)" -ForegroundColor Green
-      Write-Host "QA admin adicional: qa.admin@antenor.com.br / (senha definida no seed)" -ForegroundColor Green
+      Write-Host "Seed staging aplicado: admin@antenorefilhos.com.br / (senha definida no seed)" -ForegroundColor Green
+      Write-Host "QA admin adicional: qa.admin@antenorefilhos.com.br / (senha definida no seed)" -ForegroundColor Green
     } finally {
       Pop-Location
       Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
