@@ -10,7 +10,7 @@ import { OrdersModule } from './modules/orders/orders.module'
 import { AddressesModule } from './modules/addresses/addresses.module'
 import { IntegrationsModule } from './modules/integrations/integrations.module'
 import { NotificationsModule } from './modules/notifications/notifications.module'
-import { PrismaService } from './common/prisma.service'
+import { DatabaseModule } from './common/database.module'
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
@@ -37,7 +37,13 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
 import { DataPrivacyModule } from './modules/data-privacy/data-privacy.module';
 import { BusinessModule } from './modules/business/business.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { RelaxedThrottle } from './common/decorators/relaxed-throttle.decorator'
 
+// JON-68 (Auditoria 360, Medium): sem decorator, /health herdava TODOS os
+// buckets globais -- inclusive `auth` (20/min), o mais apertado -- mesmo
+// sendo rota de monitoramento/smoke chamada com alta frequencia. Mesmo
+// padrao do resto do backend (ver relaxed-throttle.decorator.ts).
+@RelaxedThrottle()
 @Controller()
 class AppController {
   @Get()
@@ -123,10 +129,10 @@ class AppController {
     DataPrivacyModule,
     BusinessModule,
     PromotionsModule,
+    DatabaseModule,
   ],
   controllers: [AppController],
   providers: [
-    PrismaService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

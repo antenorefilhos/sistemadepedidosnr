@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { NestFactory } from '@nestjs/core'
-import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common'
+import { ValidationPipe, BadRequestException } from '@nestjs/common'
 import helmet from 'helmet'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { AppModule } from './app.module'
@@ -49,6 +49,11 @@ async function bootstrap() {
   // winston e continua filtrando so o ruido de boot, que era o motivo original
   // de desligar. Ver common/nest-winston-logger.ts.
   const app = await NestFactory.create(AppModule, { logger: new NestWinstonLogger() })
+
+  // JON-56 (Auditoria 360, Medium): sem isso, PrismaService.onModuleDestroy
+  // nunca era chamado e o pool de conexao ficava aberto ate o processo
+  // morrer, mesmo num shutdown limpo (SIGTERM do Docker/PM2).
+  app.enableShutdownHooks()
 
   // Atras do proxy reverso de producao (Caddy), toda requisicao chegaria com o
   // mesmo IP interno se isso nao fosse setado -- rate limit, anti-fraude e

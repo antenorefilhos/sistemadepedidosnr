@@ -9,7 +9,6 @@ import { AiNotificationService } from './ai-notification.service'
 import { AiNotificationScheduler } from './ai-notification.scheduler'
 import { ScheduledNotificationScheduler } from './scheduled-notification.scheduler'
 import { IntegrationModulesService } from '../integrations/integration-modules.service'
-import { PrismaService } from '../../common/prisma.service'
 
 @Module({
   controllers: [NotificationsController],
@@ -17,7 +16,6 @@ import { PrismaService } from '../../common/prisma.service'
     NotificationsService,
     PushNotificationService,
     WhatsAppService,
-    PrismaService,
     NotificationService,
     EmailService,
     AiNotificationService,

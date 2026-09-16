@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common'
-import { PrismaService } from '../../common/prisma.service'
 import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { DeliveryModule } from '../delivery/delivery.module'
 import { InventoryModule } from '../inventory/inventory.module'
@@ -15,7 +14,7 @@ import { NotificationsModule } from '../notifications/notifications.module'
 @Module({
   imports: [PricingModule, InventoryModule, DeliveryModule, OrdersModule, NotificationsModule],
   controllers: [CartController, CheckoutSessionsController, AdminCheckoutController],
-  providers: [CartService, CheckoutService, PrismaService, TenantAccessGuard, AbandonedCartScheduler],
+  providers: [CartService, CheckoutService, TenantAccessGuard, AbandonedCartScheduler],
   exports: [CartService, CheckoutService],
 })
 export class CheckoutModule {}

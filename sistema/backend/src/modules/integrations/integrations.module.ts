@@ -5,7 +5,6 @@ import { PdvCancellationScheduler } from './pdv-cancellation.scheduler'
 import { IntegrationsService } from './integrations.service'
 import { IntegrationsController } from './integrations.controller'
 import { HealthController } from './health.controller'
-import { PrismaService } from '../../common/prisma.service'
 import { OrderOrchestrationService } from './order-orchestration.service'
 import { HubSpotService } from './hubspot.service'
 import { NfeService } from './nfe.service'
@@ -34,7 +33,6 @@ import { NotificationsModule } from '../notifications/notifications.module'
     PaymentsLedgerService,
     IntegrationOutboxService,
     WebhookGuard,
-    PrismaService,
     OrderOrchestrationService,
     RetryService,
     IntegrationModulesService,
