@@ -1,6 +1,6 @@
 import { createContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, authAPI, type RegisterPayload } from '../services/api'
+import { api, authAPI, notificationsAPI, type RegisterPayload } from '../services/api'
 
 export interface User {
   id: string
@@ -97,6 +97,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [navigate])
 
   const logout = useCallback(() => {
+    // JON-148 (Auditoria 360): logout so limpava token/dados locais -- a
+    // inscricao de push continuava viva no navegador E no servidor. Em
+    // aparelho compartilhado, a proxima pessoa a entrar via o push da conta
+    // anterior. Best-effort, disparado ANTES de apagar o header de auth
+    // (a rota exige o token desta sessao) -- nao bloqueia a navegacao se a
+    // rede falhar.
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.ready
+        .then((registration) => registration.pushManager.getSubscription())
+        .then(async (subscription) => {
+          if (!subscription) return
+          await notificationsAPI.unsubscribeFromPush(subscription.endpoint).catch(() => null)
+          await subscription.unsubscribe().catch(() => null)
+        })
+        .catch(() => null)
+    }
+
     setToken(null)
     setUser(null)
     localStorage.removeItem('token')

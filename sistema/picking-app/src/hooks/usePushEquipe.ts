@@ -133,5 +133,21 @@ export function usePushEquipe() {
     }
   }, [])
 
-  return { estado, ocupado, ativar }
+  // JON-148 (Auditoria 360): logout so limpava token local -- a inscricao de
+  // push continuava viva no navegador e no servidor. Em aparelho
+  // compartilhado, o proximo entregador a entrar continuava recebendo push
+  // do turno anterior. Best-effort: nunca bloqueia o logout.
+  const desinscrever = useCallback(async () => {
+    try {
+      const registro = await navigator.serviceWorker.ready
+      const inscricao = await registro.pushManager.getSubscription()
+      if (!inscricao) return
+      await api.delete('/notifications/push-subscribe', { data: { endpoint: inscricao.endpoint } }).catch(() => null)
+      await inscricao.unsubscribe().catch(() => null)
+    } catch {
+      // sem service worker/push neste aparelho -- nada a desfazer.
+    }
+  }, [])
+
+  return { estado, ocupado, ativar, desinscrever }
 }

@@ -26,6 +26,7 @@ describe('NotificationsService', () => {
       pushSubscription: {
         upsert: jest.fn(),
         findMany: jest.fn(),
+        deleteMany: jest.fn(),
       },
       customer: {
         findMany: jest.fn(),
@@ -38,6 +39,7 @@ describe('NotificationsService', () => {
       scheduledNotification: {
         findMany: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     }
     const pushNotificationService = {
@@ -173,6 +175,43 @@ describe('NotificationsService', () => {
     })
   })
 
+  // JON-148 (Auditoria 360): logout precisa desvincular a inscricao deste
+  // aparelho -- sem isso, a proxima pessoa a entrar continuava recebendo
+  // push da conta anterior.
+  describe('deletePushSubscriptionByEndpoint', () => {
+    it('remove so se o endpoint pertencer ao customerId informado', async () => {
+      const { service, prisma } = makeService()
+      prisma.pushSubscription.deleteMany.mockResolvedValue({ count: 1 })
+
+      const result = await service.deletePushSubscriptionByEndpoint('https://push.example/sub', { customerId: 'customer-1' })
+
+      expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({
+        where: { endpoint: 'https://push.example/sub', customerId: 'customer-1' },
+      })
+      expect(result).toEqual({ ok: true })
+    })
+
+    it('remove so se o endpoint pertencer ao adminId informado', async () => {
+      const { service, prisma } = makeService()
+      prisma.pushSubscription.deleteMany.mockResolvedValue({ count: 1 })
+
+      await service.deletePushSubscriptionByEndpoint('https://push.example/sub', { adminId: 'admin-1' })
+
+      expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({
+        where: { endpoint: 'https://push.example/sub', adminId: 'admin-1' },
+      })
+    })
+
+    it('nao apaga inscricao de outro dono (count 0)', async () => {
+      const { service, prisma } = makeService()
+      prisma.pushSubscription.deleteMany.mockResolvedValue({ count: 0 })
+
+      const result = await service.deletePushSubscriptionByEndpoint('https://push.example/sub', { customerId: 'customer-2' })
+
+      expect(result).toEqual({ ok: false })
+    })
+  })
+
   describe('findCustomerIdsBySegment', () => {
     it('sem filtro: retorna todos os clientes (comportamento antigo)', async () => {
       const { service, prisma } = makeService()
@@ -253,8 +292,8 @@ describe('NotificationsService', () => {
       expect(prisma.scheduledNotification.findMany).toHaveBeenCalledWith({
         where: { sentAt: null, sendAt: { lte: expect.any(Date) } },
       })
-      expect(prisma.scheduledNotification.update).toHaveBeenCalledWith({
-        where: { id: 'sched-1' },
+      expect(prisma.scheduledNotification.updateMany).toHaveBeenCalledWith({
+        where: { id: 'sched-1', sentAt: null },
         data: { sentAt: expect.any(Date) },
       })
       expect(result).toEqual({ count: 1 })
@@ -266,7 +305,28 @@ describe('NotificationsService', () => {
 
       const result = await service.runDueScheduledBroadcasts()
 
-      expect(prisma.scheduledNotification.update).not.toHaveBeenCalled()
+      expect(prisma.scheduledNotification.updateMany).not.toHaveBeenCalled()
+      expect(result).toEqual({ count: 0 })
+    })
+
+    // JON-158: sentAt so era gravado DEPOIS do broadcast, sem claim atomico
+    // -- dois disparos concorrentes do mesmo agendamento enviavam a campanha
+    // duas vezes. updateMany com where sentAt:null so deixa quem ganhar a
+    // corrida (count===1) seguir pro envio.
+    it('corrida: segundo disparo do mesmo agendamento nao reenvia a campanha', async () => {
+      const { service, prisma } = makeService()
+      const item = {
+        id: 'sched-race', type: 'PROMO', title: 'Oferta', body: 'Confira',
+        customerId: 'customer-1', imageUrl: null, productId: null, bannerId: null,
+        inactiveDays: null, purchasedCategory: null,
+      }
+      prisma.scheduledNotification.findMany.mockResolvedValue([item])
+      prisma.scheduledNotification.updateMany.mockResolvedValue({ count: 0 }) // outro processo ja reivindicou
+      prisma.customer.findMany.mockResolvedValue([])
+      prisma.pushSubscription.findMany.mockResolvedValue([])
+
+      const result = await service.runDueScheduledBroadcasts()
+
       expect(result).toEqual({ count: 0 })
     })
 

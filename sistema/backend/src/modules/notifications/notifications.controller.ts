@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req, UnauthorizedException, BadRequestException } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Req, UnauthorizedException, BadRequestException } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { NotificationsService } from './notifications.service'
 import { NotificationService } from './notification.service'
@@ -107,6 +107,26 @@ export class NotificationsController {
     if (!body?.endpoint) throw new BadRequestException('Campo "endpoint" é obrigatório.')
     await this.notificationsService.saveStaffPushSubscription(adminId, body)
     return { ok: true }
+  }
+
+  // JON-148 (Auditoria 360): logout precisa desvincular a inscricao de push
+  // deste aparelho -- sem isso, a proxima pessoa a entrar no mesmo navegador
+  // continuava recebendo push da conta anterior. Delete generico (nao
+  // customer/staff separado): so remove se o endpoint pertencer a quem esta
+  // chamando, entao serve pros dois papeis com a mesma rota.
+  @Delete('push-subscribe')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remover subscription de push deste aparelho (chamado no logout)' })
+  async deletePushSubscription(
+    @Req() req: { user?: { id?: string; role?: string } },
+    @Body() body: { endpoint?: string },
+  ) {
+    const userId = String(req.user?.id || '')
+    if (!userId) throw new UnauthorizedException('Não autenticado')
+    if (!body?.endpoint) throw new BadRequestException('Campo "endpoint" é obrigatório.')
+    const owner = req.user?.role === 'customer' ? { customerId: userId } : { adminId: userId }
+    return this.notificationsService.deletePushSubscriptionByEndpoint(body.endpoint, owner)
   }
 
   @Post('admin/broadcast')

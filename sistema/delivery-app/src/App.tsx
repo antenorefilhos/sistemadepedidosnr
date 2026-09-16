@@ -3,12 +3,14 @@ import { Toaster } from 'react-hot-toast'
 import Login from './pages/Login'
 import RouteList from './pages/RouteList'
 import RouteDetail from './pages/RouteDetail'
+import { usePushEquipe } from './hooks/usePushEquipe'
 
 type Screen = { page: 'login' } | { page: 'routes' } | { page: 'route'; routeId: string }
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ page: 'login' })
   const [userName, setUserName] = useState('')
+  const { desinscrever } = usePushEquipe()
 
   useEffect(() => {
     const token = localStorage.getItem('driver_token')
@@ -31,6 +33,9 @@ export default function App() {
   }
 
   const handleLogout = () => {
+    // JON-148 (Auditoria 360): dispara ANTES de apagar o token -- a rota de
+    // remocao exige a sessao atual.
+    void desinscrever()
     localStorage.removeItem('driver_token')
     localStorage.removeItem('driver_user')
     setUserName('')

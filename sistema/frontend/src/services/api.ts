@@ -496,6 +496,9 @@ export const notificationsAPI = {
   unreadCount: () => api.get<number>('/notifications/unread-count'),
   markAsRead: (id: string) => api.patch(`/notifications/${id}/read`),
   subscribeToPush: (subscription: any) => api.post('/notifications/push-subscribe', subscription),
+  // JON-148 (Auditoria 360): chamado no logout, pra este aparelho parar de
+  // receber push da conta que acabou de saltar.
+  unsubscribeFromPush: (endpoint: string) => api.delete('/notifications/push-subscribe', { data: { endpoint } }),
 }
 
 export const brandAPI = {

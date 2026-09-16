@@ -322,6 +322,22 @@ export class NotificationsService {
     })
   }
 
+  /**
+   * JON-148 (Auditoria 360): logout so limpava JWT/dados locais -- a
+   * subscription de push continuava viva no navegador/servidor. Em aparelho
+   * compartilhado, quem entrasse depois continuava recebendo push da conta
+   * anterior. Remove so a inscricao DESTE endpoint, e so se pertencer a
+   * quem esta chamando (customerId OU adminId, dependendo de quem logou).
+   */
+  async deletePushSubscriptionByEndpoint(endpoint: string, owner: { customerId?: string; adminId?: string }) {
+    if (!endpoint) return { ok: false }
+    const where = owner.customerId
+      ? { endpoint, customerId: owner.customerId }
+      : { endpoint, adminId: owner.adminId }
+    const result = await this.prisma.pushSubscription.deleteMany({ where })
+    return { ok: result.count > 0 }
+  }
+
   async getPushSubscriptionsForCustomer(customerId: string) {
     return this.prisma.pushSubscription.findMany({
       where: { customerId },
@@ -381,24 +397,44 @@ export class NotificationsService {
     const due = await this.prisma.scheduledNotification.findMany({
       where: { sentAt: null, sendAt: { lte: new Date() } },
     })
+    let sent = 0
     for (const item of due) {
-      const customers = item.customerId
-        ? [item.customerId]
-        : await this.findCustomerIdsBySegment({
-            inactiveDays: item.inactiveDays ?? undefined,
-            purchasedCategory: item.purchasedCategory ?? undefined,
-          })
-      await this.broadcastToCustomers(customers, {
-        type: item.type as 'PROMO' | 'CAMPAIGN',
-        title: item.title,
-        body: item.body,
-        imageUrl: item.imageUrl ?? undefined,
-        productId: item.productId ?? undefined,
-        bannerId: item.bannerId ?? undefined,
+      // JON-158 (Auditoria 360, Medium): sentAt so era gravado DEPOIS do
+      // broadcastToCustomers, sem claim atomico -- dois schedulers (ou um
+      // disparo manual concorrente) liam o mesmo agendamento como pendente e
+      // enviavam a campanha duas vezes pros mesmos clientes. updateMany com
+      // where sentAt:null e o mesmo padrao de reivindicacao usado no outbox
+      // (JON-50) e no picking (JON-73): so quem ganha a corrida (count===1)
+      // segue pro envio.
+      const claim = await this.prisma.scheduledNotification.updateMany({
+        where: { id: item.id, sentAt: null },
+        data: { sentAt: new Date() },
       })
-      await this.prisma.scheduledNotification.update({ where: { id: item.id }, data: { sentAt: new Date() } })
+      if (claim.count !== 1) continue
+
+      try {
+        const customers = item.customerId
+          ? [item.customerId]
+          : await this.findCustomerIdsBySegment({
+              inactiveDays: item.inactiveDays ?? undefined,
+              purchasedCategory: item.purchasedCategory ?? undefined,
+            })
+        await this.broadcastToCustomers(customers, {
+          type: item.type as 'PROMO' | 'CAMPAIGN',
+          title: item.title,
+          body: item.body,
+          imageUrl: item.imageUrl ?? undefined,
+          productId: item.productId ?? undefined,
+          bannerId: item.bannerId ?? undefined,
+        })
+        sent++
+      } catch (error) {
+        // Ja reivindicado (sentAt gravado) -- nao tenta de novo sozinho, pra
+        // nao reabrir a mesma corrida. Falha vira log, nao pedido travado.
+        this.logger.error(`Falha ao disparar broadcast agendado ${item.id}:`, error instanceof Error ? error.stack : String(error))
+      }
     }
-    return { count: due.length }
+    return { count: sent }
   }
 
   /**
