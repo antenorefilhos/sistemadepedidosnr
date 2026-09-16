@@ -8,6 +8,12 @@ type IntegrationContext = {
   storeId?: string
 }
 
+// JON-51 (Auditoria 360, Medium): PROCESSING sem prazo -- se o processo caisse
+// (ou a criacao do job/attempt falhasse) depois do claim, lockedAt nunca
+// expirava e so replay manual recuperava o evento. Lease com esse teto:
+// depois dele, PROCESSING volta a ser elegivel pro proximo worker reivindicar.
+const OUTBOX_LEASE_MS = 5 * 60 * 1000
+
 type ConnectorInput = IntegrationContext & {
   type: string
   provider: string
@@ -239,10 +245,15 @@ export class IntegrationOutboxService {
   async runDueOutboxBatch(limit = 10) {
     const take = Math.max(1, Math.min(Number(limit || 10), 50))
     const now = new Date()
+    const leaseExpiredBefore = new Date(now.getTime() - OUTBOX_LEASE_MS)
     const events = await this.prisma.outboxEvent.findMany({
       where: {
-        status: { in: ['PENDING', 'FAILED'] },
-        OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: now } }],
+        OR: [
+          { status: { in: ['PENDING', 'FAILED'] }, OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: now } }] },
+          // JON-51: PROCESSING cujo lease venceu -- worker anterior morreu
+          // (ou nunca chegou a atualizar) sem liberar o evento.
+          { status: 'PROCESSING', lockedAt: { lte: leaseExpiredBefore } },
+        ],
       },
       orderBy: [{ nextRetryAt: 'asc' }, { createdAt: 'asc' }],
       take,
@@ -278,6 +289,30 @@ export class IntegrationOutboxService {
     }
 
     const startedAt = new Date()
+
+    // JON-50 (Auditoria 360, Medium): o worker lia o evento e so ATUALIZAVA
+    // PROCESSING depois de criar job/attempt (mais abaixo), sem checar status
+    // no momento da escrita. Duas chamadas concorrentes pro mesmo evento liam
+    // o mesmo status PENDING/FAILED antes de qualquer uma escrever, e as duas
+    // seguiam pro dispatch -- reproduzido em memoria, gerou 2 jobs/2 SENT.
+    // Claim atomico aqui: so uma chamada consegue a transicao (status ainda
+    // bate com o que foi lido); a outra recebe skipped sem tocar em nada.
+    // Reclaim de lease vencida (JON-51): processOutboxEvent pode ser chamado
+    // direto (nao so via runDueOutboxBatch) com um evento ja PROCESSING --
+    // so aceita reivindicar de novo se o lockedAt provar que a lease ja
+    // venceu, senao roubaria o lock de um worker ainda ativo de verdade.
+    const claimWhere =
+      event.status === 'PROCESSING'
+        ? { id: event.id, status: 'PROCESSING', lockedAt: { lte: new Date(startedAt.getTime() - OUTBOX_LEASE_MS) } }
+        : { id: event.id, status: event.status }
+    const claim = await this.prisma.outboxEvent.updateMany({
+      where: claimWhere,
+      data: { status: 'PROCESSING', lockedAt: startedAt, attempts: { increment: 1 } },
+    })
+    if (claim.count !== 1) {
+      return { eventId, skipped: true, reason: 'claimed_by_another_worker' }
+    }
+
     const attemptNo = event.attempts + 1
     const jobIdempotencyKey = event.idempotencyKey ? `job:${event.idempotencyKey}` : null
     // JON-49 (Auditoria 360, High): create() aqui sempre usava a MESMA
@@ -318,14 +353,7 @@ export class IntegrationOutboxService {
       },
     })
 
-    await this.prisma.outboxEvent.update({
-      where: { id: event.id },
-      data: {
-        status: 'PROCESSING',
-        attempts: { increment: 1 },
-        lockedAt: startedAt,
-      },
-    })
+    // status/lockedAt/attempts ja foram gravados atomicamente pelo claim acima.
 
     const attempt = await this.prisma.integrationAttempt.create({
       data: {

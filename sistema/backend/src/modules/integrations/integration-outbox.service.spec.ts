@@ -15,6 +15,7 @@ const mockPrisma = {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     groupBy: jest.fn(),
   },
   integrationJob: {
@@ -136,6 +137,7 @@ describe('IntegrationOutboxService', () => {
     mockPrisma.integrationAttempt.update.mockResolvedValue({})
     mockPrisma.integrationJob.update.mockResolvedValue({})
     mockPrisma.outboxEvent.update.mockResolvedValue({})
+    mockPrisma.outboxEvent.updateMany.mockResolvedValue({ count: 1 })
 
     const result = await service.processOutboxEvent('evt-1')
 
@@ -177,6 +179,7 @@ describe('IntegrationOutboxService', () => {
     mockPrisma.integrationAttempt.create.mockResolvedValue({ id: 'attempt-2' })
     mockPrisma.integrationAttempt.update.mockResolvedValue({})
     mockPrisma.outboxEvent.update.mockResolvedValue({})
+    mockPrisma.outboxEvent.updateMany.mockResolvedValue({ count: 1 })
 
     const result = await service.processOutboxEvent('evt-retry')
 
@@ -215,6 +218,7 @@ describe('IntegrationOutboxService', () => {
     }
     mockPrisma.outboxEvent.findUnique.mockResolvedValue(event)
     mockPrisma.outboxEvent.update.mockResolvedValue({})
+    mockPrisma.outboxEvent.updateMany.mockResolvedValue({ count: 1 })
     mockPrisma.integrationDeadLetter.create.mockResolvedValue({ id: 'dlq-1' })
 
     const result = await service.processOutboxEvent('evt-dead')
@@ -249,6 +253,95 @@ describe('IntegrationOutboxService', () => {
       expect.objectContaining({
         where: { id: 'dlq-1' },
         data: expect.objectContaining({ resolvedAt: expect.any(Date) }),
+      }),
+    )
+  })
+
+  // JON-50 (Auditoria 360, Medium): duas chamadas concorrentes pro MESMO
+  // evento liam o mesmo status antes de qualquer uma escrever -- reproduzido
+  // em memoria, as duas seguiam pro dispatch (2 jobs, 2 SENT/FAILED). O claim
+  // atomico faz a segunda chamada receber skipped sem tocar em job/attempt.
+  it('claim atomico: segunda chamada concorrente recebe skipped, nao duplica job (JON-50)', async () => {
+    const event = {
+      id: 'evt-race',
+      tenantId: 'tenant_default',
+      storeId: 'store_default',
+      connectorId: 'conn-1',
+      connector: { id: 'conn-1', status: 'ACTIVE', provider: 'SOLIDCOM' },
+      aggregate: 'ORDER',
+      aggregateId: 'order-1',
+      type: 'ORDER_SYNC_TO_ERP',
+      payload: {},
+      status: 'PENDING',
+      attempts: 0,
+      maxAttempts: 5,
+      idempotencyKey: 'idem-race',
+      lastError: null,
+    }
+    mockPrisma.outboxEvent.findUnique.mockResolvedValue(event)
+    // Segunda chamada nao acha mais status:'PENDING' -- a primeira ja venceu.
+    mockPrisma.outboxEvent.updateMany.mockResolvedValue({ count: 0 })
+
+    const result = await service.processOutboxEvent('evt-race')
+
+    expect(result).toEqual({ eventId: 'evt-race', skipped: true, reason: 'claimed_by_another_worker' })
+    expect(mockPrisma.integrationJob.upsert).not.toHaveBeenCalled()
+    expect(mockPrisma.integrationAttempt.create).not.toHaveBeenCalled()
+  })
+
+  // JON-51 (Auditoria 360, Medium): PROCESSING sem prazo -- se o worker
+  // caisse depois do claim, lockedAt nunca expirava e o evento so voltava a
+  // rodar via replay manual. runDueOutboxBatch agora tambem seleciona
+  // PROCESSING cuja lease venceu.
+  it('runDueOutboxBatch reivindica PROCESSING com lease vencida (JON-51)', async () => {
+    mockPrisma.outboxEvent.findMany.mockResolvedValue([])
+
+    await service.runDueOutboxBatch(5)
+
+    expect(mockPrisma.outboxEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            expect.objectContaining({ status: 'PROCESSING', lockedAt: expect.objectContaining({ lte: expect.any(Date) }) }),
+          ]),
+        }),
+      }),
+    )
+  })
+
+  it('processOutboxEvent so reivindica PROCESSING alheio se o lockedAt provar lease vencida (JON-51)', async () => {
+    const event = {
+      id: 'evt-stuck',
+      tenantId: 'tenant_default',
+      storeId: 'store_default',
+      connectorId: 'conn-1',
+      connector: { id: 'conn-1', status: 'ACTIVE', provider: 'SOLIDCOM' },
+      aggregate: 'ORDER',
+      aggregateId: 'order-1',
+      type: 'ORDER_SYNC_TO_ERP',
+      payload: {},
+      status: 'PROCESSING',
+      attempts: 1,
+      maxAttempts: 5,
+      idempotencyKey: 'idem-stuck',
+      lastError: null,
+    }
+    mockPrisma.outboxEvent.findUnique.mockResolvedValue(event)
+    mockPrisma.outboxEvent.updateMany.mockResolvedValue({ count: 1 })
+    mockPrisma.integrationJob.upsert.mockResolvedValue({ id: 'job-2' })
+    mockPrisma.integrationAttempt.create.mockResolvedValue({ id: 'attempt-3' })
+    mockPrisma.integrationAttempt.update.mockResolvedValue({})
+    mockPrisma.integrationJob.update.mockResolvedValue({})
+
+    await service.processOutboxEvent('evt-stuck')
+
+    expect(mockPrisma.outboxEvent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'evt-stuck',
+          status: 'PROCESSING',
+          lockedAt: expect.objectContaining({ lte: expect.any(Date) }),
+        }),
       }),
     )
   })
