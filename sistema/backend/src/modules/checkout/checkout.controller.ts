@@ -44,10 +44,12 @@ export class CheckoutSessionsController {
   @UseGuards(OptionalJwtAuthGuard)
   @Throttle({ checkout: { limit: 20, ttl: 60000 } })
   async confirm(@Param('id') id: string, @Body() dto: ConfirmCheckoutSessionDto, @Req() req?: AuthedRequest) {
-    const clientIp =
-      (req?.headers?.['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
-      req?.ip ||
-      undefined
+    // JON-146 (Auditoria 360): priorizava o X-Forwarded-For CRU do header
+    // sobre req.ip -- exatamente invertido. req.ip ja resolve XFF sozinho
+    // (Express, com `trust proxy` configurado em main.ts), descartando as
+    // entradas mais a esquerda que o cliente pode forjar; usar o header direto
+    // deixava qualquer chamador escolher o IP que alimenta o antifraude.
+    const clientIp = req?.ip || undefined
     return this.checkoutService.confirmSession(req ? getTenantContext(req) : undefined, id, {
       ...withVerifiedCustomerId(dto, req),
       clientIp,
