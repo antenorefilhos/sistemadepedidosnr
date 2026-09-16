@@ -66,7 +66,11 @@ services:
     mem_limit: 1g
     cpus: 0.75
     environment:
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em .env.production}@db:5432/antenor_db?schema=public
+      # JON-54 (Auditoria 360, Medium): a variante prod interpolava
+      # POSTGRES_PASSWORD (senha crua) na DATABASE_URL, diferente do compose
+      # principal que usa POSTGRES_PASSWORD_URLENC -- senha com @, #, / ou %
+      # quebra o parsing da URL (ver CLAUDE.md, mesma armadilha ja documentada).
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD_URLENC:?defina POSTGRES_PASSWORD_URLENC (senha com caracteres reservados de URL escapados) em .env.production}@db:5432/antenor_db?schema=public
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (min 32 chars) em .env.production}
@@ -159,10 +163,17 @@ services:
     volumes:
       # nginx.conf tem um server{} 443 fixo (usado hoje para teste local por
       # IP); sem certificado montado o nginx nem sobe. O Caddy so fala com a
-      # porta 80 do container, entao o 443 interno fica ocioso -- reaproveita
-      # o certificado autoassinado que ja existe no repo em vez de criar um
-      # nginx.conf so para producao.
-      - ./certs:/etc/nginx/certs:ro
+      # porta 80 do container, entao o 443 interno fica ocioso.
+      #
+      # JON-149 (Auditoria 360, Medium): ate 16/09/2026 essa pasta era
+      # ./certs (dentro do repo) -- a chave privada ficava versionada no git.
+      # Como esse 443 nunca e alcancado por trafego real (Caddy so fala com a
+      # 80), o valor pratico de confidencialidade era baixo, mas "chave
+      # privada num commit publico" e ma pratica independente disso. Agora
+      # aponta pra um caminho fora do controle do git: ${ANTENOR_CERTS_DIR}
+      # (default /etc/antenor-certs), com um openssl self-signed novo gerado
+      # DIRETO na VPS -- a chave nunca trafegou por rede.
+      - ${ANTENOR_CERTS_DIR:-/etc/antenor-certs}:/etc/nginx/certs:ro
     # Sem "ports": o Caddy e quem fala com a porta 80 deste container.
 
   admin:
@@ -178,12 +189,18 @@ services:
     networks:
       - antenor_network
     volumes:
-      - ./certs:/etc/nginx/certs:ro
+      - ${ANTENOR_CERTS_DIR:-/etc/antenor-certs}:/etc/nginx/certs:ro
 
   picking:
     build:
       context: ./picking-app
       dockerfile: Dockerfile
+      args:
+        # JON-55 (Auditoria 360, Medium): Dockerfile declara default vazio;
+        # sem build.args aqui, a imagem sempre compila sem chave -- o hook de
+        # push (usePushEquipe.ts) retorna sem-chave mesmo com VAPID
+        # preenchido na API, e a inscricao nunca acontece.
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
     container_name: antenor_picking
     restart: always
     mem_limit: 128m
@@ -197,6 +214,8 @@ services:
     build:
       context: ./delivery-app
       dockerfile: Dockerfile
+      args:
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
     container_name: antenor_delivery
     restart: always
     mem_limit: 128m
