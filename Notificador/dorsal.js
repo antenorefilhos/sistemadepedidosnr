@@ -33,9 +33,17 @@ function lerConfig(env = process.env) {
     user: env.DORSAL_DB_USER,
     password: env.DORSAL_DB_PASSWORD,
     options: {
-      // SQL Server antigo, sem certificado válido — é rede interna da loja.
-      encrypt: false,
-      trustServerCertificate: true,
+      // JON-154 (Auditoria 360, Medium): encrypt=false + trustServerCertificate=true
+      // era fixo no codigo -- SQL Server antigo sem certificado valido, rede
+      // interna da loja, mas isso significa trafego sem confidencialidade
+      // nem autenticacao do servidor mesmo dentro da LAN (rede interna nao
+      // prova ausencia de adversario). Agora configuravel: default preserva
+      // o comportamento de hoje (nada muda sem acao); quando o SQL Server
+      // ganhar certificado valido, ligar DORSAL_DB_ENCRYPT=true no .env
+      // (e so entao DORSAL_DB_TRUST_SERVER_CERT=false, pra validar de
+      // verdade em vez de so criptografar sem checar quem esta do outro lado).
+      encrypt: String(env.DORSAL_DB_ENCRYPT || 'false').toLowerCase() === 'true',
+      trustServerCertificate: String(env.DORSAL_DB_TRUST_SERVER_CERT ?? 'true').toLowerCase() !== 'false',
     },
     // O ciclo do agente é de 60s: uma consulta que demora mais que isso está
     // travada, e insistir só empilha conexão no servidor deles.
