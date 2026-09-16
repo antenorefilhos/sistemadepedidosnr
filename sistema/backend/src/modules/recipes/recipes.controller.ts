@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   Query,
+  Req,
   ParseIntPipe,
   DefaultValuePipe,
   UseGuards,
@@ -16,6 +17,7 @@ import { CreateRecipeDto } from './dto/create-recipe.dto'
 import { UpdateRecipeDto } from './dto/update-recipe.dto'
 import { CreateRecipeCategoryDto, UpdateRecipeCategoryDto } from './dto/recipe-category.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
@@ -55,20 +57,30 @@ export class RecipesController {
 
   // ---- Recipes ----
 
+  // JON-156 (Auditoria 360, Low): listagem/consulta por slug eram
+  // publicas sem exigir active -- visitante que passasse active=false ou
+  // conhecesse o slug de uma receita desativada continuava vendo o
+  // conteudo. OptionalJwtAuthGuard: admin autenticado preserva o filtro que
+  // pedir (inclusive ver inativas pra gerenciar); qualquer outro chamador
+  // (inclusive anonimo) fica travado em active=true, sem exceção.
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   list(
+    @Req() req: { user?: { role?: string } },
     @Query('active') active?: string,
     @Query('category') category?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
     @Query('limit', new DefaultValuePipe(12), ParseIntPipe) limit?: number,
   ) {
-    const activeFilter = active === undefined ? true : active === 'false' ? false : true
+    const isAdmin = req.user?.role === 'admin'
+    const activeFilter = isAdmin ? (active === undefined ? undefined : active !== 'false') : true
     return this.service.list(activeFilter, category, page, limit)
   }
 
   @Get(':slug')
-  findBySlug(@Param('slug') slug: string) {
-    return this.service.findBySlug(slug)
+  @UseGuards(OptionalJwtAuthGuard)
+  findBySlug(@Param('slug') slug: string, @Req() req: { user?: { role?: string } }) {
+    return this.service.findBySlug(slug, req.user?.role === 'admin')
   }
 
   @Post()

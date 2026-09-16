@@ -80,7 +80,7 @@ describe('RecipesService', () => {
 
   describe('findBySlug', () => {
     it('deve retornar receita existente', async () => {
-      const recipe = { id: '1', title: 'Frango Grelhado', slug: 'frango-grelhado' };
+      const recipe = { id: '1', title: 'Frango Grelhado', slug: 'frango-grelhado', active: true };
       mockPrisma.recipe.findUnique.mockResolvedValue(recipe);
 
       const result = await service.findBySlug('frango-grelhado');
@@ -90,6 +90,21 @@ describe('RecipesService', () => {
     it('deve lançar NotFoundException para slug inexistente', async () => {
       mockPrisma.recipe.findUnique.mockResolvedValue(null);
       await expect(service.findBySlug('nao-existe')).rejects.toThrow(NotFoundException);
+    });
+
+    // JON-156 (Auditoria 360, Low): consulta publica por slug nao filtrava
+    // active nenhuma vez -- receita desativada continuava acessivel por
+    // quem conhecesse o slug, sem autenticacao.
+    it('receita desativada nao aparece pra chamador anonimo (allowInactive=false)', async () => {
+      mockPrisma.recipe.findUnique.mockResolvedValue({ id: '1', slug: 'desativada', active: false });
+      await expect(service.findBySlug('desativada')).rejects.toThrow(NotFoundException);
+    });
+
+    it('receita desativada aparece pra admin (allowInactive=true)', async () => {
+      const recipe = { id: '1', slug: 'desativada', active: false };
+      mockPrisma.recipe.findUnique.mockResolvedValue(recipe);
+      const result = await service.findBySlug('desativada', true);
+      expect(result).toEqual(recipe);
     });
   });
 

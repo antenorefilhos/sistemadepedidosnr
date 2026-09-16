@@ -2,6 +2,7 @@ import { GUARDS_METADATA } from '@nestjs/common/constants'
 import { ROLES_KEY } from '../../common/decorators/roles.decorator'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard'
 import { RecipesController } from './recipes.controller'
 
 function guardTypes(methodName: keyof RecipesController) {
@@ -22,10 +23,17 @@ describe('RecipesController security metadata', () => {
     },
   )
 
-  it.each(['listCategories', 'list', 'findBySlug'] as Array<keyof RecipesController>)(
-    'keeps %s public read endpoint without guards',
+  it('keeps listCategories public read endpoint without guards', () => {
+    expect(guardTypes('listCategories')).toHaveLength(0)
+  })
+
+  // JON-156 (Auditoria 360, Low): list/findBySlug continuam alcancaveis sem
+  // login, mas agora com OptionalJwtAuthGuard -- admin autenticado preserva
+  // visibilidade de inativas pra gerenciar; anonimo fica sempre em active=true.
+  it.each(['list', 'findBySlug'] as Array<keyof RecipesController>)(
+    'keeps %s public but resolves optional admin identity',
     (methodName) => {
-      expect(guardTypes(methodName)).toHaveLength(0)
+      expect(guardTypes(methodName)).toEqual(expect.arrayContaining([OptionalJwtAuthGuard]))
     },
   )
 })

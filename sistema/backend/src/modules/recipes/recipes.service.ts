@@ -69,12 +69,16 @@ export class RecipesService {
     return { data, page, limit, total, hasNextPage: page * limit < total }
   }
 
-  async findBySlug(slug: string) {
+  async findBySlug(slug: string, allowInactive = false) {
     const recipe = await this.prisma.recipe.findUnique({
       where: { slug },
       include: RECIPE_INCLUDE,
     })
-    if (!recipe) throw new NotFoundException(`Receita não encontrada: ${slug}`)
+    // JON-156: consulta publica por slug nao filtrava active nenhuma vez --
+    // quem conhecesse o slug via receita desativada mesmo sem ser admin.
+    if (!recipe || (!allowInactive && !recipe.active)) {
+      throw new NotFoundException(`Receita não encontrada: ${slug}`)
+    }
     return recipe
   }
 
