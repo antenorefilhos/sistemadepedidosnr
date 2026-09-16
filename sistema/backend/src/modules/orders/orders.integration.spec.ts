@@ -16,7 +16,6 @@ const mockOrdersService = {
 
 describe('Orders Controller - Integration Tests', () => {
   let controller: OrdersController;
-  let service: OrdersService;
   const customerRequest: any = {
     user: { id: 'customer-1', role: 'customer' },
     ip: '127.0.0.1',
@@ -35,7 +34,6 @@ describe('Orders Controller - Integration Tests', () => {
     }).compile();
 
     controller = module.get<OrdersController>(OrdersController);
-    service = module.get<OrdersService>(OrdersService);
   });
 
   afterEach(() => {

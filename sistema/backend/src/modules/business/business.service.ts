@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
@@ -6,6 +6,7 @@ import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.
 import { TenantContext } from '../../common/tenant/tenant-context'
 import { OrdersService } from '../orders/orders.service'
 import { IntegrationsService } from '../integrations/integrations.service'
+import { OrderOrchestrationService } from '../integrations/order-orchestration.service'
 
 type BusinessContext = Partial<Pick<TenantContext, 'tenantId' | 'storeId'>>
 
@@ -14,6 +15,7 @@ export class BusinessService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ordersService: OrdersService,
+    private readonly orderOrchestrationService: OrderOrchestrationService,
     private readonly integrationsService: IntegrationsService,
   ) {}
 
@@ -112,8 +114,22 @@ export class BusinessService {
   async getFinancialSummary(accountId: string, context?: BusinessContext) {
     const account = await this.findAccountOrThrow(accountId, context)
     const [ordersAgg, pendingApprovals, activeUsers] = await Promise.all([
+      // JON-123 (Auditoria 360, Medium): somava o total de QUALQUER pedido
+      // nao cancelado, sem olhar paymentStatus -- pedido ja pago continuava
+      // contando como credito consumido pra sempre. usedCredit agora e so o
+      // saldo em aberto: exclui pedido pago ou reembolsado (a divida nao
+      // existe mais nos dois casos). Sem rastreio de pagamento parcial no
+      // schema, o pedido conta o total inteiro enquanto nao PAID/REFUNDED --
+      // e o retrato honesto do que o dado atual permite, nao uma cobranca
+      // parcial de verdade.
       this.prisma.order.aggregate({
-        where: { tenantId: account.tenantId, storeId: account.storeId, businessAccountId: account.id, status: { not: 'CANCELLED' } },
+        where: {
+          tenantId: account.tenantId,
+          storeId: account.storeId,
+          businessAccountId: account.id,
+          status: { not: 'CANCELLED' },
+          paymentStatus: { notIn: ['PAID', 'REFUNDED'] },
+        },
         _sum: { total: true },
         _count: { _all: true },
       }),
@@ -247,11 +263,22 @@ export class BusinessService {
     const storeId = context?.storeId || DEFAULT_STORE_ID
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, tenantId, storeId, businessAccountId: { not: null } },
-      select: { id: true, businessAccountId: true, businessApprovalStatus: true },
+      select: { id: true, businessAccountId: true, businessApprovalStatus: true, status: true, paymentStatus: true },
     })
     if (!order) throw new NotFoundException('Pedido B2B nao encontrado para faturamento.')
-    if (order.businessApprovalStatus === 'PENDING') {
-      throw new BadRequestException('Pedido B2B precisa ser aprovado antes de faturar.')
+    // JON-125 (Auditoria 360, Medium): so rejeitava PENDING -- pedido
+    // CANCELLED/REFUNDED, ja PAID, ou com aprovacao em qualquer estado que
+    // nao fosse PENDING (ex.: REJECTED) passava e disparava fiscal/cobranca
+    // de verdade nos dois conectores. Elegibilidade explicita, positiva
+    // (exige APPROVED em vez de so excluir PENDING).
+    if (order.businessApprovalStatus !== 'APPROVED') {
+      throw new BadRequestException('Pedido B2B precisa estar aprovado (APPROVED) antes de faturar.')
+    }
+    if (['CANCELLED', 'REFUNDED'].includes(order.status)) {
+      throw new BadRequestException('Pedido cancelado ou reembolsado nao pode ser faturado.')
+    }
+    if (order.paymentStatus === 'PAID') {
+      throw new BadRequestException('Pedido ja esta pago -- nao ha o que faturar.')
     }
 
     const [fiscal, charge] = await Promise.all([
@@ -290,6 +317,11 @@ export class BusinessService {
         businessAccountId: account.id,
         businessApprovalStatus: 'APPROVED',
         status: { notIn: ['CANCELLED', 'REFUNDED'] },
+        // JON-126 (Auditoria 360, Medium): sem excluir PAID, um pedido ja
+        // faturado com sucesso continuava aparecendo entre "os mais
+        // antigos" pra sempre -- ocupava vaga do lote (take) e nada
+        // avancava um cursor, entao pedidos mais novos nunca eram atingidos.
+        paymentStatus: { not: 'PAID' },
         paymentMethod: { in: ['INVOICE', 'BOLETO', 'PIX'] },
       },
       orderBy: { createdAt: 'asc' },
@@ -305,34 +337,55 @@ export class BusinessService {
     return { accountId: account.id, processed: results.length, results }
   }
 
+  // JON-124 (Auditoria 360, Medium): priceList.create rodava ANTES de validar
+  // os itens, sem transacao -- preco negativo/productId vazio era so
+  // filtrado em silencio (tabela nascia sem os itens invalidos, sem erro
+  // nenhum) e produto repetido estourava o unique(priceListId,productId) do
+  // createMany DEPOIS do pai ja criado, deixando uma tabela ACTIVE vazia
+  // (reenvio criava outra). Agora valida tudo primeiro (erro explicito, nao
+  // filtro mudo) e so cria pai+itens juntos numa transacao.
   async createAccountPriceList(accountId: string, context: BusinessContext | undefined, body: any) {
     const account = await this.findAccountOrThrow(accountId, context)
     const name = String(body.name || `Tabela ${account.name}`).trim()
-    const priceList = await this.prisma.priceList.create({
-      data: {
-        tenantId: account.tenantId,
-        storeId: account.storeId,
-        channel: String(body.channel || 'STOREFRONT').toUpperCase(),
-        businessAccountId: account.id,
-        name,
-        status: String(body.status || 'ACTIVE').toUpperCase(),
-        startsAt: body.startsAt ? new Date(body.startsAt) : null,
-        endsAt: body.endsAt ? new Date(body.endsAt) : null,
-      },
+
+    const rawItems = Array.isArray(body.items) ? body.items : []
+    const seenProductIds = new Set<string>()
+    const items = rawItems.map((item: any, index: number) => {
+      const productId = String(item?.productId || '').trim()
+      const price = Number(item?.price)
+      if (!productId) throw new BadRequestException(`Item ${index + 1}: productId e obrigatorio.`)
+      if (!Number.isFinite(price) || price <= 0) throw new BadRequestException(`Item ${index + 1} (${productId}): price precisa ser maior que zero.`)
+      if (seenProductIds.has(productId)) throw new BadRequestException(`Produto ${productId} repetido na mesma tabela de preco.`)
+      seenProductIds.add(productId)
+      return {
+        productId,
+        price: this.decimal2(price),
+        cost: item?.cost == null ? null : this.decimal2(Number(item.cost)),
+      }
     })
 
-    if (Array.isArray(body.items) && body.items.length > 0) {
-      await this.prisma.priceListItem.createMany({
-        data: body.items.map((item: any) => ({
-          priceListId: priceList.id,
-          productId: String(item.productId || '').trim(),
-          price: this.decimal2(Number(item.price)),
-          cost: item.cost == null ? null : this.decimal2(Number(item.cost)),
-        })).filter((item: any) => item.productId && Number(item.price) > 0),
+    const priceListId = await this.prisma.$transaction(async (tx) => {
+      const priceList = await tx.priceList.create({
+        data: {
+          tenantId: account.tenantId,
+          storeId: account.storeId,
+          channel: String(body.channel || 'STOREFRONT').toUpperCase(),
+          businessAccountId: account.id,
+          name,
+          status: String(body.status || 'ACTIVE').toUpperCase(),
+          startsAt: body.startsAt ? new Date(body.startsAt) : null,
+          endsAt: body.endsAt ? new Date(body.endsAt) : null,
+        },
       })
-    }
+      if (items.length > 0) {
+        await tx.priceListItem.createMany({
+          data: items.map((item) => ({ priceListId: priceList.id, ...item })),
+        })
+      }
+      return priceList.id
+    })
 
-    return this.prisma.priceList.findUnique({ where: { id: priceList.id }, include: { items: true } })
+    return this.prisma.priceList.findUnique({ where: { id: priceListId }, include: { items: true } })
   }
 
   async listApprovalQueue(context?: BusinessContext) {
@@ -345,13 +398,28 @@ export class BusinessService {
     })
   }
 
+  // JON-128 (Auditoria 360, Medium): a leitura conferia so businessApprovalStatus
+  // (nao o status do pedido), e o update seguinte filtrava so por id, sempre
+  // forcando status:'PENDING' -- cancelamento nao limpa businessApprovalStatus,
+  // entao um pedido CANCELLED com aprovacao ainda PENDING era reaberto pra
+  // PENDING de novo. Claim atomico (compare-and-swap): so aprova se AMBOS
+  // status e businessApprovalStatus ainda baterem com o que foi lido.
+  //
+  // JON-130 (Auditoria 360, Medium): create() suprime a sincronizacao com o
+  // ERP e o WhatsApp enquanto a aprovacao esta PENDING (ver orders.service.ts)
+  // -- aprovar so mudava o registro no banco, sem nunca disparar o envio que
+  // ficou pendente. Dispara exatamente uma vez, apos o claim ter vencido de
+  // verdade (nao reenvia se outra chamada/corrida ja tinha aprovado antes).
   async approveOrder(orderId: string, context: BusinessContext | undefined, actorId?: string) {
     const tenantId = context?.tenantId || DEFAULT_TENANT_ID
     const storeId = context?.storeId || DEFAULT_STORE_ID
-    const order = await this.prisma.order.findFirst({ where: { id: orderId, tenantId, storeId, businessApprovalStatus: 'PENDING' } })
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, tenantId, storeId, status: 'PENDING_APPROVAL', businessApprovalStatus: 'PENDING' },
+    })
     if (!order) throw new NotFoundException('Pedido B2B pendente nao encontrado.')
-    return this.prisma.order.update({
-      where: { id: order.id },
+
+    const claim = await this.prisma.order.updateMany({
+      where: { id: order.id, status: 'PENDING_APPROVAL', businessApprovalStatus: 'PENDING' },
       data: {
         status: 'PENDING',
         businessApprovalStatus: 'APPROVED',
@@ -359,6 +427,16 @@ export class BusinessService {
         businessApprovedAt: new Date(),
       },
     })
+    if (claim.count !== 1) {
+      throw new ConflictException('Pedido ja foi aprovado, cancelado ou alterado por outra operacao.')
+    }
+
+    const approved = await this.prisma.order.findUniqueOrThrow({ where: { id: order.id } })
+
+    this.orderOrchestrationService.retryOrderSync(order.id).catch(() => null)
+    this.ordersService.sendApprovalWhatsApp(order.id).catch(() => null)
+
+    return approved
   }
 
   private async findAccountOrThrow(accountId: string, context?: BusinessContext) {

@@ -290,7 +290,6 @@ export class OrdersService {
       customerId,
       items,
       delivery,
-      discount,
       paymentMethod,
       notes,
       changeAmount,
@@ -1462,6 +1461,23 @@ export class OrdersService {
     // valor minimo global configurado em Admin > Marca.
     const brand = await this.brandService.get()
     return brand.freeShippingThreshold != null && subtotal >= Number(brand.freeShippingThreshold)
+  }
+
+  // JON-130 (Auditoria 360, Medium): create() suprime o WhatsApp de
+  // confirmacao enquanto a aprovacao B2B esta PENDING -- aprovar precisa
+  // disparar o envio que ficou pendente. Wrapper publico porque
+  // sendWhatsAppMessage e privado e BusinessService.approveOrder precisa
+  // chamar isso de fora, sem duplicar a montagem do payload aqui.
+  async sendApprovalWhatsApp(orderId: string): Promise<WhatsAppDispatchResult | null> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: { select: CUSTOMER_SAFE_SELECT },
+        items: { include: { product: true } },
+      },
+    })
+    if (!order) return null
+    return this.sendWhatsAppMessage(order as OrderWithRelations)
   }
 
   private async sendWhatsAppMessage(order: OrderWithRelations, changeAmount?: string): Promise<WhatsAppDispatchResult | null> {
