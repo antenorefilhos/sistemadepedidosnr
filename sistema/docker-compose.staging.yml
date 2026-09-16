@@ -28,7 +28,7 @@ services:
     networks:
       - antenor_staging_network
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
 
   redis_staging:
     image: redis:7-alpine
@@ -49,7 +49,7 @@ services:
     networks:
       - antenor_staging_network
     ports:
-      - "7701:7700"
+      - "127.0.0.1:7701:7700"
 
   api_staging:
     build:
@@ -90,7 +90,7 @@ services:
     networks:
       - antenor_staging_network
     ports:
-      - "4001:3001"
+      - "127.0.0.1:4001:3001"
 
   storefront_staging:
     build:

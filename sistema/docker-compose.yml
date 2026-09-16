@@ -13,7 +13,7 @@ services:
       networks:
         - antenor_network
       ports:
-        - "5432:5432"
+        - "127.0.0.1:5432:5432"
 
   # --- Cache & Sockets (Redis) ---
   redis:
@@ -36,7 +36,7 @@ services:
     networks:
       - antenor_network
     ports:
-      - "7700:7700"
+      - "127.0.0.1:7700:7700"
 
   # --- Backend API (NestJS) ---
   api:
@@ -48,7 +48,13 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD_URLENC:-antenor_password_2026}@db:5432/antenor_db?schema=public
       REDIS_URL: redis://redis:6379
-      NODE_ENV: production
+      # NODE_ENV=development (nao production) e proposital aqui: e o stack
+      # LOCAL do desenvolvedor, nunca exposto fora da maquina. Guards como
+      # TenantAccessGuard e jwt-secret.ts distinguem local/producao por esse
+      # valor -- 'production' aqui colidia com o proprio bloqueio de segredo
+      # inseguro do JON-144 (a fallback abaixo esta na lista bloqueada de
+      # proposito) e derrubava a API no boot local.
+      NODE_ENV: development
       JWT_SECRET: ${JWT_SECRET:-antenor_local_stack_jwt_secret_2026_min_32_chars}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,https://localhost:3443,https://localhost:3444}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
@@ -116,7 +122,7 @@ services:
     networks:
       - antenor_network
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
 
   # --- Storefront (Frontend Loja) ---
   storefront:
