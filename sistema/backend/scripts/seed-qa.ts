@@ -12,14 +12,14 @@ async function main() {
   const customerPassword = await bcrypt.hash(process.env.QA_CUSTOMER_PASSWORD || 'qa2026', 10)
 
   const admin = await prisma.admin.upsert({
-    where: { email: 'qa.admin@antenor.com.br' },
+    where: { email: 'qa.admin@antenorefilhos.com.br' },
     update: {
       password: adminPassword,
       name: 'QA Admin',
       active: true,
     },
     create: {
-      email: 'qa.admin@antenor.com.br',
+      email: 'qa.admin@antenorefilhos.com.br',
       password: adminPassword,
       name: 'QA Admin',
       active: true,
@@ -31,7 +31,7 @@ async function main() {
     update: {
       name: 'Cliente QA',
       whatsapp: '24900000001',
-      email: 'qa.cliente@antenor.com.br',
+      email: 'qa.cliente@antenorefilhos.com.br',
       password: customerPassword,
       origin: 'qa-seed',
     },
@@ -39,7 +39,7 @@ async function main() {
       name: 'Cliente QA',
       cpf: '90000000001',
       whatsapp: '24900000001',
-      email: 'qa.cliente@antenor.com.br',
+      email: 'qa.cliente@antenorefilhos.com.br',
       password: customerPassword,
       origin: 'qa-seed',
     },
