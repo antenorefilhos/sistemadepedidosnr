@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { isProductSellable } from '../../common/product-availability'
@@ -57,6 +57,8 @@ type DeliverySnapshot = {
 
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
@@ -226,28 +228,44 @@ export class CheckoutService {
         },
       })
       await this.cartService.markConverted(quote.cart.id, { tenantId, storeId })
-      await this.recordEvent({
-        tenantId,
-        storeId,
-        cartId: quote.cart.id,
-        checkoutSessionId: completed.id,
-        type: 'ORDER_CREATED',
-        customerId,
-        deviceId: dto.deviceId || quote.cart.deviceId,
-        metadata: { orderId: result.order.id, total: result.order.total },
-      })
-      await this.prisma.analyticsEvent.create({
-        data: {
+
+      // JON-70 (Auditoria 360, Medium): pedido/sessao/carrinho ja estavam
+      // COMMITADOS aqui -- so faltava telemetria. Ate 15/09/2026 esses dois
+      // registros de analytics viviam dentro do MESMO try do checkout inteiro:
+      // uma falha aqui caia no catch abaixo, que sobrescrevia a sessao pra
+      // FAILED e liberava reserva/slot de um pedido que ja existia de
+      // verdade -- o retry do cliente encontrava carrinho ja convertido, sem
+      // como recriar o pedido, e a sessao mentia "falhou" sobre algo que deu
+      // certo. Best-effort e proposital: analytics nao pode reclassificar
+      // pedido concluido.
+      try {
+        await this.recordEvent({
           tenantId,
           storeId,
+          cartId: quote.cart.id,
+          checkoutSessionId: completed.id,
           type: 'ORDER_CREATED',
-          entity: 'ORDER',
-          entityId: result.order.id,
           customerId,
-          deviceId: dto.deviceId || quote.cart.deviceId || null,
-          metadata: JSON.stringify({ cartId: quote.cart.id, checkoutSessionId: completed.id, total: result.order.total }),
-        },
-      })
+          deviceId: dto.deviceId || quote.cart.deviceId,
+          metadata: { orderId: result.order.id, total: result.order.total },
+        })
+        await this.prisma.analyticsEvent.create({
+          data: {
+            tenantId,
+            storeId,
+            type: 'ORDER_CREATED',
+            entity: 'ORDER',
+            entityId: result.order.id,
+            customerId,
+            deviceId: dto.deviceId || quote.cart.deviceId || null,
+            metadata: JSON.stringify({ cartId: quote.cart.id, checkoutSessionId: completed.id, total: result.order.total }),
+          },
+        })
+      } catch (analyticsError) {
+        this.logger.warn(
+          `Falha ao registrar analytics de ORDER_CREATED (pedido ${result.order.id} ja confirmado, sem impacto no checkout): ${this.errorMessage(analyticsError)}`,
+        )
+      }
 
       return { session: this.toSessionPayload(completed), order: result.order, whatsapp: result.whatsapp, reused: false }
     } catch (error) {
@@ -538,11 +556,19 @@ export class CheckoutService {
 
     if (addressId && !address) throw new BadRequestException('Endereco de entrega nao encontrado para o checkout.')
 
-    const cep = this.optionalString(delivery.cep || delivery.zipCode || address?.zipCode)
-    const lat = typeof delivery.lat === 'number' && Number.isFinite(delivery.lat) ? delivery.lat : undefined
-    const lng = typeof delivery.lng === 'number' && Number.isFinite(delivery.lng) ? delivery.lng : undefined
-    const locality = this.optionalString(delivery.locality)
-    const deliveryPointCode = this.optionalString(delivery.deliveryPointCode)
+    // JON-152 (Auditoria 360, Medium): com addressId resolvido, o CEP/lat/lng
+    // do BODY vinham primeiro na prioridade -- cliente selecionava o proprio
+    // endereco real (pra onde o pedido de fato vai) mas mandava CEP/coordenada
+    // de outra zona mais barata pro CALCULO do frete. O pedido persiste
+    // addressId e entrega no endereco de verdade; so a cotacao usava outro
+    // destino. Com endereco resolvido, o dado cadastrado sempre vence.
+    const cep = address
+      ? this.optionalString(address.zipCode)
+      : this.optionalString(delivery.cep || delivery.zipCode)
+    const lat = address ? undefined : (typeof delivery.lat === 'number' && Number.isFinite(delivery.lat) ? delivery.lat : undefined)
+    const lng = address ? undefined : (typeof delivery.lng === 'number' && Number.isFinite(delivery.lng) ? delivery.lng : undefined)
+    const locality = this.optionalString(address?.locality ?? delivery.locality)
+    const deliveryPointCode = this.optionalString(address?.deliveryPointCode ?? delivery.deliveryPointCode)
     const calculation = await this.deliveryService.calculate({
       tenantId: context.tenantId,
       storeId: context.storeId,

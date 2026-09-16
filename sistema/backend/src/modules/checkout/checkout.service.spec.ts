@@ -236,6 +236,29 @@ describe('CheckoutService', () => {
     expect(result.stock.unavailableItems).toEqual([])
   })
 
+  // JON-152 (Auditoria 360, Medium): com addressId resolvido, delivery.cep do
+  // corpo vinha primeiro na prioridade -- cliente confirmava entrega no
+  // proprio endereco cadastrado mas mandava CEP de outra zona (mais barata)
+  // pra cotacao. O pedido entrega no endereco real; so o frete cobrado
+  // estava errado.
+  it('com addressId resolvido, usa o CEP do endereco cadastrado, nunca o do body', async () => {
+    mockPrisma.address.findFirst.mockResolvedValue({
+      id: 'addr-1',
+      customerId: 'customer-1',
+      zipCode: '01001000', // CEP real do endereco do cliente
+      locality: null,
+      deliveryPointCode: null,
+    })
+
+    await service.quoteSession(undefined, 'session-1', {
+      delivery: { addressId: 'addr-1', cep: '99999999', slotId: 'slot-1' }, // CEP forjado de outra zona
+    })
+
+    expect(mockDeliveryService.calculate).toHaveBeenCalledWith(
+      expect.objectContaining({ cep: '01001000' }),
+    )
+  })
+
   it('blocks confirmation when delivery has no valid slot', async () => {
     await expect(
       service.confirmSession(undefined, 'session-1', {
@@ -277,6 +300,26 @@ describe('CheckoutService', () => {
       storeId: 'store_default',
     })
     expect(result.order.id).toBe('order-1')
+  })
+
+  // JON-70 (Auditoria 360, Medium): analyticsEvent.create falhando DEPOIS do
+  // pedido ja criado nao pode reclassificar a sessao pra FAILED nem liberar
+  // reserva/slot de um pedido que existe de verdade.
+  it('falha de analytics depois do pedido criado nao reverte a sessao pra FAILED', async () => {
+    mockPrisma.analyticsEvent.create.mockRejectedValue(new Error('analytics fora do ar'))
+
+    const result = await service.confirmSession(undefined, 'session-1', {
+      customerId: 'customer-1',
+      paymentMethod: 'PIX',
+      delivery: { cep: '01001000', slotId: 'slot-1' },
+    })
+
+    expect(result.session.status).toBe('COMPLETED')
+    expect(result.order.id).toBe('order-1')
+    expect(mockInventoryService.releaseReservationsByCart).not.toHaveBeenCalled()
+    expect(mockPrisma.checkoutSession.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
+    )
   })
 
   it('treats CARD as offline card-on-delivery payment during checkout confirmation', async () => {
