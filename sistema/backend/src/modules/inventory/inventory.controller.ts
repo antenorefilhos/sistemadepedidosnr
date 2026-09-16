@@ -31,8 +31,16 @@ export class AvailabilityController {
   }
 }
 
+// JON-151 (Auditoria 360, Medium): createReservation nao tinha guard nenhum,
+// recebia objeto sem DTO (cartId opcional, ttlMinutes sem teto) e nenhum
+// frontend chama essa rota -- o checkout real reserva por dentro
+// (OrdersService -> InventoryService.reserveForCheckout, chamada de servico
+// direta, nunca por aqui). Restrita a admin, igual ao /release ao lado, em
+// vez de mantida aberta sem checagem nenhuma pra um caminho morto.
 @RelaxedThrottle()
 @Controller('stock/reservations')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class StockReservationsController {
   constructor(private readonly inventoryService: InventoryService) {}
 
@@ -42,20 +50,21 @@ export class StockReservationsController {
     @Req() req?: TenantContextRequest,
   ) {
     const context = req ? getTenantContext(req) : undefined
+    // Mesmo com admin exigido, mantem os limites sugeridos: lote/TTL sem
+    // teto continuam ruins mesmo vindos de uma conta confiavel.
+    const MAX_ITEMS = 200
+    const MAX_TTL_MINUTES = 24 * 60
+    const items = (body.items || []).slice(0, MAX_ITEMS)
+    const ttlMinutes = body.ttlMinutes != null ? Math.max(1, Math.min(Number(body.ttlMinutes) || 1, MAX_TTL_MINUTES)) : undefined
     return this.inventoryService.reserveForCheckout({
       tenantId: context?.tenantId,
       storeId: context?.storeId,
       cartId: body.cartId,
-      items: body.items || [],
-      ttlMinutes: body.ttlMinutes,
+      items,
+      ttlMinutes,
     })
   }
 
-  // Nenhum frontend chama essa rota (checkout libera reserva internamente
-  // via releaseReservationsByCart no service, nao por aqui) -- so restringe
-  // a admin em vez de manter aberta sem checagem nenhuma.
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
   @Post(':id/release')
   async releaseReservation(@Param('id') id: string) {
     return this.inventoryService.releaseReservation(id, 'Reserva liberada por API')
