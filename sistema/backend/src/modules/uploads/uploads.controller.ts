@@ -85,7 +85,7 @@ export class UploadsController {
         // origem do app (stored XSS). Sempre grava como .tmp; a extensao/
         // Content-Type final so nascem depois, do formato REAL decodificado
         // pelo sharp abaixo -- nunca do que o cliente declarou.
-        filename: (req, file, callback) => {
+        filename: (_req, _file, callback) => {
           callback(null, `${uuidv4()}.tmp`);
         },
       }),
@@ -94,7 +94,7 @@ export class UploadsController {
       // gravado com nome unico e ficava orfao em ./uploads pra sempre.
       // Continua sendo so a primeira barreira (mimetype ainda e do
       // cliente) -- a decodificacao real do sharp abaixo e quem decide.
-      fileFilter: (req, file, callback) => {
+      fileFilter: (_req, file, callback) => {
         if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
           callback(new BadRequestException('Formato de imagem inválido. Envie JPG, PNG, WebP, AVIF, GIF, TIFF ou BMP.'), false);
           return;
@@ -158,7 +158,12 @@ export class UploadsController {
             return;
           }
           const suffix = slot === '2' ? '_2' : '';
-          const tempName = `${ean}${suffix}-temp${extname(file.originalname)}`;
+          // JON-114 (Auditoria 360, Medium): nome fixo (ean+slot-temp) era
+          // compartilhado por QUALQUER upload concorrente do mesmo EAN/slot --
+          // duas requisicoes em voo truncavam o arquivo uma da outra, e o
+          // finally de uma podia apagar o temp que a outra ainda estava lendo.
+          // UUID por requisicao isola cada upload no seu proprio arquivo.
+          const tempName = `${ean}${suffix}-${uuidv4()}${extname(file.originalname)}`;
           callback(null, tempName);
         },
       }),
@@ -166,7 +171,7 @@ export class UploadsController {
       // generico rejeitava MIME no fileFilter (antes de gravar). Este
       // endpoint so checava mimetype DEPOIS de escrever o arquivo, e nem
       // isso dentro do try/finally que limpa o disco.
-      fileFilter: (req, file, callback) => {
+      fileFilter: (_req, file, callback) => {
         if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
           callback(new BadRequestException('Formato de imagem inválido. Envie JPG, PNG, WebP, AVIF, GIF, TIFF ou BMP.'), false);
           return;
@@ -188,7 +193,11 @@ export class UploadsController {
     const finalPath = join(finalDir, `${ean}${suffix}.webp`);
     // Escreve num arquivo a parte e so entao substitui: se o sharp falhar no
     // meio, a foto antiga continua intacta em vez de virar arquivo truncado.
-    const stagingPath = `${finalPath}.new`;
+    // JON-114: staging tambem precisa de UUID -- sem isso, duas requisicoes
+    // concorrentes do mesmo EAN/slot disputavam o MESMO .new (rename atomico
+    // de uma podia pegar o staging que a outra ainda estava escrevendo, e o
+    // catch de uma apagava o staging da outra).
+    const stagingPath = `${finalPath}.${uuidv4()}.new`;
 
     try {
       // JON-113: checagem de tamanho movida pra dentro do try -- antes vinha

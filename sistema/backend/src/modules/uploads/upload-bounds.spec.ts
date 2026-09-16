@@ -45,4 +45,18 @@ describe('limites de recurso do upload', () => {
     expect(canvas).toBeLessThanOrEqual(4000)
     expect(pixels).toBeLessThanOrEqual(100_000_000)
   })
+
+  // JON-114 (Auditoria 360, Medium): nome de temp/staging fixo por EAN/slot
+  // era compartilhado por upload concorrente do mesmo produto -- uma
+  // requisicao truncava/apagava o arquivo da outra. O que importa aqui e
+  // que o nome NUNCA seja previsivel so a partir de ean+slot; exercitar o
+  // controller real exigiria multer/sharp/fs de verdade, por isso a
+  // verificacao e estatica, no mesmo padrao dos testes acima.
+  it('nome de arquivo temporario do upload de produto inclui um id por requisicao', () => {
+    expect(fonte).toMatch(/\$\{ean\}\$\{suffix\}-\$\{uuidv4\(\)\}/)
+  })
+
+  it('staging path do upload de produto inclui um id por requisicao', () => {
+    expect(fonte).toMatch(/\$\{finalPath\}\.\$\{uuidv4\(\)\}\.new/)
+  })
 })
