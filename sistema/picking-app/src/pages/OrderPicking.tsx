@@ -1,21 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import {
-  ArrowLeft, Camera, Keyboard, Check, X, AlertTriangle,
-  Loader2, Package, ChevronDown, ChevronUp, Send, ClipboardList, Truck, Edit3,
-  Plus, Search, RotateCcw, Trash2,
-} from 'lucide-react'
+import { ArrowLeft, Check, ClipboardList, Loader2, Package, Plus } from 'lucide-react'
 import { pickerApi, PickingTask, PickingTaskItem, Order } from '../services/api'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
 import toast from 'react-hot-toast'
 import BarcodeScanner from '../components/BarcodeScanner'
-
-const ITEM_STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pendente',
-  PICKED: 'Separado',
-  MISSING: 'Faltante',
-  SUBSTITUTED: 'Substituido',
-  CANCELLED: 'Cancelado',
-}
+import { Modal, ItemCard, DoneItemCard } from '../components/PickingShared'
+import { ManualConfirmModal } from '../components/ManualConfirmModal'
+import { AddItemScreen } from '../components/AddItemScreen'
+import { ReviewScreen } from '../components/ReviewScreen'
 
 // Motivo de nao ter tarefa de separacao quando o pedido nao e elegivel (ver
 // ensureTaskForOrder no backend). Sem isso, um pedido cancelado ou ja
@@ -94,6 +86,12 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   }, [orderId])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // JON-57: timer de debounce da busca de produtos nao era limpo no unmount
+  // -- desmontar a pagina antes dos 300ms disparava a busca de qualquer jeito.
+  useEffect(() => () => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+  }, [])
 
   useEffect(() => {
     if (confirm.mode === 'ean') {
@@ -303,6 +301,13 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const handleSearchProducts = (q: string) => {
     setProductSearch(q)
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    // JON-57 (Auditoria 360, Medium): seq so avancava quando o timer
+    // disparava -- limpar o campo com uma busca em voo nao invalidava a seq,
+    // entao a resposta antiga ainda passava na checagem e repunha produtos
+    // numa lista que deveria estar vazia. Avancar aqui, antes de qualquer
+    // ramo (incluindo o curto), garante que toda resposta pendente perca a
+    // corrida contra a proxima interacao do usuario.
+    const seq = ++searchRequestSeq.current
 
     if (q.trim().length < 2) {
       setProductResults([])
@@ -312,7 +317,6 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
 
     setSearchLoading(true)
     searchDebounceRef.current = setTimeout(async () => {
-      const seq = ++searchRequestSeq.current
       try {
         const { data } = await pickerApi.searchProducts(q)
         if (seq !== searchRequestSeq.current) return // resposta antiga, ignorar
@@ -580,97 +584,28 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
         const taskItem = task?.items.find(i => i.id === confirm.taskItemId)
         const product = taskItem ? getProductForTaskItem(taskItem) : null
         const orderItem = taskItem ? getOrderItemForTaskItem(taskItem) : null
-        const requested = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)
-        const isAdjusted = adjustQty !== requested
-        const weighted = isWeightedProduct(product)
-        // JON-31: achado na varredura mobile de 09/09/2026 -- passo de 0.01kg
-        // exigia dezenas de toques pra ajustar peso real (ex.: 1kg pedido,
-        // 0.94kg pesado = 6 toques so nessa diferenca pequena). 0.05kg reduz
-        // o toque em ~5x sem perder precisao pratica de balanca de loja;
-        // digitar direto continua disponivel pra ajuste fino.
-        const step = weighted ? 0.05 : 1
-        const minValue = weighted ? 0.01 : 1
         return (
-          <Modal onClose={() => setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })}>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
-              <div className="flex items-start gap-2">
-                <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-amber-800">Confirmacao Manual</p>
-                  <p className="text-xs text-amber-700 mt-0.5">
-                    {weighted
-                      ? 'Confirme que separou este item. Informe o peso real pesado na balanca.'
-                      : 'Confirme que separou este item. Ajuste a quantidade se necessario.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gray-50 rounded-xl p-4 mb-4">
-              <p className="font-semibold text-gray-900">{product?.name || 'Produto'}</p>
-              {product?.ean && <p className="text-xs text-gray-500 mt-1">EAN: {product.ean}</p>}
-              <div className="mt-3">
-                <label className="text-xs text-gray-500 block mb-1">
-                  {weighted
-                    ? `Peso separado em ${product?.unit || 'kg'} (pedido: ${requested} ${product?.unit || 'kg'})`
-                    : `Quantidade separada (pedido: ${requested} ${product?.unit || 'un'})`}
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      const next = Math.max(minValue, Number((adjustQty - step).toFixed(3)))
-                      setAdjustQty(next)
-                      setAdjustQtyText(String(next))
-                    }}
-                    className="w-11 h-11 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={adjustQtyText}
-                    onChange={(e) => handleAdjustQtyTextChange(e.target.value)}
-                    onFocus={(e) => e.target.select()}
-                    onBlur={() => handleAdjustQtyBlur(minValue)}
-                    className="flex-1 h-10 rounded-lg border border-gray-200 text-center text-lg font-semibold focus:outline-none focus:border-brand-500"
-                  />
-                  <button
-                    onClick={() => {
-                      const next = Number((adjustQty + step).toFixed(3))
-                      setAdjustQty(next)
-                      setAdjustQtyText(String(next))
-                    }}
-                    className="w-11 h-11 rounded-lg bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center active:bg-gray-300"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-              {isAdjusted && (
-                <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-                  <p className="text-xs text-orange-700">
-                    <Edit3 size={12} className="inline mr-1" />
-                    Enviando {adjustQty} de {requested} {product?.unit || 'un'} — o valor do pedido sera recalculado.
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })}
-                className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleManualConfirm}
-                disabled={actionLoading || adjustQty < minValue}
-                className={`flex-1 h-12 rounded-xl text-white font-semibold disabled:opacity-40 ${isAdjusted ? 'bg-orange-600' : 'bg-amber-600'}`}
-              >
-                {actionLoading ? <Loader2 size={18} className="animate-spin mx-auto" /> : isAdjusted ? `Enviar ${adjustQty}` : 'Sim, Separei'}
-              </button>
-            </div>
-          </Modal>
+          <ManualConfirmModal
+            product={product}
+            orderItem={orderItem}
+            adjustQty={adjustQty}
+            adjustQtyText={adjustQtyText}
+            actionLoading={actionLoading}
+            onAdjustQtyTextChange={handleAdjustQtyTextChange}
+            onAdjustQtyBlur={handleAdjustQtyBlur}
+            onDecrement={(step, minValue) => {
+              const next = Math.max(minValue, Number((adjustQty - step).toFixed(3)))
+              setAdjustQty(next)
+              setAdjustQtyText(String(next))
+            }}
+            onIncrement={(step) => {
+              const next = Number((adjustQty + step).toFixed(3))
+              setAdjustQty(next)
+              setAdjustQtyText(String(next))
+            }}
+            onConfirm={handleManualConfirm}
+            onClose={() => setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })}
+          />
         )
       })()}
 
@@ -702,416 +637,39 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
 
       {/* Add item modal */}
       {addItemModal && (
-        <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col">
-          <header className="bg-brand-600 text-white px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
-            <div className="flex items-center gap-3">
-              <button onClick={() => { setAddItemModal(false); setProductSearch(''); setProductResults([]); setAddQty(1) }} className="w-10 h-10 flex items-center justify-center rounded-xl active:bg-white/10">
-                <ArrowLeft size={20} />
-              </button>
-              <p className="font-semibold">Incluir Item no Pedido</p>
-            </div>
-          </header>
-          <div className="px-4 py-3">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar produto por nome ou EAN..."
-                  value={productSearch}
-                  onChange={(e) => handleSearchProducts(e.target.value)}
-                  autoFocus
-                  className="w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-brand-500"
-                />
-              </div>
-              <button
-                onClick={() => setAddItemScanner(true)}
-                className="w-12 h-12 flex-shrink-0 rounded-xl bg-brand-500 text-white flex items-center justify-center active:bg-brand-600"
-                title="Ler codigo de barras"
-              >
-                <Camera size={20} />
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto px-4 space-y-2">
-            {searchLoading && <div className="flex justify-center py-4"><Loader2 size={24} className="animate-spin text-brand-500" /></div>}
-            {!searchLoading && productSearch.length >= 2 && productResults.length === 0 && (
-              <p className="text-center text-gray-400 text-sm py-4">Nenhum produto encontrado</p>
-            )}
-            {productResults.map(p => (
-              <div key={p.id} className="bg-white rounded-xl border border-gray-100 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-gray-900">{p.name}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      R$ {(p.promotionalPrice ?? p.price).toFixed(2)} / {p.unit || 'un'}
-                      {p.ean && <span className="ml-2">EAN: {p.ean}</span>}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 mt-3">
-                  <button onClick={() => setAddQty(q => Math.max(1, q - 1))} className="w-8 h-8 rounded-lg bg-gray-200 text-gray-700 font-bold flex items-center justify-center">−</button>
-                  <input
-                    type="number"
-                    min={1}
-                    value={addQty}
-                    onChange={(e) => setAddQty(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-16 h-8 rounded-lg border border-gray-200 text-center text-sm font-semibold"
-                  />
-                  <button onClick={() => setAddQty(q => q + 1)} className="w-8 h-8 rounded-lg bg-gray-200 text-gray-700 font-bold flex items-center justify-center">+</button>
-                  <button
-                    onClick={() => handleAddItem(p.id)}
-                    disabled={actionLoading}
-                    className="flex-1 h-8 rounded-lg bg-brand-500 text-white text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-40"
-                  >
-                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <><Plus size={14} /> Incluir</>}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {addItemScanner && (
-            <Modal onClose={() => setAddItemScanner(false)}>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Escanear Codigo</h2>
-              <BarcodeScanner
-                onResult={(barcode) => {
-                  setAddItemScanner(false)
-                  handleSearchProducts(barcode)
-                }}
-                onClose={() => setAddItemScanner(false)}
-              />
-            </Modal>
-          )}
-        </div>
+        <AddItemScreen
+          productSearch={productSearch}
+          productResults={productResults}
+          searchLoading={searchLoading}
+          addQty={addQty}
+          actionLoading={actionLoading}
+          addItemScanner={addItemScanner}
+          onSearchChange={handleSearchProducts}
+          onOpenScanner={() => setAddItemScanner(true)}
+          onCloseScanner={() => setAddItemScanner(false)}
+          onScanResult={(barcode) => { setAddItemScanner(false); handleSearchProducts(barcode) }}
+          onAddQtyChange={setAddQty}
+          onAddItem={handleAddItem}
+          onClose={() => { setAddItemModal(false); setProductSearch(''); setProductResults([]); setAddQty(1) }}
+        />
       )}
 
       {/* Review screen */}
-      {reviewMode && (
-        <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col">
-          <header className="bg-brand-600 text-white px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
-            <div className="flex items-center gap-3">
-              <button onClick={() => { setReviewMode(false); setSendConfirm(false) }} className="w-10 h-10 flex items-center justify-center rounded-xl active:bg-white/10">
-                <ArrowLeft size={20} />
-              </button>
-              <div className="flex-1">
-                <p className="font-semibold">Revisao do Pedido</p>
-                <p className="text-xs text-white/60">
-                  {hasPdvCode(order) ? `DAV ${getOrderPdvCode(order)}` : `#${getOrderPdvCode(order)}`}
-                </p>
-              </div>
-            </div>
-          </header>
-
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {/* Customer info */}
-            <div className="bg-white rounded-xl p-4">
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Cliente</p>
-              <p className="font-semibold text-gray-900">{order.customer?.name}</p>
-              {order.customer?.cpf && <p className="text-xs text-gray-500 mt-0.5">CPF: {order.customer.cpf}</p>}
-              {order.notes && (
-                <div className="mt-2 bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-800">
-                  <strong>Obs do cliente:</strong> {order.notes}
-                </div>
-              )}
-            </div>
-
-            {/* Picked items */}
-            {done.filter(i => i.status !== 'MISSING').length > 0 && (
-              <div className="bg-white rounded-xl p-4">
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">
-                  Itens separados ({done.filter(i => i.status !== 'MISSING').length})
-                </p>
-                <div className="space-y-2">
-                  {done.filter(i => i.status !== 'MISSING').map(item => {
-                    const product = getProductForTaskItem(item)
-                    const picked = Number(item.pickedQuantity ?? 0)
-                    const requested = Number(item.requestedQuantity ?? 0)
-                    const isAdjusted = picked > 0 && picked !== requested
-                    return (
-                      <div key={item.id} className="flex items-start gap-3 py-1">
-                        {isAdjusted
-                          ? <Edit3 size={14} className="text-orange-600 flex-shrink-0 mt-0.5" />
-                          : <Check size={14} className="text-green-600 flex-shrink-0 mt-0.5" />}
-                        <span className="flex-1 text-sm text-gray-900">{product?.name || 'Produto'}</span>
-                        <span className={`text-sm flex-shrink-0 ${isAdjusted ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
-                          {isAdjusted ? `${picked}/${requested}` : (picked || requested)} {product?.unit || 'un'}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Missing items */}
-            {done.filter(i => i.status === 'MISSING').length > 0 && (
-              <div className="bg-white rounded-xl p-4">
-                <p className="text-xs text-red-400 uppercase tracking-wide mb-2">
-                  Itens faltantes ({done.filter(i => i.status === 'MISSING').length})
-                </p>
-                <div className="space-y-2">
-                  {done.filter(i => i.status === 'MISSING').map(item => {
-                    const product = getProductForTaskItem(item)
-                    return (
-                      <div key={item.id} className="flex items-start gap-3 py-1">
-                        <X size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
-                        <span className="flex-1 text-sm text-red-800">{product?.name || 'Produto'}</span>
-                        {item.notes && <span className="text-xs text-red-400 flex-shrink-0">{item.notes}</span>}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Summary */}
-            <div className="bg-white rounded-xl p-4">
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Resumo</p>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Itens separados</span>
-                  <span className="font-medium">{done.filter(i => i.status !== 'MISSING').length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Itens faltantes</span>
-                  <span className="font-medium text-red-600">{done.filter(i => i.status === 'MISSING').length}</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-gray-100">
-                  <span className="text-gray-500">Total</span>
-                  <span className="font-semibold">R$ {order.total?.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Delivery instructions */}
-            <div className="bg-white rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Truck size={14} className="text-gray-400" />
-                <p className="text-xs text-gray-400 uppercase tracking-wide">Instrucoes de entrega</p>
-                <span className="text-xs text-gray-300">(opcional)</span>
-              </div>
-              <textarea
-                placeholder="Ex: entregar no portao lateral, ligar antes, nao tocar campainha..."
-                value={deliveryInstructions}
-                onChange={(e) => setDeliveryInstructions(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm resize-none focus:outline-none focus:border-brand-500"
-              />
-            </div>
-
-            {/* Warning */}
-            <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-              <div className="flex items-start gap-2">
-                <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-red-700">
-                  Apos enviar ao caixa, o pedido sera registrado no sistema Solidcon.
-                  Depois disso, so podera ser finalizado no PDV ou cancelado totalmente.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom actions */}
-          <div className="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white border-t space-y-2">
-            {!sendConfirm ? (
-              <>
-                <button
-                  onClick={() => { setReviewMode(false); setSendConfirm(false) }}
-                  className="w-full h-11 rounded-xl border border-orange-300 text-orange-600 font-medium flex items-center justify-center gap-2 active:bg-orange-50"
-                >
-                  <Edit3 size={14} />
-                  Corrigir Pedido
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setReviewMode(false); setSendConfirm(false) }}
-                    className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium"
-                  >
-                    Voltar
-                  </button>
-                  <button
-                    onClick={() => setSendConfirm(true)}
-                    className="flex-1 h-12 rounded-xl bg-green-600 text-white font-semibold flex items-center justify-center gap-2 active:scale-[0.98]"
-                  >
-                    <Send size={14} />
-                    Enviar ao Caixa
-                  </button>
-                </div>
-              </>
-            ) : (
-              // Faltava o wrapper flex que o outro estado tem: sem pai flex, o
-              // `flex-1` dos botoes nao faz nada e eles caem empilhados e
-              // estreitos dentro do `space-y-2` do container.
-              <div className="flex gap-2">
-                {/* Confirmar a ESQUERDA e cancelar a DIREITA, invertendo a
-                    convencao de proposito. O polegar cai naturalmente na
-                    direita no uso com uma mao, entao toque duplo acidental
-                    acerta o Cancelar -- que so volta pra tela anterior. Enviar
-                    ao caixa e irreversivel: grava o pedido no Solidcom, e dali
-                    em diante so da pra finalizar no PDV ou cancelar por
-                    inteiro. Aqui o erro barato tem que ser o mais provavel. */}
-                <button
-                  onClick={handleSendToCashier}
-                  disabled={actionLoading}
-                  className="flex-1 h-12 rounded-xl bg-red-600 text-white font-semibold disabled:opacity-40 flex items-center justify-center gap-2"
-                >
-                  {actionLoading ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar Envio'}
-                </button>
-                <button
-                  onClick={() => setSendConfirm(false)}
-                  className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium"
-                >
-                  Cancelar
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+      {reviewMode && order && (
+        <ReviewScreen
+          order={order}
+          doneItems={done}
+          deliveryInstructions={deliveryInstructions}
+          sendConfirm={sendConfirm}
+          actionLoading={actionLoading}
+          onBack={() => { setReviewMode(false); setSendConfirm(false) }}
+          onDeliveryInstructionsChange={setDeliveryInstructions}
+          onAskConfirm={() => setSendConfirm(true)}
+          onSend={handleSendToCashier}
+          onCancelConfirm={() => setSendConfirm(false)}
+        />
       )}
     </div>
   )
 }
 
-function ItemCard({
-  product, orderItem, expanded, onToggle, onScan, onEan, onManual, onMissing, disabled,
-}: {
-  product?: { id: string; name: string; ean: string | null; imageUrl: string | null; unit: string | null } | null
-  orderItem?: { quantity: number; requestedQuantity: number | null; substitutionPolicy?: string } | null
-  expanded: boolean
-  onToggle: () => void
-  onScan: () => void
-  onEan: () => void
-  onManual: () => void
-  onMissing: () => void
-  disabled: boolean
-}) {
-  const qty = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)
-  // So a EXCECAO aparece: ALLOW e o padrao e viraria ruido em todo item. O
-  // backend ja respeita a escolha (picking.service decide requestSubstitution
-  // a partir dela), mas o separador nao via -- e quem fala com o cliente e ele.
-  const naoAceitaTroca = orderItem?.substitutionPolicy === 'DENY'
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <button onClick={onToggle} className="w-full px-4 py-3 text-left flex items-center gap-3 active:bg-gray-50">
-        <div className="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Package size={16} className="text-brand-500" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900 text-sm">{product?.name || 'Produto'}</p>
-          <p className="text-xs text-gray-500">
-            {qty} {product?.unit || 'un'}
-            {product?.ean && <span className="ml-2 text-gray-400">EAN: {product.ean}</span>}
-          </p>
-          {naoAceitaTroca && (
-            <span className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
-              Não aceita troca
-            </span>
-          )}
-        </div>
-        {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-      </button>
-
-      {expanded && (
-        <div className="px-4 pb-3 grid grid-cols-2 gap-2">
-          <button
-            onClick={onScan}
-            disabled={disabled}
-            className="h-12 rounded-xl bg-brand-500 text-white text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40"
-          >
-            <Camera size={16} />
-            Escanear
-          </button>
-          <button
-            onClick={onEan}
-            disabled={disabled}
-            className="h-12 rounded-xl bg-blue-600 text-white text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40"
-          >
-            <Keyboard size={16} />
-            Digitar EAN
-          </button>
-          <button
-            onClick={onManual}
-            disabled={disabled}
-            className="h-12 rounded-xl bg-amber-600 text-white text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40"
-          >
-            <Check size={16} />
-            Marcar
-          </button>
-          <button
-            onClick={onMissing}
-            disabled={disabled}
-            className="h-12 rounded-xl bg-red-100 text-red-700 text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40"
-          >
-            <X size={16} />
-            Faltante
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DoneItemCard({
-  taskItem, product, onReset, onRemove, disabled,
-}: {
-  taskItem: PickingTaskItem
-  product?: { id: string; name: string; ean: string | null; unit: string | null } | null
-  onReset?: () => void
-  onRemove?: () => void
-  disabled?: boolean
-}) {
-  const isMissing = taskItem.status === 'MISSING'
-  const picked = Number(taskItem.pickedQuantity ?? 0)
-  const requested = Number(taskItem.requestedQuantity ?? 0)
-  const isAdjusted = taskItem.status === 'PICKED' && picked > 0 && picked !== requested
-  const isAddedDuringPicking = taskItem.notes?.includes('Incluido durante separacao')
-
-  return (
-    <div className={`rounded-xl px-4 py-3 ${isMissing ? 'bg-red-50 border border-red-100' : isAdjusted ? 'bg-orange-50 border border-orange-100' : 'bg-green-50 border border-green-100'}`}>
-      <div className="flex items-center gap-3">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isMissing ? 'bg-red-100' : isAdjusted ? 'bg-orange-100' : 'bg-green-100'}`}>
-          {isMissing ? <X size={16} className="text-red-600" /> : isAdjusted ? <Edit3 size={16} className="text-orange-600" /> : <Check size={16} className="text-green-600" />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className={`font-medium text-sm ${isMissing ? 'text-red-900' : isAdjusted ? 'text-orange-900' : 'text-green-900'}`}>
-            {product?.name || 'Produto'}
-          </p>
-          <p className="text-xs text-gray-500">
-            {isAdjusted ? `Corrigido: ${picked}/${requested} ${product?.unit || 'un'}` : (ITEM_STATUS_LABEL[taskItem.status] || taskItem.status)}
-            {taskItem.notes && !isAdjusted && <span className="ml-1">· {taskItem.notes}</span>}
-          </p>
-        </div>
-      </div>
-      {!disabled && (onReset || (onRemove && isAddedDuringPicking)) && (
-        <div className="flex gap-2 mt-2 ml-11">
-          {onReset && (
-            <button onClick={onReset} className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 rounded-lg px-2.5 py-1.5 active:bg-blue-100">
-              <RotateCcw size={12} /> Desfazer
-            </button>
-          )}
-          {onRemove && isAddedDuringPicking && (
-            <button onClick={onRemove} className="flex items-center gap-1 text-xs text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5 active:bg-red-100">
-              <Trash2 size={12} /> Remover
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40" />
-      <div
-        className="relative w-full max-w-lg bg-white rounded-t-2xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>
-  )
-}
