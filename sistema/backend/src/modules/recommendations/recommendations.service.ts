@@ -182,7 +182,10 @@ export class RecommendationsService {
   }
 
   async recordEvent(body: any, context?: RecommendationContext) {
-    const { tenantId, storeId } = this.resolveContext({ ...context, storeId: body?.storeId || context?.storeId })
+    // JON-155 (Auditoria 360, Medium): storeId vinha do body sobrepondo o
+    // contexto -- chamador anonimo atribuia evento (inclusive PURCHASE) a
+    // outra loja do mesmo tenant so mandando storeId diferente no corpo.
+    const { tenantId, storeId } = this.resolveContext(context)
     const eventType = this.normalizeCode(body?.eventType || 'IMPRESSION')
     const recommendedProductId = String(body?.recommendedProductId || '').trim()
     if (!recommendedProductId) throw new BadRequestException('recommendedProductId e obrigatorio.')

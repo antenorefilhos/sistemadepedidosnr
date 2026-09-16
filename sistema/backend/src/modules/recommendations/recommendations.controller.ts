@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { assertCustomerOwnership } from '../../common/security/customer-ownership'
@@ -50,10 +51,19 @@ export class RecommendationsController {
     })
   }
 
+  // JON-155 (Auditoria 360, Medium): customerId vinha do body sem prova --
+  // com sessao logada, a identidade autenticada sempre vence o que o body
+  // mandar. PURCHASE so pode vir de dentro do backend, depois de pedido
+  // real, senao qualquer chamador fabrica taxa de conversao.
   @Post('events')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Registrar impressao, clique, carrinho ou compra de recomendacao' })
-  recordEvent(@Body() body: any, @Req() req?: TenantContextRequest) {
-    return this.recommendations.recordEvent(body, req ? getTenantContext(req) : undefined)
+  recordEvent(@Body() body: any, @Req() req: TenantContextRequest) {
+    if (String(body?.eventType || '').toUpperCase() === 'PURCHASE') {
+      throw new BadRequestException('Evento PURCHASE e registrado pelo servidor, nao aceita via API publica.')
+    }
+    const customerId = req.user?.role === 'customer' ? req.user.id : body?.customerId
+    return this.recommendations.recordEvent({ ...body, customerId }, getTenantContext(req))
   }
 
   // JON-31: achado na varredura de 09/09/2026 -- faltava guard aqui, dado

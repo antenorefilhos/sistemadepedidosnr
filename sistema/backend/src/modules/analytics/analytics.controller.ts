@@ -1,13 +1,15 @@
-import { Controller, Post, Body, Get, UseGuards, Query, Patch, Delete, Param, Res, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Query, Patch, Delete, Param, Req, Res, BadRequestException } from '@nestjs/common';
 import { Response } from 'express'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
 import { AlertRuleService, CreateAlertRuleDto, UpdateAlertRuleDto } from './alert-rule.service';
 import { ExecutiveReportService } from './executive-report.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
+import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 
 @ApiTags('Analytics')
 @RelaxedThrottle()
@@ -19,13 +21,32 @@ export class AnalyticsController {
     private readonly executiveReportService: ExecutiveReportService,
   ) {}
 
+  // JON-155 (Auditoria 360, Medium): tenantId/storeId/customerId vinham
+  // direto do body sem prova nenhuma -- chamador anonimo atribuia evento
+  // (inclusive PURCHASE) a outro tenant ou a outro customerId. tenantId/
+  // storeId agora sempre vem do contexto do request (nunca do body);
+  // customerId so aceita o do body quando NAO ha sessao logada -- com
+  // sessao, a identidade autenticada sempre vence o que o body mandar.
   @Post('track')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Registra um evento de comportamento do usuário' })
-  async track(@Body() data: any) {
+  async track(@Body() data: any, @Req() req: TenantContextRequest) {
     // JON-31: achado na varredura de 09/09/2026 -- sem `type` o insert
     // estourava 500 (coluna NOT NULL), rota publica chamada pelo storefront.
     if (!data?.type) throw new BadRequestException('Campo "type" é obrigatório.')
-    return this.analyticsService.trackEvent(data);
+    // Conversao (compra) so pode vir de dentro do proprio backend, depois de
+    // um pedido real -- senao qualquer chamador fabrica taxa de conversao.
+    if (['PURCHASE', 'CHECKOUT_COMPLETED'].includes(String(data.type))) {
+      throw new BadRequestException('Este tipo de evento e registrado pelo servidor, nao aceita via API publica.')
+    }
+    const context = getTenantContext(req)
+    const customerId = req.user?.role === 'customer' ? req.user.id : data.customerId
+    return this.analyticsService.trackEvent({
+      ...data,
+      tenantId: context.tenantId,
+      storeId: context.storeId,
+      customerId,
+    });
   }
 
   @Get('top-products')
