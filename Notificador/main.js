@@ -52,11 +52,17 @@ function log(msg) {
   console.log(`[${ts}] ${msg}`)
 }
 
+// JON-59 (Auditoria 360, Medium): fetch sem deadline explicito -- uma
+// consulta lenta/pendurada nunca liberava o token/estado, e ficava sem
+// prazo pra API offline aparecer como erro em vez de silencio.
+const FETCH_TIMEOUT_MS = 15000
+
 async function login() {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   if (!res.ok) throw new Error(`Login falhou: ${res.status}`)
   const data = await res.json()
@@ -65,14 +71,21 @@ async function login() {
   log('Autenticado com sucesso')
 }
 
-async function fetchOrders() {
+// JON-60 (Auditoria 360, Medium): sem o parametro `renewed`, um 401
+// persistente (token renovado e continuando recusado) chamava login() e a si
+// mesma pra sempre -- a promise externa nunca resolvia/rejeitava, e cada
+// login() zerava loginRetries, escondendo o problema do contador que devia
+// limitar isso. Renova no maximo uma vez por chamada.
+async function fetchOrders(renewed = false) {
   const res = await fetch(`${API_URL}/picker/orders`, {
     headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   if (res.status === 401) {
+    if (renewed) throw new Error('API erro: 401 mesmo apos renovar o token')
     token = null
     await login()
-    return fetchOrders()
+    return fetchOrders(true)
   }
   if (!res.ok) throw new Error(`API erro: ${res.status}`)
   return res.json()
@@ -166,7 +179,11 @@ function nextToast() {
       body: item.body,
       age: item.age,
     })
-    playSound(item.level.sound)
+    try {
+      playSound(item.level.sound)
+    } catch (erro) {
+      log(`[som] falhou: ${erro.message}`)
+    }
 
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => {
@@ -216,15 +233,17 @@ const POLLING_FATURAMENTO_DESLIGADO = String(process.env.FATURAMENTO_POLLING_DES
 let dorsal = null
 let avisouDorsalIndisponivel = false
 
-async function apiJson(caminho, opcoes = {}) {
+async function apiJson(caminho, opcoes = {}, renewed = false) {
   const res = await fetch(`${API_URL}${caminho}`, {
     ...opcoes,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(opcoes.headers || {}) },
+    signal: opcoes.signal || AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   if (res.status === 401) {
+    if (renewed) throw new Error(`HTTP 401 em ${caminho} mesmo apos renovar o token`)
     token = null
     await login()
-    return apiJson(caminho, opcoes)
+    return apiJson(caminho, opcoes, true)
   }
   if (!res.ok) throw new Error(`HTTP ${res.status} em ${caminho}`)
   return res.status === 204 ? null : res.json()
@@ -246,8 +265,13 @@ async function verificarIdentityDav() {
 
     if (!identityQuebradoDesde) identityQuebradoDesde = Date.now()
     log(`ALERTA: IDENTITY do DAV descarrilado -- proximo pedido nasceria com nrSeqPAF ${saude.identCurrent + 1} em vez de ${saude.ultimoDavReal + 1}. Precisa de DBCC CHECKIDENT RESEED.`)
+    // JON-58 (Auditoria 360, Medium): `{ label: 'CRITICO' }` nao e um item de
+    // LEVELS -- nextToast le item.level.key/.sound, que vinham undefined, e
+    // path.join(..., undefined) no playSound estourava antes de agendar o
+    // proximo toast, deixando toastShowing=true e a fila presa pra sempre.
+    const nivelCritico = LEVELS.find(nivel => nivel.key === 'critico')
     toast(
-      { label: 'CRITICO' },
+      nivelCritico,
       'Numeracao de DAV quebrada',
       `Proximo pedido sairia com DAV ${saude.identCurrent + 1} em vez de ${saude.ultimoDavReal + 1}. Avise o time tecnico.`,
       'verificacao automatica',
@@ -295,7 +319,20 @@ async function conciliarPdv() {
   }
 }
 
-async function check() {
+// JON-59 (Auditoria 360, Medium): setInterval e o "Verificar agora" do menu
+// podiam disparar uma segunda checagem antes da anterior terminar --
+// consultas concorrentes compartilhavam token/estado de avisos e o pool
+// mssql do dorsal.js, que cada uma fecha em finally (uma fecha o pool que a
+// outra ainda usa). checkPromise garante no maximo um ciclo em voo.
+let checkPromise = null
+
+function check() {
+  if (checkPromise) return checkPromise
+  checkPromise = runCheck().finally(() => { checkPromise = null })
+  return checkPromise
+}
+
+async function runCheck() {
   try {
     if (!token) await login()
     const orders = await fetchOrders()
