@@ -9,9 +9,16 @@ type HttpMetric = {
 export class MetricsRegistry {
   private static httpMetrics: HttpMetric[] = []
   private static readonly maxSamples = 10000
+  // JON-69 (Auditoria 360, Low): antenor_http_requests_total era declarado
+  // counter mas usava totalRequests da janela de 15min/10k amostras -- esse
+  // valor cai sem reinicio do processo, e rate()/increase() do Prometheus
+  // interpretam queda de counter como reset, distorcendo alertas. Contador
+  // cumulativo real, nunca decrementado; a contagem da janela vira gauge.
+  private static cumulativeRequests = 0
 
   static observeHttp(metric: HttpMetric) {
     this.httpMetrics.push(metric)
+    this.cumulativeRequests += 1
     if (this.httpMetrics.length > this.maxSamples) {
       this.httpMetrics.splice(0, this.httpMetrics.length - this.maxSamples)
     }
@@ -53,9 +60,12 @@ export class MetricsRegistry {
   static prometheus(windowMs = 15 * 60 * 1000) {
     const summary = this.httpSummary(windowMs)
     const lines = [
-      '# HELP antenor_http_requests_total Total HTTP requests observed in process memory',
+      '# HELP antenor_http_requests_total Total HTTP requests observed since process start',
       '# TYPE antenor_http_requests_total counter',
-      `antenor_http_requests_total ${summary.totalRequests}`,
+      `antenor_http_requests_total ${this.cumulativeRequests}`,
+      '# HELP antenor_http_requests_window Requests observed in the rolling window (may fall as samples age out)',
+      '# TYPE antenor_http_requests_window gauge',
+      `antenor_http_requests_window ${summary.totalRequests}`,
       '# HELP antenor_http_endpoint_p95_ms HTTP endpoint p95 latency in milliseconds',
       '# TYPE antenor_http_endpoint_p95_ms gauge',
       '# HELP antenor_http_endpoint_error5xx_rate HTTP endpoint 5xx error rate',
@@ -76,5 +86,6 @@ export class MetricsRegistry {
 
   static resetForTests() {
     this.httpMetrics = []
+    this.cumulativeRequests = 0
   }
 }
