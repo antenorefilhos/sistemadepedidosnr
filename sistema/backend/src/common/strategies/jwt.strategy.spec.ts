@@ -37,6 +37,20 @@ describe('JwtStrategy.validate', () => {
     await expect(strategy.validate(token())).rejects.toBeInstanceOf(UnauthorizedException)
   })
 
+  // JON-143 (Auditoria 360): tenantId vinha do payload -- conta movida pra
+  // outro tenant mantinha o contexto antigo por toda a validade do token.
+  it('admin: tenantId vem do banco, nao do payload assinado antigo', async () => {
+    const strategy = build({ admin: { id: 'u1', active: true, role: 'picker', moduleAccess: ['picking'], tenantId: 'tenant_novo' } })
+    const result = await strategy.validate(token({ tenantId: 'tenant_antigo' }))
+    expect(result.tenantId).toBe('tenant_novo')
+  })
+
+  it('customer: tenantId vem do banco, nao do payload assinado antigo', async () => {
+    const strategy = build({ customer: { id: 'u1', blocked: false, tenantId: 'tenant_novo' } })
+    const result = await strategy.validate(token({ role: 'customer', tenantId: 'tenant_antigo' }))
+    expect(result.tenantId).toBe('tenant_novo')
+  })
+
   // O token so prova QUEM e; o que a pessoa pode vem do banco. Sem isso,
   // tirar um modulo de alguem na tela Equipe so valeria no proximo login.
   it('modulos vem do banco, nao do token', async () => {

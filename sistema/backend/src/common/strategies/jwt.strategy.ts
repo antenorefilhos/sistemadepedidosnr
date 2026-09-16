@@ -53,7 +53,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.role === 'customer') {
       const customer = await this.prisma.customer.findUnique({
         where: { id: payload.id },
-        select: { id: true, blocked: true, tokenVersion: true },
+        select: { id: true, blocked: true, tokenVersion: true, tenantId: true },
       })
       if (!customer) throw new UnauthorizedException('Conta nao encontrada.')
       if (customer.blocked) throw new UnauthorizedException('Conta suspensa.')
@@ -62,10 +62,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       if ((payload.tokenVersion ?? 0) !== (customer.tokenVersion ?? 0)) {
         throw new UnauthorizedException('Sessao expirada por troca de senha. Faca login novamente.')
       }
+      // JON-143: tenantId vinha do payload -- conta movida pra outro tenant
+      // mantinha o contexto antigo por toda a validade do token (30 dias pra
+      // customer). tenantId agora vem do banco, igual a role/moduleAccess do
+      // admin abaixo. storeId permanece do payload: nao ha hoje uma nocao de
+      // "loja atual" persistida por conta (so vinculo tenant), reavaliar
+      // exige decisao de produto sobre qual store escolher quando ha mais de
+      // uma no tenant.
+      return {
+        id: payload.id,
+        email: payload.email,
+        name: payload.name,
+        role: payload.role,
+        tenantId: customer.tenantId,
+        storeId: payload.storeId,
+        permissions: payload.permissions || [],
+        moduleAccess: payload.moduleAccess || [],
+      }
     } else {
       const admin = await this.prisma.admin.findUnique({
         where: { id: payload.id },
-        select: { id: true, active: true, role: true, moduleAccess: true, tokenVersion: true },
+        select: { id: true, active: true, role: true, moduleAccess: true, tokenVersion: true, tenantId: true },
       })
       if (!admin) throw new UnauthorizedException('Conta nao encontrada.')
       if (!admin.active) throw new UnauthorizedException('Conta desativada.')
@@ -76,27 +93,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Papel e modulos vem do BANCO, nao do token: tirar o modulo `delivery`
       // de alguem na tela Equipe passa a valer na hora, sem esperar o token
       // velho expirar. O token so prova QUEM e; o que a pessoa pode e agora.
+      // JON-143: tenantId idem -- vinha do payload, agora vem do banco.
       return {
         id: payload.id,
         email: payload.email,
         name: payload.name,
         role: admin.role || payload.role,
-        tenantId: payload.tenantId,
+        tenantId: admin.tenantId,
         storeId: payload.storeId,
         permissions: payload.permissions || [],
         moduleAccess: admin.role === 'admin' ? payload.moduleAccess || [] : admin.moduleAccess || [],
       }
-    }
-
-    return {
-      id: payload.id,
-      email: payload.email,
-      name: payload.name,
-      role: payload.role,
-      tenantId: payload.tenantId,
-      storeId: payload.storeId,
-      permissions: payload.permissions || [],
-      moduleAccess: payload.moduleAccess || [],
     }
   }
 }
