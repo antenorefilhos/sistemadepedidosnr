@@ -1,3 +1,4 @@
+import * as webpushModule from 'web-push'
 import { PushNotificationService } from './push-notification.service'
 
 jest.mock('web-push', () => ({
@@ -5,7 +6,7 @@ jest.mock('web-push', () => ({
   sendNotification: jest.fn(),
 }))
 
-const webpush = require('web-push') as {
+const webpush = webpushModule as unknown as {
   setVapidDetails: jest.Mock
   sendNotification: jest.Mock
 }
