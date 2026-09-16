@@ -6,14 +6,27 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-Location -Path $PSScriptRoot
 
+# JON-101 (Auditoria 360, Medium): ErrorActionPreference=Stop nao vira
+# exceção pra exit code != 0 de comando nativo (docker/npm) -- so afeta
+# erros do PowerShell/.NET. Sem checar $LASTEXITCODE, um build/up que falha
+# so imprime erro do proprio Docker e o script segue como se tivesse dado
+# certo, inclusive chamando os passos seguintes sobre uma stack quebrada.
+function Assert-LastExitCode([string]$context) {
+  if ($LASTEXITCODE -ne 0) {
+    throw "Comando falhou ($context): exit code $LASTEXITCODE"
+  }
+}
+
 function Invoke-Up {
   Write-Host 'Subindo stack principal (db, redis, meili, api, storefront, admin)...' -ForegroundColor Cyan
   docker compose up -d db redis meili api storefront admin | Out-Host
+  Assert-LastExitCode 'docker compose up'
 }
 
 function Invoke-Build {
   Write-Host 'Buildando imagens (api, storefront, admin)...' -ForegroundColor Cyan
   docker compose build api storefront admin | Out-Host
+  Assert-LastExitCode 'docker compose build'
 }
 
 function Invoke-Validate {
