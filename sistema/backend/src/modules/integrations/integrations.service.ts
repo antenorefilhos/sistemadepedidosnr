@@ -712,7 +712,9 @@ export class IntegrationsService {
         status: this.mapPaymentTransactionStatus(result.status),
         amount: preview.contract.amount,
         providerRef: result.chargeId,
-        idempotencyKey: `charge:${orderId}:${result.chargeId}`,
+        // JON-126: chave estavel por orderId (nao mais orderId+chargeId, que
+        // so existia DEPOIS da chamada e por isso nunca deduplicava nada).
+        idempotencyKey: `charge:${orderId}`,
         metadata: {
           paymentUrl: result.paymentUrl,
           pixCopiaECola: result.pixCopiaECola,
