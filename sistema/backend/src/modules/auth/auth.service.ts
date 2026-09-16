@@ -79,12 +79,21 @@ export class AuthService {
       throw new BadRequestException('Link invalido ou expirado. Peca uma nova redefinicao.')
     }
     const password = await bcrypt.hash(newPassword, 10)
-    await this.prisma.admin.update({
-      where: { id: admin.id },
+    // JON-139 (Auditoria 360): ler o token, calcular bcrypt (assincrono) e so
+    // depois gravar por id deixava uma janela -- duas requisicoes concorrentes
+    // com o mesmo token liam antes de qualquer uma consumir, e as duas
+    // escreviam. updateMany com o MESMO where do findFirst (id + hash +
+    // ainda-nao-expirado) e a claim atomica: a segunda chamada nao acha mais
+    // a linha nesse estado e count vem 0.
+    const claimed = await this.prisma.admin.updateMany({
+      where: { id: admin.id, resetTokenHash: tokenHash, resetTokenExpiresAt: { gt: new Date() } },
       // JON-138: incrementa tokenVersion -- qualquer JWT emitido antes
       // deste reset passa a falhar em JwtStrategy.validate().
       data: { password, resetTokenHash: null, resetTokenExpiresAt: null, tokenVersion: { increment: 1 } },
     })
+    if (claimed.count === 0) {
+      throw new BadRequestException('Link invalido ou expirado. Peca uma nova redefinicao.')
+    }
     return { message: 'Senha redefinida com sucesso.' }
   }
 
@@ -118,11 +127,15 @@ export class AuthService {
       throw new BadRequestException('Link invalido ou expirado. Peca uma nova redefinicao.')
     }
     const password = await bcrypt.hash(newPassword, 10)
-    await this.prisma.customer.update({
-      where: { id: customer.id },
+    // JON-139: mesma claim atomica do reset de admin -- ver comentario la.
+    const claimed = await this.prisma.customer.updateMany({
+      where: { id: customer.id, resetTokenHash: tokenHash, resetTokenExpiresAt: { gt: new Date() } },
       // JON-138: mesma revogacao do reset de admin.
       data: { password, resetTokenHash: null, resetTokenExpiresAt: null, tokenVersion: { increment: 1 } },
     })
+    if (claimed.count === 0) {
+      throw new BadRequestException('Link invalido ou expirado. Peca uma nova redefinicao.')
+    }
     return { message: 'Senha redefinida com sucesso.' }
   }
 
@@ -298,6 +311,16 @@ export class AuthService {
     const isMaster = createAdminDto.role === 'admin'
     const role = isMaster ? 'admin' : 'staff'
     const moduleAccess = isMaster ? [] : (createAdminDto.moduleAccess || [])
+
+    // JON-74 (Auditoria 360, Medium): staff (role != admin) podia salvar
+    // moduleAccess=['admin'] -- o login do painel exige role==='admin' de
+    // verdade (linha ~199 acima), entao essa conta SEMPRE era rejeitada no
+    // login apesar do cadastro anunciar acesso. So Administrador Master
+    // (role='admin') recebe o modulo admin, e isso ja e implicito via
+    // effectiveModuleAccess abaixo -- staff nunca precisa pedir 'admin'.
+    if (!isMaster && moduleAccess.includes('admin')) {
+      throw new BadRequestException('Modulo "admin" so esta disponivel para Administrador Master.')
+    }
 
     const admin = await this.prisma.admin.create({
       data: {
@@ -572,6 +595,12 @@ export class AuthService {
     }
 
     const isMaster = staff.role === 'admin'
+    // JON-74: mesma trava do register() -- editar staff pra incluir 'admin'
+    // no moduleAccess produzia a mesma conta que anuncia acesso e o login
+    // sempre rejeita.
+    if (!isMaster && dto.moduleAccess?.includes('admin')) {
+      throw new BadRequestException('Modulo "admin" so esta disponivel para Administrador Master.')
+    }
     if (!isMaster && dto.moduleAccess) data.moduleAccess = dto.moduleAccess
 
     const updated = await this.prisma.admin.update({

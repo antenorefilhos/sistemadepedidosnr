@@ -338,7 +338,13 @@ export default function StaffSection() {
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Módulos de acesso</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {MODULES.map(mod => (
+                    {/* JON-74 (Auditoria 360, Medium): staff podia marcar "Admin" aqui e
+                       salvar moduleAccess=['admin'], mas o login do painel exige
+                       role==='admin' (master) -- a conta criada anunciava um acesso
+                       que nunca funcionava. So o filtro da lista (abaixo) usa 'admin'
+                       pra achar quem JA e master; aqui, staff so escolhe entre os
+                       modulos operacionais reais. */}
+                    {MODULES.filter(mod => mod.key !== 'admin').map(mod => (
                       <label
                         key={mod.key}
                         className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
