@@ -50,6 +50,8 @@
     "photos:queue": "ts-node scripts/build-photo-queue.ts",
     "photos:process": "ts-node scripts/process-photo-queue.ts",
     "photos:web": "ts-node scripts/search-web-photo-queue.ts",
+    "photos:fast": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/rodar-fotos-rapido.ps1",
+    "photos:http-continuo": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/rodar-fotos-http-continuo.ps1",
     "photos:carrefour:proof": "ts-node scripts/carrefour-cdp-proof.ts",
     "photos:carrefour": "ts-node scripts/collect-carrefour-candidates.ts",
     "photos:bank": "ts-node scripts/collect-photo-source-bank.ts",
