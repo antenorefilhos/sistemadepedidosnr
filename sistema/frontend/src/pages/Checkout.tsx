@@ -358,6 +358,22 @@ export default function Checkout() {
     const lat = resolvedCoordsRef.current.lat ?? formData.lat ?? undefined
     const lng = resolvedCoordsRef.current.lng ?? formData.lng ?? undefined
 
+    if (isPickup) {
+      // Retirada nao tem endereco nem zona: o backend devolve frete 0 e
+      // pula a validacao de area (checkout.service -> buildDeliverySnapshot).
+      // Precisa vir antes do check de selectedDeliverySlot -- esse hook busca
+      // sempre janelas do tipo DELIVERY, entao existir uma janela de entrega
+      // ativa nao pode fazer o modo PICKUP escolhido pelo cliente virar
+      // DELIVERY (e o backend rejeitar por "fora da zona" sem CEP nenhum).
+      if (!deliverySlotRef.current) {
+        deliverySlotRef.current = createFallbackDeliverySlot()
+      }
+      return {
+        mode: 'PICKUP',
+        ...deliverySlotRef.current,
+      }
+    }
+
     if (selectedDeliverySlot) {
       return {
         mode: 'DELIVERY',
@@ -375,15 +391,6 @@ export default function Checkout() {
 
     if (!deliverySlotRef.current) {
       deliverySlotRef.current = createFallbackDeliverySlot()
-    }
-
-    if (isPickup) {
-      // Retirada nao tem endereco nem zona: o backend devolve frete 0 e
-      // pula a validacao de area (checkout.service -> buildDeliverySnapshot).
-      return {
-        mode: 'PICKUP',
-        ...deliverySlotRef.current,
-      }
     }
 
     return {
