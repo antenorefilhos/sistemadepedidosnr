@@ -34,7 +34,15 @@ export class CustomersService {
     private integrations: IntegrationsService,
   ) {}
 
-  async findAll(scope: TenantScope, search?: string) {
+  // JON-44 (Auditoria 360, Medium): sem take/skip, o payload e o groupBy de
+  // push abaixo crescem sem limite com o cadastro -- cap defensivo evita que
+  // a tela (e a memoria da API) travem quando a loja passar de algumas
+  // centenas de clientes. Paginacao completa no admin (page/cursor na UI)
+  // fica como evolucao incremental do Dashboard.tsx, fora de escopo aqui.
+  private static readonly MAX_CUSTOMERS = 500
+
+  async findAll(scope: TenantScope, search?: string, limit = CustomersService.MAX_CUSTOMERS) {
+    const take = Math.min(Math.max(1, limit), CustomersService.MAX_CUSTOMERS)
     const customers = search
       ? await this.prisma.customer.findMany({
           where: {
@@ -46,11 +54,14 @@ export class CustomersService {
             ],
           },
           include: { addresses: true },
+          orderBy: { createdAt: 'desc' },
+          take,
         })
       : await this.prisma.customer.findMany({
           where: { tenantId: scope.tenantId },
           include: { addresses: true },
           orderBy: { createdAt: 'desc' },
+          take,
         })
 
     return this.withPushInfo(customers.map(stripSecrets))

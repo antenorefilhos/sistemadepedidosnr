@@ -42,8 +42,8 @@ export class CustomersController {
       ],
     },
   })
-  async findAll(@Req() req: TenantContextRequest, @Query('search') search?: string) {
-    return this.customersService.findAll(getTenantContext(req), search)
+  async findAll(@Req() req: TenantContextRequest, @Query('search') search?: string, @Query('limit') limit?: string) {
+    return this.customersService.findAll(getTenantContext(req), search, limit ? Number(limit) : undefined)
   }
 
   @Roles('admin')
