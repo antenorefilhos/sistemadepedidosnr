@@ -1,4 +1,5 @@
 import { LoggerService, LogLevel } from '@nestjs/common'
+import { inspect } from 'util'
 import { winstonLogger } from './logger'
 
 /**
@@ -48,11 +49,35 @@ export class NestWinstonLogger implements LoggerService {
     return { extra: params }
   }
 
+  /**
+   * Achado em 17/09/2026: o `ExceptionHandler` interno do Nest chama
+   * `logger.error(exception)` com o objeto `Error` inteiro como `message`
+   * (nao uma string) em falha de boot -- `Error` nao tem propriedade
+   * enumeravel nenhuma, entao `JSON.stringify(error)` sempre vira `"{}"`,
+   * sem mensagem nem stack. Isso deixou uma falha real de boot (env
+   * obrigatoria ausente) completamente muda no log, com o container so
+   * reiniciando em loop sem pista nenhuma -- so foi achado testando local
+   * com console.error direto. Erro vira mensagem = error.message, stack vai
+   * pro campo `stack` do log estruturado.
+   */
+  private formatMessage(message: unknown): { text: string; stack?: string } {
+    if (message instanceof Error) {
+      return { text: message.message, stack: message.stack }
+    }
+    if (typeof message === 'string') return { text: message }
+    // JSON.stringify perde qualquer propriedade nao-enumeravel (mensagens de
+    // erro custom do Nest que nao estendem Error "de verdade" tambem caem
+    // aqui) -- util.inspect mostra o objeto por completo, nunca "{}" mudo.
+    return { text: inspect(message, { depth: 4 }) }
+  }
+
   private write(level: 'info' | 'warn' | 'error' | 'debug', message: unknown, params: unknown[], quietForNoise: boolean) {
     const { context, extra } = this.split(params)
     if (quietForNoise && context && BOOTSTRAP_NOISE.has(context)) return
-    winstonLogger.log(level, typeof message === 'string' ? message : JSON.stringify(message), {
+    const { text, stack } = this.formatMessage(message)
+    winstonLogger.log(level, text, {
       ...(context ? { context } : {}),
+      ...(stack ? { stack } : {}),
       ...(extra.length ? { details: extra.length === 1 ? extra[0] : extra } : {}),
     })
   }

@@ -230,6 +230,12 @@ jobs:
         # JWT_SECRET curto (14 chars) tambem nunca passaria o check de
         # sistema/backend/src/common/security/jwt-secret.ts (min 32 chars);
         # o valor abaixo e so pra este job, nao serve em nenhum outro lugar.
+        #
+        # Achado em 17/09/2026: SOLIDCOM_API_URL faltava tambem --
+        # SolidcomERPService.requireEnv() no construtor estourava do mesmo
+        # jeito, so que o erro ficava mudo por um bug separado no logger (ver
+        # common/nest-winston-logger.ts) -- container so reiniciava em loop
+        # sem log util nenhum ate corrigir os dois.
         env:
           DATABASE_URL: postgresql://antenor:antenor123@db:5432/antenor
           POSTGRES_USER: antenor
@@ -237,6 +243,7 @@ jobs:
           POSTGRES_DB: antenor
           REDIS_URL: redis://redis:6379
           JWT_SECRET: ci-smoke-secret-sintetico-32-chars-minimo-para-passar-no-check
+          SOLIDCOM_API_URL: http://solidcom-sintetico-ci.invalid
           SOLIDCOM_CNPJ: "00000000000000"
           SOLIDCOM_CODECOM: "1"
           SOLIDCOM_BALCAO_CPF: "00000000000"

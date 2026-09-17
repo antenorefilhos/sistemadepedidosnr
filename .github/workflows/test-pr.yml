@@ -94,6 +94,7 @@ jobs:
         # sinteticos, nunca reais/producao.
         env:
           JWT_SECRET: ci-pr-quality-gate-sintetico-32-chars-minimo-check
+          SOLIDCOM_API_URL: http://solidcom-sintetico-ci.invalid
           SOLIDCOM_CNPJ: "00000000000000"
           SOLIDCOM_CODECOM: "1"
           SOLIDCOM_BALCAO_CPF: "00000000000"

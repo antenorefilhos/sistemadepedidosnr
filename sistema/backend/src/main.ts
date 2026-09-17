@@ -119,4 +119,15 @@ async function bootstrap() {
   winstonLogger.info('server_started', { port, swagger: `http://localhost:${port}/api` })
 }
 
-bootstrap()
+// Achado em 17/09/2026: bootstrap() nunca era aguardado/tratado -- uma
+// falha de boot (env obrigatoria ausente, porta ocupada) virava rejeicao
+// nao tratada. O ExceptionHandler interno do Node ate loga algo, mas o
+// formatador nao imprime stack/mensagem do jeito que a gente configurou
+// (log saia como "{}", sem pista nenhuma) -- so descobrimos porque o
+// processo ficava reiniciando em loop sem log util. console.error aqui
+// imprime o objeto Error de verdade, e process.exit(1) para o loop de
+// restart em vez de deixar o container tentando pra sempre.
+bootstrap().catch((error) => {
+  console.error('Falha ao iniciar a API:', error)
+  process.exit(1)
+})

@@ -50,4 +50,18 @@ describe('NestWinstonLogger', () => {
     logger.log('mensagem solta')
     expect(logged).toHaveBeenCalledWith('info', 'mensagem solta', {})
   })
+
+  // Achado em 17/09/2026: o ExceptionHandler interno do Nest chama
+  // logger.error(exception) com o objeto Error INTEIRO como message (nao
+  // string) em falha de boot. JSON.stringify(new Error(...)) sempre vira
+  // "{}" (Error nao tem propriedade enumeravel), entao toda falha real de
+  // boot (env obrigatoria ausente, porta ocupada) ficava muda no log -- o
+  // container so reiniciava em loop sem pista nenhuma.
+  it('extrai message e stack quando recebe um Error direto (nao string)', () => {
+    const erro = new Error('CORS_ORIGIN deve ser configurado explicitamente em producao.')
+    logger.error(erro)
+    expect(logged).toHaveBeenCalledWith('error', 'CORS_ORIGIN deve ser configurado explicitamente em producao.', {
+      stack: erro.stack,
+    })
+  })
 })
