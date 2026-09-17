@@ -18,9 +18,18 @@
  *    `PROMOTIONS_SYNC_CRON_ENABLED` estava assim: da pra colocar no .env, o
  *    .env.example documenta, e ligar o sync de promocoes era impossivel.
  *
+ * Terceiro modo de falha, achado em 17/09/2026 rodando isto contra
+ * .env.production de verdade: variavel PRESENTE no .env mas com valor VAZIO
+ * (`VAPID_PUBLIC_KEY=` sem nada depois do `=`). O compose repassa, a chave
+ * "existe" pra quem le o arquivo por olho, e ainda assim cai no default do
+ * compose (string vazia) -- foi o que deixou Web Push desligado em producao
+ * meses depois de "validado em aparelho real". Chave ausente e chave vazia
+ * tem o MESMO efeito em runtime, entao contam como o MESMO problema aqui.
+ *
  * Uso:
  *   node scripts/check-env.js              # compara com o .env local
  *   node scripts/check-env.js --env-only   # so o que falta no .env (pra rodar na VPS)
+ *   node scripts/check-env.js --prod       # .env.production x docker-compose.prod.yml
  *
  * Sai com codigo 1 se achar divergencia, pra poder virar passo de deploy.
  */
@@ -36,13 +45,17 @@ const read = (f) => {
   }
 }
 
-/** Chaves de um arquivo .env, ignorando comentario e linha vazia. */
+/** Chaves de um arquivo .env com valor nao-vazio, ignorando comentario e linha vazia. */
 const envKeys = (raw) =>
   new Set(
     (raw || '')
       .split('\n')
       .map((l) => l.trim())
       .filter((l) => l && !l.startsWith('#'))
+      .filter((l) => {
+        const valor = l.split('=').slice(1).join('=').trim()
+        return valor.length > 0
+      })
       .map((l) => l.split('=')[0].trim())
       .filter(Boolean),
   )
@@ -70,17 +83,22 @@ const composeKeys = (raw) => {
   return keys
 }
 
-const exampleRaw = read('.env.example')
+const isProd = process.argv.includes('--prod')
+const exampleFile = isProd ? '.env.production.example' : '.env.example'
+const envFile = isProd ? '.env.production' : '.env'
+const composeFile = isProd ? 'docker-compose.prod.yml' : 'docker-compose.yml'
+
+const exampleRaw = read(exampleFile)
 if (!exampleRaw) {
-  console.error('nao achei sistema/.env.example')
+  console.error(`nao achei sistema/${exampleFile}`)
   process.exit(2)
 }
 
 const envOnly = process.argv.includes('--env-only')
 const example = envKeys(exampleRaw)
-const actual = envKeys(read('.env'))
-const compose = composeKeys(read('docker-compose.yml'))
-const hasEnv = read('.env') !== null
+const actual = envKeys(read(envFile))
+const compose = composeKeys(read(composeFile))
+const hasEnv = read(envFile) !== null
 
 const problems = []
 
@@ -89,7 +107,7 @@ if (!envOnly) {
   const naoRepassadas = [...example].filter((k) => !compose.has(k))
   if (naoRepassadas.length) {
     problems.push({
-      titulo: 'No .env.example mas o compose NAO repassa pro container (configurar nao tem efeito)',
+      titulo: `Na ${exampleFile} mas o ${composeFile} NAO repassa pro container (configurar nao tem efeito)`,
       itens: naoRepassadas,
     })
   }
@@ -100,12 +118,12 @@ if (hasEnv) {
   const faltando = [...example].filter((k) => !actual.has(k) && (envOnly || compose.has(k)))
   if (faltando.length) {
     problems.push({
-      titulo: 'No .env.example mas ausente no .env (usa o default do compose, que pode divergir do documentado)',
+      titulo: `Na ${exampleFile} mas ausente ou vazia no ${envFile} (usa o default do compose, que pode divergir do documentado)`,
       itens: faltando,
     })
   }
 } else {
-  console.log('(sem .env aqui -- comparando so example x compose)\n')
+  console.log(`(sem ${envFile} aqui -- comparando so example x compose)\n`)
 }
 
 // Repassada mas nao documentada: quem monta ambiente novo nao sabe que existe.
@@ -113,14 +131,14 @@ if (!envOnly) {
   const naoDocumentadas = [...compose].filter((k) => !example.has(k))
   if (naoDocumentadas.length) {
     problems.push({
-      titulo: 'O compose repassa mas o .env.example nao documenta (invisivel pra quem monta ambiente)',
+      titulo: `O ${composeFile} repassa mas o ${exampleFile} nao documenta (invisivel pra quem monta ambiente)`,
       itens: naoDocumentadas,
     })
   }
 }
 
 if (!problems.length) {
-  console.log('ok: .env.example, .env e docker-compose.yml estao coerentes.')
+  console.log(`ok: ${exampleFile}, ${envFile} e ${composeFile} estao coerentes.`)
   process.exit(0)
 }
 
