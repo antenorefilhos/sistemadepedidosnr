@@ -79,6 +79,17 @@ const envKeys = (raw, { requireValue = false } = {}) =>
  * storefront/admin e POSTGRES_PASSWORD vai pro db -- nenhuma delas e' erro.
  * O que interessa e o oposto: variavel que o compose ignora por completo, e que
  * portanto nao chega em container nenhum por mais que esteja no .env.
+ *
+ * Limitacao conhecida (achada em 17/09/2026, rodando --prod pela primeira
+ * vez): o regex tambem captura a chave do LADO ESQUERDO de `CHAVE: valor`,
+ * mesmo quando o servico renomeia a variavel do host pra dentro do
+ * container (ex.: `RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}` no backup) ou
+ * usa valor literal fixo (`POSTGRES_DB: antenor_db`). Isso gera falso
+ * positivo na categoria "compose repassa mas .example nao documenta":
+ * RCLONE_REMOTE/RETENTION_DAILY/RETENTION_WEEKLY/POSTGRES_DB/POSTGRES_USER/
+ * MEILI_NO_ANALYTICS sao nomes INTERNOS do container, nao pertencem no
+ * .env -- quem configura usa o nome do lado direito (`${VAR}`), que ja esta
+ * documentado certo. Revisar essa lista a olho antes de tratar como bug.
  */
 const composeKeys = (raw) => {
   const keys = new Set()
