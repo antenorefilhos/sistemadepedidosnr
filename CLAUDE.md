@@ -309,6 +309,62 @@ chave original documentada em `docs/nova-maquina.md` nunca foi de fato
 copiada pro backup pré-formatação desta máquina. Se for reformatar de novo:
 **faça o backup de `~/.ssh` de verdade desta vez** — ver `docs/nova-maquina.md`.
 
+## Cloudflare na frente da VPS (JON-41, 17/09/2026)
+
+`antenorefilhos.com.br` migrou de nameservers do Registro.br
+(`ns1/ns2.dns-parking.com`) para o Cloudflare (`amalia`/`kevin.ns.cloudflare.com`).
+O domínio é **compartilhado** com o site institucional (Vercel, apex e `www`)
+e o e-mail (Hostinger, MX/SPF/DMARC/DKIM) — a zona inteira migrou junto,
+não só os 5 subdomínios nossos.
+
+**Armadilha: Cloudflare Free exige mover a zona inteira, nunca só um subdomínio.**
+Antes de trocar o nameserver, replicar TODOS os registros existentes na zona
+nova (o import automático do Cloudflare erra: perdeu `mercado`/`separação`/
+`entrega`, que tinham sido criados via painel da Hostinger e não apareceram
+no scan automático). Conferir manualmente contra `dig`/`nslookup` do estado
+anterior antes de cortar.
+
+**Registros que NÃO podem ficar com proxy (nuvem laranja) ligado**, porque
+não são HTTP e o proxy do Cloudflare quebra o protocolo original:
+- `ftp` (A) — FTP não passa pelo proxy HTTP.
+- `autoconfig`, `autodiscover` (CNAME) — descoberta de config de e-mail por
+  cliente (Outlook/Thunderbird), precisa resolver pro Hostinger de verdade.
+- `hostingermail-a/b/c` (CNAME) — delegação de DKIM do Hostinger
+  (`*.dkim.mail.hostinger.com`), tem que ficar "DNS only".
+- MX e TXT nunca são proxeáveis de qualquer forma (Cloudflare nem oferece a
+  opção pra esses tipos).
+
+### Cloudflare Tunnel (`cloudflared`) — elimina o IP público da VPS
+
+Serviço `cloudflared` no `docker-compose.prod.yml`, conectado outbound ao
+Cloudflare (token em `CLOUDFLARE_TUNNEL_TOKEN`, `.env.production`, nunca no
+repo). As 5 rotas (`mercado`/`admin`/`api`/`separacao`/`entrega`) apontam
+pra `https://antenor_proxy:443` (o Caddy, por dentro da rede Docker) —
+Cloudflare já resolve TLS/hostname na borda, o Caddy segue roteando por
+`Host` exatamente como sempre fez.
+
+**Armadilha: `cloudflared` reaproveita a mesma conexão TLS pro mesmo
+destino (`antenor_proxy:443`) entre hostnames diferentes.** Só o primeiro
+hostname a abrir a conexão manda o SNI certo; os outros que reaproveitam a
+conexão mandam SNI desatualizado, e o Caddy recusa (`tls: internal error`,
+corretamente — é proteção contra domain fronting). Sintoma: alguns
+subdomínios funcionam (200) e outros dão 502 de forma consistente, sem
+padrão óbvio até você notar que é sempre os MESMOS que falham.
+
+**Correção obrigatória:** em cada rota do túnel (Cloudflare → Zero Trust →
+Networks → Tunnels → `antenor-vps` → Published application routes → editar
+cada uma → "Origin request and connection settings"), preencher **"TLS
+Origin Server Name"** com o **próprio hostname daquela rota** (ex.: na rota
+`api`, `api.antenorefilhos.com.br`). Isso força SNI correto por conexão,
+mesmo com reuso. Sem isso, o comportamento é intermitente e engana — parece
+"metade funciona, metade não" sem explicação aparente.
+
+Outra armadilha do meio do caminho: o Type/URL da rota tem que ser
+**HTTPS `antenor_proxy:443`**, não HTTP `antenor_proxy:80` — o Caddy tem
+HTTPS automático ligado e redireciona qualquer requisição HTTP pra HTTPS,
+criando loop infinito quando o túnel manda em HTTP puro (o cliente recebe
+redirect, tenta de novo via HTTPS, o túnel manda HTTP de novo pro Caddy).
+
 ## Realidade do estoque
 
 ~82% do catálogo Solidcom tem estoque zero. Vitrine vazia geralmente é dado real,

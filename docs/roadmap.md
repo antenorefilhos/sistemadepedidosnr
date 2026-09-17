@@ -21,6 +21,16 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
+- [x] **Cloudflare na frente da VPS + Tunnel (JON-41).** (17/09/2026)
+      `antenorefilhos.com.br` migrado do Registro.br pro Cloudflare (zona
+      inteira, não só os subdomínios nossos — domínio é compartilhado com
+      site institucional Vercel e e-mail Hostinger). `cloudflared` rodando
+      como serviço do compose, IP da VPS não fica mais exposto via DNS
+      público. Detalhe completo das armadilhas (import de DNS perdeu
+      subdomínios, reuso de conexão TLS do túnel exige SNI explícito por
+      rota, HTTPS automático do Caddy cria loop se o túnel manda HTTP puro)
+      no [CLAUDE.md](../CLAUDE.md).
+
 - [x] **Gatilho de faturamento do PDV — código pronto.** (05/09/2026) O sinal é
       `hrRegistro` na `tbPedido` do banco `DORSAL` — preenchido em 386 de 386
       pedidos fechados e em nenhum não-fechado. `EcommerceSolidconStatus`
@@ -97,6 +107,25 @@ que fecha desce para o histórico com a data e o commit.
       foi executado. **O Solidcom legado continua sendo o ERP ativo em
       produção até hoje.** Decisão pendente do Jonathan: completar a ativação
       agora, ou manter Solidcom por enquanto.
+
+- [ ] **Multi-filial: o que o contrato AntenorApi já suporta (JON-36).**
+      Mapeado em 17/09/2026, direto nos specs publicados no braincoletivo
+      (`contrato-integracao-v1.7.x`, `contrato-vitrines-ecommerce-v1.13.0`).
+      **O contrato já é multi-filial de ponta a ponta**: praticamente todo
+      endpoint (produtos, preço/estoque pontual, pedidos, vitrines) aceita
+      `loja`/`filialId` (`1` = Nova Real, bairro/delivery; `2` = ALF,
+      gourmet/delicatessen) — inclusive a idempotência de `cdEcomPedido` é
+      escopada **por filial**, não global. **O nosso lado não usa isso.**
+      `AntenorApiService` fixa `ANTENOR_API_LOJA` (default `1`) numa única
+      env var e manda esse valor pra toda chamada — hoje só falamos com a
+      Nova Real, nunca com a ALF. Ir multi-filial de verdade não é só trocar
+      a env var: as duas filiais têm catálogo/preço/estoque próprios (a ALF
+      é gourmet, mix diferente da Nova Real), então precisaria resolver
+      "qual filial" por pedido/cliente — provavelmente atrelado a qual zona
+      de entrega ou loja física o cliente escolhe, o que é decisão de
+      produto (o storefront hoje não tem noção de "duas lojas", só uma).
+      Sem decisão de escopo (vender pra ALF pelo mesmo site? loja separada?
+      só administrativo?), não há próximo passo técnico claro.
 
 - [x] **ERP exposto na internet.** `http://45.239.193.56:5000` respondia sem TLS
       e sem autenticação: o catálogo completo (10,5 MB, com preço, custo e margem)
