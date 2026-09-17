@@ -30,6 +30,21 @@ via HTTPS com uma conta `role=picker`. Ver `Notificador/README.md`.
 - **Zero segredos no repo.** Nada de credencial, token, CPF ou CNPJ commitado.
 - Migrations do Prisma: escreva o SQL à mão e rode `prisma migrate deploy`.
   `migrate dev` é interativo e trava neste ambiente.
+- **Dúvida ou lacuna de contexto → pesquisar antes de perguntar ou agir.**
+  Se a sessão não lembra se algo já foi feito, decidido ou explicado, a ordem
+  é sempre: (1) `git log --oneline`/`git log -p -- <arquivo>` no repo real,
+  (2) grep por `JON-XX` no código (convenção deste projeto: todo achado da
+  Auditoria 360 vira comentário `JON-XX (Auditoria 360, ...)` no ponto exato
+  da correção — é a fonte de verdade sobre o que já foi corrigido), (3)
+  `CLAUDE.md`/`AGENTS.md`/`docs/`, (4) o vault Obsidian
+  (`E:\_Biblioteca\Notas Obsidian\Antenor e Filhos\` — `versionamento.md`,
+  `walkthrough.md`, `logs/`). Só depois disso, se a lacuna persistir,
+  pergunta ao Jonathan — e nunca sobre algo que o histórico já responde.
+  **Why:** re-perguntar o que já foi respondido, ou "corrigir" o que já foi
+  corrigido, gera retrabalho e força o usuário a repetir explicação (já
+  aconteceu mais de uma vez). Isso vale tanto para "isso já foi feito?"
+  quanto para "por que essa decisão?" — o commit/comentário quase sempre
+  já tem a resposta, com data e contexto.
 
 ## Roadmap
 
