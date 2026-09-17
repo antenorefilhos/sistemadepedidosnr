@@ -251,12 +251,18 @@ jobs:
         # jeito, so que o erro ficava mudo por um bug separado no logger (ver
         # common/nest-winston-logger.ts) -- container so reiniciava em loop
         # sem log util nenhum ate corrigir os dois.
+        #
+        # Achado em 17/09/2026 (2): DATABASE_URL/POSTGRES_USER/POSTGRES_DB
+        # aqui eram NOOP -- docker-compose.yml fixa usuario "postgres" e
+        # banco "antenor_db" direto (nao usa ${POSTGRES_USER}/${POSTGRES_DB}
+        # em lugar nenhum), so a SENHA e configuravel, e via duas variaveis
+        # separadas (POSTGRES_PASSWORD pro db, POSTGRES_PASSWORD_URLENC pra
+        # DATABASE_URL do api). Setar so POSTGRES_PASSWORD sem a URLENC
+        # correspondente criava descompasso: o banco nascia com uma senha,
+        # a API tentava conectar com outra ("authentication failed"). Removidos
+        # -- os defaults do compose (self-consistentes entre os dois servicos)
+        # bastam pro smoke test, nao precisa de senha customizada aqui.
         env:
-          DATABASE_URL: postgresql://antenor:antenor123@db:5432/antenor
-          POSTGRES_USER: antenor
-          POSTGRES_PASSWORD: antenor123
-          POSTGRES_DB: antenor
-          REDIS_URL: redis://redis:6379
           JWT_SECRET: ci-smoke-secret-sintetico-32-chars-minimo-para-passar-no-check
           SOLIDCOM_API_URL: http://solidcom-sintetico-ci.invalid
           SOLIDCOM_CNPJ: "00000000000000"
