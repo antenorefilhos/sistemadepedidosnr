@@ -88,25 +88,22 @@ que fecha desce para o histórico com a data e o commit.
       Único erro do percurso: item por peso exige `finalWeight` (validação
       correta — conferir se o campo está visível no app do separador).
 
-- [ ] **AntenorApi: substituir a integração Solidcom (cutover, JON-17) — código
-      pronto e testado, mas nunca ativado de fato em produção.** O trabalho de
-      10/09/2026 ficou completo e validado: performance deixou de ser bloqueio
-      (12,5s pro catálogo completo contra 15,3s do Solidcom), criação de pedido
-      e sync de catálogo via AntenorApi foram escritos, mapeamento
-      `VL_PRODUTO_NORMAL → price` / `VL_PRODUTO → promotionalPrice` validado
-      contra o banco real, e um pedido de teste gerou DAV 102080 de ponta a
-      ponta. **Mas** — achado em 17/09/2026 ao investigar por que a vitrine
-      nova (JON-172/173 → AEF-037) sempre cai no fallback client-side —
-      `.env.production` na VPS **nunca** teve `ANTENOR_API_URL`/`_KEY`/
-      `_CA_PATH` preenchidas (nenhum backup histórico do arquivo tem essas
-      linhas) e `INTEGRATION_ANTENORAPI_ENABLED` segue no default `false`. O
-      teste de ponta a ponta quase certamente rodou com credencial aplicada
-      manualmente, não pelo caminho padrão de deploy. Nenhum commit ou
-      registro no braincoletivo indica reversão deliberada — parece que o
-      último passo (preencher o `.env.production` real e virar a flag) nunca
-      foi executado. **O Solidcom legado continua sendo o ERP ativo em
-      produção até hoje.** Decisão pendente do Jonathan: completar a ativação
-      agora, ou manter Solidcom por enquanto.
+- [x] **AntenorApi: substituir a integração Solidcom (cutover, JON-17) —
+      ativada de vez em produção.** (17/09/2026) O trabalho de 10/09/2026
+      ficou completo e validado (12,5s pro catálogo completo contra 15,3s do
+      Solidcom, DAV 102080 de ponta a ponta), mas o `.env.production` real
+      nunca recebeu as credenciais — achado em 17/09/2026 investigando o
+      fallback da vitrine nova (JON-172/173 → AEF-037). Corrigido: chave de
+      produção repassada pelo `[A1-API]` via canal privado (nunca em
+      documento), aplicada em `.env.production`, `INTEGRATION_ANTENORAPI_ENABLED=true`.
+      **Smoke test real confirmou**: `GET /cms/categories/home-vitrines`
+      responde com personalidade contextual de verdade (não mais o fallback
+      client-side) e produtos reais mapeados pro catálogo local. Sem erro,
+      sem fallback disparado nos logs.
+      **AntenorApi agora é a integração principal, com fallback automático
+      pro Solidcom** se ela falhar numa criação de pedido (implementado em
+      17/09/2026, `order-orchestration.service.ts`) — o Solidcom continua
+      ligado como rede de segurança, não foi desligado.
 
 - [ ] **Multi-filial: o que o contrato AntenorApi já suporta (JON-36).**
       Mapeado em 17/09/2026, direto nos specs publicados no braincoletivo
