@@ -848,6 +848,54 @@ describe('OrderOrchestrationService', () => {
         expect.stringContaining('timeout'),
       )
     })
+
+    // Decisao de 17/09/2026: AntenorApi principal, Solidcom fallback
+    // automatico -- antes a AntenorApi so reenfileirava ela mesma via outbox.
+    describe('fallback automatico pro Solidcom quando a AntenorApi falha', () => {
+      beforeEach(() => {
+        mockIntegrationModulesService.isEnabled.mockImplementation(async () => true) // os dois ligados
+      })
+
+      it('AntenorApi falha, Solidcom (fallback) da certo: nao enfileira outbox', async () => {
+        mockAntenorApiService.createOrder.mockRejectedValue(new Error('timeout'))
+        mockSolidcomERPService.syncOrder.mockResolvedValue('102099')
+        mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+        await service.syncCreatedOrder(pickupPayload)
+
+        expect(mockAntenorApiService.createOrder).toHaveBeenCalledTimes(1)
+        expect(mockSolidcomERPService.syncOrder).toHaveBeenCalledTimes(1)
+        expect(mockIntegrationOutboxService.enqueueSolidcomOrderFailure).not.toHaveBeenCalled()
+      })
+
+      it('AntenorApi falha, Solidcom (fallback) TAMBEM falha: enfileira outbox com os dois motivos', async () => {
+        mockAntenorApiService.createOrder.mockRejectedValue(new Error('timeout AntenorApi'))
+        mockSolidcomERPService.syncOrder.mockRejectedValue(new Error('timeout Solidcom'))
+        mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+        await expect(service.syncCreatedOrder(pickupPayload)).resolves.toBeUndefined()
+
+        expect(mockAntenorApiService.createOrder).toHaveBeenCalledTimes(1)
+        expect(mockSolidcomERPService.syncOrder).toHaveBeenCalledTimes(1)
+        expect(mockIntegrationOutboxService.enqueueSolidcomOrderFailure).toHaveBeenCalledWith(
+          'order-pickup-1',
+          expect.anything(),
+          expect.stringMatching(/timeout AntenorApi.*timeout Solidcom/),
+        )
+      })
+
+      it('AntenorApi da certo de primeira: Solidcom (fallback) nunca e chamado', async () => {
+        mockAntenorApiService.createOrder.mockResolvedValue({
+          sucesso: true, cdPedido: '2080', numeroDAV: '102078', cdEcomPedido: '999', valorTotal: 37.9, idempotente: false,
+        })
+        mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
+
+        await service.syncCreatedOrder(pickupPayload)
+
+        expect(mockSolidcomERPService.syncOrder).not.toHaveBeenCalled()
+        expect(mockIntegrationOutboxService.enqueueSolidcomOrderFailure).not.toHaveBeenCalled()
+      })
+    })
   })
 
 })

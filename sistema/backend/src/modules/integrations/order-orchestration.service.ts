@@ -44,22 +44,61 @@ export class OrderOrchestrationService {
   ) {}
 
   async syncCreatedOrder(payload: InternalOrderContract): Promise<void> {
-    // JON-17 (cutover): AntenorApi tem prioridade quando ligada, mesmo padrao
-    // de resolveCatalogSource em products.service.ts -- e a substituta, nao
-    // um fallback. Os dois modulos podem ficar ligados ao mesmo tempo durante
-    // a migracao sem os dois tentarem mandar o mesmo pedido pro ERP.
-    if (await this.integrationModules.isEnabled('antenorapi')) {
-      await this.syncCreatedOrderViaAntenorApi(payload)
-      return
-    }
+    // Decisao de 17/09/2026: AntenorApi principal, Solidcom fallback
+    // automatico quando ligado (antes: "substituta, nao fallback" -- os dois
+    // nunca se cobriam, uma falha da AntenorApi so reenfileirava ela mesma).
+    // O toggle de ativa/desativa por modulo ja existia
+    // (IntegrationModulesService / tela Integracoes do admin); o que faltava
+    // era o SEGUNDO conector so entrar em acao quando o primeiro falha de
+    // verdade -- nunca os dois tentando mandar o mesmo pedido em paralelo.
+    const antenorapiEnabled = await this.integrationModules.isEnabled('antenorapi')
+    const solidcomEnabled = await this.integrationModules.isEnabled('solidcom')
 
-    if (!(await this.integrationModules.isEnabled('solidcom'))) {
+    if (!antenorapiEnabled && !solidcomEnabled) {
       await this.logSyncEvent('SYNC_ORDER_SKIPPED_MODULE_DISABLED', payload.orderId, {
         reason: 'Nenhum conector de ERP habilitado (Solidcom ou AntenorApi)',
       })
       return
     }
 
+    if (antenorapiEnabled) {
+      const antenorapi = await this.syncCreatedOrderViaAntenorApi(payload)
+      if (antenorapi.ok) return
+
+      if (!solidcomEnabled) {
+        // Sem fallback disponivel -- enfileira aqui mesmo, nao ha um segundo
+        // conector que vai tentar depois.
+        await this.integrationOutbox.enqueueSolidcomOrderFailure(
+          payload.orderId,
+          this.mapToAntenorApiPedido(payload) as unknown as Record<string, unknown>,
+          antenorapi.reason || 'AntenorApi falhou',
+        )
+        return
+      }
+
+      this.logger.warn(
+        `AntenorApi falhou pro pedido ${payload.orderId} (${antenorapi.reason}) -- tentando fallback via Solidcom antes de desistir.`,
+      )
+
+      const solidcom = await this.syncCreatedOrderViaSolidcom(payload)
+      // So enfileira retentativa da AntenorApi se o fallback Solidcom TAMBEM
+      // falhou -- se o Solidcom deu certo, o pedido ja tem DAV real; reenviar
+      // pra AntenorApi depois criaria um segundo pedido no ERP deles.
+      if (!solidcom.ok) {
+        await this.integrationOutbox.enqueueSolidcomOrderFailure(
+          payload.orderId,
+          this.mapToAntenorApiPedido(payload) as unknown as Record<string, unknown>,
+          `AntenorApi (${antenorapi.reason}) e fallback Solidcom (${solidcom.reason}) falharam`,
+        )
+      }
+      return
+    }
+
+    await this.syncCreatedOrderViaSolidcom(payload)
+  }
+
+  /** Extraido de syncCreatedOrder pra servir tanto o fluxo normal quanto o fallback pos-falha da AntenorApi. */
+  private async syncCreatedOrderViaSolidcom(payload: InternalOrderContract): Promise<{ ok: boolean; reason?: string }> {
     const externalPayload = this.mapToSolidcomPedido(payload)
 
     await this.logSyncEvent('INTERNAL_ORDER_CONTRACT_SNAPSHOT', payload.orderId, {
@@ -75,24 +114,28 @@ export class OrderOrchestrationService {
         codEcom: externalPayload.codEcom,
         dav,
       })
+      return { ok: true }
     } catch (error) {
       const reason = this.stringifyError(error)
       await this.logSyncEvent('SYNC_ORDER_FAILED', payload.orderId, {
         reason,
         payload: externalPayload,
       })
-      await this.integrationOutbox.enqueueSolidcomOrderFailure(payload.orderId, externalPayload as unknown as Record<string, unknown>, reason)
       this.logger.warn(`Falha ao encaminhar pedido ${payload.orderId} para integracao ERP`, error)
+      return { ok: false, reason }
     }
   }
 
   /**
    * Cria o pedido via AntenorApi (JON-17). Espelha o fluxo do Solidcom
-   * (snapshot antes, outbox de retentativa em falha, persiste o DAV) mas
-   * usa `createOrder` em vez de `syncOrder` -- a AntenorApi ja e idempotente
-   * por `cdEcomPedido` do lado dela, entao um reenvio via outbox nao duplica.
+   * (snapshot antes, persiste o DAV) mas usa `createOrder` em vez de
+   * `syncOrder` -- a AntenorApi ja e idempotente por `cdEcomPedido` do lado
+   * dela, entao um reenvio via outbox nao duplica.
+   *
+   * Devolve falha sem enfileirar outbox aqui direto -- quem chama decide
+   * entre tentar o fallback Solidcom primeiro ou enfileirar.
    */
-  private async syncCreatedOrderViaAntenorApi(payload: InternalOrderContract): Promise<void> {
+  private async syncCreatedOrderViaAntenorApi(payload: InternalOrderContract): Promise<{ ok: boolean; reason?: string }> {
     const externalPayload = this.mapToAntenorApiPedido(payload)
 
     await this.logSyncEvent('INTERNAL_ORDER_CONTRACT_SNAPSHOT', payload.orderId, {
@@ -109,14 +152,15 @@ export class OrderOrchestrationService {
         cdPedido: resultado.cdPedido,
         idempotente: resultado.idempotente,
       })
+      return { ok: true }
     } catch (error) {
       const reason = this.stringifyError(error)
       await this.logSyncEvent('SYNC_ORDER_FAILED', payload.orderId, {
         reason,
         payload: externalPayload,
       })
-      await this.integrationOutbox.enqueueSolidcomOrderFailure(payload.orderId, externalPayload as unknown as Record<string, unknown>, reason)
       this.logger.warn(`Falha ao encaminhar pedido ${payload.orderId} para AntenorApi`, error)
+      return { ok: false, reason }
     }
   }
 
