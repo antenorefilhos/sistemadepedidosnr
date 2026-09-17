@@ -45,14 +45,23 @@ const read = (f) => {
   }
 }
 
-/** Chaves de um arquivo .env com valor nao-vazio, ignorando comentario e linha vazia. */
-const envKeys = (raw) =>
+/**
+ * Chaves de um arquivo .env, ignorando comentario e linha vazia.
+ *
+ * `requireValue: true` (uso: arquivo REAL, .env/.env.production) tambem exige
+ * valor nao-vazio -- ausente e vazio tem o mesmo efeito em runtime. O arquivo
+ * `.example` NUNCA usa essa opcao: la, `CHAVE=` vazia e o placeholder correto
+ * de proposito (zero segredo real committado), entao a chave documentada
+ * conta mesmo sem valor.
+ */
+const envKeys = (raw, { requireValue = false } = {}) =>
   new Set(
     (raw || '')
       .split('\n')
       .map((l) => l.trim())
       .filter((l) => l && !l.startsWith('#'))
       .filter((l) => {
+        if (!requireValue) return true
         const valor = l.split('=').slice(1).join('=').trim()
         return valor.length > 0
       })
@@ -96,7 +105,7 @@ if (!exampleRaw) {
 
 const envOnly = process.argv.includes('--env-only')
 const example = envKeys(exampleRaw)
-const actual = envKeys(read(envFile))
+const actual = envKeys(read(envFile), { requireValue: true })
 const compose = composeKeys(read(composeFile))
 const hasEnv = read(envFile) !== null
 
