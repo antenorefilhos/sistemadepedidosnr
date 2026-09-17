@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react'
 import { useHomeShelves } from '../hooks/useHomeShelves'
 import {
   CATEGORY_ICONS,
@@ -153,11 +153,23 @@ export default function Home() {
     promotionalProducts,
   })
 
-  // Vitrines de intencao do grid desktop (xl:grid-cols-3). Filtra vazias ANTES de
-  // renderizar: ProductShelf ja retorna null sem produto, mas a celula do grid so
-  // deixa de existir de fato quando a vitrine nunca entra no array — e o wrapper
-  // some por inteiro (sem margem de space-y sobrando) se todas estiverem vazias.
-  const intentShelves = useMemo(() => ([
+  /**
+   * JON-173: schema unico de secoes, usado por mobile E desktop -- antes o
+   * desktop tinha 5 blocos de categoria com JSX proprio (`<section>` +
+   * `.map(StoreProductCard)` a mao) duplicando o que ProductShelf ja faz,
+   * e mobile/desktop mostravam hierarquias DIFERENTES (mobile nunca exibia
+   * churrasco/carnes-dia-a-dia/consumo-rapido/guloseimas como secao propria,
+   * so enterrado no grid final "Tudo do Mercado"). Uma unica lista ordenada
+   * agora alimenta os dois -- so a topologia (carrossel vs coluna, banners
+   * intercalados) muda por viewport, nunca a prioridade comercial.
+   *
+   * Ordem: recompra/essenciais -> ofertas validas hoje -> missoes de compra
+   * por ocasiao (frescos, churrasco, feira) -> categorias -> mais vendidos.
+   * "Tudo do Mercado" (grid, sem curadoria) fica de fora desta lista e
+   * renderiza por ultimo, separado -- e o catalogo completo, nao uma vitrine
+   * comercial com hierarquia.
+   */
+  const homeSections = useMemo(() => ([
     {
       key: 'rebuy',
       eyebrow: user ? 'Historico de compra' : 'Compra recorrente',
@@ -183,7 +195,7 @@ export default function Home() {
       to: '/mercado?cat=hortifruti',
     },
     {
-      key: 'churrasco',
+      key: 'churrascoOccasion',
       eyebrow: 'Ocasião pronta',
       title: 'Churrasco sem garimpo',
       icon: Flame,
@@ -199,6 +211,46 @@ export default function Home() {
       to: '/mercado?cat=hortifruti',
     },
     {
+      key: 'churrasco',
+      eyebrow: 'Especialidade da casa',
+      title: 'Seleção para churrasco',
+      icon: Flame,
+      products: categorized.churrasco,
+      to: '/mercado?q=churrasco',
+    },
+    {
+      key: 'padaria',
+      eyebrow: 'Forno da casa',
+      title: 'Padaria & pães artesanais',
+      icon: Croissant,
+      products: categorized.padaria,
+      to: '/mercado?q=padaria',
+    },
+    {
+      key: 'carnesDiaADia',
+      eyebrow: 'Açougue',
+      title: 'Carnes para o dia a dia',
+      icon: Beef,
+      products: categorized.carnesDiaADia,
+      to: '/mercado?q=carnes',
+    },
+    {
+      key: 'consumoRapido',
+      eyebrow: 'Praticidade',
+      title: 'Fome de agora',
+      icon: Pizza,
+      products: categorized.consumoRapido,
+      to: '/mercado?q=praticos',
+    },
+    {
+      key: 'guloseimas',
+      eyebrow: 'Snacks e doces',
+      title: 'Guloseimas & snacks',
+      icon: Candy,
+      products: categorized.guloseimas,
+      to: '/mercado?q=guloseimas',
+    },
+    {
       key: 'recurring',
       eyebrow: 'Compra recorrente',
       title: 'Itens que sempre voltam',
@@ -206,8 +258,17 @@ export default function Home() {
       products: recurringShelf.slice(0, 6),
       to: '/mercado?q=recorrentes',
     },
+    {
+      key: 'bestSellers',
+      eyebrow: 'Dados de pedidos',
+      title: 'Mais vendidos',
+      icon: Sparkles,
+      products: bestSellers,
+      to: '/mercado',
+    },
   ]).filter((shelf) => shelf.products.length > 0), [
     user, rebuyShelf, offersShelf, freshShelf, churrascoOccasionShelf, fairShelf, recurringShelf,
+    categorized, bestSellers,
   ])
 
   // Tarja/popup fechados ficam fechados so pela sessao (sessionStorage) --
@@ -688,16 +749,6 @@ export default function Home() {
         </section>
       )}
 
-      <ProductShelf
-        className="md:hidden px-4 pt-5 pb-2"
-        title={user ? 'Recomprar rapidinho' : 'Atalhos para repetir'}
-        eyebrow={user ? 'Histórico do cliente' : 'Mais pedidos da loja'}
-        icon={ShoppingCart}
-        products={rebuyShelf}
-        to="/mercado"
-        linkLabel="Ver mais"
-      />
-
       {highlightedCampaign && (
         <ProductShelf
           className="md:hidden px-4 pt-5 pb-2"
@@ -710,91 +761,30 @@ export default function Home() {
         />
       )}
 
-      {/* "Ofertas para hoje" fica ANTES do primeiro banner de proposito: rebuyShelf
-          e highlightedCampaign acima costumam vir vazios (sem historico/sem
-          encarte em destaque), e sem uma vitrine real aqui o Hero ficava colado
-          direto no banner intercalado -- 2-3 banners empilhados sem nenhum
-          produto entre eles antes do usuario ver qualquer coisa pra comprar. */}
-      <ProductShelf
-        className="md:hidden px-4 pt-5 pb-2"
-        title="Ofertas para hoje"
-        eyebrow="Preços especiais"
-        icon={Sparkles}
-        products={offersShelf}
-        to="/promocoes"
-        linkLabel="Promos"
-      />
-
-      {/* Banners intercalados: espalhados em pares entre as vitrines em vez
-          de bunched num carrossel unico -- da o respiro visual que chama
-          atencao enquanto o cliente rola a pagina. hasMobileLeadContent
-          garante que este 1o par nunca fique colado direto no Hero. */}
-      {hasMobileLeadContent && <PromoBannerPair banners={promoPairs[0]} className="md:hidden mx-4 mb-4" />}
-
-      <ProductShelf
-        className="md:hidden px-4 pt-5 pb-2"
-        title="Frescos da loja"
-        eyebrow="Açougue e padaria"
-        icon={Apple}
-        products={freshShelf}
-        to="/mercado?cat=hortifruti"
-        linkLabel="Ver frescos"
-      />
-
-      <PromoBannerPair banners={promoPairs[1]} className="md:hidden mx-4 mb-4" />
-
-      <ProductShelf
-        className="md:hidden px-4 pt-5 pb-2"
-        title="Feira da semana"
-        eyebrow="Hortifruti e frescos"
-        icon={Apple}
-        products={fairShelf}
-        to="/mercado?cat=hortifruti"
-        linkLabel="Ver feira"
-      />
-
-      <ProductShelf
-        className="md:hidden px-4 pt-5 pb-2"
-        title="Recorrentes da casa"
-        eyebrow="Itens que sempre voltam"
-        icon={ShoppingBag}
-        products={recurringShelf}
-        to="/mercado?q=recorrentes"
-        linkLabel="Ver itens"
-      />
-
-      <PromoBannerPair banners={promoPairs[2]} className="md:hidden mx-4 mb-4" />
-
-      <ProductShelf
-        className="md:hidden px-4 pt-5 pb-2"
-        title="Mais Pedidos"
-        eyebrow="Dados de pedidos"
-        icon={Sparkles}
-        products={bestSellers}
-        to="/mercado"
-        linkLabel="Ver todos"
-      />
-
-      {/* Mobile — Mais seções de produto */}
-      <ProductShelf
-        className="md:hidden px-4 pb-2"
-        title="Churrasco e ocasião"
-        eyebrow="Ocasião pronta"
-        icon={Flame}
-        products={churrascoOccasionShelf}
-        to="/mercado?q=churrasco"
-        linkLabel="Ver todos"
-      />
-
-      <ProductShelf
-        className="md:hidden px-4 pb-2"
-        title="Padaria & Pães Artesanais"
-        eyebrow="Forno da casa"
-        icon={Croissant}
-        products={categorized.padaria}
-        to="/mercado?q=padaria"
-        linkLabel="Ver todos"
-      />
+      {/* JON-173: mesmo `homeSections` do desktop, so muda a topologia
+          (coluna unica + banners intercalados a cada ~3 vitrines, em vez de
+          carrossel lado a lado) -- mobile parou de ser uma lista solta com
+          ordem propria e passou a ter a MESMA prioridade comercial. */}
+      {homeSections.map((shelf, index) => (
+        <Fragment key={shelf.key}>
+          <ProductShelf
+            className="md:hidden px-4 pt-5 pb-2"
+            title={shelf.title}
+            eyebrow={shelf.eyebrow}
+            icon={shelf.icon}
+            products={shelf.products}
+            to={shelf.to}
+            linkLabel="Ver mais"
+          />
+          {/* 1o par so entra se ja existe conteudo real acima (hasMobileLeadContent)
+              -- sem isso ele ficava colado direto no Hero quando rebuy/ofertas
+              vinham vazios. Os pares seguintes (indices 5 e 8) nao tem essa
+              restricao: sempre ha vitrine de verdade entre eles. */}
+          {index === 1 && (hasMobileLeadContent ? <PromoBannerPair banners={promoPairs[0]} className="md:hidden mx-4 mb-4" /> : null)}
+          {index === 4 && <PromoBannerPair banners={promoPairs[1]} className="md:hidden mx-4 mb-4" />}
+          {index === 7 && <PromoBannerPair banners={promoPairs[2]} className="md:hidden mx-4 mb-4" />}
+        </Fragment>
+      ))}
 
       <ProductShelf
         className="md:hidden px-4 pb-2"
@@ -833,150 +823,23 @@ export default function Home() {
           </section>
         )}
 
-        {/* Vitrine 1: recompra/ofertas/frescos/churrasco/feira/recorrentes */}
-        {intentShelves.length > 0 && (
-        <div className="space-y-10">
-          {intentShelves.map((shelf) => (
-            <ProductShelf
-              key={shelf.key}
-              layout="carousel"
-              eyebrow={shelf.eyebrow}
-              title={shelf.title}
-              icon={shelf.icon}
-              products={shelf.products}
-              to={shelf.to}
-            />
-          ))}
-        </div>
-        )}
+        {/* JON-173: schema unico com o mobile (homeSections) -- antes daqui
+            pra baixo eram 5 blocos de <section> escritos a mao duplicando
+            ProductShelf (cada um com seu proprio header, sem consistencia
+            de hierarquia visual entre eles). Banners intercalados a cada
+            ~4 vitrines, nos mesmos indices relativos usados no mobile. */}
+        {homeSections.map((shelf, index) => (
+          <Fragment key={shelf.key}>
+            <ProductShelf layout="carousel" eyebrow={shelf.eyebrow} title={shelf.title} icon={shelf.icon} products={shelf.products} to={shelf.to} />
+            {index === 1 && <PromoBannerPair banners={promoPairs[0]} />}
+            {index === 5 && <PromoBannerPair banners={promoPairs[1]} />}
+            {index === 8 && <PromoBannerPair banners={promoPairs[2]} />}
+          </Fragment>
+        ))}
 
-        {/* Par de banners 1 */}
-        <PromoBannerPair banners={promoPairs[0]} />
-
-        {/* Vitrine 2: mais vendidos */}
-        {bestSellers.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex flex-col">
-              <span className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold">Dados de pedidos</span>
-              <h3 className="text-3xl font-bold luxury-text flex items-center gap-2 text-[#231F20]">
-                <Sparkles size={24} className="text-[#5D082A]" /> Mais Vendidos
-              </h3>
-            </div>
-            <Link to="/mercado" className="text-xs text-[#5D082A] font-bold flex items-center gap-1 hover:underline whitespace-nowrap">
-              Ver catálogo <ArrowRight size={14} />
-            </Link>
-          </div>
-          <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x">
-            {bestSellers.map(product => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-            ))}
-          </div>
-        </section>
-        )}
-
-        {/* Category: CHURRASCO */}
-        {categorized.churrasco.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex flex-col">
-              <span className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold">Especialidade da Casa</span>
-              <h3 className="text-3xl font-bold luxury-text flex items-center gap-2 text-[#231F20]">
-                <Flame size={24} className="text-[#5D082A]" /> Seleção para Churrasco
-              </h3>
-            </div>
-            <Link to="/mercado?q=churrasco" className="text-xs text-[#5D082A] font-bold flex items-center gap-1 hover:underline whitespace-nowrap">
-              Ver mais <ArrowRight size={14} />
-            </Link>
-          </div>
-          <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x">
-             {categorized.churrasco.map(product => (
-               <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-             ))}
-          </div>
-        </section>
-        )}
-
-        {/* Vitrine 3: churrasco, padaria, carnes e consumo rapido */}
-        {/* Category: PADARIA */}
-        {categorized.padaria.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <Link to="/mercado?q=padaria" className="cursor-pointer hover:opacity-80 transition-opacity">
-              <h3 className="text-2xl font-bold flex items-center gap-2 text-[#231F20]">
-              <Croissant size={22} className="text-[#5D082A]" /> Padaria & Pães Artesanais
-            </h3>
-            </Link>
-          </div>
-          <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x">
-             {categorized.padaria.map(product => (
-               <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-             ))}
-          </div>
-        </section>
-        )}
-
-        {/* Category: CARNES DIA A DIA */}
-        {categorized.carnesDiaADia.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <Link to="/mercado?q=carnes" className="cursor-pointer hover:opacity-80 transition-opacity">
-              <h3 className="text-2xl font-bold flex items-center gap-2 text-[#231F20]">
-              <Beef size={22} className="text-[#5D082A]" /> Carnes para o Dia a Dia
-            </h3>
-            </Link>
-          </div>
-          <div className="flex gap-6 overflow-x-auto pb-4 hide-scrollbar snap-x">
-             {categorized.carnesDiaADia.map(product => (
-               <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-             ))}
-          </div>
-        </section>
-        )}
-
-        {/* Category: CONSUMO RAPIDO */}
-        {categorized.consumoRapido.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <Link to="/mercado?q=praticos" className="cursor-pointer hover:opacity-80 transition-opacity">
-              <h3 className="text-2xl font-bold flex items-center gap-2 text-[#231F20]">
-              <Pizza size={22} className="text-[#5D082A]" /> Fome de Agora
-            </h3>
-            </Link>
-          </div>
-          <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x">
-             {categorized.consumoRapido.map(product => (
-               <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-             ))}
-          </div>
-        </section>
-        )}
-
-        {/* Par de banners 2 */}
-        <PromoBannerPair banners={promoPairs[1]} />
-
-        {/* Category: GULOSEIMAS */}
-        {categorized.guloseimas.length > 0 && (
-        <section className="fade-in-section">
-          <div className="flex items-center justify-between mb-6">
-            <Link to="/mercado?q=guloseimas" className="cursor-pointer hover:opacity-80 transition-opacity">
-              <h3 className="text-2xl font-bold flex items-center gap-2 text-[#231F20]">
-              <Candy size={22} className="text-[#5D082A]" /> Guloseimas & Snacks
-            </h3>
-            </Link>
-          </div>
-          <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x">
-             {categorized.guloseimas.map(product => (
-               <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
-             ))}
-          </div>
-        </section>
-        )}
-
-        {/* Par de banners 3 */}
-        <PromoBannerPair banners={promoPairs[2]} />
-
-          {/* General Grid */}
+          {/* General Grid -- catalogo completo, sem curadoria comercial:
+              fica de fora do schema das vitrines de proposito, sempre por
+              ultimo (a posicao "editorial"/diretorio do pedido do ticket). */}
           <section className="pt-8">
              <h3 className="text-xl font-bold text-[#5d4f33] flex items-center gap-2 mb-8 border-b pb-4">
                <ShoppingBag size={20} className="text-[#5D082A]" /> Tudo do Mercado
@@ -1089,8 +952,11 @@ function PopupBanner({ banner, onDismiss }: { banner: PromoBannerView; onDismiss
     if (banner.id) cmsAPI.storeBanners.registerClick(banner.id).catch(() => {})
   }
 
+  // z-[60]: precisa ficar acima do header sticky (z-50) -- projeto nao tem
+  // escala de z-index formal ainda, mas isso e deliberado (1 acima do
+  // header), nao um valor solto tipo o z-[100] antigo.
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onDismiss} />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-[#F7F0E4] shadow-2xl">
         <button

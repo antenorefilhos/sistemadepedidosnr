@@ -144,7 +144,7 @@ export function Footer() {
                   </p>
                 )}
                 {brand.deliveryHoursText && (
-                  <p className="flex items-start gap-2 pl-[24px] text-[#8A6A3A]">
+                  <p className="flex items-start gap-2 pl-6 text-[#8A6A3A]">
                     {brand.deliveryHoursText}
                   </p>
                 )}
