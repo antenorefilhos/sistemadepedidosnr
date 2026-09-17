@@ -269,6 +269,17 @@ jobs:
           curl -f http://localhost:3000 || (docker compose logs storefront && exit 1)
           curl -f http://localhost:3002 || (docker compose logs admin && exit 1)
 
+      # Achado em 17/09/2026: este job nunca rodava migrate/seed no banco da
+      # stack (diferente do test-pr.yml "e2e-critical", que ja fazia isso) --
+      # /health passa porque nao toca no Prisma de verdade, mas o guardrail
+      # abaixo consulta tabelas de categoria que nao existem num banco recem
+      # criado, e sempre falhava com 500 generico.
+      - name: Migrations + seed
+        working-directory: sistema
+        run: |
+          docker compose exec -T api npx prisma migrate deploy
+          docker compose exec -T api npx prisma db seed
+
       - name: Pending contract guardrail
         working-directory: sistema
         run: docker compose exec -T api node /app/scripts/validate-pending-contract.js
