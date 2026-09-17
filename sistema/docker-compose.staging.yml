@@ -28,6 +28,9 @@ services:
     networks:
       - antenor_staging_network
     ports:
+      # JON-145 (Auditoria 360, Medium): sem host explicito, o Docker
+      # publica em 0.0.0.0 -- banco alcancavel por qualquer IP com rota
+      # ate a maquina, nao so localhost.
       - "127.0.0.1:5433:5432"
 
   redis_staging:
@@ -49,7 +52,7 @@ services:
     networks:
       - antenor_staging_network
     ports:
-      - "127.0.0.1:7701:7700"
+      - "127.0.0.1:7701:7700" # JON-145, ver comentario no servico db
 
   api_staging:
     build:
@@ -90,7 +93,7 @@ services:
     networks:
       - antenor_staging_network
     ports:
-      - "127.0.0.1:4001:3001"
+      - "127.0.0.1:4001:3001" # JON-145, ver comentario no servico db
 
   storefront_staging:
     build:
