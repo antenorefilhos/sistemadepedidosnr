@@ -365,6 +365,36 @@ HTTPS automático ligado e redireciona qualquer requisição HTTP pra HTTPS,
 criando loop infinito quando o túnel manda em HTTP puro (o cliente recebe
 redirect, tenta de novo via HTTPS, o túnel manda HTTP de novo pro Caddy).
 
+### Armadilha: Cloudflare cacheia resposta de erro (404/5xx) por trás do proxy
+
+Achada em 17-18/09/2026 corrigindo fotos de banner quebradas: corrigi o
+arquivo faltando no servidor, testei de novo e **continuava 404**. O
+Cloudflare tinha cacheado a resposta de erro de quando o arquivo ainda não
+existia (`cf-cache-status: HIT`), respeitando o `Cache-Control: max-age=...`
+que o Caddy manda por padrão pra estático — Cloudflare cacheia por status
+code, não só 200, a menos que a página de regras de cache diga o contrário.
+
+**Regra:** depois de corrigir qualquer recurso servido atrás do proxy
+Cloudflare (`api`/`mercado`/`admin`/etc.), sempre checar o header
+`cf-cache-status` da resposta antes de dar o fix por confirmado — `HIT` numa
+resposta que deveria ter mudado é sinal de cache velho, não de fix que não
+pegou. Purge cirúrgico por URL, não "Purge Everything":
+
+```bash
+curl -X POST "https://api.cloudflare.com/client/v4/zones/<ZONE_ID>/purge_cache" \
+  -H "Authorization: Bearer <API_TOKEN>" -H "Content-Type: application/json" \
+  --data '{"files":["https://api.antenorefilhos.com.br/uploads/arquivo.webp"]}'
+```
+
+O token de API do Cloudflare para essa conta é **de conta** (`Account API
+Token`), não de usuário — por isso `GET /user/tokens/verify` responde
+"Invalid API Token" mesmo com o token correto; testar contra um endpoint
+de zona (`GET /zones?name=...`) é o jeito certo de validar esse tipo de
+token. `ZONE_ID` de `antenorefilhos.com.br`: `cc1a05ea312e1a08a16d57e17ede8345`
+(não é segredo, é identificador público de zona). O token em si nunca vai
+pra este arquivo nem pro repo — fica só no `.env.production` do host que
+precisar dele, ou é pedido ao Jonathan na hora.
+
 ## Realidade do estoque
 
 ~82% do catálogo Solidcom tem estoque zero. Vitrine vazia geralmente é dado real,

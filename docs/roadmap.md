@@ -31,6 +31,31 @@ que fecha desce para o histórico com a data e o commit.
       rota, HTTPS automático do Caddy cria loop se o túnel manda HTTP puro)
       no [CLAUDE.md](../CLAUDE.md).
 
+- [x] **Fotos de banner quebradas em produção (404) por script rodado só
+      localmente.** (17-18/09/2026) `scripts/seed-banner-templates.js` gera
+      os `.webp` dos 6 modelos de banner e grava linha no banco apontando
+      pra `/uploads/seed-banner-*.webp` — rodei contra o `DATABASE_URL` de
+      produção, mas os arquivos ficaram só no disco local
+      (`sistema/backend/uploads/`, nunca chegaram ao volume `uploads_data`
+      da VPS). Efeito: banco de produção com banners "ativos" apontando pra
+      arquivo inexistente no servidor, 404 direto no storefront. Corrigido
+      copiando os 8 `.webp` locais pro container (`docker cp` via
+      `scp`+`ssh antenor-vps`).
+      **Segunda camada, específica do Cloudflare**: depois de corrigir o
+      arquivo, a imagem ainda vinha 404 — o Cloudflare tinha **cacheado o
+      404 antigo** (`cf-cache-status: HIT`, `Cache-Control: max-age=14400`
+      do Caddy). Resolvido com purge cirúrgico via API
+      (`POST /zones/:id/purge_cache` com a lista de `files`), não
+      "Purge Everything".
+      **Lição:** rodar script de seed/import contra `DATABASE_URL` de
+      produção sem also enviar os artefatos de arquivo que ele gera é a
+      mesma família de bug do "banco parece configurado mas não é" — só que
+      em vez de env var, é volume. Confirmar sempre os dois lados (linha no
+      banco E arquivo no volume) antes de dar por resolvido. E depois de
+      qualquer fix em cima de recurso servido por trás do Cloudflare,
+      checar `cf-cache-status` antes de concluir que não corrigiu —
+      confirme com purge explícito por URL, não "deve ter propagado".
+
 - [x] **Gatilho de faturamento do PDV — código pronto.** (05/09/2026) O sinal é
       `hrRegistro` na `tbPedido` do banco `DORSAL` — preenchido em 386 de 386
       pedidos fechados e em nenhum não-fechado. `EcommerceSolidconStatus`
@@ -178,11 +203,11 @@ que fecha desce para o histórico com a data e o commit.
       fornecedor em 26/08 — a falha aparecia como "a IA decidiu não avisar",
       porque falha de chamada e recusa editorial eram contadas juntas. Corrigido
       com contador separado.
-      **Regressão descoberta em 17/09/2026**: `NVIDIA_API_KEY` está ausente em
-      `.env.production` agora (log: `"NVIDIA_API_KEY nao configurada --
-      notificacoes automaticas por IA desativadas"`) -- mesmo padrão do Web
-      Push acima, mas essa eu não corrigi: é chave de conta do Jonathan, não
-      dá pra gerar. Falta ele colar o valor real em `.env.production` na VPS.
+      **Falso alarme em 17/09/2026**: o log antigo de "NVIDIA_API_KEY nao
+      configurada" era de antes do container ser reconstruído -- a chave
+      sempre esteve certa em `sistema/.env` (local) e em `.env.production`
+      (VPS), confirmado direto no container (`docker exec antenor_api
+      printenv`) em 18/09/2026. Sem ação pendente aqui.
 
 - [ ] **Espaços patrocinados: vender banner para fornecedor.** Ideia do
       Jonathan em 28/08/2026. A base já existe: `sponsorName` renderiza o selo
