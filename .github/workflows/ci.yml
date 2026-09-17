@@ -45,10 +45,16 @@ jobs:
       # Achado em 17/09/2026, primeira vez que o CI real rodou (JON-100 so
       # tinha corrigido o job "docker" abaixo, nao este) -- specs que
       # constroem OrderOrchestrationService direto (ex.: pedido-obs.spec.ts)
-      # estouram no construtor via requireEnv(), sem depender de nenhum
-      # servico externo de verdade. Valores sinteticos, nunca reais/producao.
-      SOLIDCOM_CNPJ: "00000000000000"
-      SOLIDCOM_CODECOM: "1"
+      # estouram no construtor via requireEnv(). Diferente do job "docker"
+      # (so smoke test HTTP, valor sintetico serve), aqui varios specs de
+      # order-orchestration.service.spec.ts fazem toHaveBeenCalledWith
+      # hardcoded contra CNPJ/CODECOM reais (ex.: codEcom: 19) -- um valor
+      # sintetico generico ("1"/"00000000000000") faz o teste falhar por
+      # DIVERGENCIA de expectativa, nao por falta de env. CNPJ e' publico
+      # (rodape do site, ver CLAUDE.md "identificador que autentica...");
+      # CODECOM e' so codigo interno do Solidcom, nao e segredo.
+      SOLIDCOM_CNPJ: "5147995000131"
+      SOLIDCOM_CODECOM: "19"
       SOLIDCOM_BALCAO_CPF: "00000000000"
 
     steps:
