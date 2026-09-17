@@ -1,3 +1,6 @@
+// JON-104 (Auditoria 360, Low): arquivo antes tinha sintaxe YAML dentro de um
+// .js -- PM2 falhava ao carregar (nao era JavaScript valido). Corrigido pra
+// module.exports de verdade em 35bd2e3c.
 module.exports = {
   apps: [
     {
