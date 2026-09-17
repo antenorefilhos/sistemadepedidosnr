@@ -395,6 +395,42 @@ token. `ZONE_ID` de `antenorefilhos.com.br`: `cc1a05ea312e1a08a16d57e17ede8345`
 pra este arquivo nem pro repo — fica só no `.env.production` do host que
 precisar dele, ou é pedido ao Jonathan na hora.
 
+### Otimizações aplicadas na zona Cloudflare (17-18/09/2026)
+
+Auditoria completa via API (`GET /zones/:id/settings/*`) pedida pelo
+Jonathan ("controle total... veja se tem otimização necessária"), com uma
+restrição explícita: **não pode prejudicar o e-mail corporativo**
+(Hostinger, MX + DKIM). Aplicado:
+
+- **Always Use HTTPS**: `off` → `on`.
+- **Min TLS Version**: `1.0` → `1.2` (abaixo de 1.2 não é aceitável pra
+  PCI/e-commerce, e todo browser relevante suporta 1.2 desde ~2015).
+- **HSTS**: ligado, `max_age=180 dias`, `nosniff`. **De propósito, SEM
+  `include_subdomains` e SEM `preload`** — os dois afetariam
+  `autoconfig`/`autodiscover`/`hostingermail-*` (e qualquer subdomínio
+  futuro) se algum dia forem abertos num browser, e `preload` é
+  praticamente irreversível (fica hardcoded nos browsers). Como o MX não
+  passa pelo proxy Cloudflare (nunca passou, ver DNS acima), o e-mail em si
+  nunca dependeu dessas configs de qualquer forma — a cautela aqui é só
+  pra não abrir precedente com subdomínio futuro.
+- **Bot Fight Mode**: `off` → `on` (ativado manualmente pelo Jonathan — a
+  API de conta não tem permissão pro endpoint `bot_management` PATCH,
+  `10405 Method not allowed for this authentication scheme`; fica no
+  dashboard do **domínio** — Security → Bots — não no dashboard da conta).
+- **WAF gerenciado (Cloudflare Managed Free Ruleset)**: ativado em
+  **modo log**, não bloqueio (`action: "execute"` com
+  `overrides.action: "log"` sobre o ruleset `77454fe2d30c4220b5701f6fdfb893ba`,
+  fase `http_request_firewall_managed`). Decisão deliberada: `api.*` recebe
+  checkout/login com payload variado, e travar direto arrisca falso-positivo
+  em pedido legítimo. **Próximo passo:** revisar o volume de match em
+  Security → Events depois de alguns dias e decidir por trocar `log` por
+  `block` (ou por regra a regra, via `overrides.rules[]` em vez do
+  `overrides.action` geral).
+
+Verificado depois de cada mudança: MX/DKIM intocados, `mercado`/`api`/`admin`
+respondendo 200. Nenhuma mudança de DNS nessa leva, só configuração de
+zona (SSL/TLS, security header, bots, WAF).
+
 ## Realidade do estoque
 
 ~82% do catálogo Solidcom tem estoque zero. Vitrine vazia geralmente é dado real,
