@@ -256,6 +256,26 @@ services:
     networks:
       - antenor_network
 
+  # --- Cloudflare Tunnel (JON-41) ---
+  # Elimina a exposicao publica do IP da VPS: nenhuma porta 80/443 precisa
+  # aceitar conexao de entrada de fora, so o tunnel outbound daqui pro
+  # Cloudflare. Aponta pro Caddy (antenor_proxy:80) por dentro da rede
+  # Docker -- Cloudflare ja faz TLS/roteamento por hostname na borda, o
+  # Caddy continua fazendo o proprio roteamento por Host header como sempre
+  # fazia, sem mudanca nenhuma nele. CLOUDFLARE_TUNNEL_TOKEN e credencial
+  # (nunca no repo) -- ver .env.production.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: antenor_cloudflared
+    restart: always
+    mem_limit: 128m
+    cpus: 0.1
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?defina CLOUDFLARE_TUNNEL_TOKEN em .env.production}
+    depends_on:
+      - proxy
+    networks:
+      - antenor_network
+
   # --- Backup diario (Postgres + fotos de produto) ---
   # Ver backup/README.md. Roda dentro da rede, sem porta nenhuma exposta.
   backup:
