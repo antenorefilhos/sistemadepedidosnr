@@ -30,10 +30,25 @@ export class UploadsManagementService {
     if (!filename) return;
     // JON-135 (Auditoria 360, High): filename vem de extractFilenameFromUrl,
     // que so faz um regex sobre tudo depois de "/uploads/" -- uma URL
-    // gravada no CMS com "../../.env" (ou path absoluto, ou barra invertida
-    // no Windows) chegava aqui, join() normalizava pra FORA de uploadsDir,
-    // e o unlink rodava sem checagem nenhuma. Resolve o candidato e confere
-    // que ele continua dentro da raiz antes de apagar qualquer coisa.
+    // gravada no CMS com "../../.env" ou path absoluto chegava aqui, join()
+    // normalizava pra FORA de uploadsDir, e o unlink rodava sem checagem
+    // nenhuma. Resolve o candidato e confere que ele continua dentro da raiz
+    // antes de apagar qualquer coisa.
+    //
+    // Achado em 17/09/2026 (CI real rodando pela primeira vez num runner
+    // Linux): barra invertida (`\`) so e separador de path no Windows --
+    // path.resolve/relative no Linux (onde producao roda de verdade, via
+    // Docker) tratam "..\\..\\windows\\..." como UM nome de arquivo literal,
+    // que fica dentro de uploadsDir (nao escapa nada, so tenta apagar um
+    // arquivo esquisito que nao existe). Nao era vulnerabilidade real em
+    // producao, mas o codigo dependia de semantica de path do SO onde roda
+    // pra decidir seguranca -- fragil. Rejeita `\` explicitamente, antes de
+    // qualquer resolve, pra ficar correto em qualquer plataforma sem
+    // depender de qual SO esta executando.
+    if (filename.includes('\\')) {
+      console.warn(`[UploadsManagement] Caminho fora da pasta de uploads recusado: ${filename}`);
+      return;
+    }
     const candidate = resolve(this.uploadsDir, filename);
     const rel = relative(this.uploadsDir, candidate);
     if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {

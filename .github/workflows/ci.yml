@@ -42,6 +42,14 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-test-secret-not-for-production
       NODE_ENV: test
+      # Achado em 17/09/2026, primeira vez que o CI real rodou (JON-100 so
+      # tinha corrigido o job "docker" abaixo, nao este) -- specs que
+      # constroem OrderOrchestrationService direto (ex.: pedido-obs.spec.ts)
+      # estouram no construtor via requireEnv(), sem depender de nenhum
+      # servico externo de verdade. Valores sinteticos, nunca reais/producao.
+      SOLIDCOM_CNPJ: "00000000000000"
+      SOLIDCOM_CODECOM: "1"
+      SOLIDCOM_BALCAO_CPF: "00000000000"
 
     steps:
       - uses: actions/checkout@v4
