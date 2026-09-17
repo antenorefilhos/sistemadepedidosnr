@@ -83,6 +83,17 @@ jobs:
         with:
           node-version: "20"
 
+      # Achado em 17/09/2026: sistema/certs/ e' gitignored (certificado
+      # self-signed local pra testar no iPhone via LAN) -- sem ele, nginx do
+      # storefront/admin recusa iniciar por completo (HTTP incluido).
+      - name: Gerar certificado self-signed descartavel (sistema/certs/)
+        working-directory: sistema
+        run: |
+          mkdir -p certs
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout certs/key.pem -out certs/cert.pem \
+            -subj "/CN=localhost"
+
       - name: Start stack
         working-directory: sistema
         # JON-100 (Auditoria 360): sem este bloco, docker-compose.yml resolve
