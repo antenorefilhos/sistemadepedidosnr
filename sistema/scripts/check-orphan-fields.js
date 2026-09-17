@@ -71,6 +71,7 @@ const EXCECOES = {
   'Order.deliveryAreaId': 'guarda id de DeliveryZone apesar do nome; uso interno do calculo de frete (ver CLAUDE.md)',
   'Customer.resetTokenHash': 'segredo de recuperacao de senha; expor em tela seria falha de seguranca',
   'Customer.resetTokenExpiresAt': 'idem -- validade do token, decisao do backend',
+  'Customer.tokenVersion': 'JON-138 (Auditoria 360): contador de revogacao de JWT -- incrementado no reset/troca de senha, comparado a cada request por JwtStrategy.validate(); nunca e conteudo de tela, e interno de auth',
   'Product.erpProductId': 'id do Solidcom usado pra agrupar EANs no sync; o operador identifica produto por nome/EAN',
   'Product.secondaryEans': 'o backend JA resolve no scan do separador (picker.controller: secondaryEans has term) -- bipar codigo secundario funciona sem a tela saber',
   'Product.aiNotifiedAt': 'cooldown de 20h do ciclo de notificacao por IA, controle interno',
