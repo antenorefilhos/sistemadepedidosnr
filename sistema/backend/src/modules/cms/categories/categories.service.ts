@@ -290,13 +290,24 @@ export class CategoriesService {
     // pagina e aproxima o storefront do throttler (20 req/min) sem ganho nenhum.
     // ponytail: monta vitrine para toda categoria ativa (~65, ~370ms) e a Home
     // usa ~12; se o payload incomodar, aceitar ?shelves=CODIGO,CODIGO depois.
+    //
+    // JON-172: `category.limit` (default 6) e quanto a PROPRIA secao da
+    // categoria exibe -- nao quantos candidatos mandar. useHomeShelves reusa
+    // a mesma categoria em varias vitrines de intencao (ex.: "acougue"
+    // alimenta churrasco + carnes-dia-a-dia + a ocasiao de churrasco), todas
+    // dividindo por deduplicacao o MESMO pool. Se o backend ja corta em 6,
+    // sobra pouco ou nada pra segunda/terceira vitrine que reusa a categoria
+    // -- vitrine "esvaziada por deduplicacao sem reposicao", carrossel
+    // acidental de 1-2 itens. O candidate pool aqui e bem maior que o limit
+    // de exibicao; quem decide quanto MOSTRAR em cada secao e o frontend.
+    const CANDIDATE_POOL_MAX = 80;
     const shelfCategories = categories.filter((category) => category.active);
     const shelves = await this.prisma.$transaction(
       shelfCategories.map((category) =>
         this.prisma.product.findMany({
           where: { ean: { in: eansByCategoryId.get(category.id) || [] } },
           orderBy: { name: 'asc' }, // mesma ordem de /products?category=
-          take: Math.max(1, Math.min(50, category.limit || 6)),
+          take: Math.max(category.limit || 6, Math.min(CANDIDATE_POOL_MAX, (eansByCategoryId.get(category.id) || []).length)),
           select: STOREFRONT_PRODUCT_SELECT,
         }),
       ),
@@ -329,7 +340,7 @@ export class CategoriesService {
       productCount: number;
       curatedProductIds: string[];
       curatedProducts: ShelfProduct[];
-      /** Produtos da vitrine, ja limitados por `limit`. Evita 1 request por categoria na Home. */
+      /** Pool de candidatos da categoria (JON-172: maior que `limit` de proposito -- ver comentario acima de CANDIDATE_POOL_MAX). Evita 1 request por categoria na Home. */
       products: ShelfProduct[];
       source: 'cms' | 'fallback';
     }>();

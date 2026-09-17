@@ -61,6 +61,15 @@ const PANTRY_TERMS = [
 const SHELF_LIMIT = 10
 
 /**
+ * JON-172: quota minima coerente pra uma vitrine valer a pena aparecer.
+ * Abaixo disso o carrossel parece quebrado (1-2 cards soltos), nao curado --
+ * a secao inteira some em vez de renderizar isso. Sem diferenciar mobile de
+ * desktop aqui (o hook nao sabe o viewport); usa o piso mais conservador dos
+ * dois (4) e deixa quem tem mais espaco (desktop) exibir menos do que podia.
+ */
+const MIN_SHELF_ITEMS = 4
+
+/**
  * Chave de deduplicacao das vitrines.
  *
  * O catalogo tem SKUs distintos com nome E preco identicos (residuo do sync do
@@ -140,28 +149,63 @@ export function useHomeShelves({
     return configs.sort((a, b) => a.priority - b.priority)
   }, [cmsCategories])
 
+  /**
+   * JON-172: pool de candidatos por regra, SEM corte de exibicao e SEM
+   * deduplicacao cruzada com outras regras -- so remove duplicata de SKU
+   * dentro da propria fonte (residuo do sync do ERP, mesmo name+price).
+   *
+   * `categorized` e `intentShelves` bebem daqui. Antes, `intentShelves`
+   * consumia diretamente de `categorized.*` -- que ja tinha sido cortado no
+   * `limit` de exibicao (6-8) E dividido pela deduplicacao entre secoes que
+   * reusam a mesma categoria (ex.: acougue alimentando churrasco E
+   * carnes-dia-a-dia). Pool ja pequeno, dividido de novo: a segunda vitrine
+   * de intencao que reusasse essa categoria sobrava com quase nada --
+   * "vitrine esvaziada por deduplicacao sem reposicao". O backend agora
+   * manda um pool bem maior que o limit de exibicao (ver
+   * categories.service.ts, CANDIDATE_POOL_MAX); este hook e quem decide
+   * quanto mostrar em cada secao, com espaco de sobra pra reposicao.
+   */
+  const rawByRule = useMemo(() => {
+    const map = new Map<string, Product[]>()
+    for (const config of enabledHomeRules) {
+      const source = config.curatedProducts.length > 0 ? config.curatedProducts : config.products
+      const seen = new Set<string>()
+      const deduped: Product[] = []
+      for (const product of source) {
+        if (!product?.id) continue
+        const key = dedupeKey(product)
+        if (seen.has(key)) continue
+        seen.add(key)
+        deduped.push(product)
+      }
+      map.set(config.rule.id, deduped)
+    }
+    return map
+  }, [enabledHomeRules])
+
+  const ruleLimits = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const config of enabledHomeRules) map.set(config.rule.id, config.limit)
+    return map
+  }, [enabledHomeRules])
+
   const categorized = useMemo(() => {
     const usedKeys = new Set<string>()
 
     /**
-     * Fonte de cada secao, na ordem de autoridade do Admin:
-     * 1) curadoria manual da categoria no CMS;
-     * 2) vitrine ja montada pelo backend (`config.products`, filtro EAN -> categoria).
-     * Uma unica resposta de /cms/categories/commercial traz tudo — sem 1 request
-     * por categoria, que batia no throttler (20 req/min). O teto vem do CMS (`limit`).
+     * Fonte de cada secao: o pool de candidatos da regra (`rawByRule`), ja
+     * na ordem de autoridade do Admin (curadoria manual > vitrine do
+     * backend). O teto de exibicao vem do CMS (`limit`, default no
+     * fallback); a deduplicacao entre secoes que reusam a mesma categoria
+     * (acougue -> churrasco + carnes-dia-a-dia) continua acontecendo aqui.
      */
     const take = (ruleId: string, fallbackLimit: number) => {
-      const config = enabledHomeRules.find((item) => item.rule.id === ruleId)
-      if (!config) return []
-
-      const source =
-        config.curatedProducts.length > 0 ? config.curatedProducts : config.products
-
-      const limit = config.limit || fallbackLimit
+      const source = rawByRule.get(ruleId) || []
+      const limit = ruleLimits.get(ruleId) || fallbackLimit
       const picked: Product[] = []
       for (const product of source) {
         if (picked.length >= limit) break
-        if (!product?.id || usedKeys.has(dedupeKey(product))) continue
+        if (usedKeys.has(dedupeKey(product))) continue
         usedKeys.add(dedupeKey(product))
         picked.push(product)
       }
@@ -189,7 +233,7 @@ export function useHomeShelves({
         return true
       }),
     }
-  }, [enabledHomeRules, productsList])
+  }, [rawByRule, ruleLimits, productsList])
 
   const homeCategories = useMemo(
     () =>
@@ -288,37 +332,71 @@ export function useHomeShelves({
     // ela volta vazia e o ProductShelf some — melhor que enchimento generico.
     const offers = claim([...promotional, ...marginShowcase])
     // Padaria fica de fora: tem secao dedicada logo abaixo na Home.
-    const fresh = claim([...categorized.feira, ...categorized.carnesDiaADia])
-    const fair = claim([...categorized.feira])
-    const churrascoOccasion = claim([
-      ...categorized.churrasco,
-      ...categorized.carnesDiaADia,
-      ...categorized.bebidas,
-    ])
+    // JON-172: bebe do pool AMPLO da regra (rawByRule), nao das secoes de
+    // categoria ja cortadas no limit de exibicao -- e a causa raiz da
+    // vitrine que esvaziava por deduplicacao sem reposicao.
+    const acougue = rawByRule.get('acougue') || []
+    const hortifruti = rawByRule.get('hortifruti') || []
+    const cervejas = rawByRule.get('cervejas') || []
+    const fresh = claim([...hortifruti, ...acougue])
+    const fair = claim([...hortifruti])
+    const churrascoOccasion = claim([...acougue, ...cervejas])
     const recurring = claim([...pantry, ...analyticsBestSellers])
     const bestSellers = claim(analyticsBestSellers, 8)
 
     return { rebuy, offers, fresh, fair, churrascoOccasion, recurring, bestSellers, claimed }
-  }, [categorized, marginShowcase, productsList, promotionalProducts, rebuyProducts, topSellingProducts])
+  }, [rawByRule, marginShowcase, productsList, promotionalProducts, rebuyProducts, topSellingProducts])
 
   /**
    * Um produto aparece uma unica vez na Home: o que as vitrines de intencao
    * levaram sai das secoes de categoria, que a Home renderiza direto.
+   *
+   * JON-172: com refill -- se sobrar abaixo do minimo coerente depois de
+   * tirar o que foi pras vitrines de intencao, busca mais no pool amplo da
+   * propria regra (ainda respeitando usedKeys global e o que intentShelves
+   * ja reivindicou) antes de desistir. So ai, se AINDA estiver abaixo do
+   * minimo, a secao inteira esvazia (a Home nao renderiza carrossel
+   * acidental de 1-2 produtos -- ProductShelf ja oculta quando o array vem
+   * vazio).
    */
   const visibleCategorized = useMemo(() => {
     const taken = intentShelves.claimed
-    const strip = (items: Product[]) => items.filter((product) => !taken.has(dedupeKey(product)))
-    return {
-      consumoRapido: strip(categorized.consumoRapido),
-      guloseimas: strip(categorized.guloseimas),
-      churrasco: strip(categorized.churrasco),
-      carnesDiaADia: strip(categorized.carnesDiaADia),
-      feira: strip(categorized.feira),
-      padaria: strip(categorized.padaria),
-      bebidas: strip(categorized.bebidas),
-      outros: strip(categorized.outros),
+    const shown = new Set<string>()
+    for (const list of Object.values(categorized)) {
+      for (const product of list) shown.add(dedupeKey(product))
     }
-  }, [categorized, intentShelves])
+
+    const stripAndRefill = (items: Product[], ruleId: string | null) => {
+      const kept = items.filter((product) => !taken.has(dedupeKey(product)))
+      if (kept.length < items.length && ruleId) {
+        const pool = rawByRule.get(ruleId) || []
+        const keptKeys = new Set(kept.map(dedupeKey))
+        for (const candidate of pool) {
+          if (kept.length >= items.length) break
+          const key = dedupeKey(candidate)
+          if (taken.has(key) || keptKeys.has(key) || shown.has(key)) continue
+          keptKeys.add(key)
+          shown.add(key)
+          kept.push(candidate)
+        }
+      }
+      return kept.length >= MIN_SHELF_ITEMS ? kept : []
+    }
+
+    return {
+      consumoRapido: stripAndRefill(categorized.consumoRapido, 'congelados'),
+      guloseimas: stripAndRefill(categorized.guloseimas, 'doces'),
+      churrasco: stripAndRefill(categorized.churrasco, 'acougue'),
+      carnesDiaADia: stripAndRefill(categorized.carnesDiaADia, 'acougue'),
+      feira: stripAndRefill(categorized.feira, 'hortifruti'),
+      padaria: stripAndRefill(categorized.padaria, 'padaria'),
+      bebidas: stripAndRefill(categorized.bebidas, 'cervejas'),
+      // "Tudo do Mercado": sem regra unica pra reposicao (e o catch-all) --
+      // so remove o que foi levado, sem piso minimo (e a vitrine de fallback
+      // de tudo, esperado que varie de tamanho livremente).
+      outros: categorized.outros.filter((product) => !taken.has(dedupeKey(product))),
+    }
+  }, [categorized, intentShelves, rawByRule])
 
   return {
     enabledHomeRules,
