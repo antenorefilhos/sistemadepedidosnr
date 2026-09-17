@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
 import { AntenorApiService } from '../integrations/antenor-api.service'
 import { NotificationsService } from '../notifications/notifications.service'
+import { parseErpBusinessDate, isWithinBusinessWindow } from '../../common/business-window'
 
 function slugify(value: string): string {
   return value
@@ -53,14 +54,14 @@ export class PromotionsService {
           erpCampaignId: erpCampaign.erpCampaignId,
           name: erpCampaign.name,
           slug: slugify(erpCampaign.name),
-          startDate: new Date(erpCampaign.startDate),
-          endDate: new Date(erpCampaign.endDate),
+          startDate: parseErpBusinessDate(erpCampaign.startDate),
+          endDate: parseErpBusinessDate(erpCampaign.endDate),
           active: true,
         },
         update: {
           name: erpCampaign.name,
-          startDate: new Date(erpCampaign.startDate),
-          endDate: new Date(erpCampaign.endDate),
+          startDate: parseErpBusinessDate(erpCampaign.startDate),
+          endDate: parseErpBusinessDate(erpCampaign.endDate),
           active: true,
         },
       })
@@ -94,12 +95,12 @@ export class PromotionsService {
           },
         })
         itemsSynced += 1
-
-        await this.prisma.product.update({
-          where: { id: productId },
-          data: { promotionalPrice: item.promotionalPrice },
-        })
-        productsUpdated += 1
+        // JON-171: NAO aplica promotionalPrice aqui. Sync so registra o
+        // cadastro (campanha + itens); a vigencia real (startDate<=now<=
+        // endDate) e checada exclusivamente por activateCampaigns() abaixo.
+        // Sem essa separacao, um encarte futuro ja recebido do ERP tinha
+        // seu preco promocional aplicado ao catalogo na hora do sync, dias
+        // ou horas antes de comecar de verdade.
       }
 
       // Poda: sem isso, item que sai do encarte (ou que entrou errado por um
@@ -129,6 +130,12 @@ export class PromotionsService {
       }
     }
 
+    // JON-171: ativa na mesma chamada quem ja estiver vigente agora (sync
+    // manual do admin nao deve esperar o proximo tick do scheduler pra um
+    // encarte que ja comecou aparecer com preco certo).
+    const activation = await this.activateCampaigns()
+    productsUpdated = activation.productsActivated
+
     if (campaigns.length > 0) {
       this.logger.log(
         `Sync de encartes: ${campaigns.length} campanha(s), ${itemsSynced} item(ns), ${productsUpdated} produto(s) com preco atualizado.`,
@@ -136,6 +143,43 @@ export class PromotionsService {
     }
 
     return { campaignsSynced: campaigns.length, itemsSynced, productsUpdated }
+  }
+
+  /**
+   * JON-171: unico lugar que aplica promotionalPrice ao catalogo. So
+   * campanhas com active=true E startDate<=now<=endDate (janela real, com
+   * datas ja parseadas por parseErpBusinessDate) tocam Product.promotionalPrice.
+   * Idempotente: reaplicar num produto que ja esta no preco certo nao gera
+   * escrita nem efeito colateral -- seguro de chamar repetidamente (sync
+   * manual, cron de ativacao, campanhas sobrepostas no mesmo produto).
+   */
+  async activateCampaigns(): Promise<{ campaignsActivated: number; productsActivated: number }> {
+    const now = new Date()
+    const candidates = await this.prisma.promotionCampaign.findMany({
+      where: { active: true, startDate: { lte: now }, endDate: { gte: now } },
+      include: { items: { include: { product: { select: { id: true, promotionalPrice: true } } } } },
+    })
+
+    let productsActivated = 0
+    for (const campaign of candidates) {
+      if (!isWithinBusinessWindow(campaign.startDate, campaign.endDate, now)) continue
+      for (const item of campaign.items) {
+        const currentPrice = item.product.promotionalPrice
+        const alreadyApplied = currentPrice != null && Math.abs(Number(currentPrice) - Number(item.promotionalPrice)) < 0.005
+        if (alreadyApplied) continue
+        await this.prisma.product.update({
+          where: { id: item.productId },
+          data: { promotionalPrice: Number(item.promotionalPrice) },
+        })
+        productsActivated += 1
+      }
+    }
+
+    if (productsActivated > 0) {
+      this.logger.log(`Ativacao de encartes: ${candidates.length} campanha(s) vigente(s), ${productsActivated} produto(s) com preco aplicado.`)
+    }
+
+    return { campaignsActivated: candidates.length, productsActivated }
   }
 
   /**
@@ -187,43 +231,70 @@ export class PromotionsService {
   async notifyCampaignLifecycle(): Promise<{ started: number; ending: number }> {
     const now = new Date()
 
-    const starting = await this.prisma.promotionCampaign.findMany({
+    const startingCandidates = await this.prisma.promotionCampaign.findMany({
       where: { active: true, startDate: { lte: now }, startNotifiedAt: null },
     })
-    for (const campaign of starting) {
-      const customerIds = await this.notificationsService.getAllCustomerIds()
-      await this.notificationsService.broadcastToCustomers(customerIds, {
-        type: 'CAMPAIGN',
-        title: `🛍️ Chegou o encarte ${campaign.name}!`,
-        body: 'Confira as ofertas antes que acabem.',
-        url: '/promocoes',
+    let started = 0
+    for (const campaign of startingCandidates) {
+      if (!isWithinBusinessWindow(campaign.startDate, campaign.endDate, now)) continue
+      // JON-171: claim atomico ANTES de enviar -- so quem consegue essa
+      // transicao (startNotifiedAt ainda null no banco) segue pro push.
+      // Duas execucoes concorrentes do scheduler (ou um disparo manual junto
+      // com o cron) nao mandam a mesma notificacao duas vezes.
+      const claim = await this.prisma.promotionCampaign.updateMany({
+        where: { id: campaign.id, startNotifiedAt: null },
+        data: { startNotifiedAt: now },
       })
-      await this.prisma.promotionCampaign.update({ where: { id: campaign.id }, data: { startNotifiedAt: now } })
+      if (claim.count === 0) continue
+      try {
+        const customerIds = await this.notificationsService.getAllCustomerIds()
+        await this.notificationsService.broadcastToCustomers(customerIds, {
+          type: 'CAMPAIGN',
+          title: `🛍️ Chegou o encarte ${campaign.name}!`,
+          body: 'Confira as ofertas antes que acabem.',
+          url: '/promocoes',
+        })
+        started += 1
+      } catch (error) {
+        // Claim ja feito de proposito: prefere perder um aviso a mandar
+        // dobrado se o proximo tick tentar de novo. Erro fica so no log.
+        this.logger.error(`Falha ao enviar push de inicio do encarte ${campaign.id}:`, error instanceof Error ? error.stack : String(error))
+      }
     }
 
-    const endingSoon = await this.prisma.promotionCampaign.findMany({
+    const endingCandidates = await this.prisma.promotionCampaign.findMany({
       where: {
         active: true,
         endDate: { gte: now, lte: new Date(now.getTime() + 3 * 60 * 60 * 1000) },
         endingNotifiedAt: null,
       },
     })
-    for (const campaign of endingSoon) {
-      const customerIds = await this.notificationsService.getAllCustomerIds()
-      await this.notificationsService.broadcastToCustomers(customerIds, {
-        type: 'CAMPAIGN',
-        title: `⏰ Ultimas horas do encarte ${campaign.name}!`,
-        body: 'As ofertas terminam em breve, aproveite agora.',
-        url: '/promocoes',
+    let ending = 0
+    for (const campaign of endingCandidates) {
+      const claim = await this.prisma.promotionCampaign.updateMany({
+        where: { id: campaign.id, endingNotifiedAt: null },
+        data: { endingNotifiedAt: now },
       })
-      await this.prisma.promotionCampaign.update({ where: { id: campaign.id }, data: { endingNotifiedAt: now } })
+      if (claim.count === 0) continue
+      try {
+        const customerIds = await this.notificationsService.getAllCustomerIds()
+        await this.notificationsService.broadcastToCustomers(customerIds, {
+          type: 'CAMPAIGN',
+          title: `⏰ Ultimas horas do encarte ${campaign.name}!`,
+          body: 'As ofertas terminam em breve, aproveite agora.',
+          url: '/promocoes',
+        })
+        ending += 1
+      } catch (error) {
+        this.logger.error(`Falha ao enviar push de fim do encarte ${campaign.id}:`, error instanceof Error ? error.stack : String(error))
+      }
     }
 
-    if (starting.length || endingSoon.length) {
-      this.logger.log(`Aviso de encarte: ${starting.length} inicio(s), ${endingSoon.length} fim proximo.`)
+    if (started || ending) {
+      this.logger.log(`Aviso de encarte: ${started} inicio(s), ${ending} fim proximo.`)
     }
 
-    return { started: starting.length, ending: endingSoon.length }
+    return { started, ending }
   }
 
   findAllAdmin() {
@@ -271,7 +342,12 @@ export class PromotionsService {
       where: { erpCampaignId },
       include: { items: { orderBy: { order: 'asc' }, include: { product: true } } },
     })
-    if (!campaign || !campaign.active) return null
+    // JON-171: faltava a mesma checagem de janela de findActiveForStorefront
+    // -- clique no banner de um encarte cadastrado mas ainda futuro (ou ja
+    // vencido) mostrava os produtos e o preco promocional mesmo assim.
+    if (!campaign || !campaign.active || !isWithinBusinessWindow(campaign.startDate, campaign.endDate, new Date())) {
+      return null
+    }
     return this.mapCampaignForStorefront(campaign)
   }
 

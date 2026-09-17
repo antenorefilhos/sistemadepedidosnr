@@ -47,6 +47,20 @@ export class PromotionsScheduler {
     }
   }
 
+  // JON-171: campanha ja cadastrada e habilitada no admin so deve aplicar
+  // preco ao catalogo quando o RELOGIO cruzar startDate -- isso nao pode
+  // depender de PROMOTIONS_SYNC_CRON_ENABLED (que so fala de falar com o
+  // ERP), senao desligar o sync automatico tambem trava a ativacao de algo
+  // que o lojista ja aprovou manualmente. Roda sempre.
+  @Cron(process.env.PROMOTIONS_ACTIVATE_CRON || '*/5 * * * *', { name: 'promotions-activate' })
+  async handleActivate(): Promise<void> {
+    try {
+      await this.promotionsService.activateCampaigns()
+    } catch (error) {
+      this.logger.error('Falha na ativacao de campanhas vigentes:', error instanceof Error ? error.stack : String(error))
+    }
+  }
+
   @Cron(process.env.PROMOTIONS_NOTIFY_CRON || '*/15 * * * *', { name: 'promotions-notify-lifecycle' })
   async handleNotifyLifecycle(): Promise<void> {
     try {
