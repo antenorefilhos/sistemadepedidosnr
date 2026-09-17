@@ -1,0 +1,15 @@
+# JON-66: context de picking-app/delivery-app virou a raiz de sistema/ (pro
+# workspace npm compartilhado funcionar). Sem isto, TODO o sistema/ -- node_modules
+# de backend/frontend/admin, .env com segredo real, uploads -- ia pro daemon
+# do Docker a cada build, mesmo sem nenhum COPY explicito pegar esses arquivos.
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/uploads
+.git
+**/*.log
+**/coverage
+**/cypress/videos
+**/cypress/screenshots

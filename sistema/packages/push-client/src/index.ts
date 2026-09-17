@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
-import api from '../services/api'
+import type { AxiosInstance } from 'axios'
 
 /**
- * Liga o aviso de push no aparelho do funcionario.
+ * Liga o aviso de push no aparelho do funcionario (JON-66: extraido de
+ * picking-app/delivery-app, que tinham o arquivo IDENTICO duplicado).
  *
- * O app roda no celular de quem trabalha, e ate 03/09/2026 nao avisava nada:
- * so descobria servico novo quem lembrasse de abrir e olhar a lista. Isso
- * significava pedido parado e SLA estourado sem ninguem saber -- com o
+ * Os apps rodam no celular de quem trabalha, e ate 03/09/2026 nao avisavam
+ * nada: so descobria servico novo quem lembrasse de abrir e olhar a lista.
+ * Isso significava pedido parado e SLA estourado sem ninguem saber -- com o
  * cliente esperando do outro lado.
  *
  * A permissao e pedida no toque do funcionario, nunca sozinha ao abrir: aviso
  * de permissao disparado sem contexto e negado por reflexo, e negar e quase
  * definitivo (o navegador para de perguntar e so as configuracoes revertem).
+ *
+ * `api` e injetado (nao importado direto) porque picking-app e delivery-app
+ * tem instancias diferentes (localStorage key, baseURL podem divergir).
  */
-type Estado =
+export type Estado =
   | 'carregando'
   | 'ativo'
   | 'desativado'
@@ -58,7 +62,14 @@ const suportado = () =>
   'PushManager' in window &&
   window.isSecureContext
 
-export function usePushEquipe() {
+export type UsePushEquipeOptions = {
+  /** Instancia axios do app (localStorage/baseURL propria de cada um). */
+  api: AxiosInstance
+  /** import.meta.env.VITE_VAPID_PUBLIC_KEY do app chamador. */
+  vapidPublicKey?: string
+}
+
+export function usePushEquipe({ api, vapidPublicKey }: UsePushEquipeOptions) {
   const [estado, setEstado] = useState<Estado>('carregando')
   const [ocupado, setOcupado] = useState(false)
 
@@ -93,8 +104,7 @@ export function usePushEquipe() {
       return false
     }
 
-    const chave = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
-    if (!chave) {
+    if (!vapidPublicKey) {
       setEstado('sem-chave')
       return false
     }
@@ -119,7 +129,7 @@ export function usePushEquipe() {
         (await registro.pushManager.getSubscription()) ||
         (await registro.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: base64ParaUint8(chave),
+          applicationServerKey: base64ParaUint8(vapidPublicKey),
         }))
 
       await api.post('/notifications/push-subscribe/staff', inscricao.toJSON())
@@ -131,7 +141,7 @@ export function usePushEquipe() {
     } finally {
       setOcupado(false)
     }
-  }, [])
+  }, [api, vapidPublicKey])
 
   // JON-148 (Auditoria 360): logout so limpava token local -- a inscricao de
   // push continuava viva no navegador e no servidor. Em aparelho
@@ -147,7 +157,7 @@ export function usePushEquipe() {
     } catch {
       // sem service worker/push neste aparelho -- nada a desfazer.
     }
-  }, [])
+  }, [api])
 
   return { estado, ocupado, ativar, desinscrever }
 }

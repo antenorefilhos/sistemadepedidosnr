@@ -3,14 +3,15 @@ import { Toaster } from 'react-hot-toast'
 import Login from './pages/Login'
 import RouteList from './pages/RouteList'
 import RouteDetail from './pages/RouteDetail'
-import { usePushEquipe } from './hooks/usePushEquipe'
+import { usePushEquipe } from '@antenor/push-client'
+import api from './services/api'
 
 type Screen = { page: 'login' } | { page: 'routes' } | { page: 'route'; routeId: string }
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ page: 'login' })
   const [userName, setUserName] = useState('')
-  const { desinscrever } = usePushEquipe()
+  const { desinscrever } = usePushEquipe({ api, vapidPublicKey: import.meta.env.VITE_VAPID_PUBLIC_KEY })
 
   useEffect(() => {
     const token = localStorage.getItem('driver_token')

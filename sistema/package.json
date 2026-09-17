@@ -1,4 +1,10 @@
 {
+  "private": true,
+  "workspaces": [
+    "picking-app",
+    "delivery-app",
+    "packages/*"
+  ],
   "scripts": {
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:admin\" \"npm run dev:picking\" \"npm run dev:delivery\"",
     "dev:backend": "cd backend && npm run start:dev",

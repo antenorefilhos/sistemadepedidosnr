@@ -1,5 +1,6 @@
 import { Bell, BellOff, BellRing } from 'lucide-react'
-import { usePushEquipe } from '../hooks/usePushEquipe'
+import { usePushEquipe } from '@antenor/push-client'
+import api from '../services/api'
 
 /**
  * Faixa que oferece ligar o aviso de pedido novo para separar, no aparelho.
@@ -10,7 +11,7 @@ import { usePushEquipe } from '../hooks/usePushEquipe'
  * permanente vira ruido e ensina a ignorar a tela.
  */
 export function AvisoPush() {
-  const { estado, ocupado, ativar } = usePushEquipe()
+  const { estado, ocupado, ativar } = usePushEquipe({ api, vapidPublicKey: import.meta.env.VITE_VAPID_PUBLIC_KEY })
 
   if (estado === 'carregando' || estado === 'ativo') return null
 

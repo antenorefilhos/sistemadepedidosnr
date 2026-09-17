@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@antenor/push-client": "*",
     "axios": "^1.4.0",
     "lucide-react": "^0.263.1",
     "react": "^18.2.0",

@@ -150,8 +150,11 @@ services:
   # --- Picking App (Separacao) ---
   picking:
     build:
-      context: ./picking-app
-      dockerfile: Dockerfile
+      # JON-66: context virou a raiz de sistema/ -- picking-app compartilha
+      # @antenor/push-client (workspace npm) com delivery-app, o Docker
+      # precisa enxergar o workspace inteiro, nao so picking-app/ isolado.
+      context: .
+      dockerfile: picking-app/Dockerfile
       args:
         # Sem isto a chave nao chega no bundle e o botao de ativar avisos
         # falha calado -- o app de picking roda no celular do funcionario e
@@ -169,8 +172,8 @@ services:
   # --- Delivery App (Entregas) ---
   delivery:
     build:
-      context: ./delivery-app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: delivery-app/Dockerfile
       args:
         # Sem isto a chave nao chega no bundle e o botao de ativar avisos
         # falha calado -- o app de delivery roda no celular do funcionario e

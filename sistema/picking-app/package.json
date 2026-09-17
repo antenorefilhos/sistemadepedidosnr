@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@antenor/push-client": "*",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
     "axios": "^1.4.0",

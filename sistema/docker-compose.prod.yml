@@ -193,8 +193,10 @@ services:
 
   picking:
     build:
-      context: ./picking-app
-      dockerfile: Dockerfile
+      # JON-66: context virou a raiz de sistema/ -- picking-app compartilha
+      # @antenor/push-client (workspace npm) com delivery-app.
+      context: .
+      dockerfile: picking-app/Dockerfile
       args:
         # JON-55 (Auditoria 360, Medium): Dockerfile declara default vazio;
         # sem build.args aqui, a imagem sempre compila sem chave -- o hook de
@@ -212,8 +214,8 @@ services:
 
   delivery:
     build:
-      context: ./delivery-app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: delivery-app/Dockerfile
       args:
         VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
     container_name: antenor_delivery
