@@ -113,6 +113,7 @@ export default function BusinessAccountsSection() {
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [financial, setFinancial] = useState<BusinessFinancialSummary | null>(null)
   const [pendingOrders, setPendingOrders] = useState<AdminOrder[]>([])
+  const [approvalHistory, setApprovalHistory] = useState<AdminOrder[]>([])
   const [shoppingLists, setShoppingLists] = useState<BusinessShoppingList[]>([])
   const [customers, setCustomers] = useState<AdminCustomer[]>([])
   const [customerSearch, setCustomerSearch] = useState('')
@@ -156,13 +157,15 @@ export default function BusinessAccountsSection() {
     setError('')
     setLoading(true)
     try {
-      const [accountsRes, approvalsRes] = await Promise.all([
+      const [accountsRes, approvalsRes, historyRes] = await Promise.all([
         businessAccountsAPI.list(),
         businessAccountsAPI.listPendingApprovals(),
+        businessAccountsAPI.listApprovalHistory(),
       ])
       const nextAccounts = accountsRes.data
       setAccounts(nextAccounts)
       setPendingOrders(approvalsRes.data)
+      setApprovalHistory(historyRes.data)
       const nextSelectedId = accountId || selectedAccountId || nextAccounts[0]?.id || ''
       setSelectedAccountId(nextSelectedId)
       if (nextSelectedId) {
@@ -706,6 +709,42 @@ export default function BusinessAccountsSection() {
                             {approvingOrderId === order.id ? 'Aprovando...' : 'Aprovar'}
                           </Button>
                         </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </SectionPanel>
+
+          {/* JON-13 (Auditoria 360): businessApprovedBy/businessApprovedAt
+              eram gravados desde sempre mas nunca apareciam em tela nenhuma
+              -- ninguem conseguia dizer quem liberou um pedido B2B. */}
+          <SectionPanel bodyClassName="p-4 sm:p-5">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#9b3156]">Trilha de auditoria</p>
+              <h4 className="text-lg font-black text-[#2d0b18]">Histórico de aprovações</h4>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              {approvalHistory.length === 0 ? (
+                <SectionEmptyState title="Nenhuma aprovação registrada ainda" description="Pedidos B2B aprovados aparecem aqui com quem aprovou e quando." />
+              ) : (
+                <Table className="min-w-full text-sm">
+                  <TableHeader className="bg-[#fff7fa] text-left text-xs font-black uppercase tracking-[0.16em] text-[#7a1038]">
+                    <TableRow className="border-[#ead7df] hover:bg-transparent">
+                      <TableHead className="px-4 py-3 text-[#7a1038]">Pedido</TableHead>
+                      <TableHead className="px-4 py-3 text-[#7a1038]">Empresa</TableHead>
+                      <TableHead className="px-4 py-3 text-[#7a1038]">Aprovado por</TableHead>
+                      <TableHead className="px-4 py-3 text-[#7a1038]">Aprovado em</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-[#f3e4ea]">
+                    {approvalHistory.map((order) => (
+                      <TableRow key={order.id} className="border-[#f3e4ea] bg-white">
+                        <TableCell className="px-4 py-3 font-black text-[#2d0b18]">{order.id.slice(-8)}</TableCell>
+                        <TableCell className="px-4 py-3 text-gray-700">{order.businessAccount?.name || order.businessAccountId || '-'}</TableCell>
+                        <TableCell className="px-4 py-3 text-gray-700">{order.businessApprovedByName || '-'}</TableCell>
+                        <TableCell className="px-4 py-3 text-gray-700">{order.businessApprovedAt ? formatDateTime(order.businessApprovedAt) : '-'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

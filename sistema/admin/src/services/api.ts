@@ -788,6 +788,8 @@ export interface AdminOrder {
   businessAccountId?: string | null
   businessAccount?: { id: string; name: string; document: string } | null
   businessApprovalStatus?: string
+  businessApprovedByName?: string | null
+  businessApprovedAt?: string | null
   businessPaymentTerms?: string | null
   items: AdminOrderItem[]
   subtotal: number
@@ -1256,6 +1258,7 @@ export const businessAccountsAPI = {
   billOrder: (orderId: string) =>
     api.post(`/admin/business-accounts/orders/${orderId}/billing`),
   listPendingApprovals: () => api.get<AdminOrder[]>('/admin/business-accounts/approvals/pending'),
+  listApprovalHistory: () => api.get<AdminOrder[]>('/admin/business-accounts/approvals/history'),
   approveOrder: (orderId: string) => api.post<AdminOrder>(`/admin/business-accounts/orders/${orderId}/approve`),
 }
 

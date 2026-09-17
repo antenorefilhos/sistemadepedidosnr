@@ -398,6 +398,40 @@ export class BusinessService {
     })
   }
 
+  /**
+   * JON-13 (Auditoria 360): businessApprovedBy/businessApprovedAt eram
+   * gravados desde sempre mas nao apareciam em tela nenhuma -- ninguem
+   * conseguia dizer quem liberou um pedido de conta empresarial. Trilha de
+   * auditoria, nao fluxo quebrado.
+   *
+   * businessApprovedBy guarda o Admin.id (String, sem FK -- ver schema),
+   * resolvido aqui pro nome porque a tela nao deve saber o formato interno
+   * do campo.
+   */
+  async listApprovalHistory(context?: BusinessContext) {
+    const tenantId = context?.tenantId || DEFAULT_TENANT_ID
+    const storeId = context?.storeId || DEFAULT_STORE_ID
+    const orders = await this.prisma.order.findMany({
+      where: { tenantId, storeId, businessApprovalStatus: 'APPROVED' },
+      include: { customer: { select: CUSTOMER_SAFE_SELECT }, businessAccount: true },
+      orderBy: { businessApprovedAt: 'desc' },
+      take: 100,
+    })
+
+    const adminIds = Array.from(new Set(orders.map((o) => o.businessApprovedBy).filter((id): id is string => !!id)))
+    const admins = adminIds.length
+      ? await this.prisma.admin.findMany({ where: { id: { in: adminIds } }, select: { id: true, name: true } })
+      : []
+    const nomePorId = new Map(admins.map((a) => [a.id, a.name]))
+
+    return orders.map((order) => ({
+      ...order,
+      businessApprovedByName: order.businessApprovedBy
+        ? nomePorId.get(order.businessApprovedBy) || 'Conta removida'
+        : null,
+    }))
+  }
+
   // JON-128 (Auditoria 360, Medium): a leitura conferia so businessApprovalStatus
   // (nao o status do pedido), e o update seguinte filtrava so por id, sempre
   // forcando status:'PENDING' -- cancelamento nao limpa businessApprovalStatus,

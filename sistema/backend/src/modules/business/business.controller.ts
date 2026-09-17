@@ -43,6 +43,11 @@ export class AdminBusinessAccountsController {
     return this.businessService.listApprovalQueue(req ? getTenantContext(req) : undefined)
   }
 
+  @Get('approvals/history')
+  approvalHistory(@Req() req?: TenantContextRequest) {
+    return this.businessService.listApprovalHistory(req ? getTenantContext(req) : undefined)
+  }
+
   @Post('orders/:orderId/approve')
   approveOrder(@Param('orderId') orderId: string, @Req() req?: TenantContextRequest) {
     return this.businessService.approveOrder(orderId, req ? getTenantContext(req) : undefined, req?.user?.id)

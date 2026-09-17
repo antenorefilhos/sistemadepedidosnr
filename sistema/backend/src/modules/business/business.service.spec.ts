@@ -21,6 +21,7 @@ const buildService = () => {
       findUniqueOrThrow: jest.fn(),
     },
     businessAccountUser: { count: jest.fn().mockResolvedValue(1) },
+    admin: { findMany: jest.fn().mockResolvedValue([]) },
     priceList: { create: jest.fn(), findUnique: jest.fn() },
     priceListItem: { createMany: jest.fn() },
     auditLog: { create: jest.fn().mockResolvedValue({}) },
@@ -166,6 +167,47 @@ describe('BusinessService (Auditoria 360)', () => {
       expect(orderOrchestrationService.retryOrderSync).toHaveBeenCalledWith('o1')
       expect(ordersService.sendApprovalWhatsApp).toHaveBeenCalledTimes(1)
       expect(ordersService.sendApprovalWhatsApp).toHaveBeenCalledWith('o1')
+    })
+  })
+
+  // JON-13 (Auditoria 360): businessApprovedBy/businessApprovedAt gravados
+  // mas nunca exibidos -- ninguem conseguia dizer quem liberou um pedido B2B.
+  describe('listApprovalHistory', () => {
+    it('resolve businessApprovedBy (Admin.id) pro nome do admin', async () => {
+      const { service, prisma } = buildService()
+      prisma.order.findMany.mockResolvedValue([
+        { id: 'o1', businessApprovalStatus: 'APPROVED', businessApprovedBy: 'admin-1', businessApprovedAt: new Date() },
+      ])
+      prisma.admin.findMany.mockResolvedValue([{ id: 'admin-1', name: 'Fulana' }])
+
+      const result = await service.listApprovalHistory(undefined)
+
+      expect(result[0].businessApprovedByName).toBe('Fulana')
+      expect(prisma.admin.findMany).toHaveBeenCalledWith({ where: { id: { in: ['admin-1'] } }, select: { id: true, name: true } })
+    })
+
+    it('admin removido depois da aprovacao nao quebra, mostra rotulo generico', async () => {
+      const { service, prisma } = buildService()
+      prisma.order.findMany.mockResolvedValue([
+        { id: 'o1', businessApprovalStatus: 'APPROVED', businessApprovedBy: 'admin-excluido', businessApprovedAt: new Date() },
+      ])
+      prisma.admin.findMany.mockResolvedValue([]) // conta ja nao existe mais
+
+      const result = await service.listApprovalHistory(undefined)
+
+      expect(result[0].businessApprovedByName).toBe('Conta removida')
+    })
+
+    it('nao consulta Admin quando nenhum pedido tem businessApprovedBy', async () => {
+      const { service, prisma } = buildService()
+      prisma.order.findMany.mockResolvedValue([
+        { id: 'o1', businessApprovalStatus: 'APPROVED', businessApprovedBy: null, businessApprovedAt: null },
+      ])
+
+      const result = await service.listApprovalHistory(undefined)
+
+      expect(prisma.admin.findMany).not.toHaveBeenCalled()
+      expect(result[0].businessApprovedByName).toBeNull()
     })
   })
 
