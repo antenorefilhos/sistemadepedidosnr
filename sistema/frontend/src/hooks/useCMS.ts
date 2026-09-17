@@ -77,6 +77,50 @@ export function useCommercialTaxonomy() {
   })
 }
 
+export interface HomeVitrineProduto extends Product {
+  erpProductId?: number | null
+}
+
+export interface HomeVitrineCarrossel {
+  id: string
+  titulo: string
+  subtitulo: string
+  produtos: HomeVitrineProduto[]
+}
+
+export interface HomeVitrinesResponse {
+  contexto: { perfil: string; momento: string; mes: number }
+  personalidadeAtiva: {
+    titulo: string
+    subtitulo: string
+    bannerPrincipal: { headline: string; subheadline: string; ctaTexto: string; tagFoco: string }
+  }
+  carrosseis: HomeVitrineCarrossel[]
+}
+
+/**
+ * Vitrines Inteligentes (JON-172/173 -> AEF-037): personalidade contextual
+ * resolvida no backend contra o catalogo local. `null` (resposta ou erro de
+ * rede) e um resultado esperado, nao uma falha de fetch -- Home.tsx cai no
+ * useHomeShelves client-side quando isso acontece, por ser dependencia
+ * externa nova (AntenorApi) no caminho critico da pagina mais importante do
+ * storefront.
+ */
+export function useHomeVitrines() {
+  return useQuery<HomeVitrinesResponse | null>(['home-vitrines'], async () => {
+    try {
+      const response = await cmsAPI.categories.getHomeVitrines()
+      return response.data
+    } catch {
+      return null
+    }
+  }, {
+    staleTime: 1000 * 60 * 5,
+    cacheTime: 1000 * 60 * 10,
+    retry: false,
+  })
+}
+
 export interface PromotionCampaignCMS {
   id: string
   name: string

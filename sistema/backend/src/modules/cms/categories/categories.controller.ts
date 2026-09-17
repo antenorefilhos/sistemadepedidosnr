@@ -1,18 +1,44 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
+import { HomeVitrinesService, HomeVitrinesQuery } from './home-vitrines.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { RelaxedThrottle } from '../../../common/decorators/relaxed-throttle.decorator'
+import { Logger, Query } from '@nestjs/common';
 
 @RelaxedThrottle()
 @Controller('cms/categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+  private readonly logger = new Logger(CategoriesController.name);
+
+  constructor(
+    private readonly categoriesService: CategoriesService,
+    private readonly homeVitrinesService: HomeVitrinesService,
+  ) {}
 
   @Get('commercial')
   findCommercialTaxonomy() {
     return this.categoriesService.findCommercialTaxonomy();
+  }
+
+  /**
+   * Home Vitrines Inteligentes (JON-172/173 -> AEF-037). `null` sinaliza pro
+   * front cair no fallback client-side (useHomeShelves) -- a AntenorApi e uma
+   * dependencia externa nova no caminho critico da Home, e cair com 500
+   * quebraria a pagina mais importante do storefront por indisponibilidade de
+   * terceiro.
+   */
+  @Get('home-vitrines')
+  async findHomeVitrines(@Query() query: HomeVitrinesQuery) {
+    try {
+      return await this.homeVitrinesService.getHomeVitrines(query);
+    } catch (error) {
+      this.logger.warn(
+        `Falha ao buscar vitrines da AntenorApi, front cai no fallback client-side: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
   }
 
   @Get('classification-mappings')

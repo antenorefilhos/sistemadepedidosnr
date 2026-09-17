@@ -32,6 +32,30 @@ export class OrderNotFoundInErpError extends Error {
   }
 }
 
+/** Item de vitrine cru, como a AntenorApi devolve (id/sku = cdProduto do ERP). */
+export type VitrineProdutoAntenorApi = {
+  id: number
+  sku: string
+  syncOption: 'SEMPRE' | 'ESTOQUE'
+}
+
+export type VitrineCarrosselAntenorApi = {
+  id: string
+  titulo: string
+  subtitulo: string
+  produtos: VitrineProdutoAntenorApi[]
+}
+
+export type VitrineEcommerceAntenorApi = {
+  contexto: { perfil: string; momento: string; mes: number }
+  personalidadeAtiva: {
+    titulo: string
+    subtitulo: string
+    bannerPrincipal: { headline: string; subheadline: string; ctaTexto: string; tagFoco: string }
+  }
+  carrosseis: VitrineCarrosselAntenorApi[]
+}
+
 export type AntenorApiOrderStatus = {
   cdPedido: string
   cdFilial: number
@@ -451,6 +475,28 @@ export class AntenorApiService {
       this.logger.error('Erro na sincronizacao de catalogo via AntenorApi:', error)
       throw new Error('Falha ao sincronizar catalogo com a AntenorApi')
     }
+  }
+
+  /**
+   * Vitrines Inteligentes (JON-172/173, AEF-036/037): personalidade contextual
+   * por dia da semana/perfil, com deduplicacao cross-carrossel ja resolvida no
+   * lado deles. So os campos que o nosso mapeamento usa (`id`/`sku`/`syncOption`)
+   * sao tipados aqui de proposito -- o resto (preco, foto, estoque) e ignorado
+   * porque a vitrine que o cliente ve usa SEMPRE o nosso catalogo (preco/foto/
+   * estoque locais), nunca o retorno deles: eles decidem "quais produtos e em
+   * que ordem", nao "quanto custa" ou "qual foto mostrar".
+   */
+  async getVitrines(params: {
+    filialId?: number
+    perfil?: 'condominio' | 'bairro'
+    momento?: 'semana' | 'fim_de_semana'
+    mes?: number
+    limitePorCarrossel?: number
+  }): Promise<VitrineEcommerceAntenorApi> {
+    const { data } = await this.cliente.get<VitrineEcommerceAntenorApi>('/api/integracao/vitrines', {
+      params: { loja: this.loja, ...params },
+    })
+    return data
   }
 
   /** Sync incremental -- so o que mudou desde `hours` atras (~500ms medido). */

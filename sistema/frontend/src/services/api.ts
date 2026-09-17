@@ -445,6 +445,7 @@ export const cmsAPI = {
   categories: {
     getAll: () => api.get('/cms/categories'),
     getCommercial: () => api.get('/cms/categories/commercial'),
+    getHomeVitrines: () => api.get('/cms/categories/home-vitrines'),
   },
   promoBanners: {
     getAll: () => api.get('/cms/promo-banners'),

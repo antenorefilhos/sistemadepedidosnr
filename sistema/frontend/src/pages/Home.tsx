@@ -6,11 +6,12 @@ import {
   resolveBannerLink,
   buildOverlaySolid,
   bannerAppearsOnPage,
+  iconForCarrossel,
 } from '../utils/homeCategories'
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
-import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns } from '../hooks/useCMS'
+import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns, useHomeVitrines } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
 import { PromoBanner, type PromoBannerView } from '../components/PromoBanner'
 import { BannerImage } from '../components/BannerImage'
@@ -67,6 +68,7 @@ export default function Home() {
     [promotionCampaigns],
   )
   const { data: cmsCategories } = useCommercialTaxonomy()
+  const { data: vitrinesData } = useHomeVitrines()
   const { data: topSellingProducts } = useTopSellingProducts(8)
   const { count, subtotal } = useCart()
   const freeShipping = useFreeShipping(subtotal)
@@ -169,7 +171,29 @@ export default function Home() {
    * renderiza por ultimo, separado -- e o catalogo completo, nao uma vitrine
    * comercial com hierarquia.
    */
-  const homeSections = useMemo(() => ([
+  /**
+   * Vitrines Inteligentes (JON-172/173 -> AEF-037): quando a AntenorApi
+   * responde, a personalidade contextual (dia da semana/perfil/sazonalidade)
+   * e a deduplicacao cross-carrossel vem de la -- este bloco so escolhe o
+   * icone (por palavra-chave do id do carrossel) e converte pro formato que
+   * ProductShelf ja consome. `vitrinesData` null (endpoint fora do ar ou
+   * ainda carregando) cai no `homeSections` calculado localmente, abaixo.
+   */
+  const vitrinesSections = useMemo(() => {
+    if (!vitrinesData) return null
+    return vitrinesData.carrosseis
+      .map((carrossel) => ({
+        key: carrossel.id,
+        eyebrow: vitrinesData.personalidadeAtiva.titulo,
+        title: carrossel.titulo,
+        icon: iconForCarrossel(carrossel.id),
+        products: carrossel.produtos,
+        to: '/mercado',
+      }))
+      .filter((shelf) => shelf.products.length > 0)
+  }, [vitrinesData])
+
+  const homeSectionsFallback = useMemo(() => ([
     {
       key: 'rebuy',
       eyebrow: user ? 'Historico de compra' : 'Compra recorrente',
@@ -270,6 +294,8 @@ export default function Home() {
     user, rebuyShelf, offersShelf, freshShelf, churrascoOccasionShelf, fairShelf, recurringShelf,
     categorized, bestSellers,
   ])
+
+  const homeSections = vitrinesSections ?? homeSectionsFallback
 
   // Tarja/popup fechados ficam fechados so pela sessao (sessionStorage) --
   // reaparecem na proxima visita, diferente de um "nunca mais mostrar" perene.

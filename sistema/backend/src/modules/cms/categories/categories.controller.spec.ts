@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CategoriesController } from './categories.controller';
 import { CategoriesService } from './categories.service';
+import { HomeVitrinesService } from './home-vitrines.service';
 
 describe('CategoriesController', () => {
   let controller: CategoriesController;
@@ -16,6 +17,12 @@ describe('CategoriesController', () => {
             create: jest.fn(),
             update: jest.fn(),
             remove: jest.fn(),
+          },
+        },
+        {
+          provide: HomeVitrinesService,
+          useValue: {
+            getHomeVitrines: jest.fn(),
           },
         },
       ],

@@ -7,6 +7,7 @@ import {
   Croissant,
   CupSoda,
   Dog,
+  Flame,
   GlassWater,
   Milk,
   Package,
@@ -193,7 +194,19 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   pet: Dog,
   bazar: Package,
   tabacaria: Cigarette,
+  churrasco: Flame,
   default: ShoppingBag,
+}
+
+/**
+ * Escolhe um icone pra carrossel das Vitrines Inteligentes (JON-172/173 ->
+ * AEF-037) por palavra-chave no id/slug (ex.: "churrasco-nobre",
+ * "hortifruti-fresco") -- a AntenorApi nao manda icone, so texto.
+ */
+export function iconForCarrossel(carrosselId: string): LucideIcon {
+  const chave = carrosselId.toLowerCase()
+  const encontrada = Object.keys(CATEGORY_ICONS).find((k) => k !== 'default' && chave.includes(k))
+  return CATEGORY_ICONS[encontrada || 'default']
 }
 
 /**
