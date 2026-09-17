@@ -93,7 +93,13 @@ SAUDE_PROJETO_E_RECOMENDACOES.md
 UIUX_QUICK_START.md
 VIABILIDADE_VERCEL_SUPABASE.md
 .gitignore
-.github/
+# Achado em 17/09/2026: essa regra generica derrubava .github/workflows/
+# junto (git ignora tudo dentro de um diretorio ignorado, a excecao do
+# comentario da linha ~30 nunca era avaliada) -- CI real do GitHub Actions
+# ficou desligado desde 31/07/2026 sem ninguem perceber. `.github/*` com
+# excecao de workflows/ replica o padrao ja usado acima pro .claude/*.
+.github/*
+!.github/workflows/
 .overclock-app/
 .vscode/
 
