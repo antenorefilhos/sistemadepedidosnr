@@ -57,6 +57,17 @@ que fecha desce para o histórico com a data e o commit.
       `READY_FOR_DELIVERY` (entregador). **Validado em aparelho real**
       (05/09/2026): os dois avisos chegaram no celular durante o teste da
       jornada, com a inscrição de equipe gravada no banco.
+      **Regressão descoberta e corrigida em 17/09/2026**: `.env.production`
+      na VPS tinha `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/
+      `VITE_VAPID_PUBLIC_KEY` como linhas vazias (nunca preenchidas — o teste
+      de 05/09 deve ter rodado contra outro arquivo `.env`, não o de produção
+      real), deixando Web Push completamente desligado em produção
+      (`"Web Push sem VAPID configurado"` no log). Achado ao investigar o
+      mesmo padrão no cutover da AntenorApi (ver item abaixo). Corrigido:
+      par de chaves novo gerado via `generate-web-push-vapid.js`, aplicado em
+      `.env.production` (backup antes), containers `api`/`storefront`/
+      `picking`/`delivery` reconstruídos. Log confirma
+      `"Web Push habilitado com VAPID."` em produção.
 
 - [x] **Jornada executada ponta a ponta.** (05/09/2026) Os oito elos rodaram
       contra produção com o DAV 102066, de `order.created` a `order.delivered`,
@@ -141,6 +152,11 @@ que fecha desce para o histórico com a data e o commit.
       fornecedor em 26/08 — a falha aparecia como "a IA decidiu não avisar",
       porque falha de chamada e recusa editorial eram contadas juntas. Corrigido
       com contador separado.
+      **Regressão descoberta em 17/09/2026**: `NVIDIA_API_KEY` está ausente em
+      `.env.production` agora (log: `"NVIDIA_API_KEY nao configurada --
+      notificacoes automaticas por IA desativadas"`) -- mesmo padrão do Web
+      Push acima, mas essa eu não corrigi: é chave de conta do Jonathan, não
+      dá pra gerar. Falta ele colar o valor real em `.env.production` na VPS.
 
 - [ ] **Espaços patrocinados: vender banner para fornecedor.** Ideia do
       Jonathan em 28/08/2026. A base já existe: `sponsorName` renderiza o selo
