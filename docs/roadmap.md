@@ -67,26 +67,32 @@ que fecha desce para o histórico com a data e o commit.
       Único erro do percurso: item por peso exige `finalWeight` (validação
       correta — conferir se o campo está visível no app do separador).
 
-- [x] **AntenorApi: substituir a integração Solidcom (cutover, JON-17).**
-      Concluído em 10/09/2026. Performance deixou de ser bloqueio — a versão
-      final da AntenorApi mediu 12,5s pro catálogo completo (15.934 produtos)
-      contra 15,3s do Solidcom antigo. Construído o que faltava do nosso lado
-      (criação de pedido e sync de catálogo via AntenorApi nunca tinham sido
-      escritos — só cancelamento e status já usavam o conector novo).
-      Mapeamento `VL_PRODUTO_NORMAL → price` / `VL_PRODUTO → promotionalPrice`
-      validado com query real no banco antes do corte. Testado de ponta a
-      ponta: pedido real gerou DAV 102080, cancelamento refletido no banco
-      DORSAL, sync completo com 0 erros. Um bug real só apareceu no teste de
-      ponta a ponta (`erpProductId` não chegava no payload, API rejeitava com
-      400) — corrigido na fonte única do mapeamento antes de fechar. Solidcom
-      desligado em produção (`enabled: false`), código mantido como fallback.
+- [ ] **AntenorApi: substituir a integração Solidcom (cutover, JON-17) — código
+      pronto e testado, mas nunca ativado de fato em produção.** O trabalho de
+      10/09/2026 ficou completo e validado: performance deixou de ser bloqueio
+      (12,5s pro catálogo completo contra 15,3s do Solidcom), criação de pedido
+      e sync de catálogo via AntenorApi foram escritos, mapeamento
+      `VL_PRODUTO_NORMAL → price` / `VL_PRODUTO → promotionalPrice` validado
+      contra o banco real, e um pedido de teste gerou DAV 102080 de ponta a
+      ponta. **Mas** — achado em 17/09/2026 ao investigar por que a vitrine
+      nova (JON-172/173 → AEF-037) sempre cai no fallback client-side —
+      `.env.production` na VPS **nunca** teve `ANTENOR_API_URL`/`_KEY`/
+      `_CA_PATH` preenchidas (nenhum backup histórico do arquivo tem essas
+      linhas) e `INTEGRATION_ANTENORAPI_ENABLED` segue no default `false`. O
+      teste de ponta a ponta quase certamente rodou com credencial aplicada
+      manualmente, não pelo caminho padrão de deploy. Nenhum commit ou
+      registro no braincoletivo indica reversão deliberada — parece que o
+      último passo (preencher o `.env.production` real e virar a flag) nunca
+      foi executado. **O Solidcom legado continua sendo o ERP ativo em
+      produção até hoje.** Decisão pendente do Jonathan: completar a ativação
+      agora, ou manter Solidcom por enquanto.
 
-- [ ] **ERP exposto na internet.** `http://45.239.193.56:5000` responde sem TLS e
-      sem autenticação: o catálogo completo (10,5 MB, com preço, custo e margem)
-      sai de qualquer lugar, e o mesmo endereço aceita gravar pedido. Não é novo
-      — é como a integração sempre funcionou — mas foi medido em 08/09/2026.
-      Qualquer túnel resolve; enquanto não vem, uma regra de firewall
-      restringindo a porta 5000 ao IP da VPS já cobre quase tudo.
+- [x] **ERP exposto na internet.** `http://45.239.193.56:5000` respondia sem TLS
+      e sem autenticação: o catálogo completo (10,5 MB, com preço, custo e margem)
+      saía de qualquer lugar, e o mesmo endereço aceitava gravar pedido. Não era
+      novo — era como a integração sempre funcionou — mas foi medido em
+      08/09/2026. `JON-10` marcado `Done` em 11/09/2026 (mitigação de firewall
+      restringindo a porta 5000 ao IP da VPS, descrita no ticket original).
 
 - [ ] **Auditoria de aprovação B2B não aparece em lugar nenhum.** O
       `businessApprovalStatus` é exibido em `BusinessAccountsSection`, mas
