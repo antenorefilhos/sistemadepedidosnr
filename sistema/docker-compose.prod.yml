@@ -137,6 +137,10 @@ services:
       - meili
     volumes:
       - uploads_data:/app/uploads
+      # Certificado publico da AntenorApi (CN=api-loja.antenorefilhos.com.br,
+      # instalado na VPS em 08/09/2026, ver braincoletivo) -- ANTENOR_API_CA_PATH
+      # so acha o arquivo se ele existir DENTRO do container, nao so no host.
+      - /etc/antenor:/etc/antenor:ro
     networks:
       - antenor_network
     # Sem "ports": so o proxy fala com a api, pela rede interna.
