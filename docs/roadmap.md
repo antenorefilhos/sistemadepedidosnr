@@ -21,6 +21,24 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
+- [ ] **Webhook `produto.alterado` da AntenorApi (JON-33).** (18/09/2026)
+      Estava em standby desde 11/09 por dependência circular entre
+      `ProductsModule` e `IntegrationsModule` (o handler do webhook precisa
+      injetar `ProductsService` no `IntegrationsController`, mas
+      `ProductsModule` já importava `IntegrationsModule`). Resolvido com
+      `forwardRef()` nos dois módulos — padrão do NestJS pra esse formato
+      de ciclo. Endpoint novo:
+      `POST /integrations/antenorapi/webhook/produto-alterado`, guardado
+      pelo `AntenorApiWebhookGuard` já existente (HMAC, mesmo segredo do
+      webhook de pedido). Não aplica o payload direto — reagenda
+      `syncRecentFromERP(1)` (mesma rotina do cron incremental) com
+      debounce de 5s pra coalescer rajadas de produtos alterados quase
+      juntas. Testado (2 specs novos cobrindo o debounce, 183/183 passando,
+      CI verde incluindo o job Docker que sobe a stack real).
+      **Falta só o e2e**: pedido feito ao `[A1-API]` no braincoletivo pra
+      retomar o worker de debounce deles e mandar um hit de teste real —
+      fecha o ticket assim que confirmarmos o sync disparando pelo webhook.
+
 - [x] **Cloudflare na frente da VPS + Tunnel (JON-41).** (17/09/2026)
       `antenorefilhos.com.br` migrado do Registro.br pro Cloudflare (zona
       inteira, não só os subdomínios nossos — domínio é compartilhado com
