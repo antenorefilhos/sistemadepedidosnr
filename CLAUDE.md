@@ -182,6 +182,18 @@ outro caractere reservado de URL) na versão `_URLENC`, e roda
 Docker) já guarda a `DATABASE_URL` com a senha url-encoded — mantém os dois em
 sincronia.
 
+**Armadilha irmã, achada em 18/09/2026:** o `ADMIN_PASSWORD` do
+`.env.production` da VPS ficou desatualizado (não batia mais com o hash real
+gravado em `admins.password` no banco) — `prisma:seed` só grava o hash na
+hora que roda, então trocar a env var depois não muda a senha de um admin já
+seedado, exatamente como a senha do Postgres acima. Segunda vez que isso
+custa tempo (login admin via API retornando 401 com a senha "certa" do
+arquivo). Corrigido: `.env.production` atualizado pro valor real (mesma
+senha do Postgres — nunca vai aqui nem em nenhum arquivo do repo). **Antes
+de desconfiar de senha errada, teste sem e com espaço/quebra de linha no
+fim** — copiar/colar já grudou espaço nela pelo menos uma vez, e é o erro
+mais provável, não a senha em si.
+
 ## Armadilha: quantidade fracionada no carrinho é "número de passos", não kg
 
 `CartContext` guarda `quantity` de item pesável como **múltiplo do passo**
