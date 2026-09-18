@@ -10,9 +10,10 @@ import { CartService } from './cart.service'
 import { CheckoutService } from './checkout.service'
 import { AbandonedCartScheduler } from './abandoned-cart.scheduler'
 import { NotificationsModule } from '../notifications/notifications.module'
+import { IntegrationsModule } from '../integrations/integrations.module'
 
 @Module({
-  imports: [PricingModule, InventoryModule, DeliveryModule, OrdersModule, NotificationsModule],
+  imports: [PricingModule, InventoryModule, DeliveryModule, OrdersModule, NotificationsModule, IntegrationsModule],
   controllers: [CartController, CheckoutSessionsController, AdminCheckoutController],
   providers: [CartService, CheckoutService, TenantAccessGuard, AbandonedCartScheduler],
   exports: [CartService, CheckoutService],

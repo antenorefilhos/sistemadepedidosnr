@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useInfiniteProducts, useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
@@ -30,7 +29,6 @@ import type { Product } from '../types'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { Select } from '../components/ui/select'
 import { surfaceClasses } from '../components/ui/surface'
 import { cn } from '../lib/cn'
 
@@ -40,25 +38,6 @@ interface PaginatedProducts {
   limit: number
   total: number
   hasNextPage: boolean
-}
-
-interface MercadologicalTreeLevel4 {
-  value: string
-}
-
-interface MercadologicalTreeLevel3 {
-  value: string
-  children: MercadologicalTreeLevel4[]
-}
-
-interface MercadologicalTreeLevel2 {
-  value: string
-  children: MercadologicalTreeLevel3[]
-}
-
-interface MercadologicalTreeLevel1 {
-  value: string
-  children: MercadologicalTreeLevel2[]
 }
 
 const FALLBACK_CATEGORIES = [
@@ -135,16 +114,6 @@ export default function MercadoPage() {
     () => (q ? undefined : findCategoryBanner(storeBanners, cat)),
     [storeBanners, cat, q],
   )
-
-  const { data: mercadologicalTree = [] } = useQuery({
-    queryKey: ['mercadological-tree'],
-    queryFn: async (): Promise<MercadologicalTreeLevel1[]> => {
-      const response = await productsAPI.getMercadologicalTree()
-      return (response.data?.data || []) as MercadologicalTreeLevel1[]
-    },
-    staleTime: 1000 * 60 * 30,
-  })
-
 
   const [inputValue, setInputValue] = useState(q)
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -424,40 +393,6 @@ export default function MercadoPage() {
     [selectedRoot, categoryTree],
   )
 
-  const level1Options = mercadologicalTree
-  const level2Options = useMemo(() => {
-    const found = mercadologicalTree.find((item) => item.value === classification01)
-    return found?.children || []
-  }, [mercadologicalTree, classification01])
-  const level3Options = useMemo(() => {
-    const found = level2Options.find((item) => item.value === classification02)
-    return found?.children || []
-  }, [level2Options, classification02])
-  const level4Options = useMemo(() => {
-    const found = level3Options.find((item) => item.value === classification03)
-    return found?.children || []
-  }, [level3Options, classification03])
-
-  const setMercadologicalFilter = (level: 1 | 2 | 3 | 4, value: string) => {
-    const params: Record<string, string> = {}
-    if (q) params.q = q
-    if (cat) params.cat = cat
-    if (typeof minPrice === 'number') params.minPrice = String(minPrice)
-    if (typeof maxPrice === 'number') params.maxPrice = String(maxPrice)
-
-    const next1 = level === 1 ? value : classification01
-    const next2 = level === 2 ? value : level < 2 ? '' : classification02
-    const next3 = level === 3 ? value : level < 3 ? '' : classification03
-    const next4 = level === 4 ? value : level < 4 ? '' : classification04
-
-    if (next1) params.classification01 = next1
-    if (next2 && next1) params.classification02 = next2
-    if (next3 && next2) params.classification03 = next3
-    if (next4 && next3) params.classification04 = next4
-
-    setSearchParams(params)
-  }
-
   const categoryLabel =
     categories.find((c) => c.key === cat)?.label ||
     selectedSubcategories.find((c) => c.key === cat)?.label ||
@@ -710,63 +645,15 @@ export default function MercadoPage() {
                     </div>
                   </div>
 
-                  {/* Classificação mercadológica (progressiva) */}
-                  {level1Options.length > 0 && (
-                    <div>
-                      <p className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Classificação</p>
-                      <div className="flex flex-col gap-2">
-                        <Select
-                          value={classification01}
-                          onChange={(e) => setMercadologicalFilter(1, e.target.value)}
-                          className="text-xs font-semibold"
-                        >
-                          <option value="">Nível 1</option>
-                          {level1Options.map((item) => (
-                            <option key={item.value} value={item.value}>{item.value}</option>
-                          ))}
-                        </Select>
-
-                        {classification01 && level2Options.length > 0 && (
-                          <Select
-                            value={classification02}
-                            onChange={(e) => setMercadologicalFilter(2, e.target.value)}
-                            className="text-xs font-semibold"
-                          >
-                            <option value="">Nível 2</option>
-                            {level2Options.map((item) => (
-                              <option key={item.value} value={item.value}>{item.value}</option>
-                            ))}
-                          </Select>
-                        )}
-
-                        {classification02 && level3Options.length > 0 && (
-                          <Select
-                            value={classification03}
-                            onChange={(e) => setMercadologicalFilter(3, e.target.value)}
-                            className="text-xs font-semibold"
-                          >
-                            <option value="">Nível 3</option>
-                            {level3Options.map((item) => (
-                              <option key={item.value} value={item.value}>{item.value}</option>
-                            ))}
-                          </Select>
-                        )}
-
-                        {classification03 && level4Options.length > 0 && (
-                          <Select
-                            value={classification04}
-                            onChange={(e) => setMercadologicalFilter(4, e.target.value)}
-                            className="text-xs font-semibold"
-                          >
-                            <option value="">Nível 4</option>
-                            {level4Options.map((item) => (
-                              <option key={item.value} value={item.value}>{item.value}</option>
-                            ))}
-                          </Select>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {/* JON-192 (Auditoria 360, 18/09/2026): o filtro de
+                      "Classificação" (Nível 1-4) removido daqui expunha a
+                      arvore mercadologica crua do ERP direto pro cliente
+                      final (ex: "01-MERCEARIA SALGADA | 01-CEREAIS") --
+                      jargao interno, nao filtro de loja. Os chips de
+                      categoria (topo da pagina) ja cobrem a navegacao real.
+                      classification01-04 continuam lidos/aceitos na URL (nao
+                      remove suporte a link antigo), so a UI que oferecia
+                      escolher esses valores saiu. */}
 
                   {/* Limpar filtros */}
                   {hasActiveFilters && (

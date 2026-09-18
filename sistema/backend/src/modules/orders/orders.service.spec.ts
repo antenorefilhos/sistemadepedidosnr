@@ -10,6 +10,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { PricingService } from '../pricing/pricing.service';
 import { PublicApiService } from '../public-api/public-api.service';
 import { BrandService } from '../brand/brand.service';
+import { AntenorApiService } from '../integrations/antenor-api.service';
 
 const mockPrismaService = {
   order: {
@@ -103,6 +104,10 @@ const mockPublicApiService = {
 const mockBrandService = {
   get: jest.fn().mockResolvedValue({ contactWhatsapp: '5524999999999' }),
 };
+const mockAntenorApiService = {
+  isConfigured: jest.fn().mockReturnValue(false),
+  getFidelidade: jest.fn(),
+};
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -122,6 +127,7 @@ describe('OrdersService', () => {
         { provide: PricingService, useValue: mockPricingService },
         { provide: PublicApiService, useValue: mockPublicApiService },
         { provide: BrandService, useValue: mockBrandService },
+        { provide: AntenorApiService, useValue: mockAntenorApiService },
       ],
     }).compile();
 

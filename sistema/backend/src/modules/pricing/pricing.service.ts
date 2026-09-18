@@ -26,6 +26,9 @@ type QuoteRequest = {
   // (Product.promotionalPriceValidUntil). Ausente = comportamento antigo
   // (promocao sempre vale), usado por preview/simulacao sem slot escolhido.
   deliveryDate?: string
+  // JON-184: resolvido no backend (CheckoutService.resolveClubMembership),
+  // nunca aceito cru do cliente -- ver comentario em checkout.service.ts.
+  isClubMember?: boolean
   items: QuoteItemInput[]
 }
 
@@ -243,6 +246,9 @@ export class PricingService {
     })
     const priceListItems = await this.findPriceListItems(priceLists.map((list) => list.id), items.map((item) => item.productId))
     const priceByProduct = this.pickPriceListItems(priceLists, priceListItems)
+    const clubPriceByProduct = request.isClubMember
+      ? await this.findActiveClubPrices({ tenantId, storeId, productIds: items.map((item) => item.productId) })
+      : new Map<string, number>()
 
     const quoteItems = items.map((item) => {
       const product = productsById.get(item.productId)
@@ -263,9 +269,16 @@ export class PricingService {
         !Number.isNaN(deliveryDate.getTime()) &&
         deliveryDate.getTime() > product.promotionalPriceValidUntil.getTime()
       const effectivePromotionalPrice = promoExpired ? null : product.promotionalPrice
-      const listUnitPrice = Number(priceListItem?.price ?? effectivePromotionalPrice ?? product.price)
+      let listUnitPrice = Number(priceListItem?.price ?? effectivePromotionalPrice ?? product.price)
       if (!Number.isFinite(listUnitPrice) || listUnitPrice <= 0) {
         throw new BadRequestException(`Produto sem preco valido: ${product.name}`)
+      }
+      // JON-183/184: clubPrice so entra se for melhor que o preco ja
+      // resolvido acima (tabela/promocional) -- decisao do lojista, nunca
+      // sobrescreve um desconto de lista de preco maior.
+      const clubPrice = clubPriceByProduct.get(item.productId)
+      if (clubPrice != null && clubPrice > 0 && clubPrice < listUnitPrice) {
+        listUnitPrice = clubPrice
       }
 
       // Produtos pesaveis vendem por step fracional (ex: 0.4kg), nao por
@@ -654,6 +667,27 @@ export class PricingService {
       orderBy: { createdAt: 'asc' },
     })
     return membership?.account || null
+  }
+
+  // JON-183/184: clubPrice vive em PromotionCampaignItem (so existe no
+  // encarte), nao em Product -- por isso e uma busca separada da lista de
+  // precos normal. So considera campanha ATIVA e dentro da janela de datas.
+  private async findActiveClubPrices(params: { tenantId: string; storeId: string; productIds: string[] }) {
+    if (params.productIds.length === 0) return new Map<string, number>()
+    const now = new Date()
+    const items = await this.prisma.promotionCampaignItem.findMany({
+      where: {
+        productId: { in: params.productIds },
+        clubPrice: { not: null },
+        campaign: { tenantId: params.tenantId, storeId: params.storeId, active: true, startDate: { lte: now }, endDate: { gte: now } },
+      },
+      select: { productId: true, clubPrice: true },
+    })
+    const byProduct = new Map<string, number>()
+    for (const item of items) {
+      if (item.clubPrice != null) byProduct.set(item.productId, Number(item.clubPrice))
+    }
+    return byProduct
   }
 
   private async findPriceListItems(priceListIds: string[], productIds: string[]) {

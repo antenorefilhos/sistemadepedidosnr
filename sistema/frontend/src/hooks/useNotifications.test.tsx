@@ -31,11 +31,9 @@ describe('useNotifications — pushStatus reflete subscription existente', () =>
 
   afterEach(() => {
     vi.restoreAllMocks()
-    // @ts-expect-error -- limpa mocks globais entre testes
+    // limpa mocks globais entre testes
     delete (navigator as any).serviceWorker
-    // @ts-expect-error
     delete (window as any).Notification
-    // @ts-expect-error
     delete (window as any).PushManager
   })
 

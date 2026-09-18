@@ -98,10 +98,16 @@ describe('CheckoutService', () => {
     create: jest.fn(),
   }
 
+  const mockAntenorApi = {
+    isConfigured: jest.fn().mockReturnValue(false),
+    getFidelidade: jest.fn(),
+  }
+
   let service: CheckoutService
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockAntenorApi.isConfigured.mockReturnValue(false)
     service = new CheckoutService(
       mockPrisma as any,
       mockCartService as any,
@@ -109,6 +115,7 @@ describe('CheckoutService', () => {
       mockInventoryService as any,
       mockDeliveryService as any,
       mockOrdersService as any,
+      mockAntenorApi as any,
     )
 
     mockCartService.findCart.mockResolvedValue(baseCart)

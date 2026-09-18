@@ -8,6 +8,7 @@ import { WhatsAppDispatchResult, WhatsAppService } from '../../modules/notificat
 import { NotificationsService } from '../../modules/notifications/notifications.service'
 import { InternalOrderContract } from '../integrations/dto/order-contract.dto'
 import { IntegrationsService } from '../integrations/integrations.service'
+import { AntenorApiService } from '../integrations/antenor-api.service'
 import { OrderOrchestrationService } from '../integrations/order-orchestration.service'
 import { CreateOrderDto } from './dto/create-order.dto'
 import { UpdateOrderDto } from './dto/update-order.dto'
@@ -61,7 +62,23 @@ export class OrdersService {
     private pricingService: PricingService,
     private publicApiService: PublicApiService,
     private brandService: BrandService,
+    private antenorApi: AntenorApiService,
   ) {}
+
+  // JON-184: mesma logica de CheckoutService.resolveClubMembership -- precisa
+  // rodar identico aqui pro 3o quote() (create()) nao divergir do 1o/2o
+  // (buildQuote) e disparar PRICE_DIVERGED por causa de isClubMember.
+  private async resolveClubMembership(tenantId: string, customerId?: string): Promise<boolean> {
+    if (!customerId || !this.antenorApi.isConfigured()) return false
+    const customer = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId }, select: { cpf: true } })
+    if (!customer?.cpf) return false
+    try {
+      const fidelidade = await this.antenorApi.getFidelidade(customer.cpf)
+      return Boolean(fidelidade?.clubeFidelidade)
+    } catch {
+      return false
+    }
+  }
 
   async getSalesAnalytics(period: string) {
     const days = period === 'month' ? 30 : period === 'day' ? 1 : 7
@@ -385,6 +402,8 @@ export class OrdersService {
       (createOrderDto.deliverySnapshot as { slot?: { windowStart?: string | null } } | undefined)?.slot?.windowStart ||
       undefined
 
+    const isClubMember = await this.resolveClubMembership(tenantId, customerId)
+
     let quote
     try {
       quote = await this.pricingService.quote({
@@ -396,6 +415,7 @@ export class OrdersService {
         couponCode,
         deliveryAmount,
         deliveryDate,
+        isClubMember,
         items,
       })
     } catch (error) {

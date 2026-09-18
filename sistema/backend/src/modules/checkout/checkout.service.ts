@@ -8,6 +8,7 @@ import { DeliveryService } from '../delivery/delivery.service'
 import { InventoryService } from '../inventory/inventory.service'
 import { OrdersService } from '../orders/orders.service'
 import { PricingService } from '../pricing/pricing.service'
+import { AntenorApiService } from '../integrations/antenor-api.service'
 import { CartService } from './cart.service'
 import { ConfirmCheckoutSessionDto, CreateCheckoutSessionDto, QuoteCheckoutSessionDto } from './dto/checkout.dto'
 
@@ -66,6 +67,7 @@ export class CheckoutService {
     private readonly inventoryService: InventoryService,
     private readonly deliveryService: DeliveryService,
     private readonly ordersService: OrdersService,
+    private readonly antenorApi: AntenorApiService,
   ) {}
 
   async createSession(context: CheckoutContext | undefined, dto: CreateCheckoutSessionDto) {
@@ -354,14 +356,22 @@ export class CheckoutService {
     // consistencia, o PRICE_DIVERGED (que compara os dois) dispararia falso
     // positivo toda vez que a promocao expirasse entre as etapas.
     const deliveryDate = deliveryBase.slot?.windowStart || undefined
+    const resolvedCustomerId = dto.customerId || session.customerId || cart.customerId || undefined
+    // JON-183/184: resolvido no backend a partir do CPF ja cadastrado, nunca
+    // aceito como flag vinda do cliente -- senao seria trivial forjar
+    // "sou clube" no corpo da requisicao pra pegar clubPrice sem ser socio.
+    // Mesma data alimenta as 2 chamadas de quote() abaixo, mesmo motivo do
+    // deliveryDate acima (consistencia com o PRICE_DIVERGED).
+    const isClubMember = await this.resolveClubMembership(tenantId, resolvedCustomerId)
     let price = await this.pricingService.quote({
       tenantId,
       storeId,
       channel: 'STOREFRONT',
-      customerId: dto.customerId || session.customerId || cart.customerId || undefined,
+      customerId: resolvedCustomerId,
       couponCode: dto.couponCode,
       deliveryAmount: Number(deliveryBase.fee || 0),
       deliveryDate,
+      isClubMember,
       items: cart.items.map((item) => ({ productId: item.productId, quantity: Number(item.quantity) })),
     })
     let delivery = this.applyOrderMinimum(this.applyFreeAbove(deliveryBase, price.subtotal), price.subtotal)
@@ -370,10 +380,11 @@ export class CheckoutService {
         tenantId,
         storeId,
         channel: 'STOREFRONT',
-        customerId: dto.customerId || session.customerId || cart.customerId || undefined,
+        customerId: resolvedCustomerId,
         couponCode: dto.couponCode,
         deliveryAmount: Number(delivery.fee || 0),
         deliveryDate,
+        isClubMember,
         items: cart.items.map((item) => ({ productId: item.productId, quantity: Number(item.quantity) })),
       })
       delivery = this.applyOrderMinimum(delivery, price.subtotal)
@@ -816,6 +827,22 @@ export class CheckoutService {
     return {
       tenantId: context?.tenantId || DEFAULT_TENANT_ID,
       storeId: context?.storeId || DEFAULT_STORE_ID,
+    }
+  }
+
+  // JON-184: resolve pelo CPF ja cadastrado, nunca aceita flag do cliente
+  // (ver comentario em buildQuote). Falha muda (retorna false) se a
+  // AntenorApi estiver fora do ar -- checkout nao pode travar por causa de
+  // um beneficio opcional.
+  private async resolveClubMembership(tenantId: string, customerId?: string): Promise<boolean> {
+    if (!customerId || !this.antenorApi.isConfigured()) return false
+    const customer = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId }, select: { cpf: true } })
+    if (!customer?.cpf) return false
+    try {
+      const fidelidade = await this.antenorApi.getFidelidade(customer.cpf)
+      return Boolean(fidelidade?.clubeFidelidade)
+    } catch {
+      return false
     }
   }
 
