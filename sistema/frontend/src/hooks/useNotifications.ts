@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { notificationsAPI } from '../services/api'
 
@@ -50,6 +50,29 @@ export function useNotifications() {
     && 'PushManager' in window
     && window.isSecureContext
   ), [])
+
+  // `pushStatus` nasce 'idle' a cada mount -- sem checar a subscription real
+  // do navegador, a tela "esquecia" que o usuario ja tinha ativado assim que
+  // recarregava a pagina ou navegava, e voltava a oferecer "Ativar
+  // notificacoes" mesmo com a inscricao ativa (browser + backend). So
+  // eleva pra 'enabled'; nunca rebaixa um status mais especifico (ex:
+  // 'denied') que o fluxo de clique acabou de setar.
+  useEffect(() => {
+    if (!canUsePush) return
+    if (Notification.permission !== 'granted') return
+
+    let cancelled = false
+    navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((subscription) => {
+        if (!cancelled && subscription) setPushStatus('enabled')
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [canUsePush])
 
   const { data: notifications = [], refetch, isLoading } = useQuery({
     queryKey: ['notifications'],
