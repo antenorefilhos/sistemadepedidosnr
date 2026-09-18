@@ -1482,6 +1482,13 @@ export class ProductsService {
         const promotionalPrice = options.clearMissingPromotion
           ? (item.promotionalPrice ?? null)
           : item.promotionalPrice
+        // JON-187: mesma logica/motivo do promotionalPrice acima -- so limpa
+        // a vigencia quando a promocao em si tambem esta sendo limpa por uma
+        // fonte confiavel, senao um GetProdutos em massa sem o campo apagaria
+        // a data de uma promocao que a janela recente tinha acabado de gravar.
+        const promotionalPriceValidUntil = options.clearMissingPromotion
+          ? (item.promotionalPriceValidUntil ?? null)
+          : item.promotionalPriceValidUntil
 
         const fields = {
           name: item.name,
@@ -1492,6 +1499,7 @@ export class ProductsService {
           classification04: item.classification04,
           price: item.price,
           promotionalPrice,
+          promotionalPriceValidUntil,
           stock: item.stock,
           isFractional: item.isFractional || false,
           fractionStep: item.fractionStep ?? null,

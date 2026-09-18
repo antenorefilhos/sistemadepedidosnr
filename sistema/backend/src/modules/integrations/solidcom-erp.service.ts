@@ -19,6 +19,9 @@ export interface ERPProduct {
   price: number
   stock: number
   promotionalPrice?: number
+  // JON-187: quando a entrega escolhida cai depois disso, cobra `price` em
+  // vez de `promotionalPrice`. Solidcom nao manda (so a AntenorApi).
+  promotionalPriceValidUntil?: Date
   isFractional?: boolean
   fractionStep?: number
   unit?: string

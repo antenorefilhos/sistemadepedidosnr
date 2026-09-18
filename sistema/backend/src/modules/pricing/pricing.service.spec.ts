@@ -323,4 +323,78 @@ describe('PricingService', () => {
   it('should reject invalid quote item quantity', async () => {
     await expect(service.quote({ items: [{ productId: 'prod-1', quantity: 0 }] })).rejects.toThrow(BadRequestException)
   })
+
+  describe('JON-187: promocao com prazo segue a data da entrega, nao a do pedido', () => {
+    beforeEach(() => {
+      // Sem price list nesses testes -- senao ela sempre venceria o
+      // promotionalPrice e a regra nova nunca entraria em jogo.
+      mockPrismaService.priceList.findMany.mockResolvedValue([])
+      mockPrismaService.priceListItem.findMany.mockResolvedValue([])
+      mockPrismaService.product.findMany.mockResolvedValue([
+        {
+          id: 'prod-1',
+          ean: '789',
+          name: 'Vinho em promocao',
+          category: 'ADEGA_VINHOS_ESPUMANTES',
+          tenantId: 'tenant_default',
+          storeId: 'store_default',
+          price: 100,
+          promotionalPrice: 70,
+          promotionalPriceValidUntil: new Date('2026-09-18T23:59:59.999Z'),
+          active: true,
+          syncOption: 'ESTOQUE',
+        },
+      ])
+    })
+
+    it('cobra o preco promocional quando a entrega cai dentro da vigencia', async () => {
+      const quote = await service.quote({
+        tenantId: 'tenant_default',
+        storeId: 'store_default',
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        deliveryDate: '2026-09-18T20:00:00-03:00',
+      })
+
+      expect(quote.items[0].unitPrice).toBe(70)
+    })
+
+    it('cobra o preco de tabela quando a entrega cai depois da vigencia', async () => {
+      const quote = await service.quote({
+        tenantId: 'tenant_default',
+        storeId: 'store_default',
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        deliveryDate: '2026-09-19T08:00:00-03:00',
+      })
+
+      expect(quote.items[0].unitPrice).toBe(100)
+    })
+
+    it('sem deliveryDate (preview/simulacao), preserva o comportamento antigo: promocao sempre vale', async () => {
+      const quote = await service.quote({
+        tenantId: 'tenant_default',
+        storeId: 'store_default',
+        items: [{ productId: 'prod-1', quantity: 1 }],
+      })
+
+      expect(quote.items[0].unitPrice).toBe(70)
+    })
+
+    it('promocao sem prazo (promotionalPriceValidUntil null) sempre vale, mesmo com deliveryDate', async () => {
+      mockPrismaService.product.findMany.mockResolvedValue([
+        {
+          id: 'prod-1', ean: '789', name: 'Sem prazo', category: 'MERCEARIA', tenantId: 'tenant_default', storeId: 'store_default',
+          price: 100, promotionalPrice: 70, promotionalPriceValidUntil: null, active: true, syncOption: 'ESTOQUE',
+        },
+      ])
+
+      const quote = await service.quote({
+        tenantId: 'tenant_default',
+        storeId: 'store_default',
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        deliveryDate: '2030-01-01T00:00:00-03:00',
+      })
+
+      expect(quote.items[0].unitPrice).toBe(70)
+    })
+  })
 })

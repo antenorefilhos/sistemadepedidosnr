@@ -21,6 +21,11 @@ type QuoteRequest = {
   businessAccountId?: string
   couponCode?: string
   deliveryAmount?: number
+  // JON-187: data da janela de entrega/retirada escolhida -- preco
+  // promocional so vale se essa data ainda estiver dentro da vigencia
+  // (Product.promotionalPriceValidUntil). Ausente = comportamento antigo
+  // (promocao sempre vale), usado por preview/simulacao sem slot escolhido.
+  deliveryDate?: string
   items: QuoteItemInput[]
 }
 
@@ -33,6 +38,7 @@ type QuoteProduct = {
   storeId: string
   price: number
   promotionalPrice: number | null
+  promotionalPriceValidUntil: Date | null
   active: boolean
   syncOption: string
   isFractional: boolean
@@ -216,6 +222,7 @@ export class PricingService {
         storeId: true,
         price: true,
         promotionalPrice: true,
+        promotionalPriceValidUntil: true,
         active: true,
         syncOption: true,
         isFractional: true,
@@ -245,7 +252,18 @@ export class PricingService {
       }
 
       const priceListItem = priceByProduct.get(item.productId)
-      const listUnitPrice = Number(priceListItem?.price ?? product.promotionalPrice ?? product.price)
+      // JON-187: promocao com prazo so vale se a entrega cair dentro da
+      // vigencia -- pedido feito hoje pra entrega amanha, com promocao que
+      // acaba hoje, paga preco de tabela (evita divergencia contra o PDV,
+      // que fatura no dia da entrega e ja aplicaria o preco cheio la).
+      const deliveryDate = request.deliveryDate ? new Date(request.deliveryDate) : null
+      const promoExpired =
+        product.promotionalPriceValidUntil != null &&
+        deliveryDate != null &&
+        !Number.isNaN(deliveryDate.getTime()) &&
+        deliveryDate.getTime() > product.promotionalPriceValidUntil.getTime()
+      const effectivePromotionalPrice = promoExpired ? null : product.promotionalPrice
+      const listUnitPrice = Number(priceListItem?.price ?? effectivePromotionalPrice ?? product.price)
       if (!Number.isFinite(listUnitPrice) || listUnitPrice <= 0) {
         throw new BadRequestException(`Produto sem preco valido: ${product.name}`)
       }

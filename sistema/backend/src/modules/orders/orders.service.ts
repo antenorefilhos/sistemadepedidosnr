@@ -375,6 +375,16 @@ export class OrdersService {
       throw new BadRequestException('Taxa de entrega invalida.')
     }
 
+    // JON-187: mesma data usada em CheckoutService.buildQuote() (que roda
+    // antes desta chamada, no fluxo real de checkout) -- scheduledFor tem
+    // prioridade quando o cliente agendou; senao usa o windowStart do slot
+    // ASAP que veio no deliverySnapshot. Sem nenhum dos dois (pedido criado
+    // fora do checkout, ex.: admin), promocao vale sempre como antes.
+    const deliveryDate =
+      createOrderDto.scheduledFor ||
+      (createOrderDto.deliverySnapshot as { slot?: { windowStart?: string | null } } | undefined)?.slot?.windowStart ||
+      undefined
+
     let quote
     try {
       quote = await this.pricingService.quote({
@@ -385,6 +395,7 @@ export class OrdersService {
         businessAccountId,
         couponCode,
         deliveryAmount,
+        deliveryDate,
         items,
       })
     } catch (error) {

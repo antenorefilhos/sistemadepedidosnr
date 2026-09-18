@@ -348,6 +348,12 @@ export class CheckoutService {
       session,
       session.customerId || cart.customerId || dto.customerId,
     )
+    // JON-187: a mesma data alimenta as duas chamadas de quote() abaixo E o
+    // confirmSession -> ordersService.create() (deliverySnapshot), entao o
+    // preco fica consistente do preview ate a gravacao do pedido -- sem essa
+    // consistencia, o PRICE_DIVERGED (que compara os dois) dispararia falso
+    // positivo toda vez que a promocao expirasse entre as etapas.
+    const deliveryDate = deliveryBase.slot?.windowStart || undefined
     let price = await this.pricingService.quote({
       tenantId,
       storeId,
@@ -355,6 +361,7 @@ export class CheckoutService {
       customerId: dto.customerId || session.customerId || cart.customerId || undefined,
       couponCode: dto.couponCode,
       deliveryAmount: Number(deliveryBase.fee || 0),
+      deliveryDate,
       items: cart.items.map((item) => ({ productId: item.productId, quantity: Number(item.quantity) })),
     })
     let delivery = this.applyOrderMinimum(this.applyFreeAbove(deliveryBase, price.subtotal), price.subtotal)
@@ -366,6 +373,7 @@ export class CheckoutService {
         customerId: dto.customerId || session.customerId || cart.customerId || undefined,
         couponCode: dto.couponCode,
         deliveryAmount: Number(delivery.fee || 0),
+        deliveryDate,
         items: cart.items.map((item) => ({ productId: item.productId, quantity: Number(item.quantity) })),
       })
       delivery = this.applyOrderMinimum(delivery, price.subtotal)

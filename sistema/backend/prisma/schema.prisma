@@ -471,6 +471,12 @@ model Product {
   classification04 String?
   price     Float
   promotionalPrice Float?
+  // JON-187 (18/09/2026): vigencia da promocao, confirmada com o Jonathan e
+  // a AntenorApi -- preco promocional so vale se a DATA DA JANELA DE ENTREGA
+  // escolhida ainda estiver dentro disso, nao a data do pedido. Ver
+  // PricingService.resolveUnitPrice(). Ausente/null = promocao sem prazo
+  // (comportamento antigo, preservado).
+  promotionalPriceValidUntil DateTime?
   stock     Int?
   isFractional Boolean @default(false)
   fractionStep  Float?

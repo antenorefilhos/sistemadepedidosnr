@@ -560,6 +560,15 @@ export class AntenorApiService {
       Number.isFinite(currentPrice) && Number.isFinite(normalPrice) && currentPrice < normalPrice
         ? currentPrice
         : undefined
+    // JON-187: vigencia da promocao (PROMOCAO_VALIDA_ATE/promocaoValidaAte,
+    // confirmado com [A1-API] em 18/09) -- so faz sentido junto de uma
+    // promotionalPrice de verdade, senao um valor de vigencia orfao sem
+    // preco promocional nao tem o que expirar.
+    const validUntilRaw = row.PROMOCAO_VALIDA_ATE ?? row.promocaoValidaAte
+    const promotionalPriceValidUntil =
+      promotionalPrice !== undefined && typeof validUntilRaw === 'string' && validUntilRaw
+        ? new Date(validUntilRaw)
+        : undefined
 
     if (!ean || !name || !Number.isFinite(price)) return null
 
@@ -612,6 +621,9 @@ export class AntenorApiService {
       isFractional,
     }
     if (promotionalPrice !== undefined) normalized.promotionalPrice = promotionalPrice
+    if (promotionalPriceValidUntil && !Number.isNaN(promotionalPriceValidUntil.getTime())) {
+      normalized.promotionalPriceValidUntil = promotionalPriceValidUntil
+    }
     if (Number.isFinite(fractionStep) && fractionStep > 0) normalized.fractionStep = fractionStep
     if (unit) normalized.unit = unit
     if (alternativeDescription) normalized.alternativeDescription = alternativeDescription
