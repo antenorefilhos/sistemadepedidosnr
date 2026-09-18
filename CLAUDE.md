@@ -392,8 +392,10 @@ Token`), não de usuário — por isso `GET /user/tokens/verify` responde
 de zona (`GET /zones?name=...`) é o jeito certo de validar esse tipo de
 token. `ZONE_ID` de `antenorefilhos.com.br`: `cc1a05ea312e1a08a16d57e17ede8345`
 (não é segredo, é identificador público de zona). O token em si nunca vai
-pra este arquivo nem pro repo — fica só no `.env.production` do host que
-precisar dele, ou é pedido ao Jonathan na hora.
+pra este arquivo nem pro repo — desde 18/09/2026 vive em
+`CLOUDFLARE_API_TOKEN` no `.env.production` da VPS (não confunda com
+`CLOUDFLARE_TUNNEL_TOKEN`, que é outra credencial, do túnel). **Cheque lá
+antes de pedir de novo ao Jonathan** — já foi passado mais de uma vez.
 
 ### Otimizações aplicadas na zona Cloudflare (17-18/09/2026)
 

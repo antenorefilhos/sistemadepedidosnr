@@ -1,4 +1,5 @@
 import type { CheckoutQuoteResponse } from '../services/api'
+import { getAsapWindow } from './deliveryOperation'
 
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CASH: 'Dinheiro',
@@ -17,10 +18,19 @@ export function createIdempotencyKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-/** Janela "o quanto antes" usada quando o backend nao devolve slot. */
-export function createFallbackDeliverySlot() {
-  const windowStart = new Date(Date.now() + 45 * 60 * 1000)
-  const windowEnd = new Date(Date.now() + 3 * 60 * 60 * 1000)
+/**
+ * Janela "o quanto antes" usada quando o backend nao devolve slot.
+ * JON-177 (Auditoria 360): com `weekly` (horario de funcionamento da loja,
+ * `brand.businessHours`), a janela e clampada ao fechamento -- sem isso a
+ * loja podia prometer entrega em ate 3h mesmo perto ou fora do expediente.
+ * Sem `weekly` (ou loja ja fechada), mantem o comportamento antigo: quem
+ * decide se pode fechar pedido fora do horario e o backend/checkout, nao
+ * este util de UI.
+ */
+export function createFallbackDeliverySlot(weekly?: Record<number, { enabled: boolean; windows: { start: string; end: string }[] }>) {
+  const clamped = weekly ? getAsapWindow({ weekly }) : null
+  const windowStart = clamped?.windowStart ?? new Date(Date.now() + 45 * 60 * 1000)
+  const windowEnd = clamped?.windowEnd ?? new Date(Date.now() + 3 * 60 * 60 * 1000)
   return {
     slotId: 'ASAP',
     windowStart: windowStart.toISOString(),

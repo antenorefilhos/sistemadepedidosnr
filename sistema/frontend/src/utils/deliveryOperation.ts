@@ -287,3 +287,31 @@ export const getScheduleOptionsWithConfig = (
 
   return options
 }
+
+/**
+ * JON-177 (Auditoria 360): janela "o quanto antes" clampada ao horario de
+ * funcionamento -- sem isso, createFallbackDeliverySlot() prometia entrega
+ * em ate 3h mesmo com a loja fechada. Retorna null se a loja esta fechada
+ * agora (quem chama decide o que fazer: bloquear ASAP, oferecer agendamento).
+ */
+export const getAsapWindow = (
+  config: { weekly: Record<number, { enabled: boolean; windows: { start: string; end: string }[] }> },
+  now = new Date(),
+): { windowStart: Date; windowEnd: Date } | null => {
+  const { weekday, minutesOfDay } = getZonedDateParts(now)
+  const dayConfig = config.weekly[weekday]
+  if (!dayConfig?.enabled || !dayConfig.windows.length) return null
+
+  const openWindow = findOpenWindow(minutesOfDay, dayConfig.windows)
+  if (!openWindow) return null
+
+  const closesAtMinutes = parseHHMM(openWindow.end)
+  const windowStart = new Date(now.getTime() + 45 * 60 * 1000)
+  const uncappedEnd = new Date(now.getTime() + 3 * 60 * 60 * 1000)
+  const closesAt = new Date(now.getTime() + (closesAtMinutes - minutesOfDay) * 60 * 1000)
+  const windowEnd = uncappedEnd < closesAt ? uncappedEnd : closesAt
+
+  if (windowEnd <= windowStart) return null
+
+  return { windowStart, windowEnd }
+}

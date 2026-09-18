@@ -1,6 +1,6 @@
 import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { useEffect, useState } from 'react'
@@ -110,6 +110,21 @@ export default function Cart() {
     const result = await applyCoupon(couponInput)
     setCouponFeedback(result.message)
   }
+
+  // JON-176 (Auditoria 360): o popup "Ganhe 10%" da home linka pra
+  // /cart?coupon=CODIGO -- sem isso, o cliente lia a promessa mas tinha que
+  // digitar o codigo de cabeca no carrinho, e a maioria simplesmente nao
+  // volta pra fazer isso. Aplica uma vez só; nao reaplica se o cliente
+  // remover o cupom manualmente depois (a URL nao muda ao navegar por SPA).
+  const [searchParams] = useSearchParams()
+  const appliedFromUrlRef = useState(() => ({ done: false }))[0]
+  useEffect(() => {
+    const codeFromUrl = searchParams.get('coupon')?.trim()
+    if (!codeFromUrl || appliedFromUrlRef.done || couponCode) return
+    appliedFromUrlRef.done = true
+    setCouponInput(codeFromUrl.toUpperCase())
+    applyCoupon(codeFromUrl).then((result) => setCouponFeedback(result.message))
+  }, [searchParams, couponCode, applyCoupon, appliedFromUrlRef])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F8F4EA] via-[#FBFAF7] to-white">

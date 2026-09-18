@@ -531,15 +531,14 @@ export default function Home() {
                   <span className="absolute -bottom-0.5 -right-0.5 bg-emerald-500 rounded-full w-2.5 h-2.5 border border-white" title="Frete grátis conquistado!" />
                 )}
               </Link>
-              {user ? (
+              {user && (
                 <div className="[&_[data-bell-trigger]]:text-white [&_[data-bell-trigger]]:hover:bg-white/10 [&_[data-bell-trigger]_svg]:text-white [&_[data-bell-trigger]_span]:bg-[#D2BB8A] [&_[data-bell-trigger]_span]:text-[#5D082A]">
                   <NotificationBell />
                 </div>
-              ) : (
-                <Link to="/login" className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-                  <User size={17} className="text-white" />
-                </Link>
               )}
+              <Link to={user ? '/account' : '/login'} className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
+                <User size={17} className="text-white" />
+              </Link>
             </div>
           </div>
           {/* Mobile Search Bar */}
@@ -682,18 +681,19 @@ export default function Home() {
                 </span>
               )}
             </Link>
-            {user ? (
+            {user && (
               <div className="[&_[data-bell-trigger]]:text-white [&_[data-bell-trigger]]:hover:bg-white/10 [&_[data-bell-trigger]_svg]:text-white [&_[data-bell-trigger]_span]:bg-[#D2BB8A] [&_[data-bell-trigger]_span]:text-[#5D082A]">
                 <NotificationBell />
               </div>
-            ) : (
-              <Link to="/login" className="flex items-center gap-2 p-1 hover:bg-white/10 rounded-full transition-all">
-                <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden border border-white/20">
-                  <User size={18} className="text-white" />
-                </div>
-                <span className="hidden sm:inline text-xs font-semibold text-white">Entrar</span>
-              </Link>
             )}
+            <Link to={user ? '/account' : '/login'} className="flex items-center gap-2 p-1 hover:bg-white/10 rounded-full transition-all">
+              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden border border-white/20">
+                <User size={18} className="text-white" />
+              </div>
+              <span className="hidden sm:inline text-xs font-semibold text-white">
+                {user?.name?.split(' ')[0] || 'Entrar'}
+              </span>
+            </Link>
             </div>
           </div>
         </header>

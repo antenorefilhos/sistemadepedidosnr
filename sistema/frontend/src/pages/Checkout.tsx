@@ -58,14 +58,18 @@ export default function Checkout() {
   // embutem o fechamento antecipado da loja.
   const [scheduledFor, setScheduledFor] = useState('')
   const brandForSchedule = useBrand()
-  const scheduleOptions = useMemo(() => {
-    if (!brandForSchedule.businessHours) return []
+  const weeklyBusinessHours = useMemo(() => {
+    if (!brandForSchedule.businessHours) return undefined
     try {
-      return getScheduleOptionsWithConfig({ weekly: JSON.parse(brandForSchedule.businessHours) })
+      return JSON.parse(brandForSchedule.businessHours)
     } catch {
-      return []
+      return undefined
     }
   }, [brandForSchedule.businessHours])
+  const scheduleOptions = useMemo(() => {
+    if (!weeklyBusinessHours) return []
+    return getScheduleOptionsWithConfig({ weekly: weeklyBusinessHours })
+  }, [weeklyBusinessHours])
   const [whatsappDispatch, setWhatsappDispatch] = useState<WhatsAppDispatch | null>(null)
   const whatsappAutoOpenFailedRef = useRef(false)
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null)
@@ -366,7 +370,7 @@ export default function Checkout() {
       // ativa nao pode fazer o modo PICKUP escolhido pelo cliente virar
       // DELIVERY (e o backend rejeitar por "fora da zona" sem CEP nenhum).
       if (!deliverySlotRef.current) {
-        deliverySlotRef.current = createFallbackDeliverySlot()
+        deliverySlotRef.current = createFallbackDeliverySlot(weeklyBusinessHours)
       }
       return {
         mode: 'PICKUP',
@@ -390,7 +394,7 @@ export default function Checkout() {
     }
 
     if (!deliverySlotRef.current) {
-      deliverySlotRef.current = createFallbackDeliverySlot()
+      deliverySlotRef.current = createFallbackDeliverySlot(weeklyBusinessHours)
     }
 
     return {
@@ -403,7 +407,7 @@ export default function Checkout() {
       deliveryPointCode: formData.deliveryPointCode || undefined,
       ...deliverySlotRef.current,
     }
-  }, [formData.lat, formData.lng, formData.zipCode, formData.locality, formData.deliveryPointCode, selectedDeliverySlot, isPickup])
+  }, [formData.lat, formData.lng, formData.zipCode, formData.locality, formData.deliveryPointCode, selectedDeliverySlot, isPickup, weeklyBusinessHours])
 
   const ensureCheckoutSession = useCallback(async ({
     customerId,
@@ -1344,7 +1348,7 @@ export default function Checkout() {
                         Substituicoes: {checkoutQuote.stock.items.every((item) => item.allowSubstitution) ? 'aceitas para os itens' : 'ha itens sem substituicao aceita'}.
                       </div>
                     ) : null}
-                    {deliveryCalc?.outOfArea && (
+                    {!isPickup && deliveryCalc?.outOfArea && (
                       <p className="text-xs text-amber-600 mt-1 flex items-center gap-1 font-semibold">
                         <AlertTriangle size={13} />
                         CEP fora da área de entrega. Entre em contato.
