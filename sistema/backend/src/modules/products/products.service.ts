@@ -1465,14 +1465,17 @@ export class ProductsService {
         const mappedCategoryCode = mapped?.category?.name
           ? this.normalizeCategory(mapped.category.name)
           : undefined
-        // JON-179/AEF-035: departamentoEcommerce/categoriaEcommerce da
-        // AntenorApi gravados em ecommerceCategory (abaixo) como dado NOVO,
-        // sem substituir `category` ainda -- normalizar o nome deles pro
-        // codigo que os chips/filtros esperam (CATEGORY_CATALOG) exige
-        // reconciliar os 14 departamentos canonicos contra nosso catalogo
-        // existente um a um, pra nao fazer produto sumir de categoria que
-        // ja funciona. Ver JON-179 pra essa segunda etapa.
-        const categoryCode = mappedCategoryCode || 'NAO_CLASSIFICADO'
+        // JON-192 (18/09/2026, fase 2 do JON-179): produto sem mapping de
+        // classificacao (Solidcom nao manda, so a AntenorApi manda) cai no
+        // mesmo classificador por palavra-chave (inferCategoryFromMercadologicalPath)
+        // ja usado pro path classification01-04 -- alimentado com
+        // departamentoEcommerce/categoriaEcommerce em vez da arvore
+        // mercadologica. So entra quando NAO ha mapping legado, entao
+        // categoria que ja funciona via mapping nunca muda de codigo.
+        const ecommerceCategoryCode = !mappedCategoryCode
+          ? this.inferCategoryFromMercadologicalPath(item.ecommerceDepartment, item.ecommerceCategory, undefined, undefined, item.name)
+          : undefined
+        const categoryCode = mappedCategoryCode || (ecommerceCategoryCode !== 'NAO_CLASSIFICADO' ? ecommerceCategoryCode : undefined) || 'NAO_CLASSIFICADO'
 
         // Sem promocao o ERP omite o campo, e `undefined` faz o Prisma IGNORAR a
         // coluna no update — ou seja, promocao gravada nunca saia sozinha e ficava

@@ -408,6 +408,31 @@ describe('ProductsService', () => {
         }),
       );
     });
+
+    // JON-192 (fase 2 do JON-179): sem mapping legado de classificacao,
+    // departamentoEcommerce/categoriaEcommerce da AntenorApi reconciliam
+    // pro CATEGORY_CATALOG via keyword matching -- categoria deixa de cair
+    // em NAO_CLASSIFICADO so por o produto nao ter classification01-04.
+    it('reconcilia category a partir de departamentoEcommerce quando nao ha mapping legado', async () => {
+      mockSolidcomERPService.syncProducts.mockResolvedValue({
+        status: 'success',
+        data: [{
+          ean: '999',
+          name: 'Pao frances',
+          price: 12,
+          ecommerceDepartment: 'Padaria & Confeitaria',
+          ecommerceCategory: 'Paes',
+        }],
+      });
+      mockPrismaService.product.findUnique.mockResolvedValue(null);
+      mockPrismaService.product.create.mockResolvedValue({ id: 'padaria-1', ean: '999' });
+
+      await service.syncFromERP();
+
+      expect(mockPrismaService.product.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ category: 'PADARIA' }) }),
+      );
+    });
   });
 
   describe('fractional products', () => {
