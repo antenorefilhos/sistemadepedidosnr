@@ -14,6 +14,19 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.10.0',
+    date: '18/09/2026',
+    title: 'Cupom de Boas-Vindas de Verdade, Nota Fiscal pro Cliente e Correções na Jornada de Compra',
+    highlights: [
+      { type: 'feat', description: 'Cupom de boas-vindas "BEMVINDO10" (10% de desconto, até R$30, pedido mínimo R$50, um uso por cliente) já está ativo e é aplicado automaticamente quando o cliente clica no banner da home.' },
+      { type: 'feat', description: 'Cliente agora consegue baixar a nota fiscal do pedido direto na tela "Meus Pedidos", assim que ela é emitida no caixa da loja.' },
+      { type: 'fix', description: 'Corrigido caso em que o preço promocional de um produto continuava valendo mesmo depois de a entrega já estar agendada pra depois do fim da promoção — agora o preço muda pra tabela normal nesse caso, evitando divergência com o caixa da loja.' },
+      { type: 'fix', description: 'Cliente que fazia login não via mais nenhum jeito de acessar "Minha conta" pela página inicial (só o sino de notificações aparecia) — corrigido no desktop e no celular.' },
+      { type: 'fix', description: 'A opção "entregar o quanto antes" no checkout podia prometer uma janela de horário além do expediente da loja perto do fechamento — agora respeita o horário de funcionamento.' },
+      { type: 'fix', description: 'Foto errada aparecendo em dois produtos do Hortifruti foi removida (ficam sem foto até a correta ser cadastrada).' },
+    ],
+  },
+  {
     version: '1.9.0',
     date: '13/09/2026',
     title: 'Cupons de Desconto, Encartes Ligados aos Banners e Notificações Mais Espertas',
