@@ -117,43 +117,54 @@ const CATEGORY_CATALOG: CategoryCatalogItem[] = [
   { code: 'LIMPEZA', name: 'Limpeza', keywords: ['limpeza', 'detergente', 'desinfetante', 'alvejante', 'sabao', 'sabão'] },
   { code: 'HIGIENE_PESSOAL', name: 'Higiene Pessoal', keywords: ['higiene', 'sabonete', 'shampoo', 'desodorante', 'papel higienico', 'papel higiênico'] },
   { code: 'PERFUMARIA', name: 'Perfumaria', keywords: ['perfumaria', 'perfume', 'colonia', 'colônia', 'hidratante', 'maquiagem'] },
-  { code: 'CAFE_MATINAIS', name: 'Cafe da Manha e Matinais', keywords: ['cafe da manha', 'café da manhã', 'matinal', 'matinais', 'achocolatado', 'cereal matinal', 'capsula de cafe', 'cápsula de café'] },
-  { code: 'SAUDAVEL_ESPECIAL', name: 'Mundo Saudavel e Especial', keywords: ['saudavel', 'saudável', 'diet', 'light', 'integral', 'sem gluten', 'sem glúten', 'zero acucar', 'zero açúcar', 'vegano', 'vegetariano', 'fit'] },
+  // JON-192: codigo = PADARIA_CONFEITARIA_CAFE, o mesmo que "Padaria &
+  // Confeitaria" ja usa (departamento oficial "Padaria, Confeitaria & Café"
+  // e um so no CMS) -- keywords extras aqui cobrem so o texto de
+  // classificacao livre que a entrada PADARIA acima nao pega.
+  { code: 'PADARIA_CONFEITARIA_CAFE', name: 'Cafe da Manha e Matinais', keywords: ['cafe da manha', 'café da manhã', 'matinal', 'matinais', 'achocolatado', 'cereal matinal', 'capsula de cafe', 'cápsula de café'] },
+  // JON-192: sem categoria N1 oficial equivalente -- codigo calculado por
+  // normalizeCategoryCode(nome do departamento), igual as oficiais.
+  { code: 'MUNDO_SAUDAVEL_ESPECIAL', name: 'Mundo Saudavel e Especial', keywords: ['saudavel', 'saudável', 'diet', 'light', 'integral', 'sem gluten', 'sem glúten', 'zero acucar', 'zero açúcar', 'vegano', 'vegetariano', 'fit'] },
 ]
 
 // JON-192 fase 2 (AEF-045, 18/09/2026): de-para OFICIAL confirmado pelo
 // agente da AntenorApi apos saneamento de 16.081 produtos --
 // departamentoEcommerce entra direto aqui (match exato, sem keyword) quando
-// nao ha mapping legado. "Bebidas & Adega" fica de fora deste mapa: e um
-// bucket unico deles, mas nossa taxonomia ja separa vinho/cerveja/suco/
-// destilado em codigos distintos -- ver CATEGORIA_ECOMMERCE_TO_CATEGORY, que
-// resolve esse departamento por `categoriaEcommerce` (mais fino).
+// nao ha mapping legado. Codigo = normalizeCategoryCode(nome da categoria N1
+// oficial, ver seed-cms-categories.ts) sempre que existe correspondencia --
+// nunca inventar string nova quando a oficial resolve (JON-192, 18/09/2026:
+// criei "DESTILADOS"/"LATICINIOS" por engano numa primeira leva, corrigido
+// pra DESTILADOS_COQUETEIS/QUEIJOS_FRIOS_LATICINIOS, os codigos reais).
+// "Bebidas & Adega" fica de fora deste mapa: e um bucket unico deles, mas
+// nossa taxonomia ja separa vinho/cerveja/suco/destilado em categorias N1
+// distintas -- ver BEVERAGE_CATEGORIA_TO_CATEGORY, que resolve esse
+// departamento por `categoriaEcommerce` (mais fino).
 const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
-  'Açougue, Aves & Peixaria': 'CARNES_DIA_A_DIA',
-  'Bebê & Infantil': 'BEBE',
-  'Biscoitos, Doces & Snacks': 'GULOSEIMAS',
-  'Café da Manhã & Matinais': 'CAFE_MATINAIS',
-  'Congelados & Pratos Prontos': 'CONGELADOS',
-  'Higiene Pessoal & Perfumaria': 'HIGIENE_PESSOAL',
-  'Hortifruti & Orgânicos': 'HORTIFRUTI',
-  'Limpeza & Lavanderia': 'LIMPEZA',
-  'Mercearia & Despensa': 'MERCEARIA',
-  'Mundo Saudável & Especial': 'SAUDAVEL_ESPECIAL',
-  'Padaria & Confeitaria': 'PADARIA',
+  'Açougue, Aves & Peixaria': 'ACOUGUE_CHURRASCO',
+  'Bebê & Infantil': 'BEBE_INFANTIL', // sem categoria N1 oficial equivalente
+  'Biscoitos, Doces & Snacks': 'DOCES_CHOCOLATES_SNACKS',
+  'Café da Manhã & Matinais': 'PADARIA_CONFEITARIA_CAFE', // mesmo N1 de "Padaria & Confeitaria"
+  'Congelados & Pratos Prontos': 'CONGELADOS_PRATICOS',
+  'Higiene Pessoal & Perfumaria': 'HIGIENE_PERFUMARIA',
+  'Hortifruti & Orgânicos': 'HORTIFRUTI_ORGANICOS',
+  'Limpeza & Lavanderia': 'LIMPEZA_CUIDADOS_DA_CASA',
+  'Mercearia & Despensa': 'MERCEARIA_DESPENSA',
+  'Mundo Saudável & Especial': 'MUNDO_SAUDAVEL_ESPECIAL', // sem categoria N1 oficial equivalente
+  'Padaria & Confeitaria': 'PADARIA_CONFEITARIA_CAFE',
   'Pet Shop': 'PET_SHOP',
-  'Queijos, Frios & Laticínios': 'LATICINIOS',
+  'Queijos, Frios & Laticínios': 'QUEIJOS_FRIOS_LATICINIOS',
 }
 
-// JON-192 (18/09/2026, alinhamento AEF-045 14:40): de-para exato pras 5
-// categoriaEcommerce canonicas do departamento "Bebidas & Adega" --
+// JON-192 (18/09/2026, alinhamento AEF-045 14:40/15:15): de-para exato pras
+// 5 categoriaEcommerce canonicas do departamento "Bebidas & Adega" --
 // confirmado pelo agente da AntenorApi, fecha 100% do catalogo de bebidas
-// sem keyword matching (que so entra pra departamento sem mapa exato).
+// sem keyword matching. Codigo = categoria N1 oficial correspondente.
 const BEVERAGE_CATEGORIA_TO_CATEGORY: Record<string, string> = {
-  'Vinhos & Espumantes': 'VINHOS',
-  'Cervejas': 'CERVEJAS',
+  'Vinhos & Espumantes': 'ADEGA_VINHOS_ESPUMANTES',
+  'Cervejas': 'CERVEJAS_CHOPP',
   'Destilados & Aperitivos': 'DESTILADOS_COQUETEIS',
-  'Sucos & Néctares': 'BEBIDAS',
-  'Refrigerantes': 'BEBIDAS',
+  'Sucos & Néctares': 'SUCOS_REFRIGERANTES',
+  'Refrigerantes': 'SUCOS_REFRIGERANTES',
 }
 
 const CLASSIFICATION_ROOT_FALLBACKS: Array<{ pattern: string; category: string }> = [

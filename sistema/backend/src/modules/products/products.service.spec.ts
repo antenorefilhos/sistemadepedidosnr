@@ -476,7 +476,7 @@ describe('ProductsService', () => {
       await service.syncFromERP();
 
       expect(mockPrismaService.product.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ category: 'PADARIA' }) }),
+        expect.objectContaining({ data: expect.objectContaining({ category: 'PADARIA_CONFEITARIA_CAFE' }) }),
       );
     });
   });

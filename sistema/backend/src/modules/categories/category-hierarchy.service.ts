@@ -84,8 +84,8 @@ const CATEGORY_CATALOG: Array<{ code: string; name: string; keywords: string[] }
   { code: 'LIMPEZA', name: 'Limpeza', keywords: ['limpeza', 'detergente', 'desinfetante', 'alvejante', 'sabao', 'sabão'] },
   { code: 'HIGIENE_PESSOAL', name: 'Higiene Pessoal', keywords: ['higiene', 'sabonete', 'shampoo', 'desodorante', 'papel higienico', 'papel higiênico'] },
   { code: 'PERFUMARIA', name: 'Perfumaria', keywords: ['perfumaria', 'perfume', 'colonia', 'colônia', 'hidratante', 'maquiagem'] },
-  { code: 'CAFE_MATINAIS', name: 'Cafe da Manha e Matinais', keywords: ['cafe da manha', 'café da manhã', 'matinal', 'matinais', 'achocolatado', 'cereal matinal', 'capsula de cafe', 'cápsula de café'] },
-  { code: 'SAUDAVEL_ESPECIAL', name: 'Mundo Saudavel e Especial', keywords: ['saudavel', 'saudável', 'diet', 'light', 'integral', 'sem gluten', 'sem glúten', 'zero acucar', 'zero açúcar', 'vegano', 'vegetariano', 'fit'] },
+  { code: 'PADARIA_CONFEITARIA_CAFE', name: 'Cafe da Manha e Matinais', keywords: ['cafe da manha', 'café da manhã', 'matinal', 'matinais', 'achocolatado', 'cereal matinal', 'capsula de cafe', 'cápsula de café'] },
+  { code: 'MUNDO_SAUDAVEL_ESPECIAL', name: 'Mundo Saudavel e Especial', keywords: ['saudavel', 'saudável', 'diet', 'light', 'integral', 'sem gluten', 'sem glúten', 'zero acucar', 'zero açúcar', 'vegano', 'vegetariano', 'fit'] },
 ]
 
 @Injectable()

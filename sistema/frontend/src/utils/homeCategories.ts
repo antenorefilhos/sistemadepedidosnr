@@ -196,17 +196,13 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
   HIGIENE_PESSOAL: 'higiene',
   PERFUMARIA_E_BELEZA: 'higiene',
   PERFUMARIA: 'higiene',
-  LATICINIOS: 'queijos',
-  // JON-192 fase 2 (18/09/2026): de-para oficial confirmado pela AntenorApi
-  // (AEF-045) -- departamentoEcommerce normalizado vira chave aqui, direto
-  // ou via o codigo que products.service.ts grava (DEPARTMENT_TO_CATEGORY).
-  CARNES_AVES_PEIXES: 'acougue',
-  BEBE: 'bebe',
+  // JON-192 fase 2 (18/09/2026): categorias sem correspondencia nas 17
+  // oficiais (seed-cms-categories.ts) -- codigo calculado por
+  // normalizeCategoryCode(nome do departamento AntenorApi), igual as
+  // oficiais, pra nao inventar string fora do padrao que so funciona via
+  // alias manual. Ver DEPARTMENT_TO_CATEGORY em products.service.ts.
   BEBE_INFANTIL: 'bebe',
-  CAFE_MATINAIS: 'padaria',
-  PADARIA_MATINAIS: 'padaria',
-  SAUDAVEL_ESPECIAL: 'saudavel',
-  FRIOS_LATICINIOS: 'queijos',
+  MUNDO_SAUDAVEL_ESPECIAL: 'saudavel',
 }
 
 // Nao ha mais mapa inverso rule.id -> codigo do CMS: cada vitrine/atalho usa o
