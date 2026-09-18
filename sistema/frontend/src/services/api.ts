@@ -315,6 +315,8 @@ export const ordersAPI = {
   getOne: (id: string) => api.get(`/orders/${id}`),
   create: (data: CreateOrderPayload) => api.post<CreatedOrderResponse>('/orders', data),
   updateStatus: (id: string, status: string) => api.put(`/orders/${id}/status`, { status }),
+  getNfe: (id: string) =>
+    api.get<{ disponivel: boolean; chaveAcesso?: string; numero?: number; serie?: number; xml?: string }>(`/orders/${id}/nfe`),
 }
 
 export const checkoutAPI = {

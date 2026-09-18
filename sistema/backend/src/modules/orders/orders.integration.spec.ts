@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { AntenorApiService } from '../integrations/antenor-api.service';
 
 const mockOrdersService = {
   create: jest.fn(),
@@ -12,6 +13,11 @@ const mockOrdersService = {
   getStatusAnalytics: jest.fn(),
   getCategoryRevenue: jest.fn(),
   getRevenueHeatmap: jest.fn(),
+};
+
+const mockAntenorApiService = {
+  isConfigured: jest.fn().mockReturnValue(false),
+  getNfe: jest.fn(),
 };
 
 describe('Orders Controller - Integration Tests', () => {
@@ -30,6 +36,7 @@ describe('Orders Controller - Integration Tests', () => {
       controllers: [OrdersController],
       providers: [
         { provide: OrdersService, useValue: mockOrdersService },
+        { provide: AntenorApiService, useValue: mockAntenorApiService },
       ],
     }).compile();
 
@@ -186,6 +193,35 @@ describe('Orders Controller - Integration Tests', () => {
       });
 
       await expect(controller.findOne('order-foreign', customerRequest)).rejects.toThrow('Acesso negado');
+    });
+  });
+
+  describe('GET /orders/:id/nfe (JON-182)', () => {
+    it('retorna a nota quando o pedido tem DAV, integracao configurada e a nota existe', async () => {
+      mockOrdersService.findOne.mockResolvedValue({ id: 'order-123', customerId: 'customer-1', erpDav: '102072' });
+      mockAntenorApiService.isConfigured.mockReturnValue(true);
+      mockAntenorApiService.getNfe.mockResolvedValue({ chaveAcesso: 'chave-abc', numero: 1, serie: 1, xml: '<nfe/>' });
+
+      const result = await controller.getNfe('order-123', customerRequest);
+
+      expect(mockAntenorApiService.getNfe).toHaveBeenCalledWith('102072');
+      expect(result).toEqual({ disponivel: true, chaveAcesso: 'chave-abc', numero: 1, serie: 1, xml: '<nfe/>' });
+    });
+
+    it('nao chega a consultar a AntenorApi sem DAV (pedido ainda nao sincronizou)', async () => {
+      mockOrdersService.findOne.mockResolvedValue({ id: 'order-123', customerId: 'customer-1', erpDav: null });
+      mockAntenorApiService.isConfigured.mockReturnValue(true);
+
+      const result = await controller.getNfe('order-123', customerRequest);
+
+      expect(mockAntenorApiService.getNfe).not.toHaveBeenCalled();
+      expect(result).toEqual({ disponivel: false });
+    });
+
+    it('bloqueia cliente consultando nota de pedido alheio', async () => {
+      mockOrdersService.findOne.mockResolvedValue({ id: 'order-foreign', customerId: 'customer-2', erpDav: '102099' });
+
+      await expect(controller.getNfe('order-foreign', customerRequest)).rejects.toThrow('Acesso negado');
     });
   });
 

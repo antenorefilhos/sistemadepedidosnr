@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { LogOut, User, Clock, MapPin, RotateCcw, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Banknote, QrCode, CreditCard, Plus, Pencil, Trash2, Star, X, Loader2, AlertTriangle } from 'lucide-react'
+import { LogOut, User, Clock, MapPin, RotateCcw, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Banknote, QrCode, CreditCard, Plus, Pencil, Trash2, Star, X, Loader2, AlertTriangle, FileText } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { useCustomerById, useOrders } from '../hooks/useOrders'
 import { useCart } from '../hooks/useCart'
 import { useBrand } from '../hooks/useBrand'
-import { addressesAPI, type CreateAddressPayload } from '../services/api'
+import { addressesAPI, ordersAPI, type CreateAddressPayload } from '../services/api'
 import { getApiErrorMessage } from '../utils/apiError'
 import toast from 'react-hot-toast'
 import type { Address, Customer, Order, OrderItem } from '../types'
@@ -316,6 +316,33 @@ function Account() {
     navigate('/cart')
   }
 
+  const [nfeLoadingOrderId, setNfeLoadingOrderId] = useState<string | null>(null)
+
+  // JON-182 (Auditoria 360): so aparece nota apos o pedido faturar no PDV --
+  // por isso a consulta e sob demanda no clique, nao pre-carregada pra cada
+  // pedido da lista (a maioria ainda nao tem nota nenhuma).
+  const handleDownloadNfe = async (order: Order) => {
+    setNfeLoadingOrderId(order.id)
+    try {
+      const { data } = await ordersAPI.getNfe(order.id)
+      if (!data.disponivel || !data.xml) {
+        toast.error('Nota fiscal ainda não disponível para este pedido.')
+        return
+      }
+      const blob = new Blob([data.xml], { type: 'application/xml' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `nfe-${order.erpDav || order.id.slice(-8)}.xml`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Não foi possível consultar a nota fiscal agora.')
+    } finally {
+      setNfeLoadingOrderId(null)
+    }
+  }
+
   if (!customer) {
     return (
       <div className="min-h-screen bg-white pb-24">
@@ -589,6 +616,17 @@ function Account() {
                               <MessageCircle size={14} />
                               WhatsApp
                             </a>
+                          )}
+                          {order.erpDav && (
+                            <Button
+                              onClick={() => handleDownloadNfe(order)}
+                              variant="subtle"
+                              size="sm"
+                              disabled={nfeLoadingOrderId === order.id}
+                            >
+                              {nfeLoadingOrderId === order.id ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                              Nota Fiscal
+                            </Button>
                           )}
                         </div>
                         <p className="text-right font-bold text-[#231F20]">{formatPrice(order.total)}</p>

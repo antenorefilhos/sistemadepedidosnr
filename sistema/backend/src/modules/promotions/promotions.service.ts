@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
 import { AntenorApiService } from '../integrations/antenor-api.service'
 import { NotificationsService } from '../notifications/notifications.service'
-import { parseErpBusinessDate, isWithinBusinessWindow } from '../../common/business-window'
+import { parseErpBusinessDate, parseErpBusinessDateEnd, isWithinBusinessWindow } from '../../common/business-window'
 
 function slugify(value: string): string {
   return value
@@ -55,13 +55,13 @@ export class PromotionsService {
           name: erpCampaign.name,
           slug: slugify(erpCampaign.name),
           startDate: parseErpBusinessDate(erpCampaign.startDate),
-          endDate: parseErpBusinessDate(erpCampaign.endDate),
+          endDate: parseErpBusinessDateEnd(erpCampaign.endDate),
           active: true,
         },
         update: {
           name: erpCampaign.name,
           startDate: parseErpBusinessDate(erpCampaign.startDate),
-          endDate: parseErpBusinessDate(erpCampaign.endDate),
+          endDate: parseErpBusinessDateEnd(erpCampaign.endDate),
           active: true,
         },
       })

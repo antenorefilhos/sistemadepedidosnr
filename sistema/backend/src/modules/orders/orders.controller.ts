@@ -13,6 +13,7 @@ import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { assertCustomerOwnership, isAdminUser } from '../../common/security/customer-ownership'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
+import { AntenorApiService } from '../integrations/antenor-api.service'
 
 @ApiTags('Orders')
 // So skip auth/webhook: a criacao de pedido (abaixo) usa @Throttle({checkout})
@@ -22,7 +23,10 @@ import { getTenantContext, TenantContextRequest } from '../../common/tenant/tena
 @SkipThrottle({ auth: true, webhook: true })
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    private readonly ordersService: OrdersService,
+    private readonly antenorApi: AntenorApiService,
+  ) {}
 
   @RelaxedThrottle()
   @UseGuards(JwtAuthGuard, TenantAccessGuard)
@@ -205,6 +209,29 @@ export class OrdersController {
       assertCustomerOwnership(req.user, order.customerId)
     }
     return order
+  }
+
+  // JON-182 (Auditoria 360): "Baixar Nota Fiscal" em Meus Pedidos. Mesmo
+  // ownership check do findOne acima -- cliente so consulta a propria nota.
+  // Usa erpDav (o identificador que ja temos assim que o pedido sincroniza)
+  // em vez de cdEcomPedido: a rota admin/interna e polimorfica e aceita
+  // qualquer um dos tres, e o DAV e o que orders.service ja guarda pronto.
+  @RelaxedThrottle()
+  @UseGuards(JwtAuthGuard, TenantAccessGuard)
+  @Get(':id/nfe')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'XML/chave da nota fiscal do pedido, se ja emitida no PDV' })
+  async getNfe(@Param('id') id: string, @Req() req: TenantContextRequest) {
+    const order = await this.ordersService.findOne(id, getTenantContext(req))
+    if (!order) return { disponivel: false }
+    if (!isAdminUser(req.user)) {
+      assertCustomerOwnership(req.user, order.customerId)
+    }
+    if (!order.erpDav || !this.antenorApi.isConfigured()) return { disponivel: false }
+
+    const nota = await this.antenorApi.getNfe(order.erpDav)
+    if (!nota) return { disponivel: false }
+    return { disponivel: true, ...nota }
   }
 
   // Admin-only de proposito: nenhum frontend nosso (storefront ou admin)
