@@ -100,6 +100,68 @@ describe('PromotionsService', () => {
       expect(result).toEqual({ campaignsSynced: 1, itemsSynced: 1, productsUpdated: 0 })
     })
 
+    it('JON-184: persiste os campos enriquecidos do encarte (destaque, atacado, preco de clube)', async () => {
+      mockAntenorApiService.getEncartesAtivos.mockResolvedValue([
+        {
+          erpCampaignId: 375,
+          name: 'SEGUNDA DA CARNE NV',
+          startDate: '2026-08-24T00:00:00.000Z',
+          endDate: '2026-08-25T00:00:00.000Z',
+          items: [{
+            ean: '111', regularPrice: 30, promotionalPrice: 20,
+            highlightCover: true, strongSuggestion: true,
+            wholesaleMinQty: 3, wholesalePrice: 18, clubPrice: 17.5,
+          }],
+        },
+      ])
+      mockPrismaService.product.findMany.mockResolvedValue([{ id: 'p1', ean: '111' }])
+      mockPrismaService.promotionCampaign.upsert.mockResolvedValue({ id: 'campaign-1' })
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([])
+
+      await service.syncFromERP()
+
+      expect(mockPrismaService.promotionCampaignItem.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            highlightCover: true,
+            strongSuggestion: true,
+            wholesaleMinQty: 3,
+            wholesalePrice: 18,
+            clubPrice: 17.5,
+          }),
+        }),
+      )
+    })
+
+    it('JON-184: campos enriquecidos ausentes gravam default seguro (false/null), nao quebram', async () => {
+      mockAntenorApiService.getEncartesAtivos.mockResolvedValue([
+        {
+          erpCampaignId: 375,
+          name: 'SEGUNDA DA CARNE NV',
+          startDate: '2026-08-24T00:00:00.000Z',
+          endDate: '2026-08-25T00:00:00.000Z',
+          items: [{ ean: '111', regularPrice: 30, promotionalPrice: 20 }],
+        },
+      ])
+      mockPrismaService.product.findMany.mockResolvedValue([{ id: 'p1', ean: '111' }])
+      mockPrismaService.promotionCampaign.upsert.mockResolvedValue({ id: 'campaign-1' })
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([])
+
+      await service.syncFromERP()
+
+      expect(mockPrismaService.promotionCampaignItem.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            highlightCover: false,
+            strongSuggestion: false,
+            wholesaleMinQty: null,
+            wholesalePrice: null,
+            clubPrice: null,
+          }),
+        }),
+      )
+    })
+
     it('sync de um encarte JA vigente ativa o preco na mesma chamada (via activateCampaigns)', async () => {
       mockAntenorApiService.getEncartesAtivos.mockResolvedValue([
         {

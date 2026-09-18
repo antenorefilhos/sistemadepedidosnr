@@ -1538,6 +1538,16 @@ model PromotionCampaignItem {
   discountPercent  Decimal?          @db.Decimal(5, 2)
   order            Int               @default(0)
 
+  // JON-184 (AEF-034/v1.11.0, 18/09/2026): campos enriquecidos do encarte --
+  // ver PromotionsService.syncFromERP() e AntenorApiService.getEncartesAtivos().
+  highlightCover     Boolean  @default(false) // destaqueCapa
+  strongSuggestion   Boolean  @default(false) // sugestaoForte
+  wholesaleMinQty    Int?                      // atacado.quantidadeMinima
+  wholesalePrice     Decimal? @db.Decimal(10, 2) // atacado.precoAtacado
+  // JON-183: preco de clube fidelidade -- so existe no encarte, nao no
+  // catalogo geral. Aplicado no carrinho quando o cliente e clubeFidelidade.
+  clubPrice          Decimal? @db.Decimal(10, 2) // precoClubeDesconto
+
   @@unique([campaignId, productId])
   @@index([campaignId, order])
   @@map("promotion_campaign_items")

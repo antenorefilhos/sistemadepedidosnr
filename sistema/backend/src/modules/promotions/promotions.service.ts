@@ -85,6 +85,11 @@ export class PromotionsService {
             promotionalPrice: item.promotionalPrice,
             discountPercent,
             order,
+            highlightCover: item.highlightCover ?? false,
+            strongSuggestion: item.strongSuggestion ?? false,
+            wholesaleMinQty: item.wholesaleMinQty ?? null,
+            wholesalePrice: item.wholesalePrice ?? null,
+            clubPrice: item.clubPrice ?? null,
           },
           update: {
             ean: item.ean,
@@ -92,6 +97,11 @@ export class PromotionsService {
             promotionalPrice: item.promotionalPrice,
             discountPercent,
             order,
+            highlightCover: item.highlightCover ?? false,
+            strongSuggestion: item.strongSuggestion ?? false,
+            wholesaleMinQty: item.wholesaleMinQty ?? null,
+            wholesalePrice: item.wholesalePrice ?? null,
+            clubPrice: item.clubPrice ?? null,
           },
         })
         itemsSynced += 1
@@ -360,7 +370,17 @@ export class PromotionsService {
     startDate: Date
     endDate: Date
     highlightInHome: boolean
-    items: Array<{ product: unknown; regularPrice: unknown; promotionalPrice: unknown; discountPercent: unknown }>
+    items: Array<{
+      product: unknown
+      regularPrice: unknown
+      promotionalPrice: unknown
+      discountPercent: unknown
+      highlightCover?: boolean
+      strongSuggestion?: boolean
+      wholesaleMinQty?: number | null
+      wholesalePrice?: unknown
+      clubPrice?: unknown
+    }>
   }) {
     return {
       id: campaign.id,
@@ -376,6 +396,11 @@ export class PromotionsService {
         regularPrice: item.regularPrice,
         promotionalPrice: item.promotionalPrice,
         discountPercent: item.discountPercent,
+        highlightCover: item.highlightCover ?? false,
+        strongSuggestion: item.strongSuggestion ?? false,
+        wholesaleMinQty: item.wholesaleMinQty ?? null,
+        wholesalePrice: item.wholesalePrice ?? null,
+        clubPrice: item.clubPrice ?? null,
       })),
     }
   }

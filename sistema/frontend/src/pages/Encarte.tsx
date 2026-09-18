@@ -10,8 +10,19 @@ import { SkeletonCard } from '../components/Skeleton'
 import { SEO } from '../components/SEO'
 import type { Product } from '../types'
 import { buttonVariants } from '../components/ui/button'
+import { formatPrice } from '../utils/format'
+import { cn } from '../lib/cn'
 
-type CampaignItem = Product & { regularPrice: number | string; promotionalPrice: number | string; discountPercent: number | string | null }
+type CampaignItem = Product & {
+  regularPrice: number | string
+  promotionalPrice: number | string
+  discountPercent: number | string | null
+  // JON-184 (AEF-034/v1.11.0): campos enriquecidos do encarte.
+  highlightCover?: boolean
+  strongSuggestion?: boolean
+  wholesaleMinQty?: number | null
+  wholesalePrice?: number | string | null
+}
 
 type Campaign = {
   id: string
@@ -88,14 +99,26 @@ export default function Encarte() {
               {new Date(campaign.endDate).toLocaleDateString('pt-BR')}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {campaign.items.map((item) => (
-                <StoreProductCard
-                  key={item.id}
-                  product={{ ...item, price: Number(item.regularPrice), promotionalPrice: Number(item.promotionalPrice) }}
-                  source="SEARCH"
-                  variant="grid"
-                />
-              ))}
+              {[...campaign.items]
+                .sort((a, b) => Number(b.highlightCover || b.strongSuggestion) - Number(a.highlightCover || a.strongSuggestion))
+                .map((item) => {
+                  const destaque = Boolean(item.highlightCover || item.strongSuggestion)
+                  const wholesalePrice = item.wholesalePrice != null ? Number(item.wholesalePrice) : null
+                  return (
+                    <div key={item.id} className={cn('flex flex-col gap-1.5', destaque && 'col-span-2')}>
+                      <StoreProductCard
+                        product={{ ...item, price: Number(item.regularPrice), promotionalPrice: Number(item.promotionalPrice) }}
+                        source="SEARCH"
+                        variant="grid"
+                      />
+                      {item.wholesaleMinQty && wholesalePrice != null && (
+                        <p className="text-xs font-semibold text-[#5D082A] text-center">
+                          A partir de {item.wholesaleMinQty} un: {formatPrice(wholesalePrice)} cada
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
             </div>
           </>
         )}

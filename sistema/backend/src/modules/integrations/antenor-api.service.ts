@@ -103,7 +103,16 @@ type EncartesAntenorApiResponse = {
     name: string
     startDate: string
     endDate: string
-    itens: Array<{ ean: string; precoNormal: number; precoPromocional: number }>
+    itens: Array<{
+      ean: string
+      precoNormal: number
+      precoPromocional: number
+      // JON-184/JON-183 (AEF-034/v1.11.0): campos enriquecidos.
+      destaqueCapa?: boolean
+      sugestaoForte?: boolean
+      atacado?: { quantidadeMinima?: number; precoAtacado?: number }
+      precoClubeDesconto?: number
+    }>
   }>
 }
 
@@ -436,6 +445,11 @@ export class AntenorApiService {
         ean: item.ean,
         regularPrice: item.precoNormal,
         promotionalPrice: item.precoPromocional,
+        highlightCover: item.destaqueCapa,
+        strongSuggestion: item.sugestaoForte,
+        wholesaleMinQty: item.atacado?.quantidadeMinima,
+        wholesalePrice: item.atacado?.precoAtacado,
+        clubPrice: item.precoClubeDesconto,
       })),
     }))
   }

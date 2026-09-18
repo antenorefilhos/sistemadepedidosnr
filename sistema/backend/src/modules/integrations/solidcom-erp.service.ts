@@ -40,6 +40,13 @@ export interface ERPCampaignItem {
   ean: string
   regularPrice: number
   promotionalPrice: number
+  // JON-184/JON-183: campos enriquecidos do encarte (AEF-034/v1.11.0).
+  // Solidcom nao manda nenhum destes -- so a AntenorApi.
+  highlightCover?: boolean
+  strongSuggestion?: boolean
+  wholesaleMinQty?: number
+  wholesalePrice?: number
+  clubPrice?: number
 }
 
 export interface ERPCampaign {
