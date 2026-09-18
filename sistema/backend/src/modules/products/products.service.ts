@@ -110,7 +110,8 @@ const CATEGORY_CATALOG: CategoryCatalogItem[] = [
   { code: 'CONSUMO_RAPIDO', name: 'Consumo Rapido', keywords: ['congelado', 'pronto', 'lanche', 'snack', 'pizza', 'marmita'] },
   { code: 'GULOSEIMAS', name: 'Guloseimas', keywords: ['chocolate', 'doce', 'bala', 'bombom', 'biscoito', 'guloseima'] },
   { code: 'BEBIDAS', name: 'Bebidas', keywords: ['bebida', 'refrigerante', 'suco', 'agua', 'água', 'energetico', 'energético'] },
-  { code: 'VINHOS', name: 'Vinhos', keywords: ['vinho', 'adega', 'espumante', 'whisky', 'gin', 'licor'] },
+  { code: 'VINHOS', name: 'Vinhos', keywords: ['vinho', 'adega', 'espumante'] },
+  { code: 'DESTILADOS', name: 'Destilados e Aperitivos', keywords: ['destilado', 'aperitivo', 'whisky', 'vodka', 'gin', 'licor', 'cachaca', 'cachaça', 'rum', 'tequila'] },
   { code: 'CERVEJAS', name: 'Cervejas', keywords: ['cerveja', 'lager', 'pilsen', 'ipa', 'long neck', 'chopp'] },
   { code: 'HORTIFRUTI', name: 'Hortifruti', keywords: ['hortifruti', 'fruta', 'verdura', 'legume', 'folhoso'] },
   { code: 'LIMPEZA', name: 'Limpeza', keywords: ['limpeza', 'detergente', 'desinfetante', 'alvejante', 'sabao', 'sabão'] },
@@ -123,12 +124,10 @@ const CATEGORY_CATALOG: CategoryCatalogItem[] = [
 // JON-192 fase 2 (AEF-045, 18/09/2026): de-para OFICIAL confirmado pelo
 // agente da AntenorApi apos saneamento de 16.081 produtos --
 // departamentoEcommerce entra direto aqui (match exato, sem keyword) quando
-// nao ha mapping legado. "Bebidas & Adega" fica de fora de proposito: o
-// departamento e um bucket unico deles, mas nossa taxonomia ja separa
-// bebida/vinho/cerveja/destilado em codigos distintos -- mapear o
-// departamento inteiro pra um so codigo colapsaria essa distincao. Esses
-// produtos continuam caindo no classificador por palavra-chave (abaixo),
-// que ja separa certo via categoriaEcommerce/nome.
+// nao ha mapping legado. "Bebidas & Adega" fica de fora deste mapa: e um
+// bucket unico deles, mas nossa taxonomia ja separa vinho/cerveja/suco/
+// destilado em codigos distintos -- ver CATEGORIA_ECOMMERCE_TO_CATEGORY, que
+// resolve esse departamento por `categoriaEcommerce` (mais fino).
 const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
   'Açougue, Aves & Peixaria': 'CARNES_DIA_A_DIA',
   'Bebê & Infantil': 'BEBE',
@@ -143,6 +142,18 @@ const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
   'Padaria & Confeitaria': 'PADARIA',
   'Pet Shop': 'PET_SHOP',
   'Queijos, Frios & Laticínios': 'LATICINIOS',
+}
+
+// JON-192 (18/09/2026, alinhamento AEF-045 14:40): de-para exato pras 5
+// categoriaEcommerce canonicas do departamento "Bebidas & Adega" --
+// confirmado pelo agente da AntenorApi, fecha 100% do catalogo de bebidas
+// sem keyword matching (que so entra pra departamento sem mapa exato).
+const BEVERAGE_CATEGORIA_TO_CATEGORY: Record<string, string> = {
+  'Vinhos & Espumantes': 'VINHOS',
+  'Cervejas': 'CERVEJAS',
+  'Destilados & Aperitivos': 'DESTILADOS',
+  'Sucos & Néctares': 'BEBIDAS',
+  'Refrigerantes': 'BEBIDAS',
 }
 
 const CLASSIFICATION_ROOT_FALLBACKS: Array<{ pattern: string; category: string }> = [
@@ -1494,13 +1505,17 @@ export class ProductsService {
           : undefined
         // JON-192 (18/09/2026, fase 2 do JON-179): produto sem mapping de
         // classificacao (Solidcom nao manda, so a AntenorApi manda) usa o
-        // de-para oficial (DEPARTMENT_TO_CATEGORY, match exato) quando o
-        // departamento tem correspondencia 1:1 confirmada; senao cai no
-        // classificador por palavra-chave ja usado pro path
-        // classification01-04, alimentado com departamento+categoria da
-        // AntenorApi. So entra quando NAO ha mapping legado, entao
-        // categoria que ja funciona via mapping nunca muda de codigo.
-        const departmentCategoryCode = item.ecommerceDepartment ? DEPARTMENT_TO_CATEGORY[item.ecommerceDepartment] : undefined
+        // de-para oficial (match exato, sem keyword) quando o departamento
+        // ou a categoriaEcommerce (bebidas) tem correspondencia 1:1
+        // confirmada; senao cai no classificador por palavra-chave ja usado
+        // pro path classification01-04. So entra quando NAO ha mapping
+        // legado, entao categoria que ja funciona via mapping nunca muda.
+        const departmentCategoryCode = item.ecommerceDepartment
+          ? DEPARTMENT_TO_CATEGORY[item.ecommerceDepartment] ||
+            (item.ecommerceDepartment === 'Bebidas & Adega' && item.ecommerceCategory
+              ? BEVERAGE_CATEGORIA_TO_CATEGORY[item.ecommerceCategory]
+              : undefined)
+          : undefined
         const ecommerceCategoryCode = !mappedCategoryCode && !departmentCategoryCode
           ? this.inferCategoryFromMercadologicalPath(item.ecommerceDepartment, item.ecommerceCategory, undefined, undefined, item.name)
           : undefined

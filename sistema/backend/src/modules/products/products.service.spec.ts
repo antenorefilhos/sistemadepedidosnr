@@ -432,6 +432,29 @@ describe('ProductsService', () => {
       );
     });
 
+    // JON-192 (alinhamento AEF-045 14:40): "Bebidas & Adega" resolve por
+    // categoriaEcommerce exata (5 categorias canonicas), nunca por keyword.
+    it('reconcilia category de bebidas via categoriaEcommerce exata (whisky nao cai em VINHOS)', async () => {
+      mockSolidcomERPService.syncProducts.mockResolvedValue({
+        status: 'success',
+        data: [{
+          ean: '777',
+          name: 'Whisky Escoces 12 anos',
+          price: 150,
+          ecommerceDepartment: 'Bebidas & Adega',
+          ecommerceCategory: 'Destilados & Aperitivos',
+        }],
+      });
+      mockPrismaService.product.findUnique.mockResolvedValue(null);
+      mockPrismaService.product.create.mockResolvedValue({ id: 'destilado-1', ean: '777' });
+
+      await service.syncFromERP();
+
+      expect(mockPrismaService.product.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ category: 'DESTILADOS' }) }),
+      );
+    });
+
     // JON-192 (fase 2 do JON-179): sem mapping legado de classificacao,
     // departamentoEcommerce/categoriaEcommerce da AntenorApi reconciliam
     // pro CATEGORY_CATALOG via keyword matching -- categoria deixa de cair
