@@ -8,6 +8,7 @@ import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
+import { AntenorApiService } from '../integrations/antenor-api.service'
 
 type UpdateCustomerDto = Partial<CreateCustomerDto>
 
@@ -19,7 +20,10 @@ type UpdateCustomerDto = Partial<CreateCustomerDto>
 @RelaxedThrottle()
 @Controller('customers')
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly antenorApi: AntenorApiService,
+  ) {}
 
   @Roles('admin')
   @Get()
@@ -80,6 +84,26 @@ export class CustomersController {
     }
 
     return this.customersService.findOne(id, getTenantContext(req))
+  }
+
+  // JON-183: badge "Cliente Clube Antenor" no carrinho. Mesmo ownership
+  // check do findOne acima -- cliente so consulta a propria fidelidade, e o
+  // CPF vem do proprio cadastro (nunca do body/query), pra rota nao virar
+  // consulta arbitraria de CPF de terceiro.
+  @Get(':id/fidelidade')
+  @ApiOperation({ summary: 'Status de fidelidade Mercafacil do cliente (pelo CPF ja cadastrado)' })
+  async getFidelidade(@Param('id') id: string, @Req() req: TenantContextRequest) {
+    const role = String(req.user?.role || '').toLowerCase()
+    const requesterId = String(req.user?.id || '')
+    if (role !== 'admin' && requesterId !== id) {
+      throw new ForbiddenException('Acesso negado para este cliente')
+    }
+
+    const customer = await this.customersService.findOne(id, getTenantContext(req))
+    if (!customer?.cpf || !this.antenorApi.isConfigured()) return { clubeFidelidade: false }
+
+    const fidelidade = await this.antenorApi.getFidelidade(customer.cpf)
+    return { clubeFidelidade: false, ...fidelidade }
   }
 
   @Roles('admin')

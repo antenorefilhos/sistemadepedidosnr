@@ -21,6 +21,7 @@ import { trackEvent } from '../utils/analytics'
 import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X } from 'lucide-react'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
+import { BackToTopButton } from '../components/BackToTopButton'
 import { Footer } from '../components/Footer'
 import { useDragScroll } from '../hooks/useDragScroll'
 import { SEO } from '../components/SEO'
@@ -626,7 +627,7 @@ export default function MercadoPage() {
           <div className="flex items-center gap-2">
             <div
               ref={categoriesScroll.ref}
-              className="flex-1 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth"
+              className="min-w-0 flex-1 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth"
               {...categoriesScroll.dragProps}
             >
               {categories.map((c) => (
@@ -964,6 +965,7 @@ export default function MercadoPage() {
         </div>
       )}
       <MobileBottomNav />
+      <BackToTopButton />
     </div>
   )
 }

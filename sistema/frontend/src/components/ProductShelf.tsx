@@ -1,11 +1,12 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Product } from '../types'
 import { StoreProductCard } from './StoreProductCard'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useDragScroll } from '../hooks/useDragScroll'
 import { cn } from '../lib/cn'
+import type { CategoryIconComponent } from '../utils/homeCategories'
 
 export type ProductShelfLayout = 'carousel' | 'grid'
 
@@ -14,7 +15,7 @@ type ProductShelfProps = {
   title: string
   /** Linha pequena acima do titulo. */
   eyebrow: string
-  icon: LucideIcon
+  icon: CategoryIconComponent
   products: Product[]
   /** Destino do link "ver mais". */
   to: string
@@ -67,12 +68,12 @@ export function ProductShelf({
           </span>
           <h2
             className={cn(
-              'mt-1 flex items-center gap-2 font-bold text-[#231F20]',
+              'mt-1 flex items-start gap-2 font-bold text-[#231F20]',
               isCarousel ? 'text-base' : 'text-xl',
             )}
           >
-            <Icon size={isCarousel ? 18 : 20} className="shrink-0 text-[#5D082A]" />
-            <span className="truncate">{title}</span>
+            <Icon size={isCarousel ? 18 : 20} className="shrink-0 mt-0.5 text-[#5D082A]" />
+            <span className="line-clamp-2">{title}</span>
           </h2>
         </div>
         <Link

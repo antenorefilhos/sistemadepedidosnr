@@ -4,7 +4,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { useEffect, useState } from 'react'
-import { couponsAPI } from '../services/api'
+import { useQuery } from '@tanstack/react-query'
+import { couponsAPI, customersAPI } from '../services/api'
 import type { Product } from '../types'
 import { useProductRecommendations, useSmartSubstitutes } from '../hooks/useCart'
 import { useTopSellingProducts } from '../hooks/useCMS'
@@ -12,7 +13,7 @@ import { StoreProductCard } from '../components/StoreProductCard'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
 import { getProductLineTotal, getProductPricePresentation, getProductPromoSavings, formatProductQuantity } from '../utils/productPricing'
-import { Trash2, Plus, Minus, ArrowLeft, MapPin, ShoppingCart } from 'lucide-react'
+import { Trash2, Plus, Minus, ArrowLeft, MapPin, ShoppingCart, Star } from 'lucide-react'
 import { FreeShippingBar } from '../components/FreeShippingBar'
 import { useKnownZoneFreeAbove } from '../hooks/useKnownZoneFreeAbove'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
@@ -45,6 +46,17 @@ export default function Cart() {
   const zoneFreeAbove = useKnownZoneFreeAbove()
   const { openModal: openDeliveryModal } = useDeliveryVerificationModal()
   const { cart, removeItem, updateQuantity, updateAllowSubstitution, clear, total, subtotal, discount, couponCode, applyCoupon, removeCoupon } = useCart()
+
+  // JON-183: consulta a fidelidade Mercafacil automaticamente pro cliente
+  // logado (CPF ja cadastrado, sem pedir de novo). staleTime longo -- o
+  // status de clube nao muda a cada minuto, uma consulta por sessao de
+  // carrinho basta.
+  const { data: fidelidade } = useQuery({
+    queryKey: ['fidelidade', user?.id],
+    queryFn: () => customersAPI.getFidelidade(user!.id).then((r) => r.data),
+    enabled: Boolean(user?.id),
+    staleTime: 1000 * 60 * 10,
+  })
 
   // O endereco/taxa verificado no storefront (modal de entrega) fica salvo
   // no localStorage -- sem ler aqui, o carrinho sempre mostrava "A calcular"
@@ -366,6 +378,12 @@ export default function Cart() {
                     </p>
                   )}
                   {couponFeedback && <p className="text-xs text-[#5d4f33]">{couponFeedback}</p>}
+                  {fidelidade?.clubeFidelidade && (
+                    <div className="flex items-center gap-1.5 rounded-lg bg-[#F8F0DC] border border-[#E8D7B0] px-3 py-2 text-xs font-semibold text-[#5D082A]">
+                      <Star size={14} className="fill-[#D2BB8A] text-[#D2BB8A]" />
+                      Você é Cliente Clube Antenor{fidelidade.categoria?.descricao ? ` (${fidelidade.categoria.descricao})` : ''}!
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2 text-sm mb-4">

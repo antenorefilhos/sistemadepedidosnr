@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { LogOut, User, Clock, MapPin, RotateCcw, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Banknote, QrCode, CreditCard, Plus, Pencil, Trash2, Star, X, Loader2, AlertTriangle, FileText } from 'lucide-react'
+import { LogOut, User, Clock, MapPin, RotateCcw, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Banknote, QrCode, CreditCard, Plus, Pencil, Trash2, Star, X, Loader2, AlertTriangle, FileText, ShoppingCart } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
@@ -159,7 +159,7 @@ function Account() {
   })
   const { data: orders, isLoading: ordersLoading, isFetching: ordersFetching } = useOrders(customer?.id)
   const { data: customerDetails, refetch: refetchCustomer } = useCustomerById(customer?.id)
-  const { addItem } = useCart()
+  const { addItem, count: cartCount } = useCart()
   const profile = (customerDetails || customer) as Customer
 
   const [addressFormOpen, setAddressFormOpen] = useState(false)
@@ -388,6 +388,18 @@ function Account() {
             </h1>
           </Link>
           <div className="flex items-center gap-2">
+            <Link
+              to="/cart"
+              aria-label={cartCount > 0 ? `Carrinho com ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
+              className="relative flex min-h-11 min-w-11 shrink-0 items-center justify-center text-[#231F20] transition-colors hover:text-[#5D082A]"
+            >
+              <ShoppingCart size={22} aria-hidden="true" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </Link>
             <NotificationBell />
             <Button
               onClick={handleLogout}

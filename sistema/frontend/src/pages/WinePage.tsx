@@ -6,6 +6,7 @@ import { PromoBanner } from '../components/PromoBanner'
 import { resolveApiUrl } from '../services/api'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
+import { BackToTopButton } from '../components/BackToTopButton'
 import type { Product } from '../types'
 import { getProductPricePresentation } from '../utils/productPricing'
 import { trackEvent } from '../utils/analytics'
@@ -160,7 +161,7 @@ export default function WinePage() {
             <ArrowLeft size={24} />
           </Link>
           <div className="text-center flex-1">
-             <h1 className="luxury-text text-xl font-extrabold tracking-[0.2em] uppercase bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">
+             <h1 className="luxury-text text-xl font-extrabold tracking-wide uppercase bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">
                Adega Antenor & Filhos
              </h1>
              <p className="text-label font-normal text-[#D2BB8A]/60 -mt-1 tracking-widest uppercase">Since 1979</p>
@@ -187,7 +188,7 @@ export default function WinePage() {
         {/* Luxury Hero Section */}
         <section className="relative h-[60vh] flex items-end pb-12">
            <img
-             src="/banners/vinhos.jpg"
+             src="/media/vinhos.jpg"
              alt="Luxury Wine Selection - Adega Antenor & Filhos"
              className="absolute inset-0 w-full h-full object-cover opacity-60"
              loading="eager"
@@ -200,7 +201,7 @@ export default function WinePage() {
                const img = e.currentTarget
                if (img.dataset.retried) return
                img.dataset.retried = '1'
-               img.src = `/banners/vinhos.jpg?retry=${Date.now()}`
+               img.src = `/media/vinhos.jpg?retry=${Date.now()}`
              }}
            />
            <div className="absolute inset-0 bg-gradient-to-t from-[#231F20] via-transparent to-[#231F20]/30" />
@@ -312,6 +313,7 @@ export default function WinePage() {
         </div>
       </footer>
       <MobileBottomNav />
+      <BackToTopButton />
     </div>
   )
 }

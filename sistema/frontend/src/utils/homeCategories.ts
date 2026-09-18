@@ -16,9 +16,28 @@ import {
   Smile,
   Sparkles,
   Trash2,
-  Wine,
   type LucideIcon,
 } from 'lucide-react'
+import { createElement } from 'react'
+import wineGlassIcon from '../assets/icons/wine-glass.gif'
+
+/**
+ * JON-188: icone customizado da Adega (taca de vinho tinto ilustrada) no
+ * lugar do Wine generico do lucide. Mesma assinatura de props que os
+ * componentes lucide usados aqui (size/className) -- so isso e realmente
+ * consumido nos pontos de uso (circulos de categoria, titulo de vitrine).
+ * `createElement` em vez de JSX porque este arquivo e .ts, nao .tsx.
+ */
+function WineGlassIcon({ size = 24, className }: { size?: number; className?: string }) {
+  return createElement('img', {
+    src: wineGlassIcon,
+    alt: '',
+    width: size,
+    height: size,
+    className,
+    style: { objectFit: 'contain' },
+  })
+}
 
 export type HomeCategoryRule = {
   id: string
@@ -176,9 +195,11 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
 // homeCategories). Um mapa fixo aqui reapontava para categorias extintas quando a
 // taxonomia mudava — foi o que deixou a Adega e "Pronto pra Comer" vazias.
 
-export const CATEGORY_ICONS: Record<string, LucideIcon> = {
+export type CategoryIconComponent = LucideIcon | typeof WineGlassIcon
+
+export const CATEGORY_ICONS: Record<string, CategoryIconComponent> = {
   acougue: Beef,
-  adega: Wine,
+  adega: WineGlassIcon,
   cervejas: Beer,
   destilados: GlassWater,
   sucos: CupSoda,
@@ -203,7 +224,7 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
  * AEF-037) por palavra-chave no id/slug (ex.: "churrasco-nobre",
  * "hortifruti-fresco") -- a AntenorApi nao manda icone, so texto.
  */
-export function iconForCarrossel(carrosselId: string): LucideIcon {
+export function iconForCarrossel(carrosselId: string): CategoryIconComponent {
   const chave = carrosselId.toLowerCase()
   const encontrada = Object.keys(CATEGORY_ICONS).find((k) => k !== 'default' && chave.includes(k))
   return CATEGORY_ICONS[encontrada || 'default']

@@ -28,6 +28,7 @@ import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductShelf } from '../components/ProductShelf'
 import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
+import { stripEmoji } from '../utils/format'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock,
   Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight, X
@@ -36,6 +37,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
+import { BackToTopButton } from '../components/BackToTopButton'
 import { Footer } from '../components/Footer'
 import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
@@ -184,8 +186,8 @@ export default function Home() {
     return vitrinesData.carrosseis
       .map((carrossel) => ({
         key: carrossel.id,
-        eyebrow: vitrinesData.personalidadeAtiva.titulo,
-        title: carrossel.titulo,
+        eyebrow: stripEmoji(vitrinesData.personalidadeAtiva.titulo),
+        title: stripEmoji(carrossel.titulo),
         icon: iconForCarrossel(carrossel.id),
         products: carrossel.produtos,
         to: '/mercado',
@@ -905,6 +907,7 @@ export default function Home() {
       <MobileBottomNav />
       </>
       )}
+      <BackToTopButton />
     </div>
   )
 }

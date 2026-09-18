@@ -65,6 +65,18 @@ export function formatProductTitle(name: string): string {
     .join(' ')
 }
 
+// JON-194: titulo/eyebrow de vitrine vem da AntenorApi (Motor de Vitrines
+// Inteligentes) com emoji embutido no texto -- some com o icone lucide que
+// ProductShelf ja desenha ao lado, ficando icone + emoji duplicados. Faixa
+// unicode cobre os blocos de emoji mais comuns (emoticons, simbolos/pictogramas,
+// transporte, bandeiras, dingbats, variation selector e ZWJ de sequencia).
+const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu
+
+export function stripEmoji(text: string): string {
+  if (!text) return ''
+  return text.replace(EMOJI_RE, '').replace(/\s+/g, ' ').trim()
+}
+
 export function getCartFromStorage(): CartItem[] {
   const cart = localStorage.getItem('cart')
   return cart ? (JSON.parse(cart) as CartItem[]) : []

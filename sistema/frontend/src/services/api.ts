@@ -307,6 +307,8 @@ export const customersAPI = {
   getOne: (id: string) => api.get(`/customers/${id}`),
   create: (data: CreateCustomerPayload) => api.post('/customers', data),
   update: (id: string, data: Partial<CreateCustomerPayload>) => api.put(`/customers/${id}`, data),
+  getFidelidade: (id: string) =>
+    api.get<{ clubeFidelidade: boolean; nome?: string; categoria?: { descricao?: string } }>(`/customers/${id}/fidelidade`),
 }
 
 // Orders
