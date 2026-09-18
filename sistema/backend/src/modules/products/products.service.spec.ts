@@ -409,6 +409,29 @@ describe('ProductsService', () => {
       );
     });
 
+    // JON-192 (fase 2 do JON-179, de-para oficial AEF-045): departamento com
+    // correspondencia 1:1 confirmada usa match exato, sem keyword matching.
+    it('reconcilia category via de-para oficial (match exato) quando o departamento tem correspondencia 1:1', async () => {
+      mockSolidcomERPService.syncProducts.mockResolvedValue({
+        status: 'success',
+        data: [{
+          ean: '888',
+          name: 'Racao para gato',
+          price: 40,
+          ecommerceDepartment: 'Pet Shop',
+          ecommerceCategory: 'Gatos',
+        }],
+      });
+      mockPrismaService.product.findUnique.mockResolvedValue(null);
+      mockPrismaService.product.create.mockResolvedValue({ id: 'pet-1', ean: '888' });
+
+      await service.syncFromERP();
+
+      expect(mockPrismaService.product.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ category: 'PET_SHOP' }) }),
+      );
+    });
+
     // JON-192 (fase 2 do JON-179): sem mapping legado de classificacao,
     // departamentoEcommerce/categoriaEcommerce da AntenorApi reconciliam
     // pro CATEGORY_CATALOG via keyword matching -- categoria deixa de cair

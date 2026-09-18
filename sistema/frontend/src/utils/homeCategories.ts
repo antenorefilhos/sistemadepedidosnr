@@ -1,5 +1,6 @@
 import {
   Apple,
+  Baby,
   Beef,
   Beer,
   Candy,
@@ -9,6 +10,7 @@ import {
   Dog,
   Flame,
   GlassWater,
+  Leaf,
   Milk,
   Package,
   Pizza,
@@ -97,6 +99,10 @@ export const HOME_COMMERCIAL_PRIORITY: Record<string, number> = {
   pet: 15,
   bazar: 16,
   tabacaria: 17,
+  // JON-192 fase 2 (18/09/2026): novas categorias do de-para oficial
+  // AntenorApi (AEF-045) sem correspondencia 1:1 nas 17 anteriores.
+  bebe: 18,
+  saudavel: 19,
 }
 
 export const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
@@ -117,6 +123,8 @@ export const HOME_CATEGORY_RULES: HomeCategoryRule[] = [
   { id: 'pet', label: 'Pet Shop', shortLabel: 'Pet Shop', query: 'pet' },
   { id: 'bazar', label: 'Bazar & Utilidades', shortLabel: 'Utilidades', query: 'bazar' },
   { id: 'tabacaria', label: 'Tabacaria', shortLabel: 'Tabacaria', query: 'tabacaria' },
+  { id: 'bebe', label: 'Bebê & Infantil', shortLabel: 'Bebê', query: 'bebe' },
+  { id: 'saudavel', label: 'Mundo Saudável & Especial', shortLabel: 'Saudável', query: 'saudavel' },
 ]
 
 /**
@@ -188,6 +196,17 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
   HIGIENE_PESSOAL: 'higiene',
   PERFUMARIA_E_BELEZA: 'higiene',
   PERFUMARIA: 'higiene',
+  LATICINIOS: 'queijos',
+  // JON-192 fase 2 (18/09/2026): de-para oficial confirmado pela AntenorApi
+  // (AEF-045) -- departamentoEcommerce normalizado vira chave aqui, direto
+  // ou via o codigo que products.service.ts grava (DEPARTMENT_TO_CATEGORY).
+  CARNES_AVES_PEIXES: 'acougue',
+  BEBE: 'bebe',
+  BEBE_INFANTIL: 'bebe',
+  CAFE_MATINAIS: 'padaria',
+  PADARIA_MATINAIS: 'padaria',
+  SAUDAVEL_ESPECIAL: 'saudavel',
+  FRIOS_LATICINIOS: 'queijos',
 }
 
 // Nao ha mais mapa inverso rule.id -> codigo do CMS: cada vitrine/atalho usa o
@@ -216,6 +235,8 @@ export const CATEGORY_ICONS: Record<string, CategoryIconComponent> = {
   bazar: Package,
   tabacaria: Cigarette,
   churrasco: Flame,
+  bebe: Baby,
+  saudavel: Leaf,
   default: ShoppingBag,
 }
 

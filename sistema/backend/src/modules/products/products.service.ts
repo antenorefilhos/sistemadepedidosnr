@@ -116,7 +116,34 @@ const CATEGORY_CATALOG: CategoryCatalogItem[] = [
   { code: 'LIMPEZA', name: 'Limpeza', keywords: ['limpeza', 'detergente', 'desinfetante', 'alvejante', 'sabao', 'sabão'] },
   { code: 'HIGIENE_PESSOAL', name: 'Higiene Pessoal', keywords: ['higiene', 'sabonete', 'shampoo', 'desodorante', 'papel higienico', 'papel higiênico'] },
   { code: 'PERFUMARIA', name: 'Perfumaria', keywords: ['perfumaria', 'perfume', 'colonia', 'colônia', 'hidratante', 'maquiagem'] },
+  { code: 'CAFE_MATINAIS', name: 'Cafe da Manha e Matinais', keywords: ['cafe da manha', 'café da manhã', 'matinal', 'matinais', 'achocolatado', 'cereal matinal', 'capsula de cafe', 'cápsula de café'] },
+  { code: 'SAUDAVEL_ESPECIAL', name: 'Mundo Saudavel e Especial', keywords: ['saudavel', 'saudável', 'diet', 'light', 'integral', 'sem gluten', 'sem glúten', 'zero acucar', 'zero açúcar', 'vegano', 'vegetariano', 'fit'] },
 ]
+
+// JON-192 fase 2 (AEF-045, 18/09/2026): de-para OFICIAL confirmado pelo
+// agente da AntenorApi apos saneamento de 16.081 produtos --
+// departamentoEcommerce entra direto aqui (match exato, sem keyword) quando
+// nao ha mapping legado. "Bebidas & Adega" fica de fora de proposito: o
+// departamento e um bucket unico deles, mas nossa taxonomia ja separa
+// bebida/vinho/cerveja/destilado em codigos distintos -- mapear o
+// departamento inteiro pra um so codigo colapsaria essa distincao. Esses
+// produtos continuam caindo no classificador por palavra-chave (abaixo),
+// que ja separa certo via categoriaEcommerce/nome.
+const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
+  'Açougue, Aves & Peixaria': 'CARNES_DIA_A_DIA',
+  'Bebê & Infantil': 'BEBE',
+  'Biscoitos, Doces & Snacks': 'GULOSEIMAS',
+  'Café da Manhã & Matinais': 'CAFE_MATINAIS',
+  'Congelados & Pratos Prontos': 'CONGELADOS',
+  'Higiene Pessoal & Perfumaria': 'HIGIENE_PESSOAL',
+  'Hortifruti & Orgânicos': 'HORTIFRUTI',
+  'Limpeza & Lavanderia': 'LIMPEZA',
+  'Mercearia & Despensa': 'MERCEARIA',
+  'Mundo Saudável & Especial': 'SAUDAVEL_ESPECIAL',
+  'Padaria & Confeitaria': 'PADARIA',
+  'Pet Shop': 'PET_SHOP',
+  'Queijos, Frios & Laticínios': 'LATICINIOS',
+}
 
 const CLASSIFICATION_ROOT_FALLBACKS: Array<{ pattern: string; category: string }> = [
   { pattern: '01-mercearia salgada', category: 'MERCEARIA' },
@@ -1466,16 +1493,22 @@ export class ProductsService {
           ? this.normalizeCategory(mapped.category.name)
           : undefined
         // JON-192 (18/09/2026, fase 2 do JON-179): produto sem mapping de
-        // classificacao (Solidcom nao manda, so a AntenorApi manda) cai no
-        // mesmo classificador por palavra-chave (inferCategoryFromMercadologicalPath)
-        // ja usado pro path classification01-04 -- alimentado com
-        // departamentoEcommerce/categoriaEcommerce em vez da arvore
-        // mercadologica. So entra quando NAO ha mapping legado, entao
+        // classificacao (Solidcom nao manda, so a AntenorApi manda) usa o
+        // de-para oficial (DEPARTMENT_TO_CATEGORY, match exato) quando o
+        // departamento tem correspondencia 1:1 confirmada; senao cai no
+        // classificador por palavra-chave ja usado pro path
+        // classification01-04, alimentado com departamento+categoria da
+        // AntenorApi. So entra quando NAO ha mapping legado, entao
         // categoria que ja funciona via mapping nunca muda de codigo.
-        const ecommerceCategoryCode = !mappedCategoryCode
+        const departmentCategoryCode = item.ecommerceDepartment ? DEPARTMENT_TO_CATEGORY[item.ecommerceDepartment] : undefined
+        const ecommerceCategoryCode = !mappedCategoryCode && !departmentCategoryCode
           ? this.inferCategoryFromMercadologicalPath(item.ecommerceDepartment, item.ecommerceCategory, undefined, undefined, item.name)
           : undefined
-        const categoryCode = mappedCategoryCode || (ecommerceCategoryCode !== 'NAO_CLASSIFICADO' ? ecommerceCategoryCode : undefined) || 'NAO_CLASSIFICADO'
+        const categoryCode =
+          mappedCategoryCode ||
+          departmentCategoryCode ||
+          (ecommerceCategoryCode !== 'NAO_CLASSIFICADO' ? ecommerceCategoryCode : undefined) ||
+          'NAO_CLASSIFICADO'
 
         // Sem promocao o ERP omite o campo, e `undefined` faz o Prisma IGNORAR a
         // coluna no update — ou seja, promocao gravada nunca saia sozinha e ficava
