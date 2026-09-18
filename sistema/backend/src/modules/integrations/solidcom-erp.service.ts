@@ -26,6 +26,11 @@ export interface ERPProduct {
   origin?: string
   category?: string
   syncOption?: 'ESTOQUE' | 'SEMPRE' | 'NUNCA'
+  // JON-179/AEF-035: taxonomia canonica da AntenorApi -- ausente no Solidcom
+  // (que continua usando ProductCategoryMapping via `category` acima).
+  ecommerceDepartment?: string
+  ecommerceCategory?: string
+  ecommerceTags?: string[]
 }
 
 export interface ERPCampaignItem {

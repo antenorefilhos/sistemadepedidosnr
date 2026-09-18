@@ -81,6 +81,32 @@ describe('AntenorApiService — catalogo e criacao de pedido', () => {
       expect(result.data[0].fractionStep).toBe(0.1)
     })
 
+    it('JON-179: captura departamentoEcommerce/categoriaEcommerce/tagsEcommerce e exclui via excluidoEcommerce', async () => {
+      cliente.get.mockResolvedValue({
+        data: {
+          produtos: [
+            {
+              ID_LOJA: 1, ID_PRODUTO: 1, CODIGO_EAN: '111', PRODUTO: 'PICANHA', VL_PRODUTO: 89.9, VL_PRODUTO_NORMAL: 89.9, QTD_PRODUTO: 10, Ativo: true,
+              departamentoEcommerce: 'Açougue, Aves & Peixaria',
+              categoriaEcommerce: 'Bovinos',
+              tagsEcommerce: ['churrasco', 'churrasco-nobre'],
+            },
+            {
+              ID_LOJA: 1, ID_PRODUTO: 2, CODIGO_EAN: '222', PRODUTO: 'FARINHA INDUSTRIAL', VL_PRODUTO: 50, VL_PRODUTO_NORMAL: 50, QTD_PRODUTO: 999, Ativo: true,
+              excluidoEcommerce: true,
+            },
+          ],
+        },
+      })
+
+      const result = await service.syncProducts()
+
+      expect(result.data[0].ecommerceDepartment).toBe('Açougue, Aves & Peixaria')
+      expect(result.data[0].ecommerceCategory).toBe('Bovinos')
+      expect(result.data[0].ecommerceTags).toEqual(['churrasco', 'churrasco-nobre'])
+      expect(result.data[1].active).toBe(false)
+    })
+
     it('estoque negativo (QTD_PRODUTO: -1) e preservado, nao vira 0', async () => {
       cliente.get.mockResolvedValue({
         data: { produtos: [{ ID_LOJA: 1, ID_PRODUTO: 1, CODIGO_EAN: '111', PRODUTO: 'X', VL_PRODUTO: 1, VL_PRODUTO_NORMAL: 1, QTD_PRODUTO: -1, Ativo: true }] },

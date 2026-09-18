@@ -563,7 +563,7 @@ export class AntenorApiService {
 
     if (!ean || !name || !Number.isFinite(price)) return null
 
-    const active = row.Ativo !== false
+    const active = row.Ativo !== false && row.excluidoEcommerce !== true
     const stock = Number(row.QTD_PRODUTO) || 0
     const isFractional = row.Fracionado === true
     const fractionStep = Number(row.Fracionamento)
@@ -582,6 +582,25 @@ export class AntenorApiService {
       ? (syncOptionRaw as 'SEMPRE' | 'ESTOQUE' | 'NUNCA')
       : undefined
     const category = this.resolveCategory(classification01 || '', classification02 || '')
+
+    // JON-179/AEF-035 (18/09/2026): taxonomia canonica -- confirmada com
+    // [A1-API] no braincoletivo (18/09, 02:15) que ja vem nos 3 endpoints de
+    // sync que consumimos (full, incremental, EAN), nao so na listagem
+    // paginada pensada pro frontend deles. Substitui o ProductCategoryMapping
+    // quando presente (decisao do Jonathan) -- ver applyErpProducts.
+    const ecommerceDepartment = typeof row.departamentoEcommerce === 'string' && row.departamentoEcommerce
+      ? row.departamentoEcommerce
+      : undefined
+    const ecommerceCategory = typeof row.categoriaEcommerce === 'string' && row.categoriaEcommerce
+      ? row.categoriaEcommerce
+      : undefined
+    const ecommerceTags = Array.isArray(row.tagsEcommerce)
+      ? (row.tagsEcommerce as unknown[]).filter((tag): tag is string => typeof tag === 'string')
+      : undefined
+    // excluidoEcommerce isola os itens impropios pro consumidor final (uso
+    // interno, materia-prima industrial, mortos) -- reaproveita `active`
+    // acima, que ja e o unico sinal de "nao vendavel" checado por
+    // isProductSellable(), em vez de inventar um segundo flag.
 
     const normalized: ERPProduct = {
       ean,
@@ -602,6 +621,9 @@ export class AntenorApiService {
     if (classification04) normalized.classification04 = classification04
     if (category) normalized.category = category
     if (syncOption) normalized.syncOption = syncOption
+    if (ecommerceDepartment) normalized.ecommerceDepartment = ecommerceDepartment
+    if (ecommerceCategory) normalized.ecommerceCategory = ecommerceCategory
+    if (ecommerceTags) normalized.ecommerceTags = ecommerceTags
 
     return normalized
   }

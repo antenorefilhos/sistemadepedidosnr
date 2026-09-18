@@ -1465,6 +1465,13 @@ export class ProductsService {
         const mappedCategoryCode = mapped?.category?.name
           ? this.normalizeCategory(mapped.category.name)
           : undefined
+        // JON-179/AEF-035: departamentoEcommerce/categoriaEcommerce da
+        // AntenorApi gravados em ecommerceCategory (abaixo) como dado NOVO,
+        // sem substituir `category` ainda -- normalizar o nome deles pro
+        // codigo que os chips/filtros esperam (CATEGORY_CATALOG) exige
+        // reconciliar os 14 departamentos canonicos contra nosso catalogo
+        // existente um a um, pra nao fazer produto sumir de categoria que
+        // ja funciona. Ver JON-179 pra essa segunda etapa.
         const categoryCode = mappedCategoryCode || 'NAO_CLASSIFICADO'
 
         // Sem promocao o ERP omite o campo, e `undefined` faz o Prisma IGNORAR a
@@ -1490,6 +1497,11 @@ export class ProductsService {
           fractionStep: item.fractionStep ?? null,
           unit: item.unit || 'un',
           category: categoryCode,
+          // ecommerceCategory/tags ficam FORA de `fields` de proposito, mesmo
+          // motivo do syncOption logo abaixo: so a AntenorApi manda esses
+          // campos, o Solidcom nunca manda -- gravar undefined/[] aqui
+          // apagaria em todo sync feito so pelo Solidcom o que a AntenorApi
+          // ja tinha gravado direito.
           // syncOption fica FORA de `fields`: no update ele so pode ser escrito
           // quando o ERP realmente mandou o campo (ver comentario em
           // solidcom-erp.service.ts). Aplicado logo abaixo, por branch.
@@ -1528,6 +1540,8 @@ export class ProductsService {
                 erpProductId,
                 secondaryEans,
                 ...(item.syncOption ? { syncOption: item.syncOption } : {}),
+                ...(item.ecommerceCategory ? { ecommerceCategory: item.ecommerceCategory } : {}),
+                ...(item.ecommerceTags ? { tags: item.ecommerceTags } : {}),
               },
             })
           : await this.prisma.product.create({
@@ -1537,6 +1551,8 @@ export class ProductsService {
                 erpProductId,
                 secondaryEans,
                 syncOption: item.syncOption || 'ESTOQUE',
+                ecommerceCategory: item.ecommerceCategory,
+                tags: item.ecommerceTags ?? [],
               },
             })
 

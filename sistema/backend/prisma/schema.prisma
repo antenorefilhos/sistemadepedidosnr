@@ -482,6 +482,17 @@ model Product {
   manualFractionStep Float?
   unit      String   @default("un")
   category  String   @default("GERAL")
+  // JON-179/AEF-035 (18/09/2026): quando a AntenorApi manda departamentoEcommerce,
+  // ele SUBSTITUI o ProductCategoryMapping como fonte de `category` (decisao do
+  // Jonathan) -- ver applyErpProducts em products.service.ts. Solidcom nao manda
+  // esse campo, entao o fallback antigo (mapping table) continua valendo pra ele.
+  // `ecommerceCategory` guarda o proximo nivel de granularidade deles
+  // (categoriaEcommerce, ex: "Bovinos" dentro do departamento "Acougue, Aves & Peixaria").
+  ecommerceCategory String?
+  // tagsEcommerce (ocasiao de consumo: churrasco-nobre, zero-gluten etc) --
+  // campo novo e independente de category/ecommerceSubcategory, usado so pra
+  // navegacao por ocasiao (chips/cross-sell), nunca pra filtrar disponibilidade.
+  tags      String[] @default([])
   origin    String?
   syncOption String   @default("ESTOQUE")
   badges    String?
