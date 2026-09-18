@@ -884,11 +884,12 @@ acabar o produto fica barato para sempre — sem ninguém notar, porque o númer
 parece plausível. Hoje lemos `vl_produto_normal`, e foi isso que nos protegeu
 quando o Solidcom serviu `vl_produto` defasado na ração Champion.
 
-## Armadilha: a rota de cancelamento da AntenorApi usa uma chave que nao temos
+## Armadilha (RESOLVIDA em 17/09/2026): a rota de cancelamento da AntenorApi usava uma chave que nao tinhamos
 
 Achada na homologacao da v1.6.0, em 08/09/2026 — e e o tipo que nao aparece em
 teste de `curl` isolado, so quando alguem pergunta *"e como o nosso codigo
-chama isso?"*.
+chama isso?"*. Contexto historico abaixo; a solucao ja esta em producao —
+ver o paragrafo final antes de reabrir isso como bug.
 
 `POST /pedidos/:cdPedido/cancelar` e `GET /pedidos/:cdPedido/status-pdv` sao
 chaveados por **`cdPedido`**, a PK de `DORSAL.dbo.tbPedido`. Nos nao temos esse
@@ -914,6 +915,15 @@ unico identificador que existe **antes** da resposta do `PostPedido` — o que
 faz o cancelamento funcionar inclusive para pedido que falhou ao sincronizar,
 justamente um dos que mais precisam ser cancelados.
 
-Enquanto isso nao entrar, `syncCancelledOrder` continua sem caminho: a
-`PutCancelamentoPedido` da Solidcom nunca funcionou (int32 estourado, ver acima)
-e a rota nova e inalcancavel. Pedido cancelado no site segue aberto no ERP.
+**Resolvido em 17/09/2026** (confirmado no braincoletivo em 18/09):
+`POST /api/integracao/pedidos/cancelar` agora aceita `cdEcomPedido` no body
+(rota polimorfica — tambem aceita `cdPedido`/DAV, mas o body diz qual chave
+e, pra nunca deduzir errado numa colisao entre os tres espacos de numeracao).
+Implementado em `AntenorApiService.cancelOrder()`
+(`sistema/backend/src/modules/integrations/antenor-api.service.ts`) e
+plugado em `OrderOrchestrationService.syncCancelledOrder()`, que da
+precedencia a AntenorApi sobre Solidcom quando o modulo esta ligado. Trava
+fiscal tratada: pedido ja faturado no PDV (`hrRegistro` preenchido) responde
+`409` e vira `OrderAlreadyInvoicedError` — logado como
+`CANCEL_ORDER_REFUSED_ALREADY_INVOICED`, sem retentativa (repetir amanha
+continuaria dando 409, o estorno tem que ser manual no caixa).
