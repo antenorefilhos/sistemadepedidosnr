@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { Module, forwardRef } from '@nestjs/common'
 import { SolidcomERPService } from './solidcom-erp.service'
 import { AntenorApiService } from './antenor-api.service'
 import { PdvCancellationScheduler } from './pdv-cancellation.scheduler'
@@ -17,9 +17,13 @@ import { RetryService } from '../../common/services/retry.service'
 import { IntegrationModulesService } from './integration-modules.service'
 import { PublicApiModule } from '../public-api/public-api.module'
 import { NotificationsModule } from '../notifications/notifications.module'
+import { ProductsModule } from '../products/products.module'
 
 @Module({
-  imports: [PublicApiModule, NotificationsModule],
+  // JON-33 (Auditoria 360): forwardRef -- ProductsModule ja importa
+  // IntegrationsModule, entao o webhook produto.alterado (que injeta
+  // ProductsService aqui) fecharia um ciclo sem isso.
+  imports: [PublicApiModule, NotificationsModule, forwardRef(() => ProductsModule)],
   controllers: [IntegrationsController, HealthController],
   providers: [
     SolidcomERPService,

@@ -607,4 +607,52 @@ describe('ProductsService', () => {
       expect(result.data).toHaveLength(1);
     });
   });
+
+  // JON-33 (Auditoria 360): webhook produto.alterado manda 1 POST por
+  // produto -- uma rajada de N mudancas no ERP não pode virar N syncs quase
+  // simultaneos.
+  describe('scheduleWebhookProductSync (JON-33)', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      mockPrismaService.product.findMany.mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('agrupa uma rajada de chamadas numa unica sync apos o debounce', async () => {
+      const spy = jest.spyOn(service, 'syncRecentFromERP').mockResolvedValue({ success: true } as any);
+
+      service.scheduleWebhookProductSync();
+      service.scheduleWebhookProductSync();
+      service.scheduleWebhookProductSync();
+
+      expect(spy).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(5000);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('agenda mais uma rodada se uma mudanca chegar durante a sync em curso', async () => {
+      let resolveFirst!: () => void;
+      const spy = jest
+        .spyOn(service, 'syncRecentFromERP')
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = () => resolve({ success: true } as any); }))
+        .mockResolvedValue({ success: true } as any);
+
+      service.scheduleWebhookProductSync();
+      await jest.advanceTimersByTimeAsync(5000);
+      expect(spy).toHaveBeenCalledTimes(1);
+
+      // Mudanca chega enquanto a primeira sync ainda esta em voo.
+      service.scheduleWebhookProductSync();
+      resolveFirst();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(spy).toHaveBeenCalledTimes(2);
+    });
+  });
 });

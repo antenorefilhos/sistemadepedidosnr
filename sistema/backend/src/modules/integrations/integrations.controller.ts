@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, forwardRef, Get, Inject, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { Throttle, SkipThrottle } from '@nestjs/throttler'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
@@ -15,6 +15,7 @@ import { AntenorApiService } from './antenor-api.service'
 import { IntegrationModuleKey } from './integration-modules.service'
 import { CreatePaymentTransactionDto, CreateRefundDto, ReconcilePaymentsDto, RegisterChargebackDto } from './dto/payment-ledger.dto'
 import { CreateIntegrationConnectorDto, EnqueueOutboxEventDto, RunOutboxWorkerDto } from './dto/integration-outbox.dto'
+import { ProductsService } from '../products/products.service'
 
 @ApiTags('Integrations')
 // So skip auth/checkout: o webhook de pagamentos (abaixo) usa
@@ -28,6 +29,8 @@ export class IntegrationsController {
     private readonly integrationsService: IntegrationsService,
     private readonly orderOrchestrationService: OrderOrchestrationService,
     private readonly antenorApi: AntenorApiService,
+    @Inject(forwardRef(() => ProductsService))
+    private readonly productsService: ProductsService,
   ) {}
 
   // --- v1.8.0 (JON-34/35): fidelidade e NFC-e via AntenorApi ---------------
@@ -130,6 +133,26 @@ export class IntegrationsController {
     },
   ) {
     return this.orderOrchestrationService.handleWebhookStatus(body || {})
+  }
+
+  // JON-33 (Auditoria 360): webhook produto.alterado, aposenta o cron
+  // horario. Nao aplicamos o payload direto -- ele so avisa QUE algo mudou
+  // (preco/estoque/cadastro), sem os campos derivados que applyErpProducts
+  // precisa (syncOption, fracionamento, etc). Mais simples e mais seguro
+  // reagendar o mesmo syncRecentFromERP(1) que o cron incremental ja usa,
+  // testado e com todas as regras (JON-32, promocao, indexacao) aplicadas.
+  @UseGuards(AntenorApiWebhookGuard)
+  @Post('antenorapi/webhook/produto-alterado')
+  @Throttle({ webhook: { limit: 120, ttl: 60000 } })
+  @ApiOperation({ summary: 'Recebe aviso de produto alterado (preco/estoque/cadastro) da AntenorApi' })
+  handleProdutoAlteradoWebhook(
+    @Body() body: { evento?: string; cdBarra?: string; cdSuperProduto?: number; alteracoes?: string[] },
+  ) {
+    if (body?.evento !== 'produto.alterado') {
+      return { received: true, ignored: true, reason: 'evento nao reconhecido' }
+    }
+    this.productsService.scheduleWebhookProductSync()
+    return { received: true, scheduled: true }
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

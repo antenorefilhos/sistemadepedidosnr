@@ -158,6 +158,43 @@ export class ProductsService {
   // entrada (manual, cron completo, cron incremental).
   private erpSyncRunning = false
 
+  // JON-33 (Auditoria 360): webhook produto.alterado da AntenorApi manda um
+  // POST por produto (o debounce de 20s e deles, na origem) -- uma rajada de
+  // N produtos alterados no ERP vira N chamadas quase juntas aqui. Sem
+  // coalescer, cada uma dispararia o proprio syncRecentFromERP (3s+ cada).
+  // Debounce curto (5s) agrupa a rajada numa sync so; se uma mudanca chegar
+  // enquanto a sync ja esta rodando (erpSyncRunning), webhookSyncPending
+  // garante mais uma rodada em vez de perder a atualizacao.
+  // ponytail: se o processo cair no meio do debounce, a mudanca so chega no
+  // proximo evento ou no cron horario (rede de seguranca ja existente) --
+  // upgrade seria persistir o "pendente" em vez de em memoria.
+  private webhookSyncTimer: ReturnType<typeof setTimeout> | null = null
+  private webhookSyncing = false
+  private webhookSyncPending = false
+
+  scheduleWebhookProductSync(): void {
+    // Timer pendente OU sync ja em voo -- os dois casos so marcam "pediu de
+    // novo durante a espera" em vez de disparar outra sync em paralelo.
+    if (this.webhookSyncTimer || this.webhookSyncing) {
+      this.webhookSyncPending = true
+      return
+    }
+    this.webhookSyncTimer = setTimeout(() => this.runWebhookProductSync(), 5000)
+  }
+
+  private async runWebhookProductSync(): Promise<void> {
+    this.webhookSyncTimer = null
+    this.webhookSyncing = true
+    try {
+      do {
+        this.webhookSyncPending = false
+        await this.syncRecentFromERP(1)
+      } while (this.webhookSyncPending)
+    } finally {
+      this.webhookSyncing = false
+    }
+  }
+
   constructor(
     private prisma: PrismaService,
     private solidcomERPService: SolidcomERPService,
