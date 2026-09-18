@@ -21,7 +21,7 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
-- [ ] **Webhook `produto.alterado` da AntenorApi (JON-33).** (18/09/2026)
+- [x] **Webhook `produto.alterado` da AntenorApi (JON-33).** (18/09/2026)
       Estava em standby desde 11/09 por dependência circular entre
       `ProductsModule` e `IntegrationsModule` (o handler do webhook precisa
       injetar `ProductsService` no `IntegrationsController`, mas
@@ -29,15 +29,19 @@ que fecha desce para o histórico com a data e o commit.
       `forwardRef()` nos dois módulos — padrão do NestJS pra esse formato
       de ciclo. Endpoint novo:
       `POST /integrations/antenorapi/webhook/produto-alterado`, guardado
-      pelo `AntenorApiWebhookGuard` já existente (HMAC, mesmo segredo do
-      webhook de pedido). Não aplica o payload direto — reagenda
-      `syncRecentFromERP(1)` (mesma rotina do cron incremental) com
+      pelo `AntenorApiWebhookGuard` já existente (HMAC, `ANTENOR_API_WEBHOOK_SECRET`
+      compartilhado com o webhook de pedido). Não aplica o payload direto —
+      reagenda `syncRecentFromERP(1)` (mesma rotina do cron incremental) com
       debounce de 5s pra coalescer rajadas de produtos alterados quase
-      juntas. Testado (2 specs novos cobrindo o debounce, 183/183 passando,
-      CI verde incluindo o job Docker que sobe a stack real).
-      **Falta só o e2e**: pedido feito ao `[A1-API]` no braincoletivo pra
-      retomar o worker de debounce deles e mandar um hit de teste real —
-      fecha o ticket assim que confirmarmos o sync disparando pelo webhook.
+      juntas.
+      **E2E confirmado em produção em 18/09/2026**: `[A1-API]` disparou um
+      hit real assinado, retornou `{"received":true,"scheduled":true}`
+      (HTTP 201), e o log confirmou o sync disparando de verdade 5s depois:
+      `"Sync incremental (1h): 10 mudancas comerciais"`. A `ANTENOR_API_WEBHOOK_SECRET`
+      nunca tinha sido preenchida em `.env.production` (buraco achado ao
+      testar, não regressão) — aplicada e o container recriado.
+      O cron horário continua ligado como rede de segurança; o webhook
+      só reduz a janela de defasagem de preço/estoque de 1h pra segundos.
 
 - [x] **Cloudflare na frente da VPS + Tunnel (JON-41).** (17/09/2026)
       `antenorefilhos.com.br` migrado do Registro.br pro Cloudflare (zona
