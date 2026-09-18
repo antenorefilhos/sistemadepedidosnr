@@ -111,7 +111,7 @@ const CATEGORY_CATALOG: CategoryCatalogItem[] = [
   { code: 'GULOSEIMAS', name: 'Guloseimas', keywords: ['chocolate', 'doce', 'bala', 'bombom', 'biscoito', 'guloseima'] },
   { code: 'BEBIDAS', name: 'Bebidas', keywords: ['bebida', 'refrigerante', 'suco', 'agua', 'água', 'energetico', 'energético'] },
   { code: 'VINHOS', name: 'Vinhos', keywords: ['vinho', 'adega', 'espumante'] },
-  { code: 'DESTILADOS', name: 'Destilados e Aperitivos', keywords: ['destilado', 'aperitivo', 'whisky', 'vodka', 'gin', 'licor', 'cachaca', 'cachaça', 'rum', 'tequila'] },
+  { code: 'DESTILADOS_COQUETEIS', name: 'Destilados e Coqueteis', keywords: ['destilado', 'coquetel', 'aperitivo', 'whisky', 'vodka', 'gin', 'licor', 'cachaca', 'cachaça', 'rum', 'tequila'] },
   { code: 'CERVEJAS', name: 'Cervejas', keywords: ['cerveja', 'lager', 'pilsen', 'ipa', 'long neck', 'chopp'] },
   { code: 'HORTIFRUTI', name: 'Hortifruti', keywords: ['hortifruti', 'fruta', 'verdura', 'legume', 'folhoso'] },
   { code: 'LIMPEZA', name: 'Limpeza', keywords: ['limpeza', 'detergente', 'desinfetante', 'alvejante', 'sabao', 'sabão'] },
@@ -151,7 +151,7 @@ const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
 const BEVERAGE_CATEGORIA_TO_CATEGORY: Record<string, string> = {
   'Vinhos & Espumantes': 'VINHOS',
   'Cervejas': 'CERVEJAS',
-  'Destilados & Aperitivos': 'DESTILADOS',
+  'Destilados & Aperitivos': 'DESTILADOS_COQUETEIS',
   'Sucos & Néctares': 'BEBIDAS',
   'Refrigerantes': 'BEBIDAS',
 }

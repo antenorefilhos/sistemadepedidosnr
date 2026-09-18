@@ -146,7 +146,6 @@ export const CMS_CATEGORY_TO_RULE_ID: Record<string, HomeCategoryRule['id']> = {
   CERVEJAS_E_CHOPP: 'cervejas',
   DESTILADOS_COQUETEIS: 'destilados',
   DESTILADOS_E_COQUETEIS: 'destilados',
-  DESTILADOS: 'destilados',
   SUCOS_REFRIGERANTES: 'sucos',
   SUCOS_E_REFRIGERANTES: 'sucos',
   HORTIFRUTI_ORGANICOS: 'hortifruti',
