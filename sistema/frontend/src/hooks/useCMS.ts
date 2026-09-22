@@ -119,8 +119,14 @@ export function useHomeVitrines() {
       return null
     }
   }, {
-    staleTime: 1000 * 60 * 5,
+    // Curto de proposito, mesmo criterio de useStoreBanners: sync do ERP ou
+    // ajuste de vitrine no admin precisa aparecer sem o cliente ter que fazer
+    // hard refresh -- aba aberta nao pode segurar vitrine desatualizada
+    // (achado em 22/09/2026, apos correcao de categoria/mix de filial).
+    staleTime: 1000 * 30,
     cacheTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: true,
+    keepPreviousData: true,
     retry: false,
   })
 }
@@ -138,8 +144,10 @@ export function useSponsoredShelves() {
     const response = await cmsAPI.sponsoredShelves.getAll()
     return response.data
   }, {
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30,
     cacheTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: true,
+    keepPreviousData: true,
   })
 }
 
