@@ -66,8 +66,11 @@ export default function Home() {
   const { data: products, isLoading: productsLoading } = useProducts()
   const { data: storeBanners } = useStoreBanners()
   const { data: promotionCampaigns } = usePromotionCampaigns()
-  const highlightedCampaign = useMemo(
-    () => (promotionCampaigns || []).find((c) => c.highlightInHome && c.items.length > 0),
+  // JON-203 (22/09/2026): so a primeira campanha marcada "destacar na Home"
+  // aparecia (find() pega uma so) -- com 2+ parcerias/vitrines patrocinadas
+  // ativas ao mesmo tempo, a segunda nunca aparecia em lugar nenhum.
+  const highlightedCampaigns = useMemo(
+    () => (promotionCampaigns || []).filter((c) => c.highlightInHome && c.items.length > 0),
     [promotionCampaigns],
   )
   const { data: cmsCategories } = useCommercialTaxonomy()
@@ -436,7 +439,7 @@ export default function Home() {
   // pode teoricamente vir vazio tambem (loja sem promocao ativa). Nesse caso
   // raro, pula o 1o par de banners no mobile -- ele reaparece mais adiante,
   // ja com freshShelf (catalogo geral, praticamente sempre populado) antes.
-  const hasMobileLeadContent = rebuyShelf.length > 0 || Boolean(highlightedCampaign) || offersShelf.length > 0
+  const hasMobileLeadContent = rebuyShelf.length > 0 || highlightedCampaigns.length > 0 || offersShelf.length > 0
 
   // Ponto de ajuda/contato da Home (heuristica "ajuda e documentacao": a Home nao
   // tinha nenhum contato). Reaproveita o mesmo padrao ja usado em Account.tsx:
@@ -817,17 +820,18 @@ export default function Home() {
         </section>
       )}
 
-      {highlightedCampaign && (
+      {highlightedCampaigns.map((campaign) => (
         <ProductShelf
+          key={campaign.id}
           className="md:hidden px-4 pt-5 pb-2"
-          title={highlightedCampaign.name}
+          title={campaign.name}
           eyebrow="Encarte da semana"
           icon={Sparkles}
-          products={highlightedCampaign.items}
+          products={campaign.items}
           to="/promocoes"
           linkLabel="Ver encarte"
         />
-      )}
+      ))}
 
       {/* JON-173: mesmo `homeSections` do desktop, so muda a topologia
           (coluna unica + banners intercalados a cada ~3 vitrines, em vez de
@@ -892,6 +896,22 @@ export default function Home() {
             </div>
           </section>
         )}
+
+        {/* JON-203: encarte(s) com "destacar na Home" so apareciam no mobile
+            -- fornecedor/parceria que pediu print pra aprovar a vitrine
+            simplesmente nao via nada no desktop. */}
+        {highlightedCampaigns.map((campaign) => (
+          <ProductShelf
+            key={campaign.id}
+            layout="carousel"
+            eyebrow="Encarte da semana"
+            title={campaign.name}
+            icon={Sparkles}
+            products={campaign.items}
+            to="/promocoes"
+            linkLabel="Ver encarte"
+          />
+        ))}
 
         {/* JON-173: schema unico com o mobile (homeSections) -- antes daqui
             pra baixo eram 5 blocos de <section> escritos a mao duplicando
