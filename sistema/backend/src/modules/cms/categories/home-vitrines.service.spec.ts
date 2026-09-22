@@ -176,4 +176,46 @@ describe('HomeVitrinesService', () => {
     // reforco filtrado por category no where da segunda chamada
     expect(prisma.product.findMany.mock.calls[1][0].where.category).toBe('HORTIFRUTI_ORGANICOS');
   });
+
+  // 22/09/2026: tipoFiltro='categoria' (ex.: "Carnes para o Dia a Dia",
+  // valorFiltro='Bovinos') nunca tinha reforco -- so 'departamento' e 'tag'
+  // eram tratados, vitrine ficava presa em poucos produtos (achado com 5/12).
+  it('reforca tambem quando o carrossel e filtrado por categoria (nao so departamento/tag)', async () => {
+    const remota = {
+      contexto: { perfil: 'bairro', momento: 'semana', mes: 9 },
+      personalidadeAtiva: { titulo: 't', subtitulo: 's', bannerPrincipal: { headline: '', subheadline: '', ctaTexto: '', tagFoco: '' } },
+      carrosseis: [
+        {
+          id: 'carnes',
+          titulo: 'Carnes para o Dia a Dia',
+          subtitulo: '',
+          tipoFiltro: 'categoria',
+          valorFiltro: 'Bovinos',
+          produtos: [1, 2, 3, 4, 5].map((erpId) => ({ id: erpId, sku: String(erpId), syncOption: 'ESTOQUE' as const })),
+        },
+      ],
+    };
+    const resolvidosOriginais = [1, 2, 3, 4, 5].map((id) => produtoLocal(id));
+    const candidatosReforco = Array.from({ length: 10 }, (_, i) =>
+      produtoLocal(100 + i, { id: `reforco-${i}`, erpProductId: null }),
+    );
+
+    const antenorApi = { getVitrines: jest.fn().mockResolvedValue(remota) };
+    const prisma = {
+      product: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce(resolvidosOriginais)
+          .mockResolvedValueOnce(candidatosReforco),
+      },
+    };
+    const service = new HomeVitrinesService(prisma as never, antenorApi as never);
+
+    const resultado = await service.getHomeVitrines({});
+
+    expect(resultado.carrosseis[0].produtos.length).toBe(12);
+    expect(prisma.product.findMany.mock.calls[1][0].where.classification02).toEqual({
+      contains: 'Bovinos',
+      mode: 'insensitive',
+    });
+  });
 });

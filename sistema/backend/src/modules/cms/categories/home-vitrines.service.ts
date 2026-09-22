@@ -131,14 +131,23 @@ export class HomeVitrinesService {
             ? DEPARTMENT_TO_CATEGORY[carrossel.valorFiltro]
             : undefined;
         const tagFiltro = carrossel.tipoFiltro === 'tag' ? carrossel.valorFiltro : undefined;
+        // 22/09/2026: tipoFiltro='categoria' (ex.: "Carnes para o Dia a Dia",
+        // valorFiltro='Bovinos') nunca tinha backfill -- so 'departamento' e
+        // 'tag' eram tratados, entao essa vitrine ficava presa nos poucos
+        // produtos que sobravam depois do filtro de sellability (achado com
+        // 5/12). classification02 no banco vem com prefixo numerico
+        // ("02 - BOVINOS"), por isso contains em vez de igualdade exata --
+        // mesmo criterio do buildLinkVerTudo/buildPrismaWhere.
+        const classification02Filtro = carrossel.tipoFiltro === 'categoria' ? carrossel.valorFiltro : undefined;
 
-        if (categoryCode || tagFiltro) {
+        if (categoryCode || tagFiltro || classification02Filtro) {
           const reforco = await this.prisma.product.findMany({
             where: {
               id: { notIn: Array.from(jaUsados) },
               active: true,
               ...(categoryCode ? { category: categoryCode } : {}),
               ...(tagFiltro ? { tags: { has: tagFiltro } } : {}),
+              ...(classification02Filtro ? { classification02: { contains: classification02Filtro, mode: 'insensitive' } } : {}),
             },
             select: PRODUCT_SELECT,
             take: faltam * 3, // folga pra sobrar apos o filtro de isProductSellable
