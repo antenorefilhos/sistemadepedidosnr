@@ -1425,6 +1425,12 @@ export class ProductsService {
 
     const taxonomy = await this.syncTaxonomyFromProducts()
 
+    // 22/09/2026: applyErpProducts so faz upsert -- produto que sumiu da
+    // resposta do ERP (mix removido, produto descontinuado) ficava ativo
+    // pra sempre. So roda no sync COMPLETO (aqui, nunca no incremental, que
+    // manda so as mudancas e deactivaria o catalogo inteiro por engano).
+    const deactivation = await this.deactivateMissingFromErp(syncResult.data)
+
     const result = {
       success: true,
       products: syncResult.data.length,
@@ -1432,6 +1438,7 @@ export class ProductsService {
       errors,
       taxonomy,
       promotions,
+      deactivation,
       data: syncResult.data.slice(0, 20),
     }
 
@@ -1443,6 +1450,7 @@ export class ProductsService {
         products: result.products,
         synced: result.synced,
         errors: result.errors,
+        deactivated: deactivation.deactivated,
         at: new Date().toISOString(),
       },
     })
@@ -1450,6 +1458,54 @@ export class ProductsService {
     await this.productSearchService.indexProductsByIds(indexedIds)
 
     return result
+  }
+
+  /**
+   * Desativa produto com erpProductId que nao veio na resposta atual do
+   * sync completo. Trava de seguranca: se o que sumiria passar de 40% do
+   * catalogo sincronizado por ERP, aborta e loga alerta -- sinal mais
+   * provavel de resposta parcial/erro da integracao do que limpeza real de
+   * mix (aconteceu 3x nesta mesma tarde com o mix da Filial 1).
+   */
+  private async deactivateMissingFromErp(items: ERPProduct[]) {
+    const idsInFeed = Array.from(
+      new Set(items.map((item) => item.erpProductId).filter((id): id is number => id != null)),
+    )
+
+    const currentlyActive = await this.prisma.product.findMany({
+      where: { active: true, erpProductId: { not: null } },
+      select: { id: true, erpProductId: true },
+    })
+
+    const feedSet = new Set(idsInFeed)
+    const missing = currentlyActive.filter((p) => p.erpProductId != null && !feedSet.has(p.erpProductId))
+
+    if (missing.length === 0) {
+      return { deactivated: 0, skipped: false, reason: null, candidatesEvaluated: currentlyActive.length }
+    }
+
+    const missingRatio = missing.length / currentlyActive.length
+    if (missingRatio > 0.4) {
+      this.logger.warn(
+        `product_deactivation_abortada missing=${missing.length} ativos=${currentlyActive.length} ratio=${missingRatio.toFixed(2)} -- acima do limite de seguranca (40%), provavel resposta parcial do ERP`,
+      )
+      return {
+        deactivated: 0,
+        skipped: true,
+        reason: `${missing.length} de ${currentlyActive.length} produtos (${(missingRatio * 100).toFixed(1)}%) sumiriam da resposta -- acima do limite de seguranca de 40%, nao desativado`,
+        candidatesEvaluated: currentlyActive.length,
+      }
+    }
+
+    await this.prisma.product.updateMany({
+      where: { id: { in: missing.map((p) => p.id) } },
+      data: { active: false },
+    })
+    await this.productSearchService.indexProductsByIds(missing.map((p) => p.id))
+
+    this.logger.log(`product_deactivation_aplicada count=${missing.length} de ${currentlyActive.length} ativos com erpProductId`)
+
+    return { deactivated: missing.length, skipped: false, reason: null, candidatesEvaluated: currentlyActive.length }
   }
 
   /**
