@@ -75,7 +75,7 @@ export default function Home() {
     [promotionCampaigns],
   )
   const { data: cmsCategories } = useCommercialTaxonomy()
-  const { data: vitrinesData } = useHomeVitrines()
+  const { data: vitrinesData, isLoading: vitrinesLoading } = useHomeVitrines()
   const { data: topSellingProducts } = useTopSellingProducts(8)
   const { count, subtotal } = useCart()
   const freeShipping = useFreeShipping(subtotal)
@@ -308,6 +308,14 @@ export default function Home() {
     categorized, bestSellers,
   ])
 
+  // 22/09/2026: antes caia direto no fallback local enquanto a AntenorApi
+  // ainda nao respondeu, e trocava de conteudo alguns segundos depois --
+  // pra quem ta testando parecia inconsistencia de catalogo. Enquanto a
+  // 1a chamada de vitrinesData ainda esta em voo, a pagina segura no
+  // skeleton (abaixo) em vez de renderizar o fallback e trocar depois; so
+  // cai no fallback de fato se a chamada terminar sem dado (endpoint fora
+  // do ar), nunca so por ainda estar carregando.
+  const showVitrinesSkeleton = vitrinesLoading && !vitrinesData
   const homeSections = vitrinesSections ?? homeSectionsFallback
 
   // Tarja/popup fechados ficam fechados so pela sessao (sessionStorage) --
@@ -491,7 +499,7 @@ export default function Home() {
     "logo": `${window.location.origin}/branding/logo-bordo.png`,
   }
 
-  if (productsLoading && !productsList.length) {
+  if ((productsLoading && !productsList.length) || showVitrinesSkeleton) {
     return (
       <div className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
