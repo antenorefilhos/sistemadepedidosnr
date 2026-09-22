@@ -132,4 +132,48 @@ describe('HomeVitrinesService', () => {
     const todosOsIds = resultado.carrosseis.flatMap((c) => c.produtos.map((p) => p.id));
     expect(new Set(todosOsIds).size).toBe(todosOsIds.length);
   });
+
+  // JON-202 (22/09/2026): carrossel remoto manda 12, so 5 sobrevivem ao
+  // filtro de vendabilidade (syncOption=NUNCA comum em hortifruti) --
+  // reforco busca mais candidatos do NOSSO catalogo pra fechar o pool.
+  it('reforca com produtos do nosso catalogo quando o carrossel remoto encolhe abaixo do pool alvo', async () => {
+    const remota = {
+      contexto: { perfil: 'bairro', momento: 'semana', mes: 9 },
+      personalidadeAtiva: { titulo: 't', subtitulo: 's', bannerPrincipal: { headline: '', subheadline: '', ctaTexto: '', tagFoco: '' } },
+      carrosseis: [
+        {
+          id: 'hortifruti',
+          titulo: 'Feira Fresca & Hortifruti',
+          subtitulo: '',
+          tipoFiltro: 'departamento',
+          valorFiltro: 'Hortifruti & Orgânicos',
+          // so 5 vendaveis (syncOption ESTOQUE default); os outros 7 ficam
+          // de fora do catalogo local nesta simulacao (nao sincronizados).
+          produtos: [1, 2, 3, 4, 5].map((erpId) => ({ id: erpId, sku: String(erpId), syncOption: 'ESTOQUE' as const })),
+        },
+      ],
+    };
+    const resolvidosOriginais = [1, 2, 3, 4, 5].map((id) => produtoLocal(id));
+    // reforco: mais 10 produtos vendaveis na mesma categoria, nenhum com
+    // erpProductId (produto so mapeado localmente, nao veio do carrossel).
+    const candidatosReforco = Array.from({ length: 10 }, (_, i) =>
+      produtoLocal(100 + i, { id: `reforco-${i}`, category: 'HORTIFRUTI_ORGANICOS', erpProductId: null }),
+    );
+
+    const antenorApi = { getVitrines: jest.fn().mockResolvedValue(remota) };
+    const prisma = {
+      product: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce(resolvidosOriginais) // resolucao por erpProductId
+          .mockResolvedValueOnce(candidatosReforco), // reforco por category
+      },
+    };
+    const service = new HomeVitrinesService(prisma as never, antenorApi as never);
+
+    const resultado = await service.getHomeVitrines({});
+
+    expect(resultado.carrosseis[0].produtos.length).toBe(12);
+    // reforco filtrado por category no where da segunda chamada
+    expect(prisma.product.findMany.mock.calls[1][0].where.category).toBe('HORTIFRUTI_ORGANICOS');
+  });
 });

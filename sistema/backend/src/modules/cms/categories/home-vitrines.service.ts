@@ -2,9 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma.service';
 import { AntenorApiService } from '../../integrations/antenor-api.service';
 import { isProductSellable } from '../../../common/product-availability';
+import { DEPARTMENT_TO_CATEGORY } from '../../products/products.service';
 
 /** Abaixo disso a prateleira fica rala demais pra exibir (mesmo criterio de JON-172, useHomeShelves.ts). */
 const MIN_SHELF_ITEMS = 4;
+
+// JON-202 (22/09/2026): a AntenorApi manda um numero FIXO de produtos por
+// carrossel (12 hoje) -- quando boa parte deles nao e vendavel no nosso
+// catalogo (syncOption=NUNCA, comum em hortifruti), a vitrine encolhia sem
+// nenhum reforço, contrariando o pool de 10-15 que o resto da Home ja segue
+// (ver useHomeShelves.ts, JON-201). Backfill busca mais candidatos do NOSSO
+// catalogo pra fechar esse alvo, na mesma categoria/tag do carrossel.
+const TARGET_POOL_SIZE = 12;
 
 const PRODUCT_SELECT = {
   id: true,
@@ -77,28 +86,56 @@ export class HomeVitrinesService {
     }
 
     const jaUsados = new Set<string>();
-    const carrosseis = remota.carrosseis
-      .map((carrossel) => {
-        const produtosResolvidos = carrossel.produtos
-          .map((item) => porErpId.get(item.id))
-          .filter((produto): produto is NonNullable<typeof produto> => !!produto)
-          .filter((produto) => isProductSellable(produto))
-          .filter((produto) => {
-            if (jaUsados.has(produto.id)) return false;
-            jaUsados.add(produto.id);
-            return true;
-          });
+    const carrosseisResolvidos = [];
+    for (const carrossel of remota.carrosseis) {
+      const produtosResolvidos = carrossel.produtos
+        .map((item) => porErpId.get(item.id))
+        .filter((produto): produto is NonNullable<typeof produto> => !!produto)
+        .filter((produto) => isProductSellable(produto))
+        .filter((produto) => {
+          if (jaUsados.has(produto.id)) return false;
+          jaUsados.add(produto.id);
+          return true;
+        });
 
-        return {
-          id: carrossel.id,
-          titulo: carrossel.titulo,
-          subtitulo: carrossel.subtitulo,
-          tipoFiltro: carrossel.tipoFiltro,
-          valorFiltro: carrossel.valorFiltro,
-          produtos: produtosResolvidos,
-        };
-      })
-      .filter((carrossel) => carrossel.produtos.length >= MIN_SHELF_ITEMS);
+      if (produtosResolvidos.length < TARGET_POOL_SIZE && produtosResolvidos.length >= MIN_SHELF_ITEMS) {
+        const faltam = TARGET_POOL_SIZE - produtosResolvidos.length;
+        const categoryCode =
+          carrossel.tipoFiltro === 'departamento' && carrossel.valorFiltro
+            ? DEPARTMENT_TO_CATEGORY[carrossel.valorFiltro]
+            : undefined;
+        const tagFiltro = carrossel.tipoFiltro === 'tag' ? carrossel.valorFiltro : undefined;
+
+        if (categoryCode || tagFiltro) {
+          const reforco = await this.prisma.product.findMany({
+            where: {
+              id: { notIn: Array.from(jaUsados) },
+              active: true,
+              ...(categoryCode ? { category: categoryCode } : {}),
+              ...(tagFiltro ? { tags: { has: tagFiltro } } : {}),
+            },
+            select: PRODUCT_SELECT,
+            take: faltam * 3, // folga pra sobrar apos o filtro de isProductSellable
+          });
+          for (const produto of reforco) {
+            if (produtosResolvidos.length >= TARGET_POOL_SIZE) break;
+            if (jaUsados.has(produto.id) || !isProductSellable(produto)) continue;
+            jaUsados.add(produto.id);
+            produtosResolvidos.push(produto);
+          }
+        }
+      }
+
+      carrosseisResolvidos.push({
+        id: carrossel.id,
+        titulo: carrossel.titulo,
+        subtitulo: carrossel.subtitulo,
+        tipoFiltro: carrossel.tipoFiltro,
+        valorFiltro: carrossel.valorFiltro,
+        produtos: produtosResolvidos,
+      });
+    }
+    const carrosseis = carrosseisResolvidos.filter((carrossel) => carrossel.produtos.length >= MIN_SHELF_ITEMS);
 
     const descartados = remota.carrosseis.length - carrosseis.length;
     if (descartados > 0) {

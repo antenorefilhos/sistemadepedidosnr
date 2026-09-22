@@ -139,7 +139,7 @@ const CATEGORY_CATALOG: CategoryCatalogItem[] = [
 // nossa taxonomia ja separa vinho/cerveja/suco/destilado em categorias N1
 // distintas -- ver BEVERAGE_CATEGORIA_TO_CATEGORY, que resolve esse
 // departamento por `categoriaEcommerce` (mais fino).
-const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
+export const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
   'Açougue, Aves & Peixaria': 'ACOUGUE_CHURRASCO',
   'Bebê & Infantil': 'BEBE_INFANTIL', // sem categoria N1 oficial equivalente
   'Biscoitos, Doces & Snacks': 'DOCES_CHOCOLATES_SNACKS',
