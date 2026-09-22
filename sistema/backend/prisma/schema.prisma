@@ -517,6 +517,7 @@ model Product {
   promoHighlights PromoBanner[] @relation("PromoBannerHighlightedProduct")
   recipeProducts RecipeProduct[]
   campaignItems PromotionCampaignItem[]
+  sponsoredShelfItems SponsoredShelfItem[]
 
   @@index([tenantId, storeId, active])
   @@index([tenantId, storeId, category])
@@ -1385,6 +1386,39 @@ model CategoryProductCuration {
   @@index([tenantId, categoryId])
   @@index([categoryId, order])
   @@map("category_product_curations_cms")
+}
+
+// JON-204 (22/09/2026): vitrine dedicada a fornecedor/parceria comercial,
+// cadastrada direto no admin (sem depender de encarte sincronizado do ERP
+// -- PromotionCampaign so existe via sync, nao tem criacao manual). Titulo
+// e produtos livres, liga/desliga sem apagar o cadastro.
+model SponsoredShelf {
+  id         String   @id @default(cuid())
+  tenantId   String   @default("tenant_default")
+  storeId    String   @default("store_default")
+  title      String   // Titulo exibido na Home, ex.: "Semana Nestle"
+  sponsorName String? // Ex.: Nestle, Ambev -- so rotulo, sem cobranca/faturamento aqui
+  active     Boolean  @default(true)
+  priority   Int      @default(0) // Ordem entre vitrines patrocinadas quando ha mais de uma
+  items      SponsoredShelfItem[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId, storeId, active, priority])
+  @@map("sponsored_shelves")
+}
+
+model SponsoredShelfItem {
+  id        String         @id @default(cuid())
+  shelfId   String
+  shelf     SponsoredShelf @relation(fields: [shelfId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order     Int            @default(0)
+
+  @@unique([shelfId, productId])
+  @@index([shelfId, order])
+  @@map("sponsored_shelf_items")
 }
 
 model HeroSlide {

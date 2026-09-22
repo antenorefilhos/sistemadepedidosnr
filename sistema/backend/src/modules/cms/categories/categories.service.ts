@@ -76,7 +76,7 @@ const toDisplayLabel = (code: string) => {
 };
 
 /** Campos do produto expostos ao storefront (mesmo shape de /products). */
-const STOREFRONT_PRODUCT_SELECT = {
+export const STOREFRONT_PRODUCT_SELECT = {
   id: true,
   ean: true,
   name: true,
@@ -96,7 +96,7 @@ const STOREFRONT_PRODUCT_SELECT = {
   active: true,
 } as const;
 
-type ShelfProduct = {
+export type ShelfProduct = {
   id: string;
   ean: string;
   name: string;
@@ -117,7 +117,7 @@ type ShelfProduct = {
 };
 
 /** Mesma mascara de nome que /products aplica — sem isso a vitrine mostra o nome cru do ERP. */
-const toCustomerFacingProduct = <T extends ShelfProduct>(product: T) => {
+export const toCustomerFacingProduct = <T extends ShelfProduct>(product: T) => {
   const mask =
     String(product.titleMask || '').trim() || String(product.titleMaskShort || '').trim();
   return mask ? { ...product, name: mask } : product;

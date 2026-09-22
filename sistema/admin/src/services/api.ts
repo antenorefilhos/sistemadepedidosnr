@@ -1743,6 +1743,31 @@ export const couponsAdminAPI = {
   remove: (id: string) => api.delete<{ success: boolean }>(`/admin/promotions/${id}`),
 }
 
+export interface SponsoredShelfProduct {
+  id: string
+  name: string
+  ean: string
+}
+
+export interface SponsoredShelfAdmin {
+  id: string
+  title: string
+  sponsorName: string | null
+  active: boolean
+  priority: number
+  items: Array<{ product: SponsoredShelfProduct }>
+}
+
+/** JON-204: vitrine de fornecedor/parceria, sem depender de encarte (ERP). */
+export const sponsoredShelvesAdminAPI = {
+  list: () => api.get<SponsoredShelfAdmin[]>('/admin/sponsored-shelves'),
+  create: (data: { title: string; sponsorName?: string; active?: boolean; priority?: number; productIds?: string[] }) =>
+    api.post<SponsoredShelfAdmin>('/admin/sponsored-shelves', data),
+  update: (id: string, data: Partial<{ title: string; sponsorName: string; active: boolean; priority: number; productIds: string[] }>) =>
+    api.patch<SponsoredShelfAdmin>(`/admin/sponsored-shelves/${id}`, data),
+  remove: (id: string) => api.delete<{ success: boolean }>(`/admin/sponsored-shelves/${id}`),
+}
+
 export interface StaffMember {
   id: string
   email: string

@@ -456,6 +456,9 @@ export const cmsAPI = {
   promoBanners: {
     getAll: () => api.get('/cms/promo-banners'),
   },
+  sponsoredShelves: {
+    getAll: () => api.get('/cms/sponsored-shelves'),
+  },
 }
 
 // Encartes / campanhas promocionais do ERP Solidcom

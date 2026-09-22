@@ -125,6 +125,24 @@ export function useHomeVitrines() {
   })
 }
 
+export interface SponsoredShelfCMS {
+  id: string
+  title: string
+  sponsorName: string | null
+  products: Product[]
+}
+
+/** JON-204: vitrine de fornecedor/parceria, cadastrada no admin. */
+export function useSponsoredShelves() {
+  return useQuery<SponsoredShelfCMS[]>(['sponsored-shelves'], async () => {
+    const response = await cmsAPI.sponsoredShelves.getAll()
+    return response.data
+  }, {
+    staleTime: 1000 * 60 * 5,
+    cacheTime: 1000 * 60 * 10,
+  })
+}
+
 export interface PromotionCampaignCMS {
   id: string
   name: string

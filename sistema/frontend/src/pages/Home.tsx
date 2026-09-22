@@ -11,7 +11,7 @@ import {
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
-import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns, useHomeVitrines } from '../hooks/useCMS'
+import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns, useHomeVitrines, useSponsoredShelves } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
 import { DynamicVitrineBanner } from '../components/DynamicVitrineBanner'
 import { PromoBanner, type PromoBannerView } from '../components/PromoBanner'
@@ -32,7 +32,7 @@ import { trackEvent } from '../utils/analytics'
 import { stripEmoji } from '../utils/format'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock,
-  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight, X
+  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight, X, Megaphone
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
@@ -66,6 +66,7 @@ export default function Home() {
   const { data: products, isLoading: productsLoading } = useProducts()
   const { data: storeBanners } = useStoreBanners()
   const { data: promotionCampaigns } = usePromotionCampaigns()
+  const { data: sponsoredShelves } = useSponsoredShelves()
   // JON-203 (22/09/2026): so a primeira campanha marcada "destacar na Home"
   // aparecia (find() pega uma so) -- com 2+ parcerias/vitrines patrocinadas
   // ativas ao mesmo tempo, a segunda nunca aparecia em lugar nenhum.
@@ -439,7 +440,7 @@ export default function Home() {
   // pode teoricamente vir vazio tambem (loja sem promocao ativa). Nesse caso
   // raro, pula o 1o par de banners no mobile -- ele reaparece mais adiante,
   // ja com freshShelf (catalogo geral, praticamente sempre populado) antes.
-  const hasMobileLeadContent = rebuyShelf.length > 0 || highlightedCampaigns.length > 0 || offersShelf.length > 0
+  const hasMobileLeadContent = rebuyShelf.length > 0 || highlightedCampaigns.length > 0 || (sponsoredShelves?.length || 0) > 0 || offersShelf.length > 0
 
   // Ponto de ajuda/contato da Home (heuristica "ajuda e documentacao": a Home nao
   // tinha nenhum contato). Reaproveita o mesmo padrao ja usado em Account.tsx:
@@ -833,6 +834,19 @@ export default function Home() {
         />
       ))}
 
+      {/* JON-204: vitrine de fornecedor/parceria, cadastrada no admin (Loja > Vitrines Patrocinadas). */}
+      {(sponsoredShelves || []).map((shelf) => (
+        <ProductShelf
+          key={shelf.id}
+          className="md:hidden px-4 pt-5 pb-2"
+          title={shelf.title}
+          eyebrow={shelf.sponsorName ? `Parceria ${shelf.sponsorName}` : 'Vitrine patrocinada'}
+          icon={Megaphone}
+          products={shelf.products}
+          to="/mercado"
+        />
+      ))}
+
       {/* JON-173: mesmo `homeSections` do desktop, so muda a topologia
           (coluna unica + banners intercalados a cada ~3 vitrines, em vez de
           carrossel lado a lado) -- mobile parou de ser uma lista solta com
@@ -910,6 +924,18 @@ export default function Home() {
             products={campaign.items}
             to="/promocoes"
             linkLabel="Ver encarte"
+          />
+        ))}
+
+        {(sponsoredShelves || []).map((shelf) => (
+          <ProductShelf
+            key={shelf.id}
+            layout="carousel"
+            eyebrow={shelf.sponsorName ? `Parceria ${shelf.sponsorName}` : 'Vitrine patrocinada'}
+            title={shelf.title}
+            icon={Megaphone}
+            products={shelf.products}
+            to="/mercado"
           />
         ))}
 
