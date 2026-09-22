@@ -13,6 +13,7 @@ import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
 import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns, useHomeVitrines } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
+import { DynamicVitrineBanner } from '../components/DynamicVitrineBanner'
 import { PromoBanner, type PromoBannerView } from '../components/PromoBanner'
 import { BannerImage } from '../components/BannerImage'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
@@ -710,6 +711,17 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 pt-4 md:pt-6">
           <HeroSlider slides={activeHeroSlides} />
         </div>
+      )}
+
+      {/* JON-192 (AEF-037): faixa dinamica por dia da semana/sazonalidade --
+          nunca substitui o Hero manual acima, sempre aparece junto (decisao
+          do Jonathan, 18/09/2026). */}
+      {vitrinesData?.personalidadeAtiva?.bannerPrincipal && (
+        <DynamicVitrineBanner
+          headline={vitrinesData.personalidadeAtiva.bannerPrincipal.headline}
+          subheadline={vitrinesData.personalidadeAtiva.bannerPrincipal.subheadline}
+          ctaLabel={vitrinesData.personalidadeAtiva.bannerPrincipal.ctaTexto}
+        />
       )}
 
       {/* Categorias abaixo do banner — apenas desktop */}
