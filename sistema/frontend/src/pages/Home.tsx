@@ -408,6 +408,26 @@ export default function Home() {
     return pairs
   }, [promoBanners])
 
+  // JON-200 (22/09/2026): os pares entravam em indices FIXOS (1, 5, 8) --
+  // com menos prateleiras do que isso (ex.: a AntenorApi voltando so 4
+  // carrosseis hoje, contra as ~9 que o layout original assumia), os pares
+  // que cairiam em 5/8 nunca eram alcancados e sumiam da pagina inteira, sem
+  // erro nenhum. Distribui os pares uniformemente pelo numero REAL de
+  // prateleiras, nunca deixando nenhum de fora -- se sobrar mais pares que
+  // prateleiras, empilha no ultimo indice em vez de descartar.
+  const promoInsertionMap = useMemo(() => {
+    const map = new Map<number, number[]>()
+    const n = homeSections?.length ?? 0
+    if (n === 0 || promoPairs.length === 0) return map
+    promoPairs.forEach((_, pairIndex) => {
+      // Mais pares que prateleiras (raro): empilha no ultimo indice em vez
+      // de sobrescrever -- por isso o valor e uma lista, nunca 1 par so.
+      const at = Math.min(n - 1, Math.max(1, Math.round(((pairIndex + 1) * n) / (promoPairs.length + 1))))
+      map.set(at, [...(map.get(at) || []), pairIndex])
+    })
+    return map
+  }, [homeSections, promoPairs])
+
   // Garante que o primeiro banner intercalado do mobile NUNCA apareca colado
   // direto no Hero: rebuyShelf (sem historico) e highlightedCampaign (sem
   // encarte em destaque) costumam vir vazios ao mesmo tempo, e offersShelf
@@ -826,9 +846,11 @@ export default function Home() {
               -- sem isso ele ficava colado direto no Hero quando rebuy/ofertas
               vinham vazios. Os pares seguintes (indices 5 e 8) nao tem essa
               restricao: sempre ha vitrine de verdade entre eles. */}
-          {index === 1 && (hasMobileLeadContent ? <PromoBannerPair banners={promoPairs[0]} className="md:hidden mx-4 mb-4" /> : null)}
-          {index === 4 && <PromoBannerPair banners={promoPairs[1]} className="md:hidden mx-4 mb-4" />}
-          {index === 7 && <PromoBannerPair banners={promoPairs[2]} className="md:hidden mx-4 mb-4" />}
+          {(promoInsertionMap.get(index) || [])
+            .filter((pairIndex) => pairIndex !== 0 || hasMobileLeadContent)
+            .map((pairIndex) => (
+              <PromoBannerPair key={pairIndex} banners={promoPairs[pairIndex]} className="md:hidden mx-4 mb-4" />
+            ))}
         </Fragment>
       ))}
 
@@ -877,9 +899,9 @@ export default function Home() {
         {homeSections.map((shelf, index) => (
           <Fragment key={shelf.key}>
             <ProductShelf layout="carousel" eyebrow={shelf.eyebrow} title={shelf.title} icon={shelf.icon} products={shelf.products} to={shelf.to} />
-            {index === 1 && <PromoBannerPair banners={promoPairs[0]} />}
-            {index === 5 && <PromoBannerPair banners={promoPairs[1]} />}
-            {index === 8 && <PromoBannerPair banners={promoPairs[2]} />}
+            {(promoInsertionMap.get(index) || []).map((pairIndex) => (
+              <PromoBannerPair key={pairIndex} banners={promoPairs[pairIndex]} />
+            ))}
           </Fragment>
         ))}
 
