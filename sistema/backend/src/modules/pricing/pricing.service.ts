@@ -566,6 +566,84 @@ export class PricingService {
     return promotion
   }
 
+  /**
+   * JON-198 (21/09/2026): so dava pra criar cupom, nunca editar ou apagar --
+   * admin tinha que criar um novo e o velho ficava pra sempre na lista.
+   * Reusa a mesma validacao de datas do createPromotion; so aceita os campos
+   * que a tela manda (nunca sobrescreve rule/coupon com `undefined`).
+   */
+  async updatePromotion(context: PricingContext | undefined, id: string, body: any) {
+    const tenantId = context?.tenantId || DEFAULT_TENANT_ID
+    const promotion = await this.prisma.promotion.findFirst({
+      where: { id, tenantId },
+      include: { rules: true, coupons: true },
+    })
+    if (!promotion) throw new NotFoundException('Cupom nao encontrado.')
+
+    const startsAt = body.startsAt ? new Date(body.startsAt) : promotion.startsAt
+    const endsAt = body.endsAt ? new Date(body.endsAt) : promotion.endsAt
+    if (endsAt <= startsAt) throw new BadRequestException('endsAt deve ser posterior a startsAt.')
+
+    await this.prisma.promotion.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined ? { name: String(body.name).trim() } : {}),
+        ...(body.status !== undefined ? { status: body.status } : {}),
+        ...(body.priority !== undefined ? { priority: Number(body.priority) } : {}),
+        ...(body.stackable !== undefined ? { stackable: Boolean(body.stackable) } : {}),
+        ...(body.startsAt !== undefined ? { startsAt } : {}),
+        ...(body.endsAt !== undefined ? { endsAt } : {}),
+        ...(body.budgetLimit !== undefined ? { budgetLimit: body.budgetLimit == null ? null : this.toDecimal(Number(body.budgetLimit)) } : {}),
+      },
+    })
+
+    if ((body.condition !== undefined || body.effect !== undefined) && promotion.rules[0]) {
+      await this.prisma.promotionRule.update({
+        where: { id: promotion.rules[0].id },
+        data: {
+          ...(body.condition !== undefined ? { condition: body.condition || {} } : {}),
+          ...(body.effect !== undefined ? { effect: body.effect || {} } : {}),
+        },
+      })
+    }
+
+    const coupon = promotion.coupons[0]
+    if (coupon && (body.couponCode !== undefined || body.maxUses !== undefined || body.maxUsesPerCustomer !== undefined || body.couponStatus !== undefined)) {
+      await this.prisma.coupon.update({
+        where: { id: coupon.id },
+        data: {
+          ...(body.couponCode !== undefined ? { code: String(body.couponCode).trim().toUpperCase() } : {}),
+          ...(body.maxUses !== undefined ? { maxUses: body.maxUses ?? null } : {}),
+          ...(body.maxUsesPerCustomer !== undefined ? { maxUsesPerCustomer: body.maxUsesPerCustomer ?? null } : {}),
+          ...(body.couponStatus !== undefined ? { status: body.couponStatus } : {}),
+        },
+      })
+    }
+
+    return this.prisma.promotion.findUnique({ where: { id }, include: { rules: true, coupons: true } })
+  }
+
+  /**
+   * Apagar de vez so quando o cupom nunca foi usado -- com uso real (pedido
+   * de verdade aplicou o desconto), apagar quebraria o historico/auditoria
+   * de `PromotionUsage` (cascade no schema). Pausar/desativar (status) e o
+   * caminho certo pra cupom que ja circulou.
+   */
+  async deletePromotion(context: PricingContext | undefined, id: string) {
+    const tenantId = context?.tenantId || DEFAULT_TENANT_ID
+    const promotion = await this.prisma.promotion.findFirst({
+      where: { id, tenantId },
+      include: { _count: { select: { usages: true } } },
+    })
+    if (!promotion) throw new NotFoundException('Cupom nao encontrado.')
+    if (promotion._count.usages > 0) {
+      throw new BadRequestException('Esse cupom ja foi usado em pedidos reais -- nao pode ser apagado. Desative-o (status inativo) pra parar de aceitar novos usos.')
+    }
+
+    await this.prisma.promotion.delete({ where: { id } })
+    return { success: true }
+  }
+
   async simulatePromotion(id: string, body: any) {
     const promotion = await this.prisma.promotion.findUnique({ where: { id }, include: { rules: true, coupons: true } })
     if (!promotion) throw new NotFoundException('Promocao nao encontrada.')

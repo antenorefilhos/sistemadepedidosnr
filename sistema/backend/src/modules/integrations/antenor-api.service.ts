@@ -43,6 +43,12 @@ export type VitrineCarrosselAntenorApi = {
   id: string
   titulo: string
   subtitulo: string
+  // JON-198 (21/09/2026): "Ver tudo" de cada carrossel filtrava sempre pro
+  // catalogo inteiro -- esses 2 campos dizem QUAL filtro real aplicar
+  // (ver ProductsService.findAll, parametro `tag`). So `tipoFiltro==='tag'`
+  // e suportado por enquanto; outros valores caem no link generico.
+  tipoFiltro?: string
+  valorFiltro?: string
   produtos: VitrineProdutoAntenorApi[]
 }
 

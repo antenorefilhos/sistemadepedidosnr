@@ -93,6 +93,8 @@ export class HomeVitrinesService {
           id: carrossel.id,
           titulo: carrossel.titulo,
           subtitulo: carrossel.subtitulo,
+          tipoFiltro: carrossel.tipoFiltro,
+          valorFiltro: carrossel.valorFiltro,
           produtos: produtosResolvidos,
         };
       })

@@ -173,6 +173,7 @@ export class ProductsController {
   @ApiQuery({ name: 'classification02', required: false, type: String, description: 'Filtro mercadologico nivel 2' })
   @ApiQuery({ name: 'classification03', required: false, type: String, description: 'Filtro mercadologico nivel 3' })
   @ApiQuery({ name: 'classification04', required: false, type: String, description: 'Filtro mercadologico nivel 4' })
+  @ApiQuery({ name: 'tag', required: false, type: String, description: 'Filtrar por tag (ex.: churrasco-nobre, usado pelo "Ver tudo" das Vitrines Inteligentes)' })
   async findAll(
     @Query('search') search?: string,
     @Query('page') page?: string,
@@ -185,6 +186,7 @@ export class ProductsController {
     @Query('classification02') classification02?: string,
     @Query('classification03') classification03?: string,
     @Query('classification04') classification04?: string,
+    @Query('tag') tag?: string,
     @Req() req?: TenantContextRequest,
   ) {
     return this.productsService.findAll(
@@ -199,6 +201,7 @@ export class ProductsController {
       classification03,
       classification04,
       req ? getTenantContext(req) : undefined,
+      tag,
     )
   }
 

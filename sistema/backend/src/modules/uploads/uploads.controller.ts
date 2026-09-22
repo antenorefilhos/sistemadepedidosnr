@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { v4 as uuidv4 } from 'uuid';
+import { CloudflareCacheService } from '../../common/cloudflare-cache.service';
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
@@ -68,6 +69,18 @@ function assertValidEan(ean: string | undefined): string {
 @SkipThrottle({ auth: true, checkout: true, webhook: true })
 @Controller('uploads')
 export class UploadsController {
+  constructor(private readonly cloudflareCache: CloudflareCacheService) {}
+
+  // JON-198 (21/09/2026, dia do lancamento): URL de foto de produto e fixa
+  // por EAN (/uploads/products/{ean}.webp) e o nginx do storefront cacheia
+  // por 7 dias de proposito (foto raramente muda) -- trocar a foto sem
+  // purgar deixa a versao antiga visivel pro cliente ate a borda expirar
+  // sozinha. `mercado` e o host publico real onde o Cloudflare guarda o
+  // cache; purgar a URL local (`/uploads/...`) nao afeta a borda.
+  private productImagePurgeUrls(ean: string, suffix: string) {
+    return [`https://mercado.antenorefilhos.com.br/uploads/products/${ean}${suffix}.webp`];
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
@@ -235,6 +248,7 @@ export class UploadsController {
         .toFile(stagingPath);
 
       fs.renameSync(stagingPath, finalPath);
+      await this.cloudflareCache.purgeUrls(this.productImagePurgeUrls(ean, suffix));
 
       return {
         success: true,
@@ -275,6 +289,7 @@ export class UploadsController {
 
     try {
       fs.unlinkSync(filePath);
+      await this.cloudflareCache.purgeUrls(this.productImagePurgeUrls(ean, suffix));
       return { success: true, deleted: true };
     } catch (error) {
       throw new BadRequestException('Erro ao apagar imagem: ' + error.message);

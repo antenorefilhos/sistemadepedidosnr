@@ -11,6 +11,7 @@ jest.mock('uuid', () => ({
 }));
 
 import { UploadsController } from './uploads.controller';
+import { CloudflareCacheService } from '../../common/cloudflare-cache.service';
 
 /**
  * JON-137 (Auditoria 360, High): o filtro generico confiava em file.mimetype
@@ -28,6 +29,7 @@ describe('UploadsController.uploadFile — spoof de MIME (JON-137)', () => {
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UploadsController],
+      providers: [{ provide: CloudflareCacheService, useValue: { purgeUrls: jest.fn() } }],
     }).compile();
     controller = module.get<UploadsController>(UploadsController);
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -101,6 +103,7 @@ describe('UploadsController.uploadFile — limite de tamanho sem orfao (JON-113)
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UploadsController],
+      providers: [{ provide: CloudflareCacheService, useValue: { purgeUrls: jest.fn() } }],
     }).compile();
     controller = module.get<UploadsController>(UploadsController);
   });

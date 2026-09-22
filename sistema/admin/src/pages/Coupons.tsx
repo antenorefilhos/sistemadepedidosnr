@@ -1,18 +1,25 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Tag, Plus, X, Ticket, Users, Truck } from 'lucide-react'
+import { Tag, Plus, X, Ticket, Users, Truck, Pencil, Trash2, Pause, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { couponsAdminAPI, notificationsAdminAPI } from '../services/api'
+import { couponsAdminAPI, notificationsAdminAPI, type CouponPromotion } from '../services/api'
 
 function formatMoney(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+function toDatetimeLocal(iso: string) {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export default function Coupons() {
   const [open, setOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [discountType, setDiscountType] = useState<'PERCENT_OFF' | 'FIXED_OFF' | 'FREE_SHIPPING'>('PERCENT_OFF')
@@ -32,20 +39,65 @@ export default function Coupons() {
     queryFn: () => couponsAdminAPI.list().then((r) => r.data),
   })
 
-  const createMutation = useMutation({
+  const resetForm = () => {
+    setEditingId(null)
+    setName(''); setCode(''); setValue(''); setMaxDiscount(''); setMinSubtotal('')
+    setMaxUses(''); setMaxUsesPerCustomer(''); setStartsAt(''); setEndsAt(''); setNotifyCustomers(false); setError(null)
+  }
+
+  const startCreate = () => { resetForm(); setOpen(true) }
+
+  const startEdit = (p: CouponPromotion) => {
+    const coupon = p.coupons[0]
+    const effect = p.rules[0]?.effect as { type?: string; percent?: number; amount?: number; maxDiscount?: number } | undefined
+    const condition = p.rules[0]?.condition as { minSubtotal?: number } | undefined
+    setEditingId(p.id)
+    setName(p.name)
+    setCode(coupon?.code || '')
+    const type = (effect?.type as typeof discountType) || 'PERCENT_OFF'
+    setDiscountType(type)
+    setValue(type === 'FREE_SHIPPING' ? '' : String(effect?.percent ?? effect?.amount ?? ''))
+    setMaxDiscount(effect?.maxDiscount != null ? String(effect.maxDiscount) : '')
+    setMinSubtotal(condition?.minSubtotal != null ? String(condition.minSubtotal) : '')
+    setMaxUses(coupon?.maxUses != null ? String(coupon.maxUses) : '')
+    setMaxUsesPerCustomer(coupon?.maxUsesPerCustomer != null ? String(coupon.maxUsesPerCustomer) : '')
+    setStartsAt(toDatetimeLocal(p.startsAt))
+    setEndsAt(p.endsAt.slice(0, 10))
+    setNotifyCustomers(false)
+    setError(null)
+    setOpen(true)
+  }
+
+  const saveMutation = useMutation({
     mutationFn: async () => {
+      const effect =
+        discountType === 'FREE_SHIPPING'
+          ? { type: 'FREE_SHIPPING' as const }
+          : {
+              type: discountType,
+              ...(discountType === 'PERCENT_OFF' ? { percent: Number(value) } : { amount: Number(value) }),
+              ...(maxDiscount ? { maxDiscount: Number(maxDiscount) } : {}),
+            }
+      const condition = minSubtotal ? { minSubtotal: Number(minSubtotal) } : undefined
+
+      if (editingId) {
+        return couponsAdminAPI.update(editingId, {
+          name: name.trim() || `Cupom ${code.trim().toUpperCase()}`,
+          couponCode: code.trim().toUpperCase(),
+          effect,
+          condition,
+          startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
+          endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
+          maxUses: maxUses ? Number(maxUses) : null,
+          maxUsesPerCustomer: maxUsesPerCustomer ? Number(maxUsesPerCustomer) : null,
+        })
+      }
+
       const promo = await couponsAdminAPI.create({
         name: name.trim() || `Cupom ${code.trim().toUpperCase()}`,
         couponCode: code.trim().toUpperCase(),
-        effect:
-          discountType === 'FREE_SHIPPING'
-            ? { type: 'FREE_SHIPPING' }
-            : {
-                type: discountType,
-                ...(discountType === 'PERCENT_OFF' ? { percent: Number(value) } : { amount: Number(value) }),
-                ...(maxDiscount ? { maxDiscount: Number(maxDiscount) } : {}),
-              },
-        condition: minSubtotal ? { minSubtotal: Number(minSubtotal) } : undefined,
+        effect,
+        condition,
         startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
         endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
         maxUses: maxUses ? Number(maxUses) : undefined,
@@ -75,10 +127,21 @@ export default function Coupons() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coupons-admin'] })
       setOpen(false)
-      setName(''); setCode(''); setValue(''); setMaxDiscount(''); setMinSubtotal('')
-      setMaxUses(''); setMaxUsesPerCustomer(''); setEndsAt(''); setNotifyCustomers(false); setError(null)
+      resetForm()
     },
-    onError: (err: any) => setError(err?.response?.data?.message || 'Erro ao criar cupom.'),
+    onError: (err: any) => setError(err?.response?.data?.message || 'Erro ao salvar cupom.'),
+  })
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: (p: CouponPromotion) => couponsAdminAPI.update(p.id, { status: p.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coupons-admin'] }),
+  })
+
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => couponsAdminAPI.remove(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['coupons-admin'] }); setDeleteError(null) },
+    onError: (err: any) => setDeleteError(err?.response?.data?.message || 'Erro ao apagar cupom.'),
   })
 
   const canSubmit = code.trim().length > 0 && (discountType === 'FREE_SHIPPING' || Number(value) > 0)
@@ -92,7 +155,7 @@ export default function Coupons() {
           </h1>
           <p className="text-sm text-gray-500">Cupons de desconto que o cliente digita no checkout.</p>
         </div>
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={startCreate}>
           <Plus size={16} className="mr-1" /> Novo cupom
         </Button>
       </div>
@@ -100,8 +163,8 @@ export default function Coupons() {
       {open && (
         <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Criar cupom</h2>
-            <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600">
+            <h2 className="font-semibold text-gray-900">{editingId ? 'Editar cupom' : 'Criar cupom'}</h2>
+            <button onClick={() => { setOpen(false); resetForm() }} className="text-gray-400 hover:text-gray-600">
               <X size={18} />
             </button>
           </div>
@@ -203,18 +266,20 @@ export default function Coupons() {
             </details>
           </div>
 
-          <div className="mt-5 flex items-center gap-3 rounded-md bg-amber-50 p-3">
-            <Switch checked={notifyCustomers} onChange={setNotifyCustomers} />
-            <Users size={18} className="shrink-0 text-amber-700" />
-            <span className="text-sm text-amber-800">Avisar todos os clientes no celular quando eu criar esse cupom</span>
-          </div>
+          {!editingId && (
+            <div className="mt-5 flex items-center gap-3 rounded-md bg-amber-50 p-3">
+              <Switch checked={notifyCustomers} onChange={setNotifyCustomers} />
+              <Users size={18} className="shrink-0 text-amber-700" />
+              <span className="text-sm text-amber-800">Avisar todos os clientes no celular quando eu criar esse cupom</span>
+            </div>
+          )}
 
           {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
 
           <div className="mt-5 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button disabled={!canSubmit || createMutation.isPending} onClick={() => createMutation.mutate()} className="px-6 text-base">
-              {createMutation.isPending ? 'Criando...' : 'Criar cupom'}
+            <Button variant="outline" onClick={() => { setOpen(false); resetForm() }}>Cancelar</Button>
+            <Button disabled={!canSubmit || saveMutation.isPending} onClick={() => saveMutation.mutate()} className="px-6 text-base">
+              {saveMutation.isPending ? 'Salvando...' : editingId ? 'Salvar alterações' : 'Criar cupom'}
             </Button>
           </div>
         </div>
@@ -238,12 +303,14 @@ export default function Coupons() {
                 <th className="px-4 py-3">Quantas vezes já foi usado</th>
                 <th className="px-4 py-3">Vale até</th>
                 <th className="px-4 py-3">Está ativo?</th>
+                <th className="px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {promotions.map((p) => {
                 const effect = p.rules[0]?.effect as { type?: string; percent?: number; amount?: number } | undefined
                 const coupon = p.coupons[0]
+                const hasUsage = (p._count?.usages ?? 0) > 0
                 return (
                   <tr key={p.id} className="border-b border-gray-50">
                     <td className="px-4 py-3 font-mono font-semibold">{coupon?.code}</td>
@@ -264,12 +331,51 @@ export default function Coupons() {
                         {p.status === 'ACTIVE' ? 'Ativo' : p.status}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          title="Editar"
+                          onClick={() => startEdit(p)}
+                          className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          title={p.status === 'ACTIVE' ? 'Pausar' : 'Ativar'}
+                          onClick={() => toggleActiveMutation.mutate(p)}
+                          disabled={toggleActiveMutation.isPending}
+                          className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+                        >
+                          {p.status === 'ACTIVE' ? <Pause size={16} /> : <Play size={16} />}
+                        </button>
+                        <button
+                          type="button"
+                          title={hasUsage ? 'Já foi usado em pedido real -- pause em vez de apagar' : 'Apagar'}
+                          disabled={deleteMutation.isPending}
+                          onClick={() => {
+                            if (hasUsage) {
+                              setDeleteError('Esse cupom já foi usado em pedidos reais -- não pode ser apagado. Pause-o em vez disso.')
+                              return
+                            }
+                            if (window.confirm(`Apagar o cupom ${coupon?.code}? Essa ação não pode ser desfeita.`)) {
+                              deleteMutation.mutate(p.id)
+                            }
+                          }}
+                          className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
         )}
+        {deleteError && <p className="border-t border-gray-100 p-3 text-sm font-medium text-red-600">{deleteError}</p>}
       </div>
     </div>
   )

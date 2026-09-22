@@ -276,6 +276,7 @@ export const productsAPI = {
     classification02?: string,
     classification03?: string,
     classification04?: string,
+    tag?: string,
   ) =>
     api.get('/products', {
       params: {
@@ -289,6 +290,7 @@ export const productsAPI = {
         classification02,
         classification03,
         classification04,
+        tag,
       },
     }),
   suggest: (q: string, limit = 6) => api.get('/products/suggest', { params: { q, limit } }),

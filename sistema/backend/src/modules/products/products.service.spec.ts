@@ -189,6 +189,19 @@ describe('ProductsService', () => {
 
       expect(result.data).toHaveLength(1);
     });
+
+    // JON-198 (21/09/2026): "Ver tudo" das Vitrines Inteligentes filtrava
+    // sempre pro catalogo inteiro -- tag reduz pro subconjunto do carrossel.
+    it('filtra por tag quando informada (Ver tudo das Vitrines Inteligentes)', async () => {
+      const row = { id: '1', name: 'Picanha', active: true, tags: ['churrasco-nobre'] };
+      mockPrismaService.product.findMany.mockResolvedValueOnce([row]).mockResolvedValueOnce([row]);
+
+      const result = await service.findAll(undefined, 1, 80, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'churrasco-nobre');
+
+      expect(result.data).toHaveLength(1);
+      const whereArg = mockPrismaService.product.findMany.mock.calls[0][0].where;
+      expect(JSON.stringify(whereArg)).toContain('churrasco-nobre');
+    });
   });
 
   describe('findOne', () => {

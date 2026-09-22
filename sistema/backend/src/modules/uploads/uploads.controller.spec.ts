@@ -5,6 +5,7 @@ jest.mock('uuid', () => ({
 }));
 
 import { UploadsController } from './uploads.controller';
+import { CloudflareCacheService } from '../../common/cloudflare-cache.service';
 
 describe('UploadsController', () => {
   let controller: UploadsController;
@@ -12,6 +13,7 @@ describe('UploadsController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UploadsController],
+      providers: [{ provide: CloudflareCacheService, useValue: { purgeUrls: jest.fn() } }],
     }).compile();
 
     controller = module.get<UploadsController>(UploadsController);

@@ -104,6 +104,7 @@ export default function MercadoPage() {
   const classification02 = searchParams.get('classification02') || ''
   const classification03 = searchParams.get('classification03') || ''
   const classification04 = searchParams.get('classification04') || ''
+  const tag = searchParams.get('tag') || ''
 
   // Banner de topo da categoria (StoreBanner slot=category). So quando a
   // pagina esta navegando uma categoria: com termo de busca (`q`) ela vira
@@ -212,6 +213,7 @@ export default function MercadoPage() {
     classification02 || undefined,
     classification03 || undefined,
     classification04 || undefined,
+    tag || undefined,
   )
 
   const allProducts = data?.pages.flatMap((p) => (p as PaginatedProducts).data) ?? []

@@ -1728,6 +1728,19 @@ export const couponsAdminAPI = {
     maxUsesPerCustomer?: number
     status?: 'ACTIVE' | 'DRAFT'
   }) => api.post<CouponPromotion>('/admin/promotions', data),
+  update: (id: string, data: Partial<{
+    name: string
+    couponCode: string
+    effect: { type: 'PERCENT_OFF' | 'FIXED_OFF' | 'FREE_SHIPPING'; percent?: number; amount?: number; maxDiscount?: number }
+    condition: { minSubtotal?: number }
+    startsAt: string
+    endsAt: string
+    maxUses: number | null
+    maxUsesPerCustomer: number | null
+    status: 'ACTIVE' | 'DRAFT' | 'INACTIVE'
+    couponStatus: 'ACTIVE' | 'INACTIVE'
+  }>) => api.patch<CouponPromotion>(`/admin/promotions/${id}`, data),
+  remove: (id: string) => api.delete<{ success: boolean }>(`/admin/promotions/${id}`),
 }
 
 export interface StaffMember {

@@ -85,6 +85,10 @@ export interface HomeVitrineCarrossel {
   id: string
   titulo: string
   subtitulo: string
+  // JON-198: filtro real do carrossel (ex.: tipoFiltro='tag', valorFiltro=
+  // 'churrasco-nobre') -- usado pra montar o link de "Ver tudo" filtrado.
+  tipoFiltro?: string
+  valorFiltro?: string
   produtos: HomeVitrineProduto[]
 }
 

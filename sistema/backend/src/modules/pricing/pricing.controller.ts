@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { PermissionGuard } from '../../common/guards/permission.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -88,5 +88,19 @@ export class AdminPromotionsController {
   @UseGuards(PermissionGuard)
   async simulate(@Param('id') id: string, @Body() body: any) {
     return this.pricingService.simulatePromotion(id, body || {})
+  }
+
+  @Patch(':id')
+  @RequirePermission('promotions.write')
+  @UseGuards(PermissionGuard)
+  async update(@Param('id') id: string, @Body() body: any, @Req() req?: TenantContextRequest) {
+    return this.pricingService.updatePromotion(req ? getTenantContext(req) : undefined, id, body)
+  }
+
+  @Delete(':id')
+  @RequirePermission('promotions.write')
+  @UseGuards(PermissionGuard)
+  async remove(@Param('id') id: string, @Req() req?: TenantContextRequest) {
+    return this.pricingService.deletePromotion(req ? getTenantContext(req) : undefined, id)
   }
 }

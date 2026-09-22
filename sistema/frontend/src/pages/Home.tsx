@@ -191,7 +191,13 @@ export default function Home() {
         title: stripEmoji(carrossel.titulo),
         icon: iconForCarrossel(carrossel.id),
         products: carrossel.produtos,
-        to: '/mercado',
+        // JON-198: "Ver tudo" ia sempre pro /mercado generico, mostrando
+        // produto nenhuma relacao com a vitrine clicada. Quando a AntenorApi
+        // manda o filtro real do carrossel (hoje so tipoFiltro='tag'), usa
+        // ele; sem isso, cai no generico como antes.
+        to: carrossel.tipoFiltro === 'tag' && carrossel.valorFiltro
+          ? `/mercado?tag=${encodeURIComponent(carrossel.valorFiltro)}`
+          : '/mercado',
       }))
       .filter((shelf) => shelf.products.length > 0)
   }, [vitrinesData])

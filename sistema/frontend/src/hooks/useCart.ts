@@ -52,6 +52,7 @@ export function useInfiniteProducts(
   classification02?: string,
   classification03?: string,
   classification04?: string,
+  tag?: string,
 ) {
   return useInfiniteQuery({
     queryKey: [
@@ -64,6 +65,7 @@ export function useInfiniteProducts(
       classification02,
       classification03,
       classification04,
+      tag,
     ],
     queryFn: async ({ pageParam = 1 }): Promise<PaginatedProducts> => {
       const response = await productsAPI.getAll(
@@ -77,6 +79,7 @@ export function useInfiniteProducts(
         classification02,
         classification03,
         classification04,
+        tag,
       )
       return response.data as PaginatedProducts
     },

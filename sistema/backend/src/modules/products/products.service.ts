@@ -730,6 +730,7 @@ export class ProductsService {
     classification03?: string,
     classification04?: string,
     context?: Partial<ProductTenantContext>,
+    tag?: string,
   ) {
     const safePage = Math.max(1, page)
     const safeLimit = Math.max(1, Math.min(100, limit))
@@ -776,7 +777,7 @@ export class ProductsService {
     const useSearchBackend =
       String(process.env.USE_MEILISEARCH || '').toLowerCase() === 'true' &&
       this.productSearchService.isEnabled()
-    if (parsed.text && parsed.excludes.length === 0 && useSearchBackend) {
+    if (parsed.text && parsed.excludes.length === 0 && useSearchBackend && !tag) {
       const meili = await this.productSearchService.searchProducts(parsed.text, safePage, safeLimit, {
         tenantId: context?.tenantId,
         storeId: context?.storeId,
@@ -800,7 +801,7 @@ export class ProductsService {
     // case-insensitive mas NAO ignora acento: "moido" nao achava "Patinho
     // Bovino Moído". Fora de uma categoria mapeada, usa o match por regex (~*)
     // que trata as duas grafias e ja respeita a visibilidade do storefront.
-    if (parsed.text && categoryMappingFilter === undefined) {
+    if (parsed.text && categoryMappingFilter === undefined && !tag) {
       const accentAware = await this.findAllAccentTolerant(
         effectiveParsed,
         safePage,
@@ -820,6 +821,15 @@ export class ProductsService {
 
     // Enforce de visibilidade global por mapeamento (desktop + mobile)
     where['AND'] = [...(where['AND'] || []), storefrontVisibilityFilter]
+
+    // JON-198 (21/09/2026): "Ver tudo" das Vitrines Inteligentes (AEF-037)
+    // linkava sempre pro /mercado generico -- a AntenorApi manda `valorFiltro`
+    // (a tag do carrossel, ex.: "churrasco-nobre") em `linkVerTudo`, mas
+    // ninguem filtrava por ela. So aplica no branch sem termo de busca (o
+    // caso real do clique "ver tudo", que nunca manda `search`).
+    if (tag) {
+      where['AND'] = [...(where['AND'] || []), { tags: { has: tag } }]
+    }
 
     // Sobrepõe o filtro de categoria pelos mapeamentos manuais se disponível
     if (categoryMappingFilter !== undefined) {

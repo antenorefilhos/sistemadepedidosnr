@@ -11,8 +11,9 @@ const mockPrismaService: any = {
   product: { findMany: jest.fn() },
   priceList: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
   priceListItem: { findMany: jest.fn(), upsert: jest.fn() },
-  promotion: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
-  coupon: { findFirst: jest.fn(), findUnique: jest.fn() },
+  promotion: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  promotionRule: { update: jest.fn() },
+  coupon: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
   promotionUsage: { count: jest.fn(), createMany: jest.fn() },
   priceAuditLog: { create: jest.fn() },
   $transaction: jest.fn((cb: any) => cb(mockPrismaService)),
@@ -395,6 +396,52 @@ describe('PricingService', () => {
       })
 
       expect(quote.items[0].unitPrice).toBe(70)
+    })
+  })
+
+  // JON-198 (21/09/2026): so dava pra criar cupom, faltava editar e apagar.
+  describe('updatePromotion / deletePromotion', () => {
+    it('atualiza campos da promocao e do cupom vinculado', async () => {
+      mockPrismaService.promotion.findFirst.mockResolvedValue({
+        id: 'promo-1',
+        startsAt: now,
+        endsAt: future,
+        rules: [{ id: 'rule-1' }],
+        coupons: [{ id: 'coupon-1' }],
+      })
+      mockPrismaService.promotion.update.mockResolvedValue({})
+      mockPrismaService.promotionRule.update.mockResolvedValue({})
+      mockPrismaService.coupon.update.mockResolvedValue({})
+      mockPrismaService.promotion.findUnique.mockResolvedValue({ id: 'promo-1' })
+
+      await service.updatePromotion(undefined, 'promo-1', { status: 'INACTIVE', effect: { type: 'PERCENT_OFF', percent: 15 }, maxUses: 50 })
+
+      expect(mockPrismaService.promotion.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'promo-1' }, data: expect.objectContaining({ status: 'INACTIVE' }) }),
+      )
+      expect(mockPrismaService.promotionRule.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'rule-1' } }),
+      )
+      expect(mockPrismaService.coupon.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'coupon-1' }, data: expect.objectContaining({ maxUses: 50 }) }),
+      )
+    })
+
+    it('recusa apagar promocao ja usada em pedido real', async () => {
+      mockPrismaService.promotion.findFirst.mockResolvedValue({ id: 'promo-1', _count: { usages: 3 } })
+
+      await expect(service.deletePromotion(undefined, 'promo-1')).rejects.toThrow(BadRequestException)
+      expect(mockPrismaService.promotion.delete).not.toHaveBeenCalled()
+    })
+
+    it('apaga promocao sem nenhum uso', async () => {
+      mockPrismaService.promotion.findFirst.mockResolvedValue({ id: 'promo-1', _count: { usages: 0 } })
+      mockPrismaService.promotion.delete.mockResolvedValue({})
+
+      const result = await service.deletePromotion(undefined, 'promo-1')
+
+      expect(result).toEqual({ success: true })
+      expect(mockPrismaService.promotion.delete).toHaveBeenCalledWith({ where: { id: 'promo-1' } })
     })
   })
 })
