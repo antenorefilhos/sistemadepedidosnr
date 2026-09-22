@@ -941,10 +941,10 @@ export class ProductsService {
         AND (${category}::text IS NULL OR "category" = ${category})
         AND (${parsed.minPrice}::double precision IS NULL OR "price" >= ${parsed.minPrice})
         AND (${parsed.maxPrice}::double precision IS NULL OR "price" <= ${parsed.maxPrice})
-        AND (${mercadologicalFilters?.classification01 || null}::text IS NULL OR "classification01" = ${mercadologicalFilters?.classification01 || null})
-        AND (${mercadologicalFilters?.classification02 || null}::text IS NULL OR "classification02" = ${mercadologicalFilters?.classification02 || null})
-        AND (${mercadologicalFilters?.classification03 || null}::text IS NULL OR "classification03" = ${mercadologicalFilters?.classification03 || null})
-        AND (${mercadologicalFilters?.classification04 || null}::text IS NULL OR "classification04" = ${mercadologicalFilters?.classification04 || null})
+        AND (${mercadologicalFilters?.classification01 || null}::text IS NULL OR "classification01" ILIKE '%' || ${mercadologicalFilters?.classification01 || null} || '%')
+        AND (${mercadologicalFilters?.classification02 || null}::text IS NULL OR "classification02" ILIKE '%' || ${mercadologicalFilters?.classification02 || null} || '%')
+        AND (${mercadologicalFilters?.classification03 || null}::text IS NULL OR "classification03" ILIKE '%' || ${mercadologicalFilters?.classification03 || null} || '%')
+        AND (${mercadologicalFilters?.classification04 || null}::text IS NULL OR "classification04" ILIKE '%' || ${mercadologicalFilters?.classification04 || null} || '%')
         AND (
           "name" ~* ${regex}
           OR COALESCE("alternativeDescription", '') ~* ${regex}
@@ -974,10 +974,10 @@ export class ProductsService {
         AND (${category}::text IS NULL OR "category" = ${category})
         AND (${parsed.minPrice}::double precision IS NULL OR "price" >= ${parsed.minPrice})
         AND (${parsed.maxPrice}::double precision IS NULL OR "price" <= ${parsed.maxPrice})
-        AND (${mercadologicalFilters?.classification01 || null}::text IS NULL OR "classification01" = ${mercadologicalFilters?.classification01 || null})
-        AND (${mercadologicalFilters?.classification02 || null}::text IS NULL OR "classification02" = ${mercadologicalFilters?.classification02 || null})
-        AND (${mercadologicalFilters?.classification03 || null}::text IS NULL OR "classification03" = ${mercadologicalFilters?.classification03 || null})
-        AND (${mercadologicalFilters?.classification04 || null}::text IS NULL OR "classification04" = ${mercadologicalFilters?.classification04 || null})
+        AND (${mercadologicalFilters?.classification01 || null}::text IS NULL OR "classification01" ILIKE '%' || ${mercadologicalFilters?.classification01 || null} || '%')
+        AND (${mercadologicalFilters?.classification02 || null}::text IS NULL OR "classification02" ILIKE '%' || ${mercadologicalFilters?.classification02 || null} || '%')
+        AND (${mercadologicalFilters?.classification03 || null}::text IS NULL OR "classification03" ILIKE '%' || ${mercadologicalFilters?.classification03 || null} || '%')
+        AND (${mercadologicalFilters?.classification04 || null}::text IS NULL OR "classification04" ILIKE '%' || ${mercadologicalFilters?.classification04 || null} || '%')
         AND (
           "name" ~* ${regex}
           OR COALESCE("alternativeDescription", '') ~* ${regex}
@@ -2215,10 +2215,13 @@ export class ProductsService {
 
   private buildPrismaWhere(parsed: ParsedSearch, category?: string, mercadologicalFilters?: MercadologicalFilters) {    const where: Record<string, any> = { active: true }
     if (category) where["category"] = category
-    if (mercadologicalFilters?.classification01) where['classification01'] = mercadologicalFilters.classification01
-    if (mercadologicalFilters?.classification02) where['classification02'] = mercadologicalFilters.classification02
-    if (mercadologicalFilters?.classification03) where['classification03'] = mercadologicalFilters.classification03
-    if (mercadologicalFilters?.classification04) where['classification04'] = mercadologicalFilters.classification04
+    // "contains" em vez de igualdade exata: o valor gravado tem prefixo
+    // numerico ("02 - BOVINOS"), mas o "Ver mais" da vitrine manda so o nome
+    // ("Bovinos") -- ver buildLinkVerTudo em home-vitrines.service.ts.
+    if (mercadologicalFilters?.classification01) where['classification01'] = { contains: mercadologicalFilters.classification01, mode: 'insensitive' }
+    if (mercadologicalFilters?.classification02) where['classification02'] = { contains: mercadologicalFilters.classification02, mode: 'insensitive' }
+    if (mercadologicalFilters?.classification03) where['classification03'] = { contains: mercadologicalFilters.classification03, mode: 'insensitive' }
+    if (mercadologicalFilters?.classification04) where['classification04'] = { contains: mercadologicalFilters.classification04, mode: 'insensitive' }
 
     if (typeof parsed.minPrice === "number" || typeof parsed.maxPrice === "number") {
       where["price"] = {

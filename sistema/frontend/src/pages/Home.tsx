@@ -197,13 +197,11 @@ export default function Home() {
         // JON-201: mesma vitrine sempre com os mesmos produtos, na mesma
         // ordem -- embaralha a cada carregamento da pagina.
         products: shuffle(carrossel.produtos),
-        // JON-198: "Ver tudo" ia sempre pro /mercado generico, mostrando
-        // produto nenhuma relacao com a vitrine clicada. Quando a AntenorApi
-        // manda o filtro real do carrossel (hoje so tipoFiltro='tag'), usa
-        // ele; sem isso, cai no generico como antes.
-        to: carrossel.tipoFiltro === 'tag' && carrossel.valorFiltro
-          ? `/mercado?tag=${encodeURIComponent(carrossel.valorFiltro)}`
-          : '/mercado',
+        // JON-198 (reaberto 22/09/2026): so 'tag' tinha link calculado aqui;
+        // 'departamento'/'categoria' caiam no /mercado generico porque o
+        // frontend nao tem o mapeamento departamento->categoria. Calculado
+        // agora no backend (linkVerTudo), que ja tinha esse mapeamento.
+        to: carrossel.linkVerTudo || '/mercado',
       }))
       .filter((shelf) => shelf.products.length > 0)
   }, [vitrinesData])

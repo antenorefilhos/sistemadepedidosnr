@@ -13,6 +13,26 @@ function isAutoSurfaceable(produto: { category?: string | null; active?: boolean
   return produto.category !== 'TABACARIA' && isProductSellable(produto);
 }
 
+// JON-198 (reaberto 22/09/2026): "Ver mais" caia sempre no /mercado generico
+// pra carrossel tipoFiltro='departamento'/'categoria' -- so 'tag' tinha link
+// calculado, e no frontend (que nao tem DEPARTMENT_TO_CATEGORY). Resolvido
+// aqui, que ja tem o mapeamento, e devolvido pronto pro cliente so usar.
+function buildLinkVerTudo(tipoFiltro?: string, valorFiltro?: string): string {
+  if (!tipoFiltro || !valorFiltro) return '/mercado';
+  if (tipoFiltro === 'tag') return `/mercado?tag=${encodeURIComponent(valorFiltro)}`;
+  if (tipoFiltro === 'departamento') {
+    const categoria = DEPARTMENT_TO_CATEGORY[valorFiltro];
+    return categoria ? `/mercado?cat=${encodeURIComponent(categoria)}` : '/mercado';
+  }
+  if (tipoFiltro === 'categoria') {
+    // classification02 no banco vem com prefixo numerico ("02 - BOVINOS"),
+    // valorFiltro vem so o nome ("Bovinos") -- buildPrismaWhere/Meili tratam
+    // esse parametro com match parcial (case-insensitive) por causa disso.
+    return `/mercado?classification02=${encodeURIComponent(valorFiltro)}`;
+  }
+  return '/mercado';
+}
+
 // JON-202 (22/09/2026): a AntenorApi manda um numero FIXO de produtos por
 // carrossel (12 hoje) -- quando boa parte deles nao e vendavel no nosso
 // catalogo (syncOption=NUNCA, comum em hortifruti), a vitrine encolhia sem
@@ -138,6 +158,7 @@ export class HomeVitrinesService {
         subtitulo: carrossel.subtitulo,
         tipoFiltro: carrossel.tipoFiltro,
         valorFiltro: carrossel.valorFiltro,
+        linkVerTudo: buildLinkVerTudo(carrossel.tipoFiltro, carrossel.valorFiltro),
         produtos: produtosResolvidos,
       });
     }

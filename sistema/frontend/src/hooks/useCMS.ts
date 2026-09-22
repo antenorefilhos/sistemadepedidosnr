@@ -89,6 +89,9 @@ export interface HomeVitrineCarrossel {
   // 'churrasco-nobre') -- usado pra montar o link de "Ver tudo" filtrado.
   tipoFiltro?: string
   valorFiltro?: string
+  // JON-198 (reaberto 22/09/2026): calculado no backend, que tem o mapeamento
+  // departamento->categoria -- frontend so usa, nao recalcula.
+  linkVerTudo?: string
   produtos: HomeVitrineProduto[]
 }
 
