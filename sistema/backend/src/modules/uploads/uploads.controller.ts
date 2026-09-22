@@ -77,8 +77,16 @@ export class UploadsController {
   // purgar deixa a versao antiga visivel pro cliente ate a borda expirar
   // sozinha. `mercado` e o host publico real onde o Cloudflare guarda o
   // cache; purgar a URL local (`/uploads/...`) nao afeta a borda.
+  //
+  // 22/09/2026: faltava a variante com `?v=2` -- o frontend (StoreProductCard,
+  // ProductDetail, Cart, WinePage) sempre pede a imagem com esse querystring
+  // fixo (cache-buster hardcoded que nunca mudou desde que foi criado), e pro
+  // Cloudflare a URL com/sem query string sao ENTRADAS DE CACHE DIFERENTES.
+  // Purgar so a URL sem `?v=2` nunca tocava a que o navegador de verdade usa
+  // -- por isso a foto continuava errada mesmo com o purge "funcionando".
   private productImagePurgeUrls(ean: string, suffix: string) {
-    return [`https://mercado.antenorefilhos.com.br/uploads/products/${ean}${suffix}.webp`];
+    const base = `https://mercado.antenorefilhos.com.br/uploads/products/${ean}${suffix}.webp`;
+    return [base, `${base}?v=2`];
   }
 
   @Post()
