@@ -27,7 +27,15 @@ export class CloudflareCacheService {
   }
 
   async purgeUrls(urls: string[]) {
-    if (!this.isConfigured() || urls.length === 0) return
+    if (urls.length === 0) return
+    if (!this.isConfigured()) {
+      // 22/09/2026: essa saida calada ja escondeu um docker-compose sem
+      // CLOUDFLARE_API_TOKEN por dias (foto trocada no admin nunca aparecia
+      // no storefront, nem log de erro nenhum apontava o motivo). Nao falha
+      // o upload (mesma filosofia de antes), mas agora ao menos avisa.
+      this.logger.warn('CLOUDFLARE_API_TOKEN ausente -- purge de cache ignorado, foto pode demorar ate 7 dias pra atualizar no storefront')
+      return
+    }
     try {
       await axios.post(
         `https://api.cloudflare.com/client/v4/zones/${CloudflareCacheService.ZONE_ID}/purge_cache`,

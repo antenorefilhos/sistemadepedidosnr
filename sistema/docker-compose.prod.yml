@@ -117,6 +117,13 @@ services:
       QA_CUSTOMER_PASSWORD: ${QA_CUSTOMER_PASSWORD:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      # Purge de cache do Cloudflare apos troca de foto de produto (ver
+      # cloudflare-cache.service.ts) -- existia em .env.production mas nunca
+      # tinha sido repassada aqui, entao o purge sempre saia calado sem
+      # nenhum log (CloudflareCacheService.isConfigured() retorna false e o
+      # metodo simplesmente nao faz nada). Achado em 22/09/2026: foto trocada
+      # no admin nao aparecia no storefront nem com ctrl+R.
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-3.1-8b-instruct}
       # Notificacao automatica de promocao via IA (NVIDIA NIM). Desligada por
