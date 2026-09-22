@@ -1755,6 +1755,8 @@ export interface SponsoredShelfAdmin {
   sponsorName: string | null
   active: boolean
   priority: number
+  startDate: string | null
+  endDate: string | null
   items: Array<{ product: SponsoredShelfProduct }>
 }
 
@@ -1815,9 +1817,9 @@ export const mostruarioAdminAPI = {
 
 export const sponsoredShelvesAdminAPI = {
   list: () => api.get<SponsoredShelfAdmin[]>('/admin/sponsored-shelves'),
-  create: (data: { title: string; sponsorName?: string; active?: boolean; priority?: number; productIds?: string[] }) =>
+  create: (data: { title: string; sponsorName?: string; active?: boolean; priority?: number; startDate?: string | null; endDate?: string | null; productIds?: string[] }) =>
     api.post<SponsoredShelfAdmin>('/admin/sponsored-shelves', data),
-  update: (id: string, data: Partial<{ title: string; sponsorName: string; active: boolean; priority: number; productIds: string[] }>) =>
+  update: (id: string, data: Partial<{ title: string; sponsorName: string; active: boolean; priority: number; startDate: string | null; endDate: string | null; productIds: string[] }>) =>
     api.patch<SponsoredShelfAdmin>(`/admin/sponsored-shelves/${id}`, data),
   remove: (id: string) => api.delete<{ success: boolean }>(`/admin/sponsored-shelves/${id}`),
 }

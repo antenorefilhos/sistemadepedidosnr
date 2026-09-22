@@ -1400,6 +1400,8 @@ model SponsoredShelf {
   sponsorName String? // Ex.: Nestle, Ambev -- so rotulo, sem cobranca/faturamento aqui
   active     Boolean  @default(true)
   priority   Int      @default(0) // Ordem entre vitrines patrocinadas quando ha mais de uma
+  startDate  DateTime? // Vigencia opcional -- null = sem inicio definido
+  endDate    DateTime? // Vigencia opcional -- null = sem fim definido
   items      SponsoredShelfItem[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

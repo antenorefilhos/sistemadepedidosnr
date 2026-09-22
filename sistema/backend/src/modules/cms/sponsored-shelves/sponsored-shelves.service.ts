@@ -28,11 +28,16 @@ export class SponsoredShelvesService {
     });
   }
 
-  async create(context: PricingContext | undefined, body: { title: string; sponsorName?: string; active?: boolean; priority?: number; productIds?: string[] }) {
+  async create(context: PricingContext | undefined, body: { title: string; sponsorName?: string; active?: boolean; priority?: number; startDate?: string | null; endDate?: string | null; productIds?: string[] }) {
     const tenantId = context?.tenantId || 'tenant_default';
     const storeId = context?.storeId || 'store_default';
     const title = String(body.title || '').trim();
     if (!title) throw new BadRequestException('Titulo e obrigatorio.');
+    const startDate = body.startDate ? new Date(body.startDate) : null;
+    const endDate = body.endDate ? new Date(body.endDate) : null;
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException('Data de inicio nao pode ser depois da data de fim.');
+    }
 
     return this.prisma.sponsoredShelf.create({
       data: {
@@ -42,6 +47,8 @@ export class SponsoredShelvesService {
         sponsorName: body.sponsorName?.trim() || null,
         active: body.active ?? true,
         priority: Number(body.priority || 0),
+        startDate,
+        endDate,
         items: {
           create: (body.productIds || []).map((productId, order) => ({ productId, order })),
         },
@@ -50,9 +57,15 @@ export class SponsoredShelvesService {
     });
   }
 
-  async update(id: string, body: { title?: string; sponsorName?: string; active?: boolean; priority?: number; productIds?: string[] }) {
+  async update(id: string, body: { title?: string; sponsorName?: string; active?: boolean; priority?: number; startDate?: string | null; endDate?: string | null; productIds?: string[] }) {
     const shelf = await this.prisma.sponsoredShelf.findUnique({ where: { id } });
     if (!shelf) throw new NotFoundException('Vitrine patrocinada nao encontrada.');
+
+    const startDate = body.startDate !== undefined ? (body.startDate ? new Date(body.startDate) : null) : shelf.startDate;
+    const endDate = body.endDate !== undefined ? (body.endDate ? new Date(body.endDate) : null) : shelf.endDate;
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException('Data de inicio nao pode ser depois da data de fim.');
+    }
 
     await this.prisma.sponsoredShelf.update({
       where: { id },
@@ -61,6 +74,8 @@ export class SponsoredShelvesService {
         ...(body.sponsorName !== undefined ? { sponsorName: body.sponsorName?.trim() || null } : {}),
         ...(body.active !== undefined ? { active: body.active } : {}),
         ...(body.priority !== undefined ? { priority: Number(body.priority) } : {}),
+        ...(body.startDate !== undefined ? { startDate } : {}),
+        ...(body.endDate !== undefined ? { endDate } : {}),
       },
     });
 
@@ -93,8 +108,15 @@ export class SponsoredShelvesService {
   async listPublic(context?: PricingContext) {
     const tenantId = context?.tenantId || 'tenant_default';
     const storeId = context?.storeId || 'store_default';
+    const now = new Date();
     const shelves = await this.prisma.sponsoredShelf.findMany({
-      where: { tenantId, storeId, active: true },
+      where: {
+        tenantId,
+        storeId,
+        active: true,
+        OR: [{ startDate: null }, { startDate: { lte: now } }],
+        AND: [{ OR: [{ endDate: null }, { endDate: { gte: now } }] }],
+      },
       include: {
         items: {
           orderBy: { order: 'asc' },

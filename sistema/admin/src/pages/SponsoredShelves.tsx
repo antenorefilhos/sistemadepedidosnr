@@ -11,11 +11,21 @@ import { productsAPI, sponsoredShelvesAdminAPI, type SponsoredShelfAdmin, type S
  * direto aqui -- diferente do Encarte (100% sincronizado do ERP, sem
  * criacao manual), essa e livre: nome, produtos e liga/desliga.
  */
+function shelfStatus(shelf: SponsoredShelfAdmin) {
+  if (!shelf.active) return { label: 'Pausada', className: 'bg-gray-100 text-gray-600' }
+  const today = new Date().toISOString().slice(0, 10)
+  if (shelf.startDate && shelf.startDate.slice(0, 10) > today) return { label: 'Agendada', className: 'bg-blue-100 text-blue-700' }
+  if (shelf.endDate && shelf.endDate.slice(0, 10) < today) return { label: 'Expirada', className: 'bg-amber-100 text-amber-700' }
+  return { label: 'Ativa', className: 'bg-green-100 text-green-700' }
+}
+
 export default function SponsoredShelves() {
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [sponsorName, setSponsorName] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [selectedProducts, setSelectedProducts] = useState<SponsoredShelfProduct[]>([])
   const [productQuery, setProductQuery] = useState('')
   const [productResults, setProductResults] = useState<SponsoredShelfProduct[]>([])
@@ -54,6 +64,8 @@ export default function SponsoredShelves() {
     setEditingId(null)
     setTitle('')
     setSponsorName('')
+    setStartDate('')
+    setEndDate('')
     setSelectedProducts([])
     setProductQuery('')
     setProductResults([])
@@ -66,6 +78,8 @@ export default function SponsoredShelves() {
     setEditingId(shelf.id)
     setTitle(shelf.title)
     setSponsorName(shelf.sponsorName || '')
+    setStartDate(shelf.startDate ? shelf.startDate.slice(0, 10) : '')
+    setEndDate(shelf.endDate ? shelf.endDate.slice(0, 10) : '')
     setSelectedProducts(shelf.items.map((item) => item.product))
     setProductQuery('')
     setProductResults([])
@@ -89,6 +103,8 @@ export default function SponsoredShelves() {
       const payload = {
         title: title.trim(),
         sponsorName: sponsorName.trim() || undefined,
+        startDate: startDate || null,
+        endDate: endDate || null,
         productIds: selectedProducts.map((p) => p.id),
       }
       return editingId ? sponsoredShelvesAdminAPI.update(editingId, payload) : sponsoredShelvesAdminAPI.create({ ...payload, active: true })
@@ -112,7 +128,8 @@ export default function SponsoredShelves() {
     onError: (err: any) => setDeleteError(err?.response?.data?.message || 'Erro ao apagar vitrine.'),
   })
 
-  const canSubmit = title.trim().length > 0 && selectedProducts.length > 0
+  const datesValid = !startDate || !endDate || startDate <= endDate
+  const canSubmit = title.trim().length > 0 && selectedProducts.length > 0 && datesValid
   const searchResults = useMemo(
     () => productResults.filter((p) => !selectedProducts.some((s) => s.id === p.id)),
     [productResults, selectedProducts],
@@ -153,6 +170,20 @@ export default function SponsoredShelves() {
                 <p className="mb-2 text-xs text-gray-500">Aparece como "Parceria [nome]" acima do título.</p>
                 <Input value={sponsorName} onChange={(e) => setSponsorName(e.target.value)} placeholder="Ex: Nestlé" />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label className="mb-1 block text-sm font-semibold text-gray-800">Início da vigência (opcional)</Label>
+                <p className="mb-2 text-xs text-gray-500">Vazio = ativa desde já.</p>
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div>
+                <Label className="mb-1 block text-sm font-semibold text-gray-800">Fim da vigência (opcional)</Label>
+                <p className="mb-2 text-xs text-gray-500">Vazio = sem data pra sair do ar.</p>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
+              {!datesValid && <p className="sm:col-span-2 text-sm font-medium text-red-600">Data de início não pode ser depois da data de fim.</p>}
             </div>
 
             <div>
@@ -222,6 +253,7 @@ export default function SponsoredShelves() {
                 <th className="px-4 py-3">Vitrine</th>
                 <th className="px-4 py-3">Fornecedor</th>
                 <th className="px-4 py-3">Produtos</th>
+                <th className="px-4 py-3">Vigência</th>
                 <th className="px-4 py-3">Está ativa?</th>
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
@@ -232,9 +264,14 @@ export default function SponsoredShelves() {
                   <td className="px-4 py-3 font-semibold">{shelf.title}</td>
                   <td className="px-4 py-3">{shelf.sponsorName || '—'}</td>
                   <td className="px-4 py-3">{shelf.items.length}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">
+                    {shelf.startDate ? new Date(shelf.startDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '—'}
+                    {' até '}
+                    {shelf.endDate ? new Date(shelf.endDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '—'}
+                  </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${shelf.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {shelf.active ? 'Ativa' : 'Pausada'}
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${shelfStatus(shelf).className}`}>
+                      {shelfStatus(shelf).label}
                     </span>
                   </td>
                   <td className="px-4 py-3">
