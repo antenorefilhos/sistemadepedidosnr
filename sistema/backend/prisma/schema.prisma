@@ -506,6 +506,13 @@ model Product {
   titleMaskShort String?
   videoUrl  String?
   active    Boolean  @default(true)
+  // 22/09/2026: marcado no primeiro sync COMPLETO em que o produto nao veio
+  // na resposta do ERP; limpo (null) assim que ele reaparecer. Deactivacao
+  // automatica so acontece apos N syncs completos consecutivos ausente (ver
+  // deactivateMissingFromErp em products.service.ts) -- protege contra
+  // resposta parcial/erro pontual da integracao sem depender de um limite de
+  // percentual arbitrario.
+  erpMissingSince DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   // Dedupe do disparo automatico de notificacao por IA -- evita renotificar

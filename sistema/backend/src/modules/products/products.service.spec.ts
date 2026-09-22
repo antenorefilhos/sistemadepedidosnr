@@ -319,23 +319,38 @@ describe('ProductsService', () => {
       mockPrismaService.product.updateMany.mockClear();
     });
 
-    it('desativa produto ativo cujo erpProductId nao veio na resposta do sync', async () => {
+    it('primeira vez que some do feed: so marca erpMissingSince, nao desativa ainda', async () => {
       mockSolidcomERPService.syncProducts.mockResolvedValue({
         status: 'success',
-        data: [
-          { ean: '1', name: 'Continua no mix', price: 10, erpProductId: 1 },
-          { ean: '2', name: 'Continua 2', price: 10, erpProductId: 2 },
-          { ean: '3', name: 'Continua 3', price: 10, erpProductId: 3 },
-          { ean: '4', name: 'Continua 4', price: 10, erpProductId: 4 },
-        ],
+        data: [{ ean: '1', name: 'Continua no mix', price: 10, erpProductId: 1 }],
       });
-      // 1 sumido de 5 ativos (20%) -- abaixo do limite de seguranca de 40%.
       mockPrismaService.product.findMany.mockResolvedValue([
-        { id: 'a', erpProductId: 1 }, // continua no feed, nao mexe
-        { id: 'b', erpProductId: 999 }, // sumiu do feed, desativa
-        { id: 'c', erpProductId: 2 },
-        { id: 'd', erpProductId: 3 },
-        { id: 'e', erpProductId: 4 },
+        { id: 'a', erpProductId: 1, erpMissingSince: null }, // continua no feed
+        { id: 'b', erpProductId: 999, erpMissingSince: null }, // sumiu agora, 1a vez
+      ]);
+
+      const result = await service.syncFromERP();
+
+      expect(mockPrismaService.product.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['b'] } },
+        data: { erpMissingSince: expect.any(Date) },
+      });
+      expect(mockPrismaService.product.updateMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: { active: false } }),
+      );
+      expect((result as any).deactivation.deactivated).toBe(0);
+      expect((result as any).deactivation.markedAsMissing).toBe(1);
+    });
+
+    it('desativa produto que ja estava ausente ha mais do tempo minimo', async () => {
+      const dezOitoHorasAtras = new Date(Date.now() - 18 * 60 * 60 * 1000);
+      mockSolidcomERPService.syncProducts.mockResolvedValue({
+        status: 'success',
+        data: [{ ean: '1', name: 'Continua no mix', price: 10, erpProductId: 1 }],
+      });
+      mockPrismaService.product.findMany.mockResolvedValue([
+        { id: 'a', erpProductId: 1, erpMissingSince: null },
+        { id: 'b', erpProductId: 999, erpMissingSince: dezOitoHorasAtras },
       ]);
 
       const result = await service.syncFromERP();
@@ -345,25 +360,44 @@ describe('ProductsService', () => {
         data: { active: false },
       });
       expect((result as any).deactivation.deactivated).toBe(1);
-      expect((result as any).deactivation.skipped).toBe(false);
     });
 
-    it('aborta a desativacao quando mais de 40% do catalogo sumiria de uma vez (provavel resposta parcial do ERP)', async () => {
+    it('nao desativa quem esta ausente ha pouco tempo, mesmo ja marcado antes', async () => {
+      const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000);
       mockSolidcomERPService.syncProducts.mockResolvedValue({
         status: 'success',
-        data: [{ ean: '1', name: 'Unico sobrevivente', price: 10, erpProductId: 1 }],
+        data: [{ ean: '1', name: 'Continua no mix', price: 10, erpProductId: 1 }],
       });
       mockPrismaService.product.findMany.mockResolvedValue([
-        { id: 'a', erpProductId: 1 },
-        { id: 'b', erpProductId: 2 },
-        { id: 'c', erpProductId: 3 },
+        { id: 'a', erpProductId: 1, erpMissingSince: null },
+        { id: 'b', erpProductId: 999, erpMissingSince: umaHoraAtras },
       ]);
 
       const result = await service.syncFromERP();
 
-      expect(mockPrismaService.product.updateMany).not.toHaveBeenCalled();
+      expect(mockPrismaService.product.updateMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: { active: false } }),
+      );
       expect((result as any).deactivation.deactivated).toBe(0);
-      expect((result as any).deactivation.skipped).toBe(true);
+      expect((result as any).deactivation.pendingConfirmation).toBe(1);
+    });
+
+    it('reapareceu no feed: zera erpMissingSince (autocura de resposta parcial pontual)', async () => {
+      const seteHorasAtras = new Date(Date.now() - 7 * 60 * 60 * 1000);
+      mockSolidcomERPService.syncProducts.mockResolvedValue({
+        status: 'success',
+        data: [{ ean: '1', name: 'Reapareceu', price: 10, erpProductId: 1 }],
+      });
+      mockPrismaService.product.findMany.mockResolvedValue([
+        { id: 'a', erpProductId: 1, erpMissingSince: seteHorasAtras },
+      ]);
+
+      await service.syncFromERP();
+
+      expect(mockPrismaService.product.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['a'] } },
+        data: { erpMissingSince: null },
+      });
     });
 
     it('nao mexe em nada quando todo mundo ativo ainda esta no feed', async () => {
@@ -371,13 +405,12 @@ describe('ProductsService', () => {
         status: 'success',
         data: [{ ean: '1', name: 'Continua', price: 10, erpProductId: 1 }],
       });
-      mockPrismaService.product.findMany.mockResolvedValue([{ id: 'a', erpProductId: 1 }]);
+      mockPrismaService.product.findMany.mockResolvedValue([{ id: 'a', erpProductId: 1, erpMissingSince: null }]);
 
       const result = await service.syncFromERP();
 
       expect(mockPrismaService.product.updateMany).not.toHaveBeenCalled();
       expect((result as any).deactivation.deactivated).toBe(0);
-      expect((result as any).deactivation.skipped).toBe(false);
     });
   });
 

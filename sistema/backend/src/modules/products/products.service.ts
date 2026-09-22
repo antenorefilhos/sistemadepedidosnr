@@ -1460,52 +1460,82 @@ export class ProductsService {
     return result
   }
 
+  // Syncs completos rodam 4x/dia (ver ERP_SYNC_CRON, ~4-8h de intervalo) --
+  // 10h de ausencia continua cobre pelo menos 1 sync completo alem daquele
+  // que marcou a ausencia, tempo suficiente pra uma resposta parcial/erro
+  // pontual da integracao se autocorrigir sem consequencia nenhuma, mas
+  // curto o bastante pra nao deixar produto morto no ar por dias.
+  private static readonly ERP_MISSING_MIN_HOURS_BEFORE_DEACTIVATE = 10
+
   /**
-   * Desativa produto com erpProductId que nao veio na resposta atual do
-   * sync completo. Trava de seguranca: se o que sumiria passar de 40% do
-   * catalogo sincronizado por ERP, aborta e loga alerta -- sinal mais
-   * provavel de resposta parcial/erro da integracao do que limpeza real de
-   * mix (aconteceu 3x nesta mesma tarde com o mix da Filial 1).
+   * Marca/desmarca produto ausente da resposta do sync COMPLETO e desativa
+   * quem ja acumulou ausencia suficiente. Substitui um limite de percentual
+   * (abortava sync legitimo de limpeza de mix grande, ex.: 75% do catalogo
+   * numa correcao real da AntenorApi em 22/09/2026) por persistencia ao
+   * longo de varios syncs -- nenhum produto e desativado na primeira vez
+   * que some, entao um erro isolado de rede/API nunca tem efeito sozinho.
    */
   private async deactivateMissingFromErp(items: ERPProduct[]) {
-    const idsInFeed = Array.from(
-      new Set(items.map((item) => item.erpProductId).filter((id): id is number => id != null)),
+    const idsInFeed = new Set(
+      items.map((item) => item.erpProductId).filter((id): id is number => id != null),
     )
 
     const currentlyActive = await this.prisma.product.findMany({
       where: { active: true, erpProductId: { not: null } },
-      select: { id: true, erpProductId: true },
+      select: { id: true, erpProductId: true, erpMissingSince: true },
     })
 
-    const feedSet = new Set(idsInFeed)
-    const missing = currentlyActive.filter((p) => p.erpProductId != null && !feedSet.has(p.erpProductId))
+    const present = currentlyActive.filter((p) => p.erpProductId != null && idsInFeed.has(p.erpProductId))
+    const missing = currentlyActive.filter((p) => p.erpProductId != null && !idsInFeed.has(p.erpProductId))
 
-    if (missing.length === 0) {
-      return { deactivated: 0, skipped: false, reason: null, candidatesEvaluated: currentlyActive.length }
+    // Reapareceu no feed: zera a contagem de ausencia (autocura).
+    const toClear = present.filter((p) => p.erpMissingSince != null).map((p) => p.id)
+    if (toClear.length > 0) {
+      await this.prisma.product.updateMany({ where: { id: { in: toClear } }, data: { erpMissingSince: null } })
     }
 
-    const missingRatio = missing.length / currentlyActive.length
-    if (missingRatio > 0.4) {
-      this.logger.warn(
-        `product_deactivation_abortada missing=${missing.length} ativos=${currentlyActive.length} ratio=${missingRatio.toFixed(2)} -- acima do limite de seguranca (40%), provavel resposta parcial do ERP`,
-      )
+    const now = new Date()
+    const minAgeMs = ProductsService.ERP_MISSING_MIN_HOURS_BEFORE_DEACTIVATE * 60 * 60 * 1000
+
+    // Primeira vez que some: so marca a data, nao desativa ainda.
+    const newlyMissing = missing.filter((p) => p.erpMissingSince == null)
+    if (newlyMissing.length > 0) {
+      await this.prisma.product.updateMany({
+        where: { id: { in: newlyMissing.map((p) => p.id) } },
+        data: { erpMissingSince: now },
+      })
+    }
+
+    // Ja tinha marcacao de sync anterior E passou o tempo minimo: desativa.
+    const readyToDeactivate = missing.filter(
+      (p) => p.erpMissingSince != null && now.getTime() - p.erpMissingSince.getTime() >= minAgeMs,
+    )
+
+    if (readyToDeactivate.length === 0) {
       return {
         deactivated: 0,
-        skipped: true,
-        reason: `${missing.length} de ${currentlyActive.length} produtos (${(missingRatio * 100).toFixed(1)}%) sumiriam da resposta -- acima do limite de seguranca de 40%, nao desativado`,
+        markedAsMissing: newlyMissing.length,
+        pendingConfirmation: missing.length - newlyMissing.length,
         candidatesEvaluated: currentlyActive.length,
       }
     }
 
     await this.prisma.product.updateMany({
-      where: { id: { in: missing.map((p) => p.id) } },
+      where: { id: { in: readyToDeactivate.map((p) => p.id) } },
       data: { active: false },
     })
-    await this.productSearchService.indexProductsByIds(missing.map((p) => p.id))
+    await this.productSearchService.indexProductsByIds(readyToDeactivate.map((p) => p.id))
 
-    this.logger.log(`product_deactivation_aplicada count=${missing.length} de ${currentlyActive.length} ativos com erpProductId`)
+    this.logger.log(
+      `product_deactivation_aplicada count=${readyToDeactivate.length} ausentes_ha_mais_de=${ProductsService.ERP_MISSING_MIN_HOURS_BEFORE_DEACTIVATE}h de ${currentlyActive.length} ativos com erpProductId`,
+    )
 
-    return { deactivated: missing.length, skipped: false, reason: null, candidatesEvaluated: currentlyActive.length }
+    return {
+      deactivated: readyToDeactivate.length,
+      markedAsMissing: newlyMissing.length,
+      pendingConfirmation: missing.length - newlyMissing.length - readyToDeactivate.length,
+      candidatesEvaluated: currentlyActive.length,
+    }
   }
 
   /**
