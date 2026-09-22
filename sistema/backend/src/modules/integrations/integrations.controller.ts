@@ -1,4 +1,5 @@
-import { Body, Controller, forwardRef, Get, Inject, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, forwardRef, Get, Inject, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
+import { TenantContextRequest } from '../../common/tenant/tenant-context'
 import { Throttle, SkipThrottle } from '@nestjs/throttler'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
@@ -57,6 +58,59 @@ export class IntegrationsController {
     const nota = await this.antenorApi.getNfe(identificador)
     if (!nota) return { disponivel: false }
     return { disponivel: true, ...nota }
+  }
+
+  // --- Mostruario Inteligente (v1.18.0, AEF-048/JON-204) -------------------
+  // Governanca da classificacao dinamica de TipoIntegracao (Motor de
+  // Presenca Real): quais produtos foram salvos de estoque negativo, quais
+  // estao em quarentena por corte de picking, e desbloqueio manual.
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('antenorapi/mostruario/metricas')
+  @ApiOperation({ summary: 'Resumo do Mostruario Inteligente (tiers, produtos salvos, cauda longa)' })
+  getMostruarioMetricas(@Query('filialId') filialId?: string) {
+    return this.antenorApi.getMostruarioMetricas(Number(filialId) || 1)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('antenorapi/mostruario/quarentena')
+  @ApiOperation({ summary: 'Produtos em quarentena por corte reincidente de picking' })
+  getMostruarioQuarentena(@Query('filialId') filialId?: string) {
+    return this.antenorApi.getMostruarioQuarentena(Number(filialId) || 1)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('antenorapi/mostruario/produtos-salvos')
+  @ApiOperation({ summary: 'Auditoria dos produtos mantidos online com estoque ERP negativo/zerado' })
+  getMostruarioProdutosSalvos(@Query('filialId') filialId?: string) {
+    return this.antenorApi.getMostruarioProdutosSalvos(Number(filialId) || 1)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('antenorapi/mostruario/desbloquear')
+  @ApiOperation({ summary: 'Forca disponibilidade imediata de um produto em quarentena' })
+  desbloquearMostruario(
+    @Body() body: { cdProduto: number; filialId?: number; motivo: string },
+    @Req() req: TenantContextRequest,
+  ) {
+    return this.antenorApi.desbloquearMostruario({
+      cdProduto: Number(body.cdProduto),
+      filialId: Number(body.filialId) || 1,
+      motivo: body.motivo,
+      usuario: req.user?.name || req.user?.email || 'admin',
+    })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('antenorapi/mostruario/recalcular')
+  @ApiOperation({ summary: 'Dispara recalculo imediato dos sinais vitais de presenca real' })
+  recalcularMostruario(@Query('filialId') filialId?: string) {
+    return this.antenorApi.recalcularMostruario(Number(filialId) || 1)
   }
 
   // --- Gatilho de faturamento do PDV ---------------------------------------

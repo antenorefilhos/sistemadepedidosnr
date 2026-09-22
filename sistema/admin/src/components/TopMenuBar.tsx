@@ -3,7 +3,7 @@ import type { Section } from '../pages/Dashboard'
 import {
   BarChart3, Package, ShoppingCart, ClipboardCheck, Users, Briefcase,
   Tag, ChefHat, Sparkles, Image, Palette, Truck, Clock3, TrendingUp,
-  Bot, Workflow, ShieldAlert, BellRing, CreditCard, Megaphone,
+  Bot, Workflow, ShieldAlert, BellRing, CreditCard, Megaphone, RadioTower,
   LogOut, Menu, X, ChevronDown, ChevronRight,
 } from 'lucide-react'
 
@@ -63,6 +63,7 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { key: 'intelligence', label: 'Inteligência IA', icon: Bot },
       { key: 'integrations', label: 'Integrações', icon: Workflow },
+      { key: 'mostruario', label: 'Mostruário Inteligente', icon: RadioTower },
       { key: 'notifications', label: 'Notificações', icon: BellRing },
       { key: 'coupons', label: 'Cupons', icon: Tag },
       { key: 'fraudAudit', label: 'Anti-fraude', icon: ShieldAlert },

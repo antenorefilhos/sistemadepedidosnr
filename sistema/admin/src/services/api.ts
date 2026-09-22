@@ -1759,6 +1759,60 @@ export interface SponsoredShelfAdmin {
 }
 
 /** JON-204: vitrine de fornecedor/parceria, sem depender de encarte (ERP). */
+export interface MostruarioMetricas {
+  filialId: number
+  nomeFilial: string
+  atualizadoEm: string
+  tempoProcessamentoMs: number
+  resumo: {
+    totalMixCurado: number
+    totalAtivosNoSite: number
+    tier1PresencaGarantida: number
+    tier2CaudaLongaAtiva: number
+    tier3OcultosPreventivos: number
+    tier3MortosExpurgados: number
+    emQuarentenaPicking: number
+  }
+  impactoOperacional: {
+    produtosSalvosDoEstoqueNegativo: number
+    percentualCatalogoGarantido: number
+    percentualCaudaLongaAtiva: number
+  }
+  topDepartamentosGarantidos: Array<{ departamento: string; totalItens: number; itensSalvos: number }>
+}
+
+export interface MostruarioProduto {
+  cdProduto: number
+  sku: string
+  nome: string
+  marca: string
+  departamento: string
+  categoria: string
+  precoVenda: number
+  estoqueERP: number
+  vezesVendidoPDV48h: number
+  totalCortesPicking48h: number
+  ultimoCortePicking: string | null
+  scorePresencaReal: number
+  tier: string
+  syncOption: string
+  disponivel: boolean
+  emQuarentena: boolean
+  motivoClassificacao: string
+  salvoDoEstoqueNegativo: boolean
+  desbloqueadoManualmente: boolean
+}
+
+/** JON-205 (22/09/2026): governanca do Mostruario Inteligente (v1.18.0, AEF-048). */
+export const mostruarioAdminAPI = {
+  getMetricas: (filialId = 1) => api.get<MostruarioMetricas>('/integrations/antenorapi/mostruario/metricas', { params: { filialId } }),
+  getQuarentena: (filialId = 1) => api.get<MostruarioProduto[]>('/integrations/antenorapi/mostruario/quarentena', { params: { filialId } }),
+  getProdutosSalvos: (filialId = 1) => api.get<MostruarioProduto[]>('/integrations/antenorapi/mostruario/produtos-salvos', { params: { filialId } }),
+  desbloquear: (data: { cdProduto: number; filialId?: number; motivo: string }) =>
+    api.post('/integrations/antenorapi/mostruario/desbloquear', data),
+  recalcular: (filialId = 1) => api.post('/integrations/antenorapi/mostruario/recalcular', null, { params: { filialId } }),
+}
+
 export const sponsoredShelvesAdminAPI = {
   list: () => api.get<SponsoredShelfAdmin[]>('/admin/sponsored-shelves'),
   create: (data: { title: string; sponsorName?: string; active?: boolean; priority?: number; productIds?: string[] }) =>

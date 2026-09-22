@@ -28,6 +28,7 @@ export type Section =
   | 'notifications'
   | 'coupons'
   | 'sponsoredShelves'
+  | 'mostruario'
   | 'recipes'
   | 'storeBanners'
   | 'brandIdentity'
@@ -91,6 +92,7 @@ const FraudAudit = lazy(() => import('./FraudAudit'))
 const NotificationsBroadcast = lazy(() => import('./NotificationsBroadcast'))
 const Coupons = lazy(() => import('./Coupons'))
 const SponsoredShelves = lazy(() => import('./SponsoredShelves'))
+const Mostruario = lazy(() => import('./Mostruario'))
 const Recipes = lazy(() => import('./Recipes'))
 const StoreBannersManager = lazy(() => import('./StoreBannersManager'))
 const BrandIdentity = lazy(() => import('./BrandIdentity'))
@@ -107,7 +109,7 @@ const TeamPerformanceSection = lazy(() => import('./sections/TeamPerformanceSect
 const VALID_SECTIONS: Section[] = [
   'dashboard', 'products', 'orders', 'picking', 'staff', 'teamPerformance',
   'businessAccounts', 'customers', 'layout', 'categories', 'deliveryZones',
-  'businessHours', 'fraudAudit', 'notifications', 'coupons', 'sponsoredShelves', 'recipes', 'storeBanners', 'deliveryRoutes',
+  'businessHours', 'fraudAudit', 'notifications', 'coupons', 'sponsoredShelves', 'mostruario', 'recipes', 'storeBanners', 'deliveryRoutes',
   'brandIdentity', 'intelligence', 'integrations', 'payments',
 ]
 
@@ -417,6 +419,12 @@ export default function AdminDashboard() {
           {activeSection === 'sponsoredShelves' && (
             <Suspense fallback={lazySectionFallback}>
               <SponsoredShelves />
+            </Suspense>
+          )}
+
+          {activeSection === 'mostruario' && (
+            <Suspense fallback={lazySectionFallback}>
+              <Mostruario />
             </Suspense>
           )}
 

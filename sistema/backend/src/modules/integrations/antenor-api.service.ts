@@ -519,6 +519,37 @@ export class AntenorApiService {
     return data
   }
 
+  /**
+   * JON-204/205 (22/09/2026): Motor de Presenca Real & Mostruario Inteligente
+   * (v1.18.0, AEF-048) -- endpoints de governanca pro admin acompanhar/agir
+   * sobre a classificacao dinamica de TipoIntegracao (SEMPRE/ESTOQUE/NUNCA
+   * calculado por sinais vitais, nao mais so estoque cru do ERP).
+   */
+  async getMostruarioMetricas(filialId: number): Promise<unknown> {
+    const { data } = await this.cliente.get('/api/ecommerce/mostruario/metricas', { params: { filialId } })
+    return data
+  }
+
+  async getMostruarioQuarentena(filialId: number): Promise<unknown[]> {
+    const { data } = await this.cliente.get('/api/ecommerce/mostruario/quarentena', { params: { filialId } })
+    return Array.isArray(data) ? data : []
+  }
+
+  async getMostruarioProdutosSalvos(filialId: number): Promise<unknown[]> {
+    const { data } = await this.cliente.get('/api/ecommerce/mostruario/produtos-salvos', { params: { filialId } })
+    return Array.isArray(data) ? data : []
+  }
+
+  async desbloquearMostruario(params: { cdProduto: number; filialId: number; motivo: string; usuario: string }): Promise<unknown> {
+    const { data } = await this.cliente.post('/api/ecommerce/mostruario/desbloquear', params)
+    return data
+  }
+
+  async recalcularMostruario(filialId: number): Promise<unknown> {
+    const { data } = await this.cliente.post('/api/ecommerce/mostruario/recalcular', null, { params: { filialId } })
+    return data
+  }
+
   /** Sync incremental -- so o que mudou desde `hours` atras (~500ms medido). */
   async fetchRecentChanges(hours: number): Promise<ERPProduct[]> {
     const since = new Date(Date.now() - hours * 3600000).toISOString().slice(0, 19)
