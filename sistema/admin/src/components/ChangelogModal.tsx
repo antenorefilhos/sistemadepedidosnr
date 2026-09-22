@@ -14,6 +14,19 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.11.0',
+    date: '22/09/2026',
+    title: 'Vitrine Patrocinada, Mostruário Inteligente e Catálogo Mais Limpo',
+    highlights: [
+      { type: 'feat', description: 'Nova tela "Vitrines Patrocinadas": monte uma vitrine dedicada a um fornecedor/parceria, com produtos escolhidos à mão, data de início/fim de vigência e liga/desliga rápido.' },
+      { type: 'feat', description: 'Nova tela "Mostruário Inteligente": mostra quais produtos continuam à venda mesmo com estoque zerado no sistema (porque estão vendendo de verdade no caixa), quais estão em quarentena por corte de separação, e permite liberar manualmente.' },
+      { type: 'fix', description: 'Produto que a loja parou de vender há tempos (descontinuado, fora do mix) agora some de verdade da loja depois de confirmado por um tempo — antes ficava aparecendo pra sempre mesmo sem estar mais disponível.' },
+      { type: 'fix', description: 'Clicar em "Ver mais" numa vitrine da Home agora leva pros produtos daquela vitrine específica, não pra lista geral da loja.' },
+      { type: 'fix', description: 'Vitrines da Home e Vitrine Patrocinada agora atualizam sozinhas quando o catálogo muda, sem o cliente precisar recarregar a página manualmente.' },
+      { type: 'fix', description: 'Produtos de tabacaria continuam à venda pra quem busca ou entra direto na categoria, mas pararam de aparecer oferecidos automaticamente em vitrines e recomendações da Home.' },
+    ],
+  },
+  {
     version: '1.10.0',
     date: '18/09/2026',
     title: 'Cupom de Boas-Vindas de Verdade, Nota Fiscal pro Cliente e Correções na Jornada de Compra',
