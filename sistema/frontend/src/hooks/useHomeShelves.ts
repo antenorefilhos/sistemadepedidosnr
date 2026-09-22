@@ -58,7 +58,11 @@ const PANTRY_TERMS = [
   'sabao',
 ]
 
-const SHELF_LIMIT = 10
+// JON-201: pool carregado por vitrine (10-15, pedido do Jonathan) -- quantos
+// ficam VISIVEIS de cara e responsabilidade do CSS do carrossel (ProductShelf/
+// StoreProductCard), nao deste limite; aqui e so quanto entra no pool pra
+// arrastar/rolar.
+const SHELF_LIMIT = 12
 
 /**
  * JON-172: quota minima coerente pra uma vitrine valer a pena aparecer.
@@ -86,6 +90,23 @@ const dedupeById = (items: Product[]) => {
     seen.add(product.id)
     return true
   })
+}
+
+/**
+ * JON-201 (22/09/2026): as vitrines sempre mostravam os mesmos produtos --
+ * `take`/`claim` pegavam sempre os N primeiros do pool, na mesma ordem que
+ * o backend manda (alfabetica). Fisher-Yates simples: embaralha o pool
+ * ANTES de cortar pro limite de exibicao, chamado de dentro de um useMemo
+ * (recalcula so quando o pool muda, ou seja, uma vez por carregamento da
+ * pagina -- nao a cada re-render).
+ */
+export function shuffle<T>(items: T[]): T[] {
+  const copy = [...items]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
 }
 
 /**
@@ -124,7 +145,7 @@ export function useHomeShelves({
         configs.push({
           rule,
           code: categoryCode,
-          limit: item?.limit ?? 6,
+          limit: item?.limit ?? 12,
           priority: item?.priority ?? 0,
           productCount: Number(item?.productCount ?? 0),
           curatedProducts: Array.isArray(item?.curatedProducts)
@@ -138,7 +159,7 @@ export function useHomeShelves({
       return HOME_CATEGORY_RULES.map((rule) => ({
         rule,
         code: '',
-        limit: 6,
+        limit: 12,
         priority: HOME_COMMERCIAL_PRIORITY[rule.id] ?? 999,
         productCount: 0,
         curatedProducts: [],
@@ -168,7 +189,10 @@ export function useHomeShelves({
   const rawByRule = useMemo(() => {
     const map = new Map<string, Product[]>()
     for (const config of enabledHomeRules) {
-      const source = config.curatedProducts.length > 0 ? config.curatedProducts : config.products
+      // Curadoria manual (curatedProducts) NUNCA embaralha -- e ordem
+      // deliberada do lojista. So o pool automatico (config.products) roda.
+      const isCurated = config.curatedProducts.length > 0
+      const source = isCurated ? config.curatedProducts : shuffle(config.products)
       const seen = new Set<string>()
       const deduped: Product[] = []
       for (const product of source) {
@@ -213,18 +237,18 @@ export function useHomeShelves({
     }
 
     return {
-      consumoRapido: take('congelados', 6),
-      guloseimas: take('doces', 6),
+      consumoRapido: take('congelados', 12),
+      guloseimas: take('doces', 12),
       // Acougue & Churrasco virou uma unica macro-categoria: as duas vitrines
       // abaixo dividem o mesmo pool via `usedKeys` (cada uma pega os produtos
       // que a outra ainda nao consumiu).
-      churrasco: take('acougue', 6),
-      carnesDiaADia: take('acougue', 6),
-      feira: take('hortifruti', 8),
-      padaria: take('padaria', 6),
+      churrasco: take('acougue', 12),
+      carnesDiaADia: take('acougue', 12),
+      feira: take('hortifruti', 12),
+      padaria: take('padaria', 12),
       // Bebidas virou 4 categorias puras (adega/cervejas/destilados/sucos) --
       // a vitrine de churrasco combina com cerveja, nao com refrigerante.
-      bebidas: take('cervejas', 6),
+      bebidas: take('cervejas', 12),
       // Alem de excluir o que ja foi para uma categoria, deduplica dentro de si:
       // "Tudo do Mercado" e onde os SKUs repetidos do ERP mais aparecem juntos.
       outros: productsList.filter((product) => {
@@ -342,7 +366,7 @@ export function useHomeShelves({
     const fair = claim([...hortifruti])
     const churrascoOccasion = claim([...acougue, ...cervejas])
     const recurring = claim([...pantry, ...analyticsBestSellers])
-    const bestSellers = claim(analyticsBestSellers, 8)
+    const bestSellers = claim(analyticsBestSellers, 12)
 
     return { rebuy, offers, fresh, fair, churrascoOccasion, recurring, bestSellers, claimed }
   }, [rawByRule, marginShowcase, productsList, promotionalProducts, rebuyProducts, topSellingProducts])

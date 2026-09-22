@@ -83,9 +83,13 @@ describe('useHomeShelves', () => {
 
     const { result } = renderHook(() => useHomeShelves({ ...baseInput, cmsCategories }))
 
-    // Pool de acougue (8) inteiro foi pra vitrine de intencao (churrascoOccasion,
-    // ate 10) -- nao sobra nada real pra reabastecer churrasco/carnesDiaADia.
-    expect(result.current.churrascoOccasionShelf.length).toBe(8)
+    // JON-201: SHELF_LIMIT subiu de 10 pra 12 -- `fresh` (hortifruti+acougue,
+    // roda ANTES de churrascoOccasion na cascata) agora claima os 10 de
+    // hortifruti + 2 de acougue pra fechar o limite de 12, deixando so 6
+    // (nao mais 8) de acougue pra churrascoOccasion. O que o teste verifica
+    // de fato (pool esgotado -> secoes de categoria ficam vazias) continua
+    // valendo, so o numero exato mudou com o limite maior.
+    expect(result.current.churrascoOccasionShelf.length).toBe(6)
     expect(result.current.categorized.churrasco).toEqual([])
     expect(result.current.categorized.carnesDiaADia).toEqual([])
   })
@@ -109,7 +113,13 @@ describe('useHomeShelves', () => {
 
     const { result } = renderHook(() => useHomeShelves({ ...baseInput, cmsCategories }))
 
+    // JON-201: pool embaralha a cada carregamento, entao a ORDEM nao e mais
+    // deterministica (nem qual dos dois duplicados -- a1 ou a1-dup -- e o
+    // que sobrevive, os dois sao o mesmo SKU/nome/preco). O que importa pro
+    // dedup e so a CONTAGEM (5, um por nome+preco distinto).
     const padaria = result.current.categorized.padaria
-    expect(padaria.map((p) => p.id)).toEqual(['a1', 'a2', 'a3', 'a4', 'a5'])
+    expect(padaria.length).toBe(5)
+    const names = padaria.map((p) => p.name).sort()
+    expect(names).toEqual(['Alcatra', 'Contra File', 'Costela', 'Fraldinha', 'Picanha'])
   })
 })

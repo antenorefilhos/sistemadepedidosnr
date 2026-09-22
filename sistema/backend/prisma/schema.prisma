@@ -1320,7 +1320,7 @@ model Category {
   children  Category[] @relation("CategoryHierarchy")
   active    Boolean  @default(true)
   priority  Int      @default(0)
-  limit     Int      @default(6)
+  limit     Int      @default(12)
   curatedProducts CategoryProductCuration[]
   classificationMappings CategoryClassificationMapping[]
   mappedProductsAsCategory ProductCategoryMapping[] @relation("ProductCategoryMappingCategory")

@@ -307,7 +307,7 @@ export class CategoriesService {
         this.prisma.product.findMany({
           where: { ean: { in: eansByCategoryId.get(category.id) || [] } },
           orderBy: { name: 'asc' }, // mesma ordem de /products?category=
-          take: Math.max(category.limit || 6, Math.min(CANDIDATE_POOL_MAX, (eansByCategoryId.get(category.id) || []).length)),
+          take: Math.max(category.limit || 12, Math.min(CANDIDATE_POOL_MAX, (eansByCategoryId.get(category.id) || []).length)),
           select: STOREFRONT_PRODUCT_SELECT,
         }),
       ),
@@ -401,7 +401,7 @@ export class CategoriesService {
         shortName: null,
         active: false,
         priority: 999,
-        limit: 6,
+        limit: 12,
         bannerUrl: null,
         productCount,
         curatedProductIds: [],

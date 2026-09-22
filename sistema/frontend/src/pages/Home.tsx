@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react'
-import { useHomeShelves } from '../hooks/useHomeShelves'
+import { useHomeShelves, shuffle } from '../hooks/useHomeShelves'
 import {
   CATEGORY_ICONS,
   getCategoryHref,
@@ -190,7 +190,9 @@ export default function Home() {
         eyebrow: stripEmoji(vitrinesData.personalidadeAtiva.titulo),
         title: stripEmoji(carrossel.titulo),
         icon: iconForCarrossel(carrossel.id),
-        products: carrossel.produtos,
+        // JON-201: mesma vitrine sempre com os mesmos produtos, na mesma
+        // ordem -- embaralha a cada carregamento da pagina.
+        products: shuffle(carrossel.produtos),
         // JON-198: "Ver tudo" ia sempre pro /mercado generico, mostrando
         // produto nenhuma relacao com a vitrine clicada. Quando a AntenorApi
         // manda o filtro real do carrossel (hoje so tipoFiltro='tag'), usa
@@ -208,7 +210,7 @@ export default function Home() {
       eyebrow: user ? 'Historico de compra' : 'Compra recorrente',
       title: user ? 'Recompre em poucos cliques' : 'Mais fáceis de repetir',
       icon: ShoppingCart,
-      products: rebuyShelf.slice(0, 6),
+      products: rebuyShelf.slice(0, 12),
       to: '/mercado',
     },
     {
@@ -216,7 +218,7 @@ export default function Home() {
       eyebrow: 'Ofertas e oportunidade',
       title: 'Melhores escolhas de hoje',
       icon: Sparkles,
-      products: offersShelf.slice(0, 6),
+      products: offersShelf.slice(0, 12),
       to: '/promocoes',
     },
     {
@@ -224,7 +226,7 @@ export default function Home() {
       eyebrow: 'Frescos e balcão',
       title: 'Para levar fresco agora',
       icon: Apple,
-      products: freshShelf.slice(0, 6),
+      products: freshShelf.slice(0, 12),
       to: '/mercado?cat=hortifruti',
     },
     {
@@ -232,7 +234,7 @@ export default function Home() {
       eyebrow: 'Ocasião pronta',
       title: 'Churrasco sem garimpo',
       icon: Flame,
-      products: churrascoOccasionShelf.slice(0, 6),
+      products: churrascoOccasionShelf.slice(0, 12),
       to: '/mercado?q=churrasco',
     },
     {
@@ -240,7 +242,7 @@ export default function Home() {
       eyebrow: 'Feira e hortifruti',
       title: 'Reposição fresca da semana',
       icon: Apple,
-      products: fairShelf.slice(0, 6),
+      products: fairShelf.slice(0, 12),
       to: '/mercado?cat=hortifruti',
     },
     {
@@ -288,7 +290,7 @@ export default function Home() {
       eyebrow: 'Compra recorrente',
       title: 'Itens que sempre voltam',
       icon: ShoppingBag,
-      products: recurringShelf.slice(0, 6),
+      products: recurringShelf.slice(0, 12),
       to: '/mercado?q=recorrentes',
     },
     {

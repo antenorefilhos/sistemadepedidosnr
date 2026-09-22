@@ -113,8 +113,11 @@ export function StoreProductCard({
         interactive: true,
         className: cn(
           'group flex flex-col overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-[2.5px] hover:border-[#D2BB8A]',
-          // ponytail: metade do gap-3 (12px) do carrossel mobile em ProductShelf.tsx — se o gap mudar la, ajustar aqui tambem
-          isCarousel ? 'w-[calc(50%-6px)] md:w-[220px] shrink-0 snap-start' : 'w-full',
+          // JON-201: largura calculada pro gap-3 (12px) do carrossel em
+          // ProductShelf.tsx -- 2 cards por tela no mobile (2 cards, 1 gap:
+          // (100%-12px)/2), 5 no desktop (5 cards, 4 gaps: (100%-48px)/5).
+          // Se o gap mudar la, os dois calc() aqui tem que mudar junto.
+          isCarousel ? 'w-[calc(50%-6px)] md:w-[calc(20%-9.6px)] shrink-0 snap-start' : 'w-full',
         ),
       })}
     >
