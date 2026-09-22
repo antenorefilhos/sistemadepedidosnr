@@ -133,7 +133,8 @@ export class SponsoredShelvesService {
         sponsorName: shelf.sponsorName,
         products: shelf.items
           .map((item) => item.product)
-          .filter((product) => isProductSellable(product))
+          // TABACARIA nao e oferecida automaticamente (Jonathan, 22/09/2026).
+          .filter((product) => product.category !== 'TABACARIA' && isProductSellable(product))
           .map(toCustomerFacingProduct),
       }))
       .filter((shelf) => shelf.products.length > 0);

@@ -205,7 +205,6 @@ export class ProductSearchService implements OnModuleInit {
       const offset = (page - 1) * limit
       const clauses = [
         'active = true',
-        'category != "TABACARIA"',
         'syncOption != "NUNCA"',
         '((syncOption = "SEMPRE") OR (syncOption = "ESTOQUE" AND stock > 0))',
       ]
@@ -276,7 +275,6 @@ export class ProductSearchService implements OnModuleInit {
       const result = await index.search(query, {
         filter: [
           'active = true',
-          'category != "TABACARIA"',
           'syncOption != "NUNCA"',
           '((syncOption = "SEMPRE") OR (syncOption = "ESTOQUE" AND stock > 0))',
         ],

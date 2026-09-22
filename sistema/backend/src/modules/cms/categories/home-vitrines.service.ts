@@ -7,6 +7,12 @@ import { DEPARTMENT_TO_CATEGORY } from '../../products/products.service';
 /** Abaixo disso a prateleira fica rala demais pra exibir (mesmo criterio de JON-172, useHomeShelves.ts). */
 const MIN_SHELF_ITEMS = 4;
 
+// TABACARIA nao e oferecida automaticamente em vitrine -- so aparece se o
+// cliente buscar ou clicar a categoria explicitamente (Jonathan, 22/09/2026).
+function isAutoSurfaceable(produto: { category?: string | null; active?: boolean | null; syncOption?: string | null; stock?: unknown }) {
+  return produto.category !== 'TABACARIA' && isProductSellable(produto);
+}
+
 // JON-202 (22/09/2026): a AntenorApi manda um numero FIXO de produtos por
 // carrossel (12 hoje) -- quando boa parte deles nao e vendavel no nosso
 // catalogo (syncOption=NUNCA, comum em hortifruti), a vitrine encolhia sem
@@ -91,7 +97,7 @@ export class HomeVitrinesService {
       const produtosResolvidos = carrossel.produtos
         .map((item) => porErpId.get(item.id))
         .filter((produto): produto is NonNullable<typeof produto> => !!produto)
-        .filter((produto) => isProductSellable(produto))
+        .filter((produto) => isAutoSurfaceable(produto))
         .filter((produto) => {
           if (jaUsados.has(produto.id)) return false;
           jaUsados.add(produto.id);
@@ -119,7 +125,7 @@ export class HomeVitrinesService {
           });
           for (const produto of reforco) {
             if (produtosResolvidos.length >= TARGET_POOL_SIZE) break;
-            if (jaUsados.has(produto.id) || !isProductSellable(produto)) continue;
+            if (jaUsados.has(produto.id) || !isAutoSurfaceable(produto)) continue;
             jaUsados.add(produto.id);
             produtosResolvidos.push(produto);
           }

@@ -934,7 +934,6 @@ export class ProductsService {
       SELECT *
       FROM "products"
       WHERE "active" = true
-        AND "category" != 'TABACARIA'
         AND "syncOption" != 'NUNCA'
         AND (${tenantId}::text IS NULL OR "tenantId" = ${tenantId})
         AND (${storeId}::text IS NULL OR "storeId" = ${storeId})
@@ -968,7 +967,6 @@ export class ProductsService {
       SELECT COUNT(*)::bigint AS total
       FROM "products"
       WHERE "active" = true
-        AND "category" != 'TABACARIA'
         AND "syncOption" != 'NUNCA'
         AND (${tenantId}::text IS NULL OR "tenantId" = ${tenantId})
         AND (${storeId}::text IS NULL OR "storeId" = ${storeId})
@@ -2230,10 +2228,14 @@ export class ProductsService {
     }
 
     const andConditions: any[] = []
+    // TABACARIA nao e oferecida por padrao (vitrine/listagem sem filtro) --
+    // so aparece se o cliente clicar a categoria explicitamente ou pesquisar
+    // por ela (Jonathan, 22/09/2026). Continua vendavel normalmente quando
+    // achada por um desses dois caminhos.
+    if (category !== "TABACARIA" && !parsed.text) {
+      andConditions.push({ category: { not: "TABACARIA" } })
+    }
     andConditions.push(
-      // TABACARIA: venda online de fumigeno e vedada por lei (9.294/96) --
-      // bloqueado aqui direto, mesmo criterio de isProductSellable (22/09/2026).
-      { category: { not: "TABACARIA" } },
       { syncOption: { not: "NUNCA" } },
       {
         OR: [{ syncOption: "SEMPRE" }, { AND: [{ syncOption: { in: ['ESTOQUE', 'ESTQOUE'] } }, { stock: { gt: 0 } }] }],

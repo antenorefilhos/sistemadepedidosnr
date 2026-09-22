@@ -19,23 +19,18 @@
  * Mesmo criterio do `isStorefrontVisible` da vitrine -- se divergir, o cliente
  * ve na tela algo que o checkout recusa, que foi exatamente o bug de 17/08.
  *
- * Categorias com impedimento legal de venda online (Lei Federal 9.294/96,
- * fumigenos) sao bloqueadas aqui direto, sem depender do syncOption vindo do
- * ERP/AntenorApi -- achado em 22/09/2026: 27 produtos de TABACARIA estavam
- * `active=true`/`syncOption=SEMPRE` e vendaveis no storefront porque o flag
- * de exclusao do lado da integracao nao tinha propagado ainda. Nao da pra
- * confiar so no dado de terceiro pra uma restricao legal.
+ * NAO bloquear categoria aqui (ex.: TABACARIA): esta funcao tambem decide o
+ * checkout/reserva de estoque (JON-XX, 22/09/2026) -- quem chegou no carrinho
+ * via busca/categoria explicita precisa conseguir fechar o pedido. Restricao
+ * de "nao oferecer automaticamente" (vitrine, recomendacao) vive nos
+ * consumidores que fazem surfacing automatico, nao aqui.
  */
-const LEGALLY_RESTRICTED_CATEGORIES = new Set(['TABACARIA'])
-
 export function isProductSellable(product: {
   active?: boolean | null
   syncOption?: string | null
   stock?: unknown
-  category?: string | null
 }): boolean {
   if (product.active === false) return false
-  if (product.category && LEGALLY_RESTRICTED_CATEGORIES.has(product.category)) return false
   if (product.syncOption === 'NUNCA') return false
   // 'ESTQOUE' e um typo que existe em dados legados do ERP -- tratado junto
   // com o valor correto na vitrine, entao tem que ser tratado aqui tambem.

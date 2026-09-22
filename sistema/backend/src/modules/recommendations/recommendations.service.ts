@@ -396,8 +396,12 @@ export class RecommendationsService {
     return candidatePrice >= sourcePrice * 0.6 && candidatePrice <= sourcePrice * 1.4
   }
 
-  private isAvailable(product: Pick<ProductRow, 'active' | 'syncOption' | 'stock'>) {
+  private isAvailable(product: Pick<ProductRow, 'active' | 'syncOption' | 'stock' | 'category'>) {
     if (!product.active) return false
+    // TABACARIA nao e oferecida automaticamente (recomendacao e surfacing
+    // algoritmico) -- so aparece se o cliente buscar/clicar a categoria
+    // explicitamente (Jonathan, 22/09/2026).
+    if (product.category === 'TABACARIA') return false
     const syncOption = String(product.syncOption || 'ESTOQUE').toUpperCase()
     if (syncOption === 'NUNCA') return false
     if (syncOption === 'SEMPRE') return true

@@ -221,7 +221,6 @@ export class CartService {
         name: true,
         active: true,
         syncOption: true,
-        category: true,
         isFractional: true,
         fractionStep: true,
         manualIsFractional: true,
@@ -229,11 +228,7 @@ export class CartService {
       },
     })
     if (!product) throw new BadRequestException(`Produto nao encontrado: ${id}`)
-    if (
-      !product.active ||
-      String(product.syncOption || '').toUpperCase() === 'NUNCA' ||
-      product.category === 'TABACARIA'
-    ) {
+    if (!product.active || String(product.syncOption || '').toUpperCase() === 'NUNCA') {
       throw new BadRequestException(`Produto indisponivel para venda: ${product.name}`)
     }
 
