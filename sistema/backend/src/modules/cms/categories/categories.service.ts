@@ -259,7 +259,11 @@ export class CategoriesService {
     const isEligibleForStorefront = (product: {
       syncOption: string | null;
       stock: number | null;
+      category: string | null;
     }) => {
+      // TABACARIA: venda online de fumigeno e vedada por lei (9.294/96) --
+      // bloqueado aqui direto, mesmo criterio de isProductSellable (22/09/2026).
+      if (product.category === 'TABACARIA') return false;
       if (product.syncOption === 'NUNCA') return false;
       if (product.syncOption === 'SEMPRE') return true;
       return Number(product.stock || 0) > 0;
