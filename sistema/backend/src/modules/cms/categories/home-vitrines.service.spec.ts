@@ -156,7 +156,7 @@ describe('HomeVitrinesService', () => {
     const resolvidosOriginais = [1, 2, 3, 4, 5].map((id) => produtoLocal(id));
     // reforco: mais 10 produtos vendaveis na mesma categoria, nenhum com
     // erpProductId (produto so mapeado localmente, nao veio do carrossel).
-    const candidatosReforco = Array.from({ length: 10 }, (_, i) =>
+    const candidatosReforco = Array.from({ length: 25 }, (_, i) =>
       produtoLocal(100 + i, { id: `reforco-${i}`, category: 'HORTIFRUTI_ORGANICOS', erpProductId: null }),
     );
 
@@ -172,7 +172,7 @@ describe('HomeVitrinesService', () => {
 
     const resultado = await service.getHomeVitrines({});
 
-    expect(resultado.carrosseis[0].produtos.length).toBe(12);
+    expect(resultado.carrosseis[0].produtos.length).toBe(30);
     // reforco filtrado por category no where da segunda chamada
     expect(prisma.product.findMany.mock.calls[1][0].where.category).toBe('HORTIFRUTI_ORGANICOS');
   });
@@ -196,7 +196,7 @@ describe('HomeVitrinesService', () => {
       ],
     };
     const resolvidosOriginais = [1, 2, 3, 4, 5].map((id) => produtoLocal(id));
-    const candidatosReforco = Array.from({ length: 10 }, (_, i) =>
+    const candidatosReforco = Array.from({ length: 25 }, (_, i) =>
       produtoLocal(100 + i, { id: `reforco-${i}`, erpProductId: null }),
     );
 
@@ -212,7 +212,7 @@ describe('HomeVitrinesService', () => {
 
     const resultado = await service.getHomeVitrines({});
 
-    expect(resultado.carrosseis[0].produtos.length).toBe(12);
+    expect(resultado.carrosseis[0].produtos.length).toBe(30);
     expect(prisma.product.findMany.mock.calls[1][0].where.classification02).toEqual({
       contains: 'Bovinos',
       mode: 'insensitive',
@@ -239,7 +239,7 @@ describe('HomeVitrinesService', () => {
         },
       ],
     };
-    const candidatosReforco = Array.from({ length: 12 }, (_, i) =>
+    const candidatosReforco = Array.from({ length: 30 }, (_, i) =>
       produtoLocal(200 + i, { id: `reforco-${i}`, category: 'ACOUGUE_CHURRASCO', erpProductId: null }),
     );
 
@@ -256,7 +256,7 @@ describe('HomeVitrinesService', () => {
     const resultado = await service.getHomeVitrines({});
 
     expect(resultado.carrosseis).toHaveLength(1);
-    expect(resultado.carrosseis[0].produtos.length).toBe(12);
+    expect(resultado.carrosseis[0].produtos.length).toBe(30);
     expect(prisma.product.findMany.mock.calls[1][0].where.category).toBe('ACOUGUE_CHURRASCO');
   });
 });

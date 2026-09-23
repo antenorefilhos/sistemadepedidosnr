@@ -40,12 +40,16 @@ function buildLinkVerTudo(tipoFiltro?: string, valorFiltro?: string): string {
 }
 
 // JON-202 (22/09/2026): a AntenorApi manda um numero FIXO de produtos por
-// carrossel (12 hoje) -- quando boa parte deles nao e vendavel no nosso
-// catalogo (syncOption=NUNCA, comum em hortifruti), a vitrine encolhia sem
-// nenhum reforço, contrariando o pool de 10-15 que o resto da Home ja segue
-// (ver useHomeShelves.ts, JON-201). Backfill busca mais candidatos do NOSSO
-// catalogo pra fechar esse alvo, na mesma categoria/tag do carrossel.
-const TARGET_POOL_SIZE = 12;
+// carrossel -- quando boa parte deles nao e vendavel no nosso catalogo
+// (syncOption=NUNCA, comum em hortifruti), a vitrine encolhia sem nenhum
+// reforço. Backfill busca mais candidatos do NOSSO catalogo pra fechar esse
+// alvo, na mesma categoria/tag do carrossel.
+//
+// 23/09/2026: subido de 12 pra 30 (a pedido do Jonathan, confirmado direto
+// -- a AntenorApi tambem ampliou o pool deles pra 30 na v1.20.4 pra isso) --
+// pool maior pro shuffle da Home ter mais produtos diferentes pra sortear
+// a cada visita, nao so os mesmos 12 sempre.
+const TARGET_POOL_SIZE = 30;
 
 const PRODUCT_SELECT = {
   id: true,
