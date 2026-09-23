@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notificationsAPI } from '../services/api'
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -35,6 +35,7 @@ function isStandalone() {
 }
 
 export function useNotifications() {
+  const queryClient = useQueryClient()
   const [pushStatus, setPushStatus] = useState<
     'idle' | 'enabled' | 'denied' | 'dismissed' | 'unsupported' | 'insecure-context' | 'ios-needs-install' | 'ios-outdated' | 'missing-key' | 'error'
   >('idle')
@@ -107,7 +108,11 @@ export function useNotifications() {
   const markAsReadMut = useMutation({
     mutationFn: (id: string) => notificationsAPI.markAsRead(id),
     onSuccess: () => {
+      // 23/09/2026: so refetch() da lista, o contador do sininho e query
+      // separada ('notifications-unread') -- ficava preso ate o poll de 30s
+      // seguinte, entao clicar/ler a notificacao nao zerava o numero na hora.
       refetch()
+      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] })
     },
   })
 
