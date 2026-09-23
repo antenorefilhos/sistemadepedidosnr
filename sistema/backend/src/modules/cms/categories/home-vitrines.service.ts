@@ -22,7 +22,13 @@ function buildLinkVerTudo(tipoFiltro?: string, valorFiltro?: string): string {
   if (tipoFiltro === 'tag') return `/mercado?tag=${encodeURIComponent(valorFiltro)}`;
   if (tipoFiltro === 'departamento') {
     const categoria = DEPARTMENT_TO_CATEGORY[valorFiltro];
-    return categoria ? `/mercado?cat=${encodeURIComponent(categoria)}` : '/mercado';
+    if (categoria) return `/mercado?cat=${encodeURIComponent(categoria)}`;
+    // 23/09/2026: "Bebidas & Adega" (e qualquer departamento sem 1:1 com
+    // nosso enum de categoria -- o departamento cobre 4 categorias nossas
+    // distintas: cerveja, vinho, destilado, suco) caia no /mercado generico.
+    // classification01 e mais grosso que o enum mas ainda filtra por
+    // departamento de verdade, em vez de mostrar a loja inteira.
+    return `/mercado?classification01=${encodeURIComponent(valorFiltro)}`;
   }
   if (tipoFiltro === 'categoria') {
     // classification02 no banco vem com prefixo numerico ("02 - BOVINOS"),
@@ -124,7 +130,13 @@ export class HomeVitrinesService {
           return true;
         });
 
-      if (produtosResolvidos.length < TARGET_POOL_SIZE && produtosResolvidos.length >= MIN_SHELF_ITEMS) {
+      // 23/09/2026: o gate exigia >=MIN_SHELF_ITEMS ANTES do reforco --
+      // carrossel que resolvia a zero localmente (ex.: Carnes com erpProductId
+      // que ainda nao bate no nosso catalogo) nunca tentava reforcar e era
+      // descartado, mesmo havendo dezenas de candidatos sellable na mesma
+      // categoria. O minimo final ja e garantido pelo filter logo abaixo do
+      // loop -- aqui so falta checar se ha espaco pra reforcar (< alvo).
+      if (produtosResolvidos.length < TARGET_POOL_SIZE) {
         const faltam = TARGET_POOL_SIZE - produtosResolvidos.length;
         const categoryCode =
           carrossel.tipoFiltro === 'departamento' && carrossel.valorFiltro

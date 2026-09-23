@@ -218,4 +218,45 @@ describe('HomeVitrinesService', () => {
       mode: 'insensitive',
     });
   });
+
+  // 23/09/2026: carrossel "Carnes" resolveu a ZERO localmente (erpProductId
+  // novo, catalogo local ainda nao tinha) e foi descartado mesmo havendo
+  // dezenas de candidatos sellable na mesma categoria -- o gate exigia
+  // >=MIN_SHELF_ITEMS ja resolvidos ANTES de tentar reforcar.
+  it('reforca mesmo quando o carrossel resolve a zero produtos localmente', async () => {
+    const remota = {
+      contexto: { perfil: 'bairro', momento: 'semana', mes: 9 },
+      personalidadeAtiva: { titulo: 't', subtitulo: 's', bannerPrincipal: { headline: '', subheadline: '', ctaTexto: '', tagFoco: '' } },
+      carrosseis: [
+        {
+          id: 'carnes',
+          titulo: 'Carnes para o Dia a Dia',
+          subtitulo: '',
+          tipoFiltro: 'departamento',
+          valorFiltro: 'Açougue, Aves & Peixaria',
+          // nenhum desses erpProductId existe no catalogo local (simulacao)
+          produtos: [901, 902, 903].map((erpId) => ({ id: erpId, sku: String(erpId), syncOption: 'ESTOQUE' as const })),
+        },
+      ],
+    };
+    const candidatosReforco = Array.from({ length: 12 }, (_, i) =>
+      produtoLocal(200 + i, { id: `reforco-${i}`, category: 'ACOUGUE_CHURRASCO', erpProductId: null }),
+    );
+
+    const antenorApi = { getVitrines: jest.fn().mockResolvedValue(remota) };
+    const prisma = {
+      product: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([]) // resolucao por erpProductId: nenhum bate
+          .mockResolvedValueOnce(candidatosReforco), // reforco por category
+      },
+    };
+    const service = new HomeVitrinesService(prisma as never, antenorApi as never);
+
+    const resultado = await service.getHomeVitrines({});
+
+    expect(resultado.carrosseis).toHaveLength(1);
+    expect(resultado.carrosseis[0].produtos.length).toBe(12);
+    expect(prisma.product.findMany.mock.calls[1][0].where.category).toBe('ACOUGUE_CHURRASCO');
+  });
 });
