@@ -7,7 +7,20 @@
     <link rel="apple-touch-icon" href="/branding/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Antenor & Filhos - Qualidade e Tradição em cada item" />
-    <title>Antenor & Filhos | Premium Shopping</title>
+    <title>Antenor & Filhos Mercado</title>
+
+    <!-- Open Graph / compartilhamento (WhatsApp, Telegram, Facebook...): esses
+         crawlers NAO rodam JavaScript, entao as tags do SEO.tsx (react-helmet,
+         so aplicadas no navegador) nunca chegam neles -- so o HTML estatico
+         daqui conta. Achado em 23/09/2026: faltavam por completo, o preview
+         caia no <title> cru ("Premium Shopping") sem imagem nenhuma. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Antenor & Filhos" />
+    <meta property="og:title" content="Antenor & Filhos Mercado" />
+    <meta property="og:description" content="Qualidade e Tradição em cada item. Açougue, Adega e Padaria Artesanal, com entrega rápida." />
+    <meta property="og:image" content="https://mercado.antenorefilhos.com.br/branding/logo-horizontal-bordo.png" />
+    <meta property="og:url" content="https://mercado.antenorefilhos.com.br" />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <!-- Preconnect: fonts e API -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />

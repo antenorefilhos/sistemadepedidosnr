@@ -18,15 +18,15 @@ export function SEO({
   description = 'Antenor & Filhos - Qualidade, Tradição e Elegância. Açougue, Adega e Padaria Artesanal.',
   canonical,
   type = 'website',
-  image = '/og-image.png',
+  image = '/branding/logo-horizontal-bordo.png',
   noindex = false,
   keywords,
 }: SEOProps) {
-  const fullTitle = title ? `${title} | ${SITE_NAME}` : `${SITE_NAME} | Mercado Premium`;
+  const fullTitle = title ? `${title} | ${SITE_NAME}` : `${SITE_NAME} Mercado`;
   const resolvedCanonical = canonical
     ? (canonical.startsWith('http') ? canonical : `${SITE_ORIGIN}${canonical}`)
     : (typeof window !== 'undefined' ? window.location.href : undefined);
-  const safeImage = image || '/og-image.png';
+  const safeImage = image || '/branding/logo-horizontal-bordo.png';
   const ogImage = safeImage.startsWith('http') ? safeImage : `${SITE_ORIGIN}${safeImage}`;
 
   return (
