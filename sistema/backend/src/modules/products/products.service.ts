@@ -1431,6 +1431,17 @@ export class ProductsService {
     // manda so as mudancas e deactivaria o catalogo inteiro por engano).
     const deactivation = await this.deactivateMissingFromErp(syncResult.data)
 
+    // 23/09/2026: TipoIntegracao=SEMPRE gravado direto no cadastro do ERP
+    // (fora do Motor de Presenca Real) nunca e revalidado -- 178 produtos
+    // (bacalhau importado, fondue, panetone/tender de fim de ano) ficavam
+    // "sempre vendaveis" com estoque zero/negativo sem NENHUMA venda real
+    // recente, mesmo apos a AntenorApi prometer ter limpo isso. Nao da mais
+    // pra confiar so na promessa deles -- aqui cruzamos com a propria lista
+    // de "salvos" do motor (quem tem venda real comprovada) e rebaixamos
+    // pra ESTOQUE (que ja esconde produto sem saldo) quem nao aparece la.
+    const semprePresenceCheck =
+      source === 'antenorapi' ? await this.downgradeUnvalidatedSempre() : { downgraded: 0, skipped: true, reason: 'fonte nao e antenorapi' }
+
     const result = {
       success: true,
       products: syncResult.data.length,
@@ -1439,6 +1450,7 @@ export class ProductsService {
       taxonomy,
       promotions,
       deactivation,
+      semprePresenceCheck,
       data: syncResult.data.slice(0, 20),
     }
 
@@ -1451,6 +1463,7 @@ export class ProductsService {
         synced: result.synced,
         errors: result.errors,
         deactivated: deactivation.deactivated,
+        semprePresenceDowngraded: semprePresenceCheck.downgraded,
         at: new Date().toISOString(),
       },
     })
@@ -1536,6 +1549,62 @@ export class ProductsService {
       pendingConfirmation: missing.length - newlyMissing.length - readyToDeactivate.length,
       candidatesEvaluated: currentlyActive.length,
     }
+  }
+
+  /**
+   * `syncOption=SEMPRE` gravado direto no cadastro do ERP (TipoIntegracao)
+   * nunca passa pelo Motor de Presenca Real da AntenorApi quando ja veio
+   * assim de origem -- so os itens que o MOTOR promove (estoque negativo +
+   * venda real no PDV) aparecem em `/mostruario/produtos-salvos`. Achado em
+   * 23/09/2026: 178 produtos (bacalhau importado, fondue, panetone/tender
+   * de fim de ano) ficavam "sempre vendaveis" com estoque zero/negativo sem
+   * NENHUMA venda recente -- a "muleta do estoque" que a AntenorApi disse
+   * ter eliminado so cobria os itens que o motor decidia, nao o cadastro
+   * cru. Cruza com a lista de salvos (quem tem venda real comprovada) e
+   * rebaixa pra ESTOQUE (que ja esconde produto sem saldo, via
+   * isProductSellable) quem nao aparece la -- nao apaga o SEMPRE gravado
+   * pelo ERP, so para de confiar cegamente nele quando nao ha estoque.
+   */
+  private async downgradeUnvalidatedSempre() {
+    const DEFAULT_FILIAL_ID = 1
+    let salvos: unknown[]
+    try {
+      salvos = await this.antenorApiService.getMostruarioProdutosSalvos(DEFAULT_FILIAL_ID)
+    } catch (error) {
+      this.logger.warn(`sempre_presence_check_falhou: ${error instanceof Error ? error.message : 'erro desconhecido'}`)
+      return { downgraded: 0, skipped: true, reason: 'endpoint de mostruario indisponivel' }
+    }
+
+    const validados = new Set(
+      salvos
+        .map((item) => (item as { cdProduto?: number })?.cdProduto)
+        .filter((id): id is number => typeof id === 'number'),
+    )
+
+    const candidatos = await this.prisma.product.findMany({
+      where: { active: true, syncOption: 'SEMPRE', stock: { lte: 0 } },
+      select: { id: true, erpProductId: true },
+    })
+
+    const paraRebaixar = candidatos.filter(
+      (p) => p.erpProductId == null || !validados.has(p.erpProductId),
+    )
+
+    if (paraRebaixar.length === 0) {
+      return { downgraded: 0, skipped: false, reason: null, candidatesEvaluated: candidatos.length }
+    }
+
+    await this.prisma.product.updateMany({
+      where: { id: { in: paraRebaixar.map((p) => p.id) } },
+      data: { syncOption: 'ESTOQUE' },
+    })
+    await this.productSearchService.indexProductsByIds(paraRebaixar.map((p) => p.id))
+
+    this.logger.log(
+      `sempre_presence_check_rebaixados count=${paraRebaixar.length} de ${candidatos.length} SEMPRE+estoque<=0 avaliados`,
+    )
+
+    return { downgraded: paraRebaixar.length, skipped: false, reason: null, candidatesEvaluated: candidatos.length }
   }
 
   /**

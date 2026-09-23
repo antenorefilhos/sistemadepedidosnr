@@ -76,6 +76,7 @@ const mockSolidcomERPService = {
 const mockAntenorApiService = {
   syncProducts: jest.fn(),
   fetchRecentChanges: jest.fn().mockResolvedValue([]),
+  getMostruarioProdutosSalvos: jest.fn().mockResolvedValue([]),
 };
 const mockAuditLogService = { log: jest.fn() };
 const mockProductSearchService = {
@@ -309,6 +310,73 @@ describe('ProductsService', () => {
       await service.remove('1');
 
       expect(mockProductSearchService.indexProductById).toHaveBeenCalled();
+    });
+  });
+
+  describe('syncFromERP - rebaixa SEMPRE nao validado pelo Motor de Presenca Real (23/09/2026)', () => {
+    beforeEach(() => {
+      mockPrismaService.product.findFirst.mockResolvedValue(null);
+      mockPrismaService.product.create.mockResolvedValue({ id: 'novo' });
+      mockPrismaService.product.updateMany.mockClear();
+      mockIntegrationModulesService.isEnabled.mockImplementation((key: string) => Promise.resolve(key === 'antenorapi'));
+    });
+
+    afterEach(() => {
+      mockIntegrationModulesService.isEnabled.mockImplementation((key: string) => Promise.resolve(key === 'solidcom'));
+      mockPrismaService.product.findMany.mockReset().mockResolvedValue([]);
+    });
+
+    // product.findMany e chamado por 3 rotinas diferentes no mesmo sync
+    // (taxonomia, desativacao por ausencia, esse rebaixamento) -- roteia pelo
+    // formato do `where` em vez de depender da ORDEM das chamadas, que muda
+    // toda vez que uma dessas rotinas ganha/perde uma chamada extra.
+    function routeFindManyByWhere(candidatosSempre: unknown[]) {
+      return (args: { where?: Record<string, unknown> }) => {
+        const where = args?.where || {};
+        if (where.syncOption === 'SEMPRE') return Promise.resolve(candidatosSempre);
+        return Promise.resolve([]); // taxonomia e deactivateMissingFromErp: sem produto no cenario
+      };
+    }
+
+    it('rebaixa pra ESTOQUE quem tem SEMPRE+estoque<=0 mas nao aparece nos salvos do motor', async () => {
+      mockAntenorApiService.syncProducts.mockResolvedValue({ status: 'success', data: [] });
+      mockAntenorApiService.getMostruarioProdutosSalvos.mockResolvedValue([{ cdProduto: 1 }]);
+      mockPrismaService.product.findMany.mockImplementation(routeFindManyByWhere([
+        { id: 'a', erpProductId: 1 }, // validado pelo motor, nao mexe
+        { id: 'b', erpProductId: 999 }, // NAO validado, rebaixa
+      ]));
+
+      const result = await service.syncFromERP();
+
+      expect(mockPrismaService.product.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['b'] } },
+        data: { syncOption: 'ESTOQUE' },
+      });
+      expect((result as any).semprePresenceCheck.downgraded).toBe(1);
+    });
+
+    it('nao mexe em nada quando todo SEMPRE+estoque<=0 esta validado pelo motor', async () => {
+      mockAntenorApiService.syncProducts.mockResolvedValue({ status: 'success', data: [] });
+      mockAntenorApiService.getMostruarioProdutosSalvos.mockResolvedValue([{ cdProduto: 1 }]);
+      mockPrismaService.product.findMany.mockImplementation(routeFindManyByWhere([{ id: 'a', erpProductId: 1 }]));
+
+      const result = await service.syncFromERP();
+
+      expect(mockPrismaService.product.updateMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: { syncOption: 'ESTOQUE' } }),
+      );
+      expect((result as any).semprePresenceCheck.downgraded).toBe(0);
+    });
+
+    it('nao roda quando a fonte do sync e o Solidcom, nao a AntenorApi', async () => {
+      mockIntegrationModulesService.isEnabled.mockImplementation((key: string) => Promise.resolve(key === 'solidcom'));
+      mockSolidcomERPService.syncProducts.mockResolvedValue({ status: 'success', data: [] });
+      mockPrismaService.product.findMany.mockImplementation(routeFindManyByWhere([]));
+
+      const result = await service.syncFromERP();
+
+      expect(mockAntenorApiService.getMostruarioProdutosSalvos).not.toHaveBeenCalled();
+      expect((result as any).semprePresenceCheck.skipped).toBe(true);
     });
   });
 
