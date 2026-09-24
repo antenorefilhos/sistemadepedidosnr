@@ -10,15 +10,22 @@ import { buttonVariants } from './ui/button'
  * (que exige `image`). Decisao do Jonathan (18/09/2026): nunca substitui o
  * Hero manual (StoreBanner slot=hero) -- sempre aparece como faixa separada,
  * abaixo dele, os dois juntos.
+ *
+ * 23/09/2026: a API tambem manda `tagFoco` (ex.: "linha-economica"), pensado
+ * pra CTA levar pro assunto do banner -- ficou implementado so ate a metade,
+ * o botao sempre ia pro /mercado generico. "Economia e Praticidade" com CTA
+ * pro catalogo inteiro nao fazia sentido nenhum pro cliente.
  */
 export function DynamicVitrineBanner({
   headline,
   subheadline,
   ctaLabel,
+  tagFoco,
 }: {
   headline: string
   subheadline: string
   ctaLabel: string
+  tagFoco?: string
 }) {
   return (
     <div className="max-w-7xl mx-auto px-4 pt-3">
@@ -28,7 +35,7 @@ export function DynamicVitrineBanner({
           <p className="text-white/80 text-sm mt-0.5 line-clamp-2">{subheadline}</p>
         </div>
         <Link
-          to="/mercado"
+          to={tagFoco ? `/mercado?tag=${encodeURIComponent(tagFoco)}` : '/mercado'}
           className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'shrink-0 whitespace-nowrap' })}
         >
           {ctaLabel}

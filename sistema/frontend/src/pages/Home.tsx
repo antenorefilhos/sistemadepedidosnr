@@ -759,6 +759,7 @@ export default function Home() {
           headline={vitrinesData.personalidadeAtiva.bannerPrincipal.headline}
           subheadline={vitrinesData.personalidadeAtiva.bannerPrincipal.subheadline}
           ctaLabel={vitrinesData.personalidadeAtiva.bannerPrincipal.ctaTexto}
+          tagFoco={vitrinesData.personalidadeAtiva.bannerPrincipal.tagFoco}
         />
       )}
 
