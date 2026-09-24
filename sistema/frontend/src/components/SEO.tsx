@@ -18,7 +18,7 @@ export function SEO({
   description = 'Antenor & Filhos - Qualidade, Tradição e Elegância. Açougue, Adega e Padaria Artesanal.',
   canonical,
   type = 'website',
-  image = '/branding/logo-horizontal-bordo.png',
+  image = '/branding/pwa-icon-512.png',
   noindex = false,
   keywords,
 }: SEOProps) {
@@ -26,7 +26,7 @@ export function SEO({
   const resolvedCanonical = canonical
     ? (canonical.startsWith('http') ? canonical : `${SITE_ORIGIN}${canonical}`)
     : (typeof window !== 'undefined' ? window.location.href : undefined);
-  const safeImage = image || '/branding/logo-horizontal-bordo.png';
+  const safeImage = image || '/branding/pwa-icon-512.png';
   const ogImage = safeImage.startsWith('http') ? safeImage : `${SITE_ORIGIN}${safeImage}`;
 
   return (
@@ -48,7 +48,7 @@ export function SEO({
       <meta property="og:site_name" content={SITE_NAME} />
       {resolvedCanonical && <meta property="og:url" content={resolvedCanonical} />}
 
-      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:card" content="summary" />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />
