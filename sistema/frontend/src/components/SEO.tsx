@@ -18,7 +18,7 @@ export function SEO({
   description = 'Antenor & Filhos - Qualidade, Tradição e Elegância. Açougue, Adega e Padaria Artesanal.',
   canonical,
   type = 'website',
-  image = '/branding/pwa-icon-512.png',
+  image = '/branding/og-image.png',
   noindex = false,
   keywords,
 }: SEOProps) {
@@ -26,7 +26,7 @@ export function SEO({
   const resolvedCanonical = canonical
     ? (canonical.startsWith('http') ? canonical : `${SITE_ORIGIN}${canonical}`)
     : (typeof window !== 'undefined' ? window.location.href : undefined);
-  const safeImage = image || '/branding/pwa-icon-512.png';
+  const safeImage = image || '/branding/og-image.png';
   const ogImage = safeImage.startsWith('http') ? safeImage : `${SITE_ORIGIN}${safeImage}`;
 
   return (
