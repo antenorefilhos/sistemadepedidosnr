@@ -42,6 +42,7 @@ const mockPrismaService: any = {
   },
   productCategoryMapping: {
     findMany: jest.fn().mockResolvedValue([{ ean: '123' }]),
+    upsert: jest.fn().mockResolvedValue({}),
   },
   categoryMappingPending: {
     findMany: jest.fn().mockResolvedValue([]),
@@ -661,6 +662,32 @@ describe('ProductsService', () => {
 
       expect(mockPrismaService.product.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ category: 'PADARIA_CONFEITARIA_CAFE' }) }),
+      );
+    });
+    // 25/09/2026: departamento da AntenorApi vence o mapping legado e
+    // regrava product_category_mappings (o que a navegacao do site le).
+    it('departamento vence mapping legado e regrava o mapping da navegacao', async () => {
+      mockSolidcomERPService.syncProducts.mockResolvedValue({
+        status: 'success',
+        data: [{ ean: '555', name: 'Cafe Torrado', price: 20, ecommerceDepartment: 'Mercearia & Despensa' }],
+      });
+      mockPrismaService.productCategoryMapping.findMany.mockResolvedValueOnce([
+        { ean: '555', categoryId: 'cat-doces', category: { name: 'Doces, Chocolates & Snacks' } },
+      ]);
+      mockPrismaService.category.findMany.mockResolvedValueOnce([
+        { id: 'cat-doces', name: 'Doces, Chocolates & Snacks' },
+        { id: 'cat-mercearia', name: 'Mercearia & Despensa' },
+      ]);
+      mockPrismaService.product.findUnique.mockResolvedValue(null);
+      mockPrismaService.product.create.mockResolvedValue({ id: 'cafe-1', ean: '555' });
+
+      await service.syncFromERP();
+
+      expect(mockPrismaService.product.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ category: 'MERCEARIA_DESPENSA' }) }),
+      );
+      expect(mockPrismaService.productCategoryMapping.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { ean: '555' }, update: expect.objectContaining({ categoryId: 'cat-mercearia' }) }),
       );
     });
   });

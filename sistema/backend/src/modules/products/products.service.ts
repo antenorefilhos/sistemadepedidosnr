@@ -141,7 +141,7 @@ const CATEGORY_CATALOG: CategoryCatalogItem[] = [
 // departamento por `categoriaEcommerce` (mais fino).
 export const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
   'Açougue, Aves & Peixaria': 'ACOUGUE_CHURRASCO',
-  'Bebê & Infantil': 'BEBE_INFANTIL', // sem categoria N1 oficial equivalente
+  'Bebê & Infantil': 'BEBE_INFANTIL',
   'Biscoitos, Doces & Snacks': 'DOCES_CHOCOLATES_SNACKS',
   'Café da Manhã & Matinais': 'PADARIA_CONFEITARIA_CAFE', // mesmo N1 de "Padaria & Confeitaria"
   'Congelados & Pratos Prontos': 'CONGELADOS_PRATICOS',
@@ -149,10 +149,12 @@ export const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
   'Hortifruti & Orgânicos': 'HORTIFRUTI_ORGANICOS',
   'Limpeza & Lavanderia': 'LIMPEZA_CUIDADOS_DA_CASA',
   'Mercearia & Despensa': 'MERCEARIA_DESPENSA',
-  'Mundo Saudável & Especial': 'MUNDO_SAUDAVEL_ESPECIAL', // sem categoria N1 oficial equivalente
+  'Mundo Saudável & Especial': 'MUNDO_SAUDAVEL_ESPECIAL',
   'Padaria & Confeitaria': 'PADARIA_CONFEITARIA_CAFE',
   'Pet Shop': 'PET_SHOP',
   'Queijos, Frios & Laticínios': 'QUEIJOS_FRIOS_LATICINIOS',
+  'Bazar & Utilidades': 'BAZAR_UTILIDADES',
+  'Tabacaria (+18)': 'TABACARIA',
 }
 
 // JON-192 (18/09/2026, alinhamento AEF-045 14:40/15:15): de-para exato pras
@@ -1657,6 +1659,7 @@ export class ProductsService {
           where: { ean: { in: allEans } },
           select: {
             ean: true,
+            categoryId: true,
             category: {
               select: { name: true },
             },
@@ -1666,6 +1669,15 @@ export class ProductsService {
 
     const mappingByEan = new Map(
       mappings.map((item) => [item.ean, item]),
+    )
+
+    // 25/09/2026: a navegacao do storefront le product_category_mappings, nao
+    // Product.category. Departamento da AntenorApi agora e a fonte da
+    // categoria -- entao o sync regrava o mapping a partir dele (codigo ->
+    // categoria CMS pelo nome normalizado).
+    const cmsCategoryIdByCode = new Map(
+      (await this.prisma.category.findMany({ where: { parentId: null }, select: { id: true, name: true } }))
+        .map((c) => [this.normalizeCategoryKey(c.name), c.id]),
     )
 
     let synced = 0
@@ -1684,8 +1696,7 @@ export class ProductsService {
         // de-para oficial (match exato, sem keyword) quando o departamento
         // ou a categoriaEcommerce (bebidas) tem correspondencia 1:1
         // confirmada; senao cai no classificador por palavra-chave ja usado
-        // pro path classification01-04. So entra quando NAO ha mapping
-        // legado, entao categoria que ja funciona via mapping nunca muda.
+        // pro path classification01-04.
         const departmentCategoryCode = item.ecommerceDepartment
           ? DEPARTMENT_TO_CATEGORY[item.ecommerceDepartment] ||
             (item.ecommerceDepartment === 'Bebidas & Adega' && item.ecommerceCategory
@@ -1695,9 +1706,13 @@ export class ProductsService {
         const ecommerceCategoryCode = !mappedCategoryCode && !departmentCategoryCode
           ? this.inferCategoryFromMercadologicalPath(item.ecommerceDepartment, item.ecommerceCategory, undefined, undefined, item.name)
           : undefined
+        // 25/09/2026: inverte o JON-192 -- departamento da AntenorApi vence o
+        // mapping legado (handoff EAN->categoria, que tinha cafe/acucar em
+        // Doces). O mapping so decide quando o ERP nao manda departamento
+        // (Solidcom).
         const categoryCode =
-          mappedCategoryCode ||
           departmentCategoryCode ||
+          mappedCategoryCode ||
           (ecommerceCategoryCode !== 'NAO_CLASSIFICADO' ? ecommerceCategoryCode : undefined) ||
           'NAO_CLASSIFICADO'
 
@@ -1793,7 +1808,16 @@ export class ProductsService {
 
         await this.ensureProductMasterFromLegacyProduct(product)
 
-        if (!mapped) {
+        const departmentCategoryId = departmentCategoryCode ? cmsCategoryIdByCode.get(departmentCategoryCode) : undefined
+        if (departmentCategoryId) {
+          if (mappingByEan.get(mainEan)?.categoryId !== departmentCategoryId) {
+            await this.prisma.productCategoryMapping.upsert({
+              where: { ean: mainEan },
+              update: { categoryId: departmentCategoryId, subCategoryId: null, source: 'antenor_api' },
+              create: { ean: mainEan, categoryId: departmentCategoryId, source: 'antenor_api' },
+            })
+          }
+        } else if (!mapped) {
           unmappedSyncedEans.add(mainEan)
         }
 
