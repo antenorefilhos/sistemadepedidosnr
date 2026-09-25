@@ -1,4 +1,4 @@
-import { HomeVitrinesService } from './home-vitrines.service';
+import { HomeVitrinesService, fitsTagShelf } from './home-vitrines.service';
 
 function produtoLocal(erpProductId: number, overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -258,5 +258,27 @@ describe('HomeVitrinesService', () => {
     expect(resultado.carrosseis).toHaveLength(1);
     expect(resultado.carrosseis[0].produtos.length).toBe(30);
     expect(prisma.product.findMany.mock.calls[1][0].where.category).toBe('ACOUGUE_CHURRASCO');
+  });
+});
+
+// 25/09/2026: tag de ocasiao da AntenorApi vem por palavra no nome -- casos
+// reais achados no catalogo.
+describe('fitsTagShelf', () => {
+  it('adega-e-queijos aceita vinho e queijo, recusa salgadinho e empanado com "queijo" no nome', () => {
+    expect(fitsTagShelf('adega-e-queijos', '02 - BEBIDAS & ADEGA')).toBe(true);
+    expect(fitsTagShelf('adega-e-queijos', '03 - QUEIJOS, FRIOS & LATICÍNIOS')).toBe(true);
+    expect(fitsTagShelf('adega-e-queijos', '08 - BISCOITOS, DOCES & SNACKS')).toBe(false); // Cheetos Requeijao
+    expect(fitsTagShelf('adega-e-queijos', '10 - CONGELADOS & PRATOS PRONTOS')).toBe(false); // Empanado Queijo
+  });
+
+  it('churrasco recusa creme dental "Carvao Ativado"', () => {
+    expect(fitsTagShelf('churrasco', '04 - CARNES, AVES & PEIXARIA')).toBe(true);
+    expect(fitsTagShelf('churrasco', '06 - HIGIENE PESSOAL & BELEZA')).toBe(false);
+  });
+
+  it('tag fora do mapa nunca aceita higiene/limpeza/tabacaria, aceita o resto', () => {
+    expect(fitsTagShelf('integral', '06 - HIGIENE PESSOAL & BELEZA')).toBe(false); // sabonete Aveia
+    expect(fitsTagShelf('diet-light', '07 - LIMPEZA & LAVANDERIA')).toBe(false); // luva Light
+    expect(fitsTagShelf('integral', '09 - CAFÉ DA MANHÃ & MATINAIS')).toBe(true);
   });
 });

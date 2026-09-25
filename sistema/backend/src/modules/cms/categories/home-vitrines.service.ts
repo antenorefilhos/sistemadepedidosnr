@@ -13,6 +13,33 @@ function isAutoSurfaceable(produto: { category?: string | null; active?: boolean
   return produto.category !== 'TABACARIA' && isProductSellable(produto);
 }
 
+// 25/09/2026: a AntenorApi aplica tag de ocasiao por PALAVRA NO NOME, nao
+// pelo que o produto e -- "Carvao" vira churrasco (creme dental Colgate
+// Carvao), "Queijo/Requeijao" vira adega-e-queijos (Cheetos, empanado),
+// "Aveia" vira integral (sabonete). Vitrine de tag so aceita produto dos
+// departamentos que fazem sentido pra ela (classification01, que vem do
+// cadastro mercadologico, nao do nome). Tag fora do mapa: pelo menos nunca
+// mostra higiene/limpeza/tabacaria numa vitrine de ocasiao de comida.
+const DEPTS_ADEGA_QUEIJOS = ['BEBIDAS & ADEGA', 'QUEIJOS, FRIOS'];
+const TAG_ALLOWED_DEPARTMENTS: Record<string, string[]> = {
+  'adega-e-queijos': DEPTS_ADEGA_QUEIJOS,
+  'queijos-e-vinhos': DEPTS_ADEGA_QUEIJOS,
+  churrasco: ['CARNES', 'MERCEARIA', 'BEBIDAS', 'QUEIJOS'],
+  'linha-economica': ['MERCEARIA', 'CAFÉ DA MANHÃ', 'QUEIJOS', 'LIMPEZA', 'HIGIENE', 'PADARIA', 'HORTIFRUTI'],
+  'cafe-da-manha': ['CAFÉ DA MANHÃ', 'PADARIA', 'QUEIJOS', 'BISCOITOS', 'HORTIFRUTI'],
+  sobremesa: ['BISCOITOS', 'PADARIA', 'CAFÉ DA MANHÃ', 'QUEIJOS', 'CONGELADOS', 'MUNDO SAUDÁVEL'],
+  'boteco-em-casa': ['BISCOITOS', 'MERCEARIA', 'BEBIDAS', 'QUEIJOS', 'CARNES', 'CONGELADOS', 'PADARIA'],
+  'lanche-rapido': ['BISCOITOS', 'BEBIDAS', 'PADARIA', 'QUEIJOS', 'CONGELADOS'],
+};
+const NON_FOOD_DEPARTMENTS = ['HIGIENE', 'LIMPEZA', 'TABACARIA'];
+
+export function fitsTagShelf(tag: string, classification01?: string | null): boolean {
+  const depto = (classification01 || '').toUpperCase();
+  const allowed = TAG_ALLOWED_DEPARTMENTS[tag];
+  if (allowed) return allowed.some((d) => depto.includes(d));
+  return !NON_FOOD_DEPARTMENTS.some((d) => depto.includes(d));
+}
+
 // JON-198 (reaberto 22/09/2026): "Ver mais" caia sempre no /mercado generico
 // pra carrossel tipoFiltro='departamento'/'categoria' -- so 'tag' tinha link
 // calculado, e no frontend (que nao tem DEPARTMENT_TO_CATEGORY). Resolvido
@@ -70,6 +97,7 @@ const PRODUCT_SELECT = {
   origin: true,
   active: true,
   erpProductId: true,
+  classification01: true,
 } as const;
 
 export type HomeVitrinesQuery = {
@@ -128,6 +156,7 @@ export class HomeVitrinesService {
         .map((item) => porErpId.get(item.id))
         .filter((produto): produto is NonNullable<typeof produto> => !!produto)
         .filter((produto) => isAutoSurfaceable(produto))
+        .filter((produto) => carrossel.tipoFiltro !== 'tag' || !carrossel.valorFiltro || fitsTagShelf(carrossel.valorFiltro, produto.classification01))
         .filter((produto) => {
           if (jaUsados.has(produto.id)) return false;
           jaUsados.add(produto.id);
@@ -171,6 +200,7 @@ export class HomeVitrinesService {
           for (const produto of reforco) {
             if (produtosResolvidos.length >= TARGET_POOL_SIZE) break;
             if (jaUsados.has(produto.id) || !isAutoSurfaceable(produto)) continue;
+            if (tagFiltro && !fitsTagShelf(tagFiltro, produto.classification01)) continue;
             jaUsados.add(produto.id);
             produtosResolvidos.push(produto);
           }
