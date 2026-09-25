@@ -380,6 +380,21 @@ describe('PricingService', () => {
       expect(quote.items[0].unitPrice).toBe(70)
     })
 
+    it('item pesavel: quantity e kg, preco por kg -- nao multiplica pelo step de novo', async () => {
+      mockPrismaService.product.findMany.mockResolvedValue([
+        {
+          id: 'prod-1', ean: '2701', name: 'Pao Frances', category: 'PADARIA', tenantId: 'tenant_default', storeId: 'store_default',
+          price: 24.99, promotionalPrice: null, promotionalPriceValidUntil: null, active: true, syncOption: 'SEMPRE',
+          isFractional: true, fractionStep: 0.07,
+        },
+      ])
+
+      const quote = await service.quote({ tenantId: 'tenant_default', storeId: 'store_default', items: [{ productId: 'prod-1', quantity: 0.42 }] })
+
+      expect(quote.items[0].unitPrice).toBe(24.99)
+      expect(quote.items[0].subtotal).toBe(10.5)
+    })
+
     it('promocao sem prazo (promotionalPriceValidUntil null) sempre vale, mesmo com deliveryDate', async () => {
       mockPrismaService.product.findMany.mockResolvedValue([
         {

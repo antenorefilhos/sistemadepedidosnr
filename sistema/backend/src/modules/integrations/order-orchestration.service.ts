@@ -218,12 +218,9 @@ export class OrderOrchestrationService {
             },
       },
       itens: payload.items.map((item) => {
-        // Mesma conversao do Solidcom: nosso `quantity` de item pesavel guarda
-        // numero de "steps", o ERP espera peso real.
-        const isWeighed = Boolean(item.isFractional) && Boolean(item.fractionStep)
-        const quantityRaw = isWeighed ? item.quantity * (item.fractionStep as number) : item.quantity
-        const quantidade = Number(quantityRaw.toFixed(3))
-        const precoUnitario = isWeighed ? (item.listUnitPrice ?? item.unitPrice) : item.unitPrice
+        // Item pesavel: `quantity` ja e peso real em kg e `unitPrice` ja e por kg.
+        const quantidade = Number(item.quantity.toFixed(3))
+        const precoUnitario = item.unitPrice
 
         return {
           // cdProduto e obrigatorio pra AntenorApi (diferente do Solidcom, que
@@ -708,18 +705,13 @@ export class OrderOrchestrationService {
         const hasScaleLabel = Boolean(scaleData)
         const cdProduto = hasScaleLabel ? scaleData!.productCode : this.parseInteger(item.productId)
 
-        // Produtos pesaveis: nosso OrderItem.quantity guarda o numero de
-        // "steps" que o cliente escolheu (ex: 3 steps de 0.4kg), nao o peso
-        // real. O ERP espera quantidade em peso real e valorUnitario por kg
-        // -- sem essa conversao o Solidcom recebe "3" em vez de "1.2" (kg).
-        const isWeighed = !hasScaleLabel && Boolean(item.isFractional) && Boolean(item.fractionStep)
+        // Item pesavel: OrderItem.quantity ja e peso real em kg e unitPrice ja
+        // e por kg (ver PricingService.quote) -- sem conversao por step.
         const quantityRaw = hasScaleLabel
           ? scaleData!.totalValue / Math.max(item.unitPrice, 0.0001)
-          : isWeighed
-          ? item.quantity * (item.fractionStep as number)
           : item.quantity
         const quantity = Number(quantityRaw.toFixed(3))
-        const valorUnitario = isWeighed ? (item.listUnitPrice ?? item.unitPrice) : item.unitPrice
+        const valorUnitario = item.unitPrice
 
         return {
           numero: index + 1,

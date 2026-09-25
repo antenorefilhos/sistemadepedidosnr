@@ -3,7 +3,6 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext } from '../../common/tenant/tenant-context'
-import { resolveEffectiveFractional } from '../../common/fractional.util'
 
 type PricingContext = Partial<Pick<TenantContext, 'tenantId' | 'storeId'>>
 
@@ -281,14 +280,11 @@ export class PricingService {
         listUnitPrice = clubPrice
       }
 
-      // Produtos pesaveis vendem por step fracional (ex: 0.4kg), nao por
-      // unidade cheia. `item.quantity` e o numero de steps que o cliente
-      // escolheu -- o preco por step precisa multiplicar unitPrice pelo
-      // fractionStep efetivo (ERP ou override manual) antes do subtotal,
-      // senao o cliente e cobrado o preco de 1kg inteiro por step.
-      const { isFractional, fractionStep } = resolveEffectiveFractional(product)
-      const step = isFractional && fractionStep ? fractionStep : 1
-      const unitPrice = this.round2(listUnitPrice * step)
+      // Produto pesavel: `item.quantity` e o PESO REAL em kg (o carrinho grava
+      // assim desde c2865920, e o separador lanca fulfilledQuantity em kg).
+      // O preco de lista ja e por kg -- multiplicar pelo fractionStep aqui
+      // cobrava o passo duas vezes (0,4kg de abacate a R$ 0,36).
+      const unitPrice = this.round2(listUnitPrice)
 
       const cost = priceListItem?.cost == null ? null : Number(priceListItem.cost)
       const margin = cost == null ? null : this.round2(((unitPrice - cost) / unitPrice) * 100)
@@ -535,7 +531,9 @@ export class PricingService {
         tenantId,
         storeId: body.storeId ?? context?.storeId ?? null,
         name: String(body.name || '').trim(),
-        type: String(body.type || 'AUTOMATIC').toUpperCase(),
+        // Com codigo e cupom: default AUTOMATIC aplicava o BEMVINDO pra todo
+        // cliente sem digitar nada (a tela Cupons nao manda `type`).
+        type: String(body.type || (body.couponCode ? 'COUPON' : 'AUTOMATIC')).toUpperCase(),
         status: body.status || 'DRAFT',
         priority: Number(body.priority || 0),
         stackable: Boolean(body.stackable),
@@ -811,7 +809,7 @@ export class PricingService {
     }
 
     return this.prisma.promotion.findMany({
-      where: { ...baseWhere, type: { not: 'COUPON' } },
+      where: { ...baseWhere, type: { not: 'COUPON' }, coupons: { none: {} } },
       include: { rules: true, coupons: true },
       orderBy: [{ priority: 'desc' }, { startsAt: 'desc' }],
     })

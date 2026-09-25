@@ -802,7 +802,7 @@ describe('OrderOrchestrationService', () => {
       )
     })
 
-    it('item pesavel: converte steps pra peso real, igual ao Solidcom', async () => {
+    it('item pesavel: quantity ja e kg e unitPrice ja e por kg -- repassa sem converter por step', async () => {
       mockAntenorApiService.createOrder.mockResolvedValue({
         sucesso: true, cdPedido: '2082', numeroDAV: '102080', cdEcomPedido: '999', valorTotal: 10, idempotente: false,
       })
@@ -811,7 +811,7 @@ describe('OrderOrchestrationService', () => {
       await service.syncCreatedOrder({
         ...pickupPayload,
         items: [
-          { productId: 'prod-2', erpProductId: 500, productName: 'Queijo', ean: '1234', quantity: 2, unitPrice: 10, subtotal: 20, isFractional: true, fractionStep: 0.4, listUnitPrice: 25 },
+          { productId: 'prod-2', erpProductId: 500, productName: 'Queijo', ean: '1234', quantity: 0.8, unitPrice: 25, subtotal: 20, isFractional: true, fractionStep: 0.4, listUnitPrice: 25 },
         ],
       })
 
