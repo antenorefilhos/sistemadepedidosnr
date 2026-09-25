@@ -312,6 +312,9 @@ export class PickingService {
 
   async assignTask(id: string, pickerId: string, context: Partial<PickingTenantContext>, actor?: PickingActor) {
     const task = await this.findTaskForOperation(id, context)
+    if (['COMPLETED', 'CANCELLED'].includes(task.status)) {
+      throw new BadRequestException('Tarefa de separacao ja esta encerrada.')
+    }
     const updated = await this.prisma.pickingTask.update({
       where: { id: task.id },
       data: { assignedToId: pickerId },
@@ -1069,7 +1072,8 @@ export class PickingService {
     const scopedWhere = tenantStoreWhere(context)
     const orderIds = Array.from(new Set(tasks.map((task) => task.orderId)))
     const taskIds = tasks.map((task) => task.id)
-    const [orders, checklists] = await Promise.all([
+    const assigneeIds = Array.from(new Set(tasks.map((task) => task.assignedToId).filter((id): id is string => Boolean(id))))
+    const [orders, checklists, assignees] = await Promise.all([
       this.prisma.order.findMany({
         where: { ...scopedWhere, id: { in: orderIds } },
         include: {
@@ -1081,7 +1085,13 @@ export class PickingService {
         where: { ...scopedWhere, taskId: { in: taskIds } },
         orderBy: { createdAt: 'desc' },
       }),
+      // Nome de quem esta separando: o app mostra "em separacao por X" e
+      // oferece assumir, em vez de so recusar a acao com erro.
+      assigneeIds.length
+        ? this.prisma.admin.findMany({ where: { id: { in: assigneeIds } }, select: { id: true, name: true } })
+        : Promise.resolve([] as Array<{ id: string; name: string }>),
     ])
+    const assigneeNameById = new Map(assignees.map((admin) => [admin.id, admin.name]))
 
     const ordersById = new Map(orders.map((order) => [order.id, order]))
     const checklistByTaskId = new Map<string, typeof checklists[number]>()
@@ -1095,6 +1105,7 @@ export class PickingService {
       ...task,
       order: ordersById.get(task.orderId) || null,
       checklist: checklistByTaskId.get(task.id) || null,
+      assignedToName: task.assignedToId ? assigneeNameById.get(task.assignedToId) || null : null,
     }))
   }
 

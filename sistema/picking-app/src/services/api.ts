@@ -79,6 +79,7 @@ export interface PickingTask {
   id: string
   orderId: string
   assignedToId: string | null
+  assignedToName?: string | null
   status: string
   priority: number
   slaDueAt: string | null
@@ -106,6 +107,9 @@ export const pickerApi = {
 
   getTask: (id: string) =>
     api.get<PickingTask>(`/picker/tasks/${id}`),
+
+  claimTask: (id: string) =>
+    api.post<PickingTask>(`/picker/tasks/${id}/claim`),
 
   pickItem: (taskId: string, itemId: string, data: {
     quantity: number

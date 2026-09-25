@@ -54,6 +54,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const [reviewMode, setReviewMode] = useState(false)
   const [deliveryInstructions, setDeliveryInstructions] = useState('')
   const [sendConfirm, setSendConfirm] = useState(false)
+  const [takeoverConfirm, setTakeoverConfirm] = useState(false)
   const eanInputRef = useRef<HTMLInputElement>(null)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRequestSeq = useRef(0)
@@ -107,6 +108,31 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       setTask(data)
       setOrder(data.order || null)
     } catch { /* keep current */ }
+  }
+
+  // Pedido preso a outro separador (ex.: aberto no admin e abandonado): sem
+  // isso o app so recusava cada acao com "sendo separado por outro membro".
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('picker_user') || 'null') as { id?: string; role?: string } | null } catch { return null }
+  })()
+  const lockedByOther = Boolean(
+    task && task.assignedToId && currentUser?.id && task.assignedToId !== currentUser.id &&
+    currentUser.role !== 'admin' && ['IN_PROGRESS', 'WAITING_SUBSTITUTION'].includes(task.status),
+  )
+
+  const handleTakeover = async () => {
+    if (!task) return
+    setActionLoading(true)
+    try {
+      await pickerApi.claimTask(task.id)
+      await refreshTask()
+      setTakeoverConfirm(false)
+      toast.success('Separacao assumida')
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Erro ao assumir')
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const getProductForTaskItem = (taskItem: PickingTaskItem) => {
@@ -466,6 +492,18 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       )}
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        {lockedByOther && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
+            <p>Em separação por <strong>{task?.assignedToName || 'outro membro da equipe'}</strong>.</p>
+            <button
+              onClick={() => setTakeoverConfirm(true)}
+              disabled={actionLoading}
+              className="mt-2 w-full h-10 rounded-xl bg-red-600 text-white font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+            >
+              Assumir separação
+            </button>
+          </div>
+        )}
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-700 flex flex-wrap gap-x-4 gap-y-1">
           <span><strong>Pagamento:</strong> {paymentLabel(order.paymentMethod)}</span>
           <span className="text-red-600 font-semibold">{deliveryLabel(order)}</span>
@@ -549,6 +587,21 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             onResult={handleBarcodeResult}
             onClose={() => setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })}
           />
+        </Modal>
+      )}
+
+      {takeoverConfirm && (
+        <Modal onClose={() => setTakeoverConfirm(false)}>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Assumir separação?</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            {task?.assignedToName || 'Outro membro da equipe'} está separando este pedido. Ao assumir, os itens já marcados continuam e só você poderá continuar.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={() => setTakeoverConfirm(false)} className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-700 font-semibold">Cancelar</button>
+            <button onClick={handleTakeover} disabled={actionLoading} className="flex-1 h-11 rounded-xl bg-red-600 text-white font-semibold disabled:opacity-60">
+              {actionLoading ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Assumir'}
+            </button>
+          </div>
         </Modal>
       )}
 

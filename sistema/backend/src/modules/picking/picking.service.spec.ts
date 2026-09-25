@@ -41,6 +41,7 @@ const mockPrismaService = {
     findMany: jest.fn(),
     create: jest.fn(),
   },
+  admin: { findMany: jest.fn().mockResolvedValue([]) },
   packingChecklist: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
