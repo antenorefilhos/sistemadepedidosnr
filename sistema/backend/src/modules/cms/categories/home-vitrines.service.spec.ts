@@ -262,23 +262,24 @@ describe('HomeVitrinesService', () => {
 });
 
 // 25/09/2026: tag de ocasiao da AntenorApi vem por palavra no nome -- casos
-// reais achados no catalogo.
+// reais achados no catalogo (category = nosso enum, nao o classification01
+// do ERP, que tambem erra: Cheetos Requeijao esta como QUEIJOS la).
 describe('fitsTagShelf', () => {
   it('adega-e-queijos aceita vinho e queijo, recusa salgadinho e empanado com "queijo" no nome', () => {
-    expect(fitsTagShelf('adega-e-queijos', '02 - BEBIDAS & ADEGA')).toBe(true);
-    expect(fitsTagShelf('adega-e-queijos', '03 - QUEIJOS, FRIOS & LATICÍNIOS')).toBe(true);
-    expect(fitsTagShelf('adega-e-queijos', '08 - BISCOITOS, DOCES & SNACKS')).toBe(false); // Cheetos Requeijao
-    expect(fitsTagShelf('adega-e-queijos', '10 - CONGELADOS & PRATOS PRONTOS')).toBe(false); // Empanado Queijo
+    expect(fitsTagShelf('adega-e-queijos', 'ADEGA_VINHOS_ESPUMANTES')).toBe(true);
+    expect(fitsTagShelf('adega-e-queijos', 'QUEIJOS_FRIOS_LATICINIOS')).toBe(true);
+    expect(fitsTagShelf('adega-e-queijos', 'DOCES_CHOCOLATES_SNACKS')).toBe(false); // Cheetos Requeijao
+    expect(fitsTagShelf('adega-e-queijos', 'CONGELADOS_PRATICOS')).toBe(false); // Empanado Queijo
   });
 
   it('churrasco recusa creme dental "Carvao Ativado"', () => {
-    expect(fitsTagShelf('churrasco', '04 - CARNES, AVES & PEIXARIA')).toBe(true);
-    expect(fitsTagShelf('churrasco', '06 - HIGIENE PESSOAL & BELEZA')).toBe(false);
+    expect(fitsTagShelf('churrasco', 'ACOUGUE_CHURRASCO')).toBe(true);
+    expect(fitsTagShelf('churrasco', 'HIGIENE_PERFUMARIA')).toBe(false);
   });
 
   it('tag fora do mapa nunca aceita higiene/limpeza/tabacaria, aceita o resto', () => {
-    expect(fitsTagShelf('integral', '06 - HIGIENE PESSOAL & BELEZA')).toBe(false); // sabonete Aveia
-    expect(fitsTagShelf('diet-light', '07 - LIMPEZA & LAVANDERIA')).toBe(false); // luva Light
-    expect(fitsTagShelf('integral', '09 - CAFÉ DA MANHÃ & MATINAIS')).toBe(true);
+    expect(fitsTagShelf('integral', 'HIGIENE_PERFUMARIA')).toBe(false); // sabonete Aveia
+    expect(fitsTagShelf('diet-light', 'LIMPEZA_CUIDADOS_DA_CASA')).toBe(false); // luva Light
+    expect(fitsTagShelf('integral', 'PADARIA_CONFEITARIA_CAFE')).toBe(true);
   });
 });

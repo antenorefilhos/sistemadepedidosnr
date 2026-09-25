@@ -16,28 +16,29 @@ function isAutoSurfaceable(produto: { category?: string | null; active?: boolean
 // 25/09/2026: a AntenorApi aplica tag de ocasiao por PALAVRA NO NOME, nao
 // pelo que o produto e -- "Carvao" vira churrasco (creme dental Colgate
 // Carvao), "Queijo/Requeijao" vira adega-e-queijos (Cheetos, empanado),
-// "Aveia" vira integral (sabonete). Vitrine de tag so aceita produto dos
-// departamentos que fazem sentido pra ela (classification01, que vem do
-// cadastro mercadologico, nao do nome). Tag fora do mapa: pelo menos nunca
-// mostra higiene/limpeza/tabacaria numa vitrine de ocasiao de comida.
-const DEPTS_ADEGA_QUEIJOS = ['BEBIDAS & ADEGA', 'QUEIJOS, FRIOS'];
-const TAG_ALLOWED_DEPARTMENTS: Record<string, string[]> = {
-  'adega-e-queijos': DEPTS_ADEGA_QUEIJOS,
-  'queijos-e-vinhos': DEPTS_ADEGA_QUEIJOS,
-  churrasco: ['CARNES', 'MERCEARIA', 'BEBIDAS', 'QUEIJOS'],
-  'linha-economica': ['MERCEARIA', 'CAFÉ DA MANHÃ', 'QUEIJOS', 'LIMPEZA', 'HIGIENE', 'PADARIA', 'HORTIFRUTI'],
-  'cafe-da-manha': ['CAFÉ DA MANHÃ', 'PADARIA', 'QUEIJOS', 'BISCOITOS', 'HORTIFRUTI'],
-  sobremesa: ['BISCOITOS', 'PADARIA', 'CAFÉ DA MANHÃ', 'QUEIJOS', 'CONGELADOS', 'MUNDO SAUDÁVEL'],
-  'boteco-em-casa': ['BISCOITOS', 'MERCEARIA', 'BEBIDAS', 'QUEIJOS', 'CARNES', 'CONGELADOS', 'PADARIA'],
-  'lanche-rapido': ['BISCOITOS', 'BEBIDAS', 'PADARIA', 'QUEIJOS', 'CONGELADOS'],
+// "Aveia" vira integral (sabonete). Vitrine de tag so aceita produto das
+// categorias que fazem sentido pra ela. Usa o nosso `category` (vem do
+// departamentoEcommerce), NAO o classification01 do ERP -- esse tambem vem
+// por palavra-chave (Cheetos Requeijao esta como "QUEIJOS, FRIOS &
+// LATICINIOS" la). Tag fora do mapa: nunca mostra higiene/limpeza/
+// tabacaria/pet/bazar numa vitrine de ocasiao de comida.
+const TAG_ALLOWED_CATEGORIES: Record<string, string[]> = {
+  'adega-e-queijos': ['ADEGA', 'QUEIJOS', 'ESPACO_GOURMET'],
+  'queijos-e-vinhos': ['ADEGA', 'QUEIJOS', 'ESPACO_GOURMET'],
+  churrasco: ['ACOUGUE', 'MERCEARIA', 'CERVEJAS', 'ADEGA', 'DESTILADOS', 'SUCOS', 'QUEIJOS', 'BAZAR'],
+  'linha-economica': ['MERCEARIA', 'PADARIA', 'QUEIJOS', 'LIMPEZA', 'HIGIENE', 'HORTIFRUTI'],
+  'cafe-da-manha': ['PADARIA', 'QUEIJOS', 'DOCES', 'HORTIFRUTI', 'MERCEARIA'],
+  sobremesa: ['DOCES', 'PADARIA', 'QUEIJOS', 'CONGELADOS', 'MUNDO_SAUDAVEL'],
+  'boteco-em-casa': ['DOCES', 'MERCEARIA', 'CERVEJAS', 'DESTILADOS', 'ADEGA', 'SUCOS', 'QUEIJOS', 'ACOUGUE', 'CONGELADOS', 'PADARIA'],
+  'lanche-rapido': ['DOCES', 'SUCOS', 'CERVEJAS', 'PADARIA', 'QUEIJOS', 'CONGELADOS'],
 };
-const NON_FOOD_DEPARTMENTS = ['HIGIENE', 'LIMPEZA', 'TABACARIA'];
+const NON_FOOD_CATEGORIES = ['HIGIENE', 'LIMPEZA', 'TABACARIA', 'PET', 'BAZAR'];
 
-export function fitsTagShelf(tag: string, classification01?: string | null): boolean {
-  const depto = (classification01 || '').toUpperCase();
-  const allowed = TAG_ALLOWED_DEPARTMENTS[tag];
-  if (allowed) return allowed.some((d) => depto.includes(d));
-  return !NON_FOOD_DEPARTMENTS.some((d) => depto.includes(d));
+export function fitsTagShelf(tag: string, category?: string | null): boolean {
+  const cat = (category || '').toUpperCase();
+  const allowed = TAG_ALLOWED_CATEGORIES[tag];
+  if (allowed) return allowed.some((c) => cat.startsWith(c));
+  return !NON_FOOD_CATEGORIES.some((c) => cat.startsWith(c));
 }
 
 // JON-198 (reaberto 22/09/2026): "Ver mais" caia sempre no /mercado generico
@@ -97,7 +98,6 @@ const PRODUCT_SELECT = {
   origin: true,
   active: true,
   erpProductId: true,
-  classification01: true,
 } as const;
 
 export type HomeVitrinesQuery = {
@@ -156,7 +156,7 @@ export class HomeVitrinesService {
         .map((item) => porErpId.get(item.id))
         .filter((produto): produto is NonNullable<typeof produto> => !!produto)
         .filter((produto) => isAutoSurfaceable(produto))
-        .filter((produto) => carrossel.tipoFiltro !== 'tag' || !carrossel.valorFiltro || fitsTagShelf(carrossel.valorFiltro, produto.classification01))
+        .filter((produto) => carrossel.tipoFiltro !== 'tag' || !carrossel.valorFiltro || fitsTagShelf(carrossel.valorFiltro, produto.category))
         .filter((produto) => {
           if (jaUsados.has(produto.id)) return false;
           jaUsados.add(produto.id);
@@ -200,7 +200,7 @@ export class HomeVitrinesService {
           for (const produto of reforco) {
             if (produtosResolvidos.length >= TARGET_POOL_SIZE) break;
             if (jaUsados.has(produto.id) || !isAutoSurfaceable(produto)) continue;
-            if (tagFiltro && !fitsTagShelf(tagFiltro, produto.classification01)) continue;
+            if (tagFiltro && !fitsTagShelf(tagFiltro, produto.category)) continue;
             jaUsados.add(produto.id);
             produtosResolvidos.push(produto);
           }
