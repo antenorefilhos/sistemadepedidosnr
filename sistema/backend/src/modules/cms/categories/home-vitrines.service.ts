@@ -25,7 +25,7 @@ function isAutoSurfaceable(produto: { category?: string | null; active?: boolean
 const TAG_ALLOWED_CATEGORIES: Record<string, string[]> = {
   'adega-e-queijos': ['ADEGA', 'QUEIJOS', 'ESPACO_GOURMET'],
   'queijos-e-vinhos': ['ADEGA', 'QUEIJOS', 'ESPACO_GOURMET'],
-  churrasco: ['ACOUGUE', 'MERCEARIA', 'CERVEJAS', 'ADEGA', 'DESTILADOS', 'SUCOS', 'QUEIJOS', 'BAZAR'],
+  churrasco: ['ACOUGUE', 'MERCEARIA', 'CERVEJAS', 'ADEGA', 'DESTILADOS', 'SUCOS', 'QUEIJOS', 'BAZAR', 'CONGELADOS'],
   'linha-economica': ['MERCEARIA', 'PADARIA', 'QUEIJOS', 'LIMPEZA', 'HIGIENE', 'HORTIFRUTI'],
   'cafe-da-manha': ['PADARIA', 'QUEIJOS', 'DOCES', 'HORTIFRUTI', 'MERCEARIA'],
   sobremesa: ['DOCES', 'PADARIA', 'QUEIJOS', 'CONGELADOS', 'MUNDO_SAUDAVEL'],
