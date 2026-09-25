@@ -254,7 +254,7 @@ describe('OrderOrchestrationService', () => {
       'order-12345678',
       expect.objectContaining({
         codEcom: 19,
-        obs: 'Entregar rapido / Pgto: Dinheiro',
+        obs: 'Entregar rapido / FRETE GRÁTIS / Pgto: Dinheiro',
         cliente: expect.objectContaining({
           endereco: {
             logradouro: 'Estrada Uniao e Industria',

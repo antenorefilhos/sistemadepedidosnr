@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowLeft, Check, ClipboardList, Loader2, Package, Plus } from 'lucide-react'
 import { pickerApi, PickingTask, PickingTaskItem, Order } from '../services/api'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
+import { deliveryLabel, paymentLabel } from '../utils/orderInfo'
 import toast from 'react-hot-toast'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { Modal, ItemCard, DoneItemCard } from '../components/PickingShared'
@@ -465,6 +466,10 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       )}
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-700 flex flex-wrap gap-x-4 gap-y-1">
+          <span><strong>Pagamento:</strong> {paymentLabel(order.paymentMethod)}</span>
+          <span className="text-red-600 font-semibold">{deliveryLabel(order)}</span>
+        </div>
         {order.notes && (
           <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 text-sm text-amber-800">
             <strong>Obs:</strong> {order.notes}

@@ -52,6 +52,9 @@ export interface Order {
   subtotal: number
   notes: string | null
   paymentMethod: string
+  fulfillmentType?: string
+  delivery?: number
+  deliverySnapshot?: { freeShippingReason?: 'FIRST_ORDER' | 'EARNED' | null } | null
   createdAt: string
   /** DAV do Solidcom -- e o numero que se digita no PDV pra puxar o pedido. */
   erpDav?: string | null

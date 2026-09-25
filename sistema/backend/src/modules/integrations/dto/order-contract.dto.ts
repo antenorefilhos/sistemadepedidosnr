@@ -42,6 +42,8 @@ export interface InternalOrderAddressContract {
   locality?: string | null
 }
 
+export type FreeShippingReason = 'FIRST_ORDER' | 'EARNED'
+
 export interface InternalOrderContract {
   orderId: string
   customerId: string
@@ -56,6 +58,8 @@ export interface InternalOrderContract {
   discount: number
   total: number
   notes: string | null
+  /** Por que a entrega saiu de graca (null = cobrou ou e retirada). */
+  freeShippingReason?: FreeShippingReason | null
   customer: InternalOrderCustomerContract
   /** Endereco de entrega -- o ERP quebra sem ele, ver mapToSolidcomPedido. */
   deliveryAddress?: InternalOrderAddressContract | null

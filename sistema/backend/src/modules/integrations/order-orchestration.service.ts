@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { PrismaService } from '../../common/prisma.service'
-import { InternalOrderAddressContract, InternalOrderContract } from './dto/order-contract.dto'
+import { FreeShippingReason, InternalOrderAddressContract, InternalOrderContract } from './dto/order-contract.dto'
 import { SolidcomPedidoDto } from './dto/solidcom-order.dto'
 import { SolidcomERPService } from './solidcom-erp.service'
 import {
@@ -331,6 +331,7 @@ export class OrderOrchestrationService {
       discount: order.discount,
       total: order.total,
       notes: order.notes,
+      freeShippingReason: (order.deliverySnapshot as { freeShippingReason?: FreeShippingReason } | null)?.freeShippingReason ?? null,
       customer: {
         id: order.customer.id,
         cpf: order.customer.cpf,
@@ -746,10 +747,23 @@ export class OrderOrchestrationService {
     }
     const payment = paymentLabels[payload.paymentMethod] || payload.paymentMethod
 
-    return [payload.notes?.trim(), this.buildTrocaLabel(payload), payment ? `Pgto: ${payment}` : null]
+    return [payload.notes?.trim(), this.buildDeliveryLabel(payload), this.buildTrocaLabel(payload), payment ? `Pgto: ${payment}` : null]
       .filter(Boolean)
       .join(' / ')
       .slice(0, 500)
+  }
+
+  /**
+   * Taxa de entrega / frete gratis no `obs`, que e o que o caixa ve ao puxar
+   * o DAV no PDV. O app antigo da Solidcom escrevia "PRIMEIRO PEDIDO" aqui
+   * (conferido em tbPedido, 25/09/2026) e a loja se guiava por isso pra nao
+   * cobrar entrega. Retirada nao leva nada: o PDV ja mostra "Retirada na Loja".
+   */
+  private buildDeliveryLabel(payload: InternalOrderContract): string | null {
+    if (payload.fulfillmentType === 'PICKUP') return null
+    if (payload.delivery > 0) return `TAXA DE ENTREGA: R$ ${payload.delivery.toFixed(2).replace('.', ',')}`
+    if (payload.freeShippingReason === 'FIRST_ORDER') return 'PRIMEIRO PEDIDO - FRETE GRÁTIS'
+    return 'FRETE GRÁTIS'
   }
 
   /**

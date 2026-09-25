@@ -6,7 +6,7 @@ import { PrismaService } from '../../common/prisma.service'
 import { resolveDateRange } from '../../common/date-range.util'
 import { WhatsAppDispatchResult, WhatsAppService } from '../../modules/notifications/whatsapp.service'
 import { NotificationsService } from '../../modules/notifications/notifications.service'
-import { InternalOrderContract } from '../integrations/dto/order-contract.dto'
+import { FreeShippingReason, InternalOrderContract } from '../integrations/dto/order-contract.dto'
 import { IntegrationsService } from '../integrations/integrations.service'
 import { AntenorApiService } from '../integrations/antenor-api.service'
 import { OrderOrchestrationService } from '../integrations/order-orchestration.service'
@@ -655,7 +655,24 @@ export class OrdersService {
         clientIp,
         customerSnapshot: this.buildCustomerSnapshot(customer),
         addressSnapshot: address ? this.buildAddressSnapshot(address) : Prisma.JsonNull,
-        deliverySnapshot: this.buildDeliverySnapshot(quotedDeliveryAmount, address, deliverySnapshot, fulfillmentType, fulfillmentSlotId, deliveryAreaId),
+        // 25/09/2026: motivo do frete gratis vai no snapshot pro PDV mostrar
+        // "PRIMEIRO PEDIDO" como o app antigo fazia (ver buildPedidoObs).
+        // Entrega com frete zero que nao foi merecido pela zona/valor minimo
+        // so passa pelo antifraude acima se for o primeiro pedido.
+        deliverySnapshot: this.buildDeliverySnapshot(
+          quotedDeliveryAmount,
+          address,
+          {
+            ...(deliverySnapshot || {}),
+            freeShippingReason:
+              fulfillmentType === 'DELIVERY' && !quotedDeliveryAmount
+                ? (freeShippingEarned ? 'EARNED' : 'FIRST_ORDER')
+                : null,
+          },
+          fulfillmentType,
+          fulfillmentSlotId,
+          deliveryAreaId,
+        ),
         priceSnapshot: this.buildPriceSnapshot({ subtotal, deliveryAmount: quotedDeliveryAmount, discountAmount, total, couponCode, quote }),
         businessAccountId: quote.businessAccountId || null,
         businessApprovalStatus,
@@ -1559,6 +1576,7 @@ export class OrdersService {
       discount: order.discount,
       total: order.total,
       notes: order.notes,
+      freeShippingReason: (order.deliverySnapshot as { freeShippingReason?: FreeShippingReason } | null)?.freeShippingReason ?? null,
       customer: {
         id: order.customer.id,
         cpf: order.customer.cpf,

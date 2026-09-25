@@ -1,5 +1,6 @@
 import { AlertTriangle, ArrowLeft, Check, Edit3, Loader2, Send, Truck, X } from 'lucide-react'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
+import { deliveryLabel, paymentLabel } from '../utils/orderInfo'
 import { Order, PickingTaskItem } from '../services/api'
 
 export function ReviewScreen({
@@ -43,6 +44,8 @@ export function ReviewScreen({
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Cliente</p>
           <p className="font-semibold text-gray-900">{order.customer?.name}</p>
           {order.customer?.cpf && <p className="text-xs text-gray-500 mt-0.5">CPF: {order.customer.cpf}</p>}
+          <p className="text-sm text-gray-700 mt-1"><strong>Pagamento:</strong> {paymentLabel(order.paymentMethod)}</p>
+          <p className="text-sm text-red-600 font-semibold">{deliveryLabel(order)}</p>
           {order.notes && (
             <div className="mt-2 bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-800">
               <strong>Obs do cliente:</strong> {order.notes}

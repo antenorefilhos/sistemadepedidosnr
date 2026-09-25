@@ -24,6 +24,7 @@ const obs = (service: OrderOrchestrationService, payload: unknown) =>
 const item = (policy?: string) => ({ productId: 'p', quantity: 1, substitutionPolicy: policy })
 
 const pedido = (over: Record<string, unknown> = {}) => ({
+  fulfillmentType: 'PICKUP',
   paymentMethod: 'PIX',
   notes: null,
   items: [item('ALLOW')],
@@ -63,5 +64,30 @@ describe('buildPedidoObs — resumo de troca', () => {
   // CLAUDE.md. String vazia passa.
   it('nunca devolve null, mesmo sem nada pra dizer', () => {
     expect(typeof obs(build(), { paymentMethod: '', notes: null, items: [] })).toBe('string')
+  })
+})
+
+// 25/09/2026: o caixa ve o `obs` ao puxar o DAV. O app antigo da Solidcom
+// escrevia "PRIMEIRO PEDIDO" ali, e a loja se guiava por isso pra cobrar
+// (ou nao) a entrega.
+describe('buildPedidoObs — entrega', () => {
+  const entrega = (over: Record<string, unknown>) => pedido({ fulfillmentType: 'DELIVERY', delivery: 0, ...over })
+
+  it('entrega cobrada mostra a taxa', () => {
+    expect(obs(build(), entrega({ delivery: 6 }))).toBe('TAXA DE ENTREGA: R$ 6,00 / Aceita troca: Sim / Pgto: PIX')
+  })
+
+  it('frete gratis de primeiro pedido, como no app antigo', () => {
+    expect(obs(build(), entrega({ freeShippingReason: 'FIRST_ORDER', notes: 'Portao azul' })))
+      .toBe('Portao azul / PRIMEIRO PEDIDO - FRETE GRÁTIS / Aceita troca: Sim / Pgto: PIX')
+  })
+
+  it('frete gratis por valor minimo nao se passa por primeiro pedido', () => {
+    expect(obs(build(), entrega({ freeShippingReason: 'EARNED' }))).toContain('FRETE GRÁTIS')
+    expect(obs(build(), entrega({ freeShippingReason: 'EARNED' }))).not.toContain('PRIMEIRO')
+  })
+
+  it('retirada nao leva rotulo de entrega', () => {
+    expect(obs(build(), pedido({ delivery: 0 }))).not.toMatch(/FRETE|TAXA/)
   })
 })
