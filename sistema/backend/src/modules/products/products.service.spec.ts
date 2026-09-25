@@ -411,6 +411,26 @@ describe('ProductsService', () => {
       expect((result as any).deactivation.markedAsMissing).toBe(1);
     });
 
+    // 25/09/2026: produto sem erpProductId (seed ficticio 789100xx) tambem e
+    // avaliado, casado por EAN -- antes ficava no ar para sempre.
+    it('produto sem erpProductId: presente pelo EAN fica, ausente e marcado', async () => {
+      mockSolidcomERPService.syncProducts.mockResolvedValue({
+        status: 'success',
+        data: [{ ean: '1', name: 'Continua no mix', price: 10, erpProductId: 1 }],
+      });
+      mockPrismaService.product.findMany.mockResolvedValue([
+        { id: 'real', ean: '1', erpProductId: null, erpMissingSince: null },
+        { id: 'seed', ean: '78910013', erpProductId: null, erpMissingSince: null },
+      ]);
+
+      await service.syncFromERP();
+
+      expect(mockPrismaService.product.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['seed'] } },
+        data: { erpMissingSince: expect.any(Date) },
+      });
+    });
+
     it('desativa produto que ja estava ausente ha mais do tempo minimo', async () => {
       const dezOitoHorasAtras = new Date(Date.now() - 18 * 60 * 60 * 1000);
       mockSolidcomERPService.syncProducts.mockResolvedValue({

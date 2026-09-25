@@ -64,9 +64,16 @@ export default function Cart() {
   // sem ter sumido de verdade.
   const [deliveryVerification, setDeliveryVerification] = useState(() => readDeliveryVerification())
   useEffect(() => subscribeDeliveryVerification(() => setDeliveryVerification(readDeliveryVerification())), [])
+  // A taxa salva foi calculada com o subtotal da hora da verificacao; o
+  // freeAbove da zona tem que ser reaplicado ao subtotal ATUAL, senao a
+  // barra dizia "Frete grátis conquistado!" e o total somava a taxa cheia
+  // (achado em 25/09/2026: Chafariz, R$ 6 com freeAbove R$ 80, carrinho de
+  // R$ 263 cobrando R$ 6). Mesma regra do useFreeShipping/FreeShippingBar.
   const verifiedDeliveryFee =
     deliveryVerification?.calc && !deliveryVerification.calc.outOfArea && !deliveryVerification.calc.requiresLocalitySelection
-      ? deliveryVerification.calc.fee
+      ? (deliveryVerification.calc.freeAbove != null && subtotal >= deliveryVerification.calc.freeAbove
+          ? 0
+          : deliveryVerification.calc.fee)
       : null
 
   // Preco de exibicao ja usa o promocional (subtotal/total nunca mudam

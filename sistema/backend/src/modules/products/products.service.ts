@@ -1494,14 +1494,23 @@ export class ProductsService {
     const idsInFeed = new Set(
       items.map((item) => item.erpProductId).filter((id): id is number => id != null),
     )
+    const eansInFeed = new Set(items.map((item) => String(item.ean || '').trim()).filter(Boolean))
 
+    // 25/09/2026: produto SEM erpProductId tambem entra na avaliacao (casado
+    // por EAN). Antes ficava de fora e 29 produtos ficticios do seed (EAN
+    // 789100xx, "Picanha R$ 129,90", "Pao Frances R$ 0,90") ficaram a venda em
+    // producao desde 12/08 sem existir no ERP.
     const currentlyActive = await this.prisma.product.findMany({
-      where: { active: true, erpProductId: { not: null } },
-      select: { id: true, erpProductId: true, erpMissingSince: true },
+      where: { active: true },
+      select: { id: true, ean: true, secondaryEans: true, erpProductId: true, erpMissingSince: true },
     })
 
-    const present = currentlyActive.filter((p) => p.erpProductId != null && idsInFeed.has(p.erpProductId))
-    const missing = currentlyActive.filter((p) => p.erpProductId != null && !idsInFeed.has(p.erpProductId))
+    const inFeed = (p: (typeof currentlyActive)[number]) =>
+      p.erpProductId != null
+        ? idsInFeed.has(p.erpProductId)
+        : eansInFeed.has(p.ean) || (p.secondaryEans || []).some((e) => eansInFeed.has(e))
+    const present = currentlyActive.filter(inFeed)
+    const missing = currentlyActive.filter((p) => !inFeed(p))
 
     // Reapareceu no feed: zera a contagem de ausencia (autocura).
     const toClear = present.filter((p) => p.erpMissingSince != null).map((p) => p.id)
