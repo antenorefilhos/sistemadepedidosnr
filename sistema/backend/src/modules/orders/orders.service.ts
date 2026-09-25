@@ -1539,7 +1539,8 @@ export class OrdersService {
     return this.whatsappService.sendOrderConfirmation(storeWhatsapp, {
       id: order.id.slice(-8).toUpperCase(),
       total: order.total,
-      items: order.items.reduce((sum, item) => sum + item.quantity, 0),
+      // Contagem de produtos: somar quantity misturava kg de pesavel com unidades ("Itens: 2.42").
+      items: order.items.length,
       customerName: order.customer.name,
       paymentMethod: order.paymentMethod,
       notes: order.notes,
