@@ -1042,7 +1042,16 @@ export class OrderOrchestrationService {
       )
     }
 
-    await this.prisma.order.update({ where: { id: orderId }, data: { status: proximo } })
+    // Claim atomico: o Notificador roda em varios PCs da loja e o webhook da
+    // AntenorApi chega pelo mesmo caminho -- dois avisos simultaneos passavam
+    // os dois pela checagem acima e gravavam evento/notificacao em dobro.
+    const claim = await this.prisma.order.updateMany({
+      where: { id: orderId, status: 'READY_FOR_CHECKOUT' },
+      data: { status: proximo },
+    })
+    if (claim.count !== 1) {
+      return { orderId, status: proximo, jaEstava: true }
+    }
     await this.prisma.orderEvent.create({
       data: {
         tenantId: context?.tenantId || DEFAULT_TENANT_ID,

@@ -20,6 +20,7 @@ const build = (order: Record<string, unknown> | null) => {
     order: {
       findFirst: jest.fn().mockResolvedValue(order),
       update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findMany: jest.fn().mockResolvedValue([]),
     },
     orderEvent: { create: jest.fn().mockResolvedValue({}) },
@@ -51,9 +52,10 @@ describe('markInvoiced', () => {
       status: 'READY_FOR_DELIVERY',
       jaEstava: false,
     })
-    expect(prisma.order.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: 'READY_FOR_DELIVERY' } }),
-    )
+    expect(prisma.order.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ord1', status: 'READY_FOR_CHECKOUT' },
+      data: { status: 'READY_FOR_DELIVERY' },
+    })
     expect(notifications.notifyOrderStatusChange).toHaveBeenCalledWith('ord1', 'READY_FOR_DELIVERY')
     // A equipe de entrega e avisada no mesmo instante: e quando o pedido
     // aparece na fila compartilhada.
@@ -75,9 +77,23 @@ describe('markInvoiced', () => {
     await expect(service.markInvoiced(undefined, 'ord1', {})).resolves.toMatchObject({
       jaEstava: true,
     })
-    expect(prisma.order.update).not.toHaveBeenCalled()
+    expect(prisma.order.updateMany).not.toHaveBeenCalled()
     // Nao renotifica: o cliente ja recebeu o aviso na primeira vez.
     expect(notifications.notifyOrderStatusChange).not.toHaveBeenCalled()
+  })
+
+  it('dois avisos simultaneos: so um grava evento e notifica', async () => {
+    // Notificador em varios PCs + webhook: os dois leem READY_FOR_CHECKOUT
+    // antes de qualquer um gravar; o claim atomico deixa so um passar.
+    const { service, prisma, notifications } = build(pedido())
+    prisma.order.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 })
+    const [a, b] = await Promise.all([
+      service.markInvoiced(undefined, 'ord1', {}),
+      service.markInvoiced(undefined, 'ord1', {}),
+    ])
+    expect([a.jaEstava, b.jaEstava].sort()).toEqual([false, true])
+    expect(prisma.orderEvent.create).toHaveBeenCalledTimes(1)
+    expect(notifications.notifyOrderStatusChange).toHaveBeenCalledTimes(1)
   })
 
   it('recusa pedido que nem chegou ao caixa', async () => {
