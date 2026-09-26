@@ -466,7 +466,7 @@ app.whenReady().then(() => {
     POLLING_FATURAMENTO_DESLIGADO
       ? 'Polling de faturamento DESLIGADO -- webhook da AntenorApi (JON-23) cobre isso agora.'
       : FATURAMENTO_LIGADO
-        ? 'Polling de faturamento ativo (fallback -- webhook JON-23 ja disponivel, considere desligar com FATURAMENTO_POLLING_DESLIGADO=true).'
+        ? 'Polling de faturamento ativo (redundancia ao webhook JON-23; ligado em todos os PCs por decisao da loja).'
         : 'Polling de faturamento desligado (sem credenciais DORSAL no .env).',
   )
   check()
