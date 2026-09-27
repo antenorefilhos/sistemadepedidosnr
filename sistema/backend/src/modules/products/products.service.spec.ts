@@ -234,6 +234,23 @@ describe('ProductsService', () => {
     });
   });
 
+  describe('getRecommendations (compre junto)', () => {
+    it('vinho sugere queijo/frio antes de outro vinho e nunca categoria sem relacao', async () => {
+      mockPrismaService.product.findUnique.mockResolvedValue({ category: 'ADEGA_VINHOS_ESPUMANTES' })
+      mockPrismaService.product.findMany.mockResolvedValue([
+        { id: 'v2', name: 'Vinho B', category: 'ADEGA_VINHOS_ESPUMANTES', price: 50, stock: 3 },
+        { id: 'q1', name: 'Queijo Brie', category: 'QUEIJOS_FRIOS_LATICINIOS', price: 30, stock: 5 },
+      ])
+      mockPrismaService.orderItem.groupBy.mockResolvedValue([])
+
+      const result = await service.getRecommendations('v1', 6)
+
+      expect(result.map((r: { id: string }) => r.id)).toEqual(['q1', 'v2'])
+      const where = mockPrismaService.product.findMany.mock.calls.at(-1)[0].where
+      expect(where.category.in).toEqual(['QUEIJOS_FRIOS_LATICINIOS', 'ADEGA_VINHOS_ESPUMANTES'])
+    })
+  })
+
   describe('create', () => {
     it('should create product', async () => {
       mockPrismaService.product.create.mockResolvedValue({ id: '1', name: 'New' });

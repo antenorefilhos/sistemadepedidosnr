@@ -274,7 +274,19 @@ export default function ProductDetail() {
                 alt=""
                 className="hidden"
                 aria-hidden="true"
-                onLoad={() => setImgError2(false)}
+                onLoad={() => {
+                  // O nginx responde 200 com o SVG "produto sem foto" quando o
+                  // arquivo nao existe -- o onLoad sozinho mostrava a miniatura
+                  // do placeholder como se fosse a 2a foto. Confere o tipo real.
+                  const src = imageCandidates2[imageIndex2]
+                  fetch(src, { method: 'HEAD' })
+                    .then((res) => {
+                      if (!/svg/i.test(res.headers.get('content-type') || '')) return setImgError2(false)
+                      if (imageIndex2 < imageCandidates2.length - 1) setImageIndex2((prev) => prev + 1)
+                      else setImgError2(true)
+                    })
+                    .catch(() => setImgError2(true))
+                }}
                 onError={() => {
                   if (imageIndex2 < imageCandidates2.length - 1) {
                     setImageIndex2(prev => prev + 1)

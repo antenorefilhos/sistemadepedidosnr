@@ -14,6 +14,42 @@ import { CategoryHierarchyService } from '../categories/category-hierarchy.servi
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import { resolveEffectiveFractional, type FractionalSource } from '../../common/fractional.util'
 
+// Categorias que combinam com cada categoria no "compre junto" (ordem = prioridade).
+const COMPLEMENTARY_CATEGORIES: Record<string, string[]> = {
+  ADEGA_VINHOS_ESPUMANTES: ['QUEIJOS_FRIOS_LATICINIOS'],
+  QUEIJOS_FRIOS_LATICINIOS: ['ADEGA_VINHOS_ESPUMANTES', 'PADARIA_CONFEITARIA_CAFE'],
+  ACOUGUE_CHURRASCO: ['HORTIFRUTI_ORGANICOS', 'CERVEJAS_CHOPP'],
+  CERVEJAS_CHOPP: ['ACOUGUE_CHURRASCO', 'DOCES_CHOCOLATES_SNACKS'],
+  DESTILADOS_COQUETEIS: ['SUCOS_REFRIGERANTES', 'DOCES_CHOCOLATES_SNACKS'],
+  PADARIA_CONFEITARIA_CAFE: ['QUEIJOS_FRIOS_LATICINIOS'],
+  HORTIFRUTI_ORGANICOS: ['ACOUGUE_CHURRASCO', 'MERCEARIA_DESPENSA'],
+  MERCEARIA_DESPENSA: ['HORTIFRUTI_ORGANICOS'],
+  CONGELADOS_PRATICOS: ['SUCOS_REFRIGERANTES'],
+  SUCOS_REFRIGERANTES: ['DOCES_CHOCOLATES_SNACKS'],
+  DOCES_CHOCOLATES_SNACKS: ['SUCOS_REFRIGERANTES'],
+  LIMPEZA_CUIDADOS_DA_CASA: ['BAZAR_UTILIDADES'],
+  HIGIENE_PERFUMARIA: ['BEBE_INFANTIL'],
+}
+
+const RECOMMENDATION_SELECT = {
+  id: true,
+  ean: true,
+  erpProductId: true,
+  name: true,
+  category: true,
+  titleMask: true,
+  titleMaskShort: true,
+  price: true,
+  promotionalPrice: true,
+  unit: true,
+  badges: true,
+  stock: true,
+  isFractional: true,
+  fractionStep: true,
+  manualIsFractional: true,
+  manualFractionStep: true,
+} as const
+
 type ParsedSearch = {
   text: string
   category?: string
@@ -262,49 +298,22 @@ export class ProductsService {
    * Busca pedidos que contêm o produto e ranqueia os co-produtos por frequência.
    */
   async getRecommendations(productId: string, limit = 6) {
-    // 1. Encontra todos os pedidos que contêm este produto
-    const ordersWithProduct = await this.prisma.orderItem.findMany({
-      where: { productId },
-      select: { orderId: true },
-      take: 200, // Limita o escopo para performance
-    })
+    // "Compre junto" por afinidade de categoria (vinho -> queijos/frios,
+    // carne -> hortifruti/cerveja...). Ate 27/09/2026 usava co-ocorrencia nos
+    // pedidos online (poucas dezenas) e caia em "mais vendidos" de qualquer
+    // categoria: banana e frango na pagina do vinho.
+    // ponytail: afinidade fixa por categoria; troca pela cesta real do PDV
+    // (GET /api/ecommerce/cesta/:cdProduto da AntenorApi, previsto 11/10).
+    const base = await this.prisma.product.findUnique({ where: { id: productId }, select: { category: true } })
+    const categories = [...(COMPLEMENTARY_CATEGORIES[base?.category || ''] || []), base?.category].filter(
+      (c, i, all): c is string => Boolean(c) && all.indexOf(c) === i,
+    )
+    if (categories.length === 0) return []
 
-    if (ordersWithProduct.length === 0) {
-      // Fallback: retorna produtos populares se não há histórico
-      return this.getFallbackRecommendations(productId, limit)
-    }
-
-    const orderIds = ordersWithProduct.map((o) => o.orderId)
-
-    // 2. Busca todos os outros produtos nesses mesmos pedidos
-    const coItems = await this.prisma.orderItem.findMany({
+    const candidates = await this.prisma.product.findMany({
       where: {
-        orderId: { in: orderIds },
-        productId: { not: productId }, // Exclui o próprio produto
-      },
-      select: { productId: true },
-    })
-
-    // 3. Calcula frequência de co-ocorrência
-    const frequency = new Map<string, number>()
-    for (const item of coItems) {
-      frequency.set(item.productId, (frequency.get(item.productId) || 0) + 1)
-    }
-
-    if (frequency.size === 0) {
-      return this.getFallbackRecommendations(productId, limit)
-    }
-
-    // 4. Ordena por frequência e pega os top N
-    const topIds = [...frequency.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, limit)
-      .map(([id]) => id)
-
-    // 5. Retorna os dados completos dos produtos recomendados
-    return this.prisma.product.findMany({
-      where: {
-        id: { in: topIds },
+        id: { not: productId },
+        category: { in: categories },
         active: true,
         syncOption: { not: 'NUNCA' },
         OR: [
@@ -312,65 +321,26 @@ export class ProductsService {
           { AND: [{ syncOption: { in: ['ESTOQUE', 'ESTQOUE'] } }, { stock: { gt: 0 } }] },
         ],
       },
-      select: {
-        id: true,
-        ean: true,
-        name: true,
-        titleMask: true,
-        titleMaskShort: true,
-        price: true,
-        promotionalPrice: true,
-        unit: true,
-        badges: true,
-        stock: true,
-        isFractional: true,
-        fractionStep: true,
-        manualIsFractional: true,
-        manualFractionStep: true,
-      },
-    }).then((items) => items.map((item) => this.toCustomerFacingProduct(item)))
-  }
-
-  /**
-   * Fallback: produtos populares quando não há histórico de co-compra
-   */
-  private async getFallbackRecommendations(excludeProductId: string, limit: number) {
-    const topItems = await this.prisma.orderItem.groupBy({
+      select: RECOMMENDATION_SELECT,
+      take: 300,
+    })
+    const sold = await this.prisma.orderItem.groupBy({
       by: ['productId'],
       _count: { _all: true },
-      where: { productId: { not: excludeProductId } },
-      orderBy: { _count: { productId: 'desc' } },
-      take: limit,
+      where: { productId: { in: candidates.map((c) => c.id) } },
     })
+    const soldCount = new Map(sold.map((s) => [s.productId, s._count._all]))
 
-    const ids = topItems.map((i) => i.productId)
-    return this.prisma.product.findMany({
-      where: {
-        id: { in: ids },
-        active: true,
-        syncOption: { not: 'NUNCA' },
-        OR: [
-          { syncOption: 'SEMPRE' },
-          { AND: [{ syncOption: { in: ['ESTOQUE', 'ESTQOUE'] } }, { stock: { gt: 0 } }] },
-        ],
-      },
-      select: {
-        id: true,
-        ean: true,
-        name: true,
-        titleMask: true,
-        titleMaskShort: true,
-        price: true,
-        promotionalPrice: true,
-        unit: true,
-        badges: true,
-        stock: true,
-        isFractional: true,
-        fractionStep: true,
-        manualIsFractional: true,
-        manualFractionStep: true,
-      },
-    }).then((items) => items.map((item) => this.toCustomerFacingProduct(item)))
+    // Categoria complementar primeiro (na ordem do mapa), a propria por ultimo;
+    // dentro de cada uma, o que mais sai nos pedidos.
+    return candidates
+      .sort((a, b) =>
+        categories.indexOf(a.category) - categories.indexOf(b.category) ||
+        (soldCount.get(b.id) || 0) - (soldCount.get(a.id) || 0) ||
+        a.name.localeCompare(b.name),
+      )
+      .slice(0, limit)
+      .map(({ category: _category, ...item }) => this.toCustomerFacingProduct(item))
   }
 
   async findAllAdmin(
