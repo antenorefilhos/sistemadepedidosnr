@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Loader2, Minus, Plus, ShoppingCart, Film } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -31,6 +31,12 @@ export default function ProductDetail() {
   const [imageIndex, setImageIndex] = useState(0)
   const [imgError, setImgError] = useState(false)
   const imageVersion = '2'
+
+  // VIEW_PRODUCT existia no tipo e nunca disparava: sem ele nao ha funil
+  // "viu -> adicionou". Um evento por produto aberto.
+  useEffect(() => {
+    if (product?.id) trackEvent('VIEW_PRODUCT', 'PRODUCT', product.id, { name: product.name, price: product.price })
+  }, [product?.id])
 
   const imageBaseUrl = `/uploads/products/${product?.ean ?? ''}`
   const imageCandidates = useMemo(
