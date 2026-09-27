@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
 
+// Mensagem lida por gente: R$ 135,25, nao R$ 135.25.
+const brl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
 export interface WhatsAppDispatchResult {
   channel: 'whatsapp_web'
   to: string
@@ -40,8 +43,8 @@ export class WhatsAppService {
 ${greeting} Acabei de fazer um pedido no site:
 
 ID: #${orderData.id}
-Itens: ${Number(orderData.items.toFixed(2))}
-*Total: R$ ${orderData.total.toFixed(2)}*
+Itens: ${orderData.items}
+*Total: ${brl(orderData.total)}*
 Pagamento: ${paymentLabel}
 `.trim()
 
@@ -73,7 +76,7 @@ Pagamento: ${paymentLabel}
     const firstName = customerName.split(' ')[0]
     const itemsList = cartItems
       .slice(0, 3)
-      .map((i) => `• ${i.name} (x${i.quantity}) — R$ ${(i.price * i.quantity).toFixed(2)}`)
+      .map((i) => `• ${i.name} (x${i.quantity}) — ${brl(i.price * i.quantity)}`)
       .join('\n')
     const total = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
     const hasMore = cartItems.length > 3 ? `\n_...e mais ${cartItems.length - 3} item(s)_` : ''
@@ -85,7 +88,7 @@ Você deixou alguns produtos no carrinho do *Antenor & Filhos*:
 
 ${itemsList}${hasMore}
 
-*Total estimado: R$ ${total.toFixed(2)}*
+*Total estimado: ${brl(total)}*
 
 Seu carrinho está te esperando! Finalize seu pedido agora e receba em casa com a qualidade que você conhece.
 
