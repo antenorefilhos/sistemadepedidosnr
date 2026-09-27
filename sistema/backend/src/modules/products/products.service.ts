@@ -16,7 +16,8 @@ import { resolveEffectiveFractional, type FractionalSource } from '../../common/
 
 // Categorias que combinam com cada categoria no "compre junto" (ordem = prioridade).
 const COMPLEMENTARY_CATEGORIES: Record<string, string[]> = {
-  ADEGA_VINHOS_ESPUMANTES: ['QUEIJOS_FRIOS_LATICINIOS'],
+  // Vinho: a missao queijos-e-vinhos ja traz queijo/salame; laticinio generico (iogurte, Toddynho) nao combina.
+  ADEGA_VINHOS_ESPUMANTES: [],
   QUEIJOS_FRIOS_LATICINIOS: ['ADEGA_VINHOS_ESPUMANTES', 'PADARIA_CONFEITARIA_CAFE'],
   ACOUGUE_CHURRASCO: ['HORTIFRUTI_ORGANICOS', 'CERVEJAS_CHOPP'],
   CERVEJAS_CHOPP: ['ACOUGUE_CHURRASCO', 'DOCES_CHOCOLATES_SNACKS'],
@@ -37,6 +38,7 @@ const RECOMMENDATION_SELECT = {
   erpProductId: true,
   name: true,
   category: true,
+  tags: true,
   titleMask: true,
   titleMaskShort: true,
   price: true,
@@ -304,16 +306,19 @@ export class ProductsService {
     // categoria: banana e frango na pagina do vinho.
     // ponytail: afinidade fixa por categoria; troca pela cesta real do PDV
     // (GET /api/ecommerce/cesta/:cdProduto da AntenorApi, previsto 11/10).
-    const base = await this.prisma.product.findUnique({ where: { id: productId }, select: { category: true } })
+    const base = await this.prisma.product.findUnique({ where: { id: productId }, select: { category: true, tags: true } })
+    const baseTags = base?.tags ?? []
     const categories = [...(COMPLEMENTARY_CATEGORIES[base?.category || ''] || []), base?.category].filter(
       (c, i, all): c is string => Boolean(c) && all.indexOf(c) === i,
     )
-    if (categories.length === 0) return []
+    if (categories.length === 0 && baseTags.length === 0) return []
 
     const candidates = await this.prisma.product.findMany({
       where: {
         id: { not: productId },
-        category: { in: categories },
+        // Missao em comum (tagsEcommerce da AntenorApi: queijos-e-vinhos,
+        // churrasco, cafe-da-manha...) ou categoria afim.
+        AND: [{ OR: [{ category: { in: categories } }, ...(baseTags.length ? [{ tags: { hasSome: baseTags } }] : [])] }],
         active: true,
         syncOption: { not: 'NUNCA' },
         OR: [
@@ -331,16 +336,23 @@ export class ProductsService {
     })
     const soldCount = new Map(sold.map((s) => [s.productId, s._count._all]))
 
-    // Categoria complementar primeiro (na ordem do mapa), a propria por ultimo;
-    // dentro de cada uma, o que mais sai nos pedidos.
+    // 1) mesma missao e OUTRA categoria (vinho -> queijo/salame: a combinacao
+    // real); 2) categoria complementar na ordem do mapa; 3) a propria; dentro
+    // de cada faixa, o que mais sai nos pedidos.
+    const rank = (c: (typeof candidates)[number]) => {
+      const sharesMission = c.tags.some((t) => baseTags.includes(t))
+      const categoryPos = categories.indexOf(c.category)
+      if (sharesMission && c.category !== base?.category) return 0
+      return 1 + (categoryPos === -1 ? categories.length : categoryPos)
+    }
     return candidates
       .sort((a, b) =>
-        categories.indexOf(a.category) - categories.indexOf(b.category) ||
+        rank(a) - rank(b) ||
         (soldCount.get(b.id) || 0) - (soldCount.get(a.id) || 0) ||
         a.name.localeCompare(b.name),
       )
       .slice(0, limit)
-      .map(({ category: _category, ...item }) => this.toCustomerFacingProduct(item))
+      .map(({ category: _category, tags: _tags, ...item }) => this.toCustomerFacingProduct(item))
   }
 
   async findAllAdmin(
