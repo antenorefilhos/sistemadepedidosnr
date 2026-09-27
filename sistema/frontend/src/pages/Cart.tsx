@@ -10,6 +10,7 @@ import type { Product } from '../types'
 import { useProductRecommendations, useSmartSubstitutes } from '../hooks/useCart'
 import { useTopSellingProducts } from '../hooks/useCMS'
 import { StoreProductCard } from '../components/StoreProductCard'
+import { productPath } from '../utils/productUrl'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
 import { getProductLineTotal, getProductPricePresentation, getProductPromoSavings, formatProductQuantity } from '../utils/productPricing'
@@ -525,7 +526,7 @@ function CartItemSubstitutes({ productId }: { productId: string }) {
         {visible.map((product) => (
           <Link
             key={product.id}
-            to={`/produto/${product.id}`}
+            to={productPath(product)}
             className="min-w-[150px] rounded-lg border border-amber-100 bg-white px-3 py-2 text-xs font-semibold text-[#231F20] hover:border-[#D2BB8A]"
           >
             <span className="line-clamp-2">{formatProductTitle(product.name)}</span>

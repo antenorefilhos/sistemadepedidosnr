@@ -1,6 +1,8 @@
 export interface Product {
   id: string
   ean: string
+  erpProductId?: number | null
+  ecommerceCategory?: string | null
   name: string
   alternativeDescription?: string
   price: number

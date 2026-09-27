@@ -1130,18 +1130,12 @@ export class ProductsService {
   }
 
   async findOne(id: string, context?: Partial<ProductTenantContext>) {
-    const scopedWhere = tenantStoreWhere(context)
-    if (Object.keys(scopedWhere).length > 0) {
-      const product = await this.prisma.product.findFirst({
-        where: { id, ...scopedWhere },
-      })
-
-      if (!product) return null
-      return this.toCustomerFacingProduct(product)
-    }
-
-    const product = await this.prisma.product.findUnique({
-      where: { id },
+    // URL limpa do storefront (/p/<nome>-<erpProductId>) resolve pelo codigo
+    // do ERP, que e estavel; o id interno (cuid) sempre comeca com letra, entao
+    // "so digitos" nunca colide com ele. Links antigos /produto/<cuid> seguem.
+    const where = /^\d+$/.test(id) ? { erpProductId: Number(id) } : { id }
+    const product = await this.prisma.product.findFirst({
+      where: { ...where, ...tenantStoreWhere(context) },
     })
 
     if (!product) return null

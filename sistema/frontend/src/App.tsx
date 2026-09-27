@@ -114,6 +114,7 @@ function AppRoutes() {
           <Route path="/adega-antenor" element={<PageTransition><WinePage /></PageTransition>} />
           <Route path="/mercado" element={<PageTransition><SearchPage /></PageTransition>} />
           <Route path="/busca" element={<LegacySearchRedirect />} />
+          <Route path="/p/:slug" element={<PageTransition><ProductDetail /></PageTransition>} />
           <Route path="/produto/:id" element={<PageTransition><ProductDetail /></PageTransition>} />
           <Route path="/receitas" element={<PageTransition><RecipeList /></PageTransition>} />
           <Route path="/receitas/:slug" element={<PageTransition><RecipeDetail /></PageTransition>} />

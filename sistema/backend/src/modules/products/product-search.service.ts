@@ -352,6 +352,7 @@ export class ProductSearchService implements OnModuleInit {
     tenantId: string
     storeId: string
     ean: string
+    erpProductId?: number | null
     secondaryEans?: string[]
     name: string
     alternativeDescription: string | null
@@ -380,6 +381,8 @@ export class ProductSearchService implements OnModuleInit {
       tenantId: product.tenantId,
       storeId: product.storeId,
       ean: product.ean,
+      // O storefront monta a URL limpa /p/<nome>-<erpProductId> a partir daqui.
+      erpProductId: product.erpProductId ?? null,
       secondaryEans: product.secondaryEans || [],
       name: product.name,
       normalizedName: this.normalizeCatalogName(product.name),

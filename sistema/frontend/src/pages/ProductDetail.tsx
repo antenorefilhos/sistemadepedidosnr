@@ -10,22 +10,25 @@ import { getProductCardViewModel } from '../utils/productCard'
 import { trackEvent } from '../utils/analytics'
 import { SEO, StructuredData } from '../components/SEO'
 import { getProductDetailSections } from '../utils/productDetailSchema'
+import { erpIdFromSlug, productPath } from '../utils/productUrl'
+import { toCategoryUrlParam } from '../utils/homeCategories'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
-import { Badge } from '../components/ui/badge'
 import { Button, buttonVariants } from '../components/ui/button'
 import { surfaceClasses } from '../components/ui/surface'
 
 export default function ProductDetail() {
-  const { id = '' } = useParams()
+  const { id: legacyId = '', slug = '' } = useParams()
+  // /p/<nome>-<erpProductId> (URL limpa) ou /produto/<cuid> (links antigos).
+  const id = slug ? erpIdFromSlug(slug) : legacyId
   const navigate = useNavigate()
   const location = useLocation()
   const { data: product, isLoading } = useProduct(id)
-  const { data: recommendations = [] } = useProductRecommendations(id, 6)
-  const { data: substitutes = [] } = useSmartSubstitutes(id, 6)
+  const { data: recommendations = [] } = useProductRecommendations(product?.id ?? '', 6)
+  const { data: substitutes = [] } = useSmartSubstitutes(product?.id ?? '', 6)
   const { count } = useCart()
   const { user } = useAuth()
   const [imageIndex, setImageIndex] = useState(0)
@@ -34,6 +37,14 @@ export default function ProductDetail() {
 
   // VIEW_PRODUCT existia no tipo e nunca disparava: sem ele nao ha funil
   // "viu -> adicionou". Um evento por produto aberto.
+  // Link antigo ou slug desatualizado (nome mudou) -> troca pela URL canonica
+  // sem criar entrada nova no historico.
+  useEffect(() => {
+    if (!product) return
+    const canonicalPath = productPath(product)
+    if (location.pathname !== canonicalPath) navigate(canonicalPath, { replace: true, state: location.state })
+  }, [product, location.pathname, location.state, navigate])
+
   useEffect(() => {
     if (product?.id) trackEvent('VIEW_PRODUCT', 'PRODUCT', product.id, { name: product.name, price: product.price })
   }, [product?.id])
@@ -128,6 +139,14 @@ export default function ProductDetail() {
 
   const price = getProductPricePresentation(product)
   const sections = getProductDetailSections(product)
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const isAdega = product.category === 'ADEGA_VINHOS_ESPUMANTES'
+  const categoryCrumb = product.category
+    ? {
+        label: isAdega ? 'Adega' : product.ecommerceCategory || String(product.category).toLowerCase().replace(/_/g, ' '),
+        to: isAdega ? '/adega' : `/mercado?cat=${toCategoryUrlParam(product.category)}`,
+      }
+    : null
 
   const productSchema = {
     '@context': 'https://schema.org',
@@ -137,7 +156,6 @@ export default function ProductDetail() {
     image: typeof window !== 'undefined' ? `${window.location.origin}${imageUrl}` : imageUrl,
     sku: product.ean,
     gtin: product.ean,
-    brand: { '@type': 'Brand', name: 'Antenor & Filhos' },
     offers: {
       '@type': 'Offer',
       priceCurrency: 'BRL',
@@ -154,8 +172,9 @@ export default function ProductDetail() {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Mercado', item: `${typeof window !== 'undefined' ? window.location.origin : ''}/mercado` },
-      { '@type': 'ListItem', position: 2, name: formatProductTitle(product.name) },
+      { '@type': 'ListItem', position: 1, name: 'Início', item: `${origin}/` },
+      ...(categoryCrumb ? [{ '@type': 'ListItem', position: 2, name: categoryCrumb.label, item: `${origin}${categoryCrumb.to}` }] : []),
+      { '@type': 'ListItem', position: categoryCrumb ? 3 : 2, name: formatProductTitle(product.name) },
     ],
   }
 
@@ -164,7 +183,7 @@ export default function ProductDetail() {
       <SEO
         title={formatProductTitle(product.name)}
         description={product.alternativeDescription || `Compre ${formatProductTitle(product.name)} no Antenor & Filhos. Qualidade garantida com entrega na sua porta.`}
-        canonical={`/produto/${product.id}`}
+        canonical={productPath(product)}
         type="product"
         image={imageUrl}
         keywords={[product.category, product.name].filter(Boolean).join(', ')}
@@ -292,7 +311,17 @@ export default function ProductDetail() {
         </section>
 
         <section className={surfaceClasses({ tone: 'warm', className: 'p-6 space-y-4' })}>
-          <Badge tone="gold">Produto detalhado</Badge>
+          <nav aria-label="Você está em" className="text-xs text-[#5d4f33]">
+            <ol className="flex flex-wrap items-center gap-1">
+              <li><Link to="/" className="hover:text-[#5D082A] hover:underline">Início</Link></li>
+              {categoryCrumb && (
+                <>
+                  <li aria-hidden="true">›</li>
+                  <li><Link to={categoryCrumb.to} className="hover:text-[#5D082A] hover:underline">{categoryCrumb.label}</Link></li>
+                </>
+              )}
+            </ol>
+          </nav>
           <h1 className="text-3xl font-bold text-[#231F20] leading-tight">{formatProductTitle(product.name)}</h1>
 
           {product.alternativeDescription && (
@@ -318,24 +347,30 @@ export default function ProductDetail() {
             {sections.map((section) => (
               <article key={section.id} className="rounded-lg border border-[#E8D7B0]/70 bg-[#FBFAF7] p-4">
                 <h2 className="text-sm uppercase tracking-wider font-bold text-[#5D082A] mb-2">{section.title}</h2>
-                <div className="space-y-2">
-                  {section.paragraphs.map((paragraph) => (
-                    <p key={paragraph} className="text-sm text-[#5d4f33] leading-relaxed">
-                      {paragraph}
-                    </p>
-                  ))}
-                </div>
+                {section.facts.some((fact) => fact.label) ? (
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+                    {section.facts.map((fact) => (
+                      <div key={fact.label} className="contents">
+                        <dt className="font-semibold text-[#231F20]">{fact.label}</dt>
+                        <dd className="text-[#5d4f33]">{fact.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  section.facts.map((fact) => (
+                    <p key={fact.value} className="text-sm text-[#5d4f33] leading-relaxed">{fact.value}</p>
+                  ))
+                )}
               </article>
             ))}
           </div>
 
           <div className="pt-2 flex flex-wrap gap-2">
-            <Link
-              to={`/mercado?cat=${encodeURIComponent(String(product.category || '').toLowerCase().replace(/_/g, '-'))}`}
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
-              Ver categoria
-            </Link>
+            {categoryCrumb && (
+              <Link to={categoryCrumb.to} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                Ver mais em {categoryCrumb.label}
+              </Link>
+            )}
             <Link to={backTo} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
               {backTo === '/adega' ? 'Voltar para a adega' : 'Voltar para o catalogo'}
             </Link>

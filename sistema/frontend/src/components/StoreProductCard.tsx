@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { ProductImagePlaceholder } from './ProductImagePlaceholder'
 import { useCart } from '../hooks/useCart'
 import type { Product } from '../types'
+import { productPath } from '../utils/productUrl'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { getProductCardViewModel } from '../utils/productCard'
 import { formatProductQuantity, getProductPricePresentation } from '../utils/productPricing'
@@ -124,7 +125,7 @@ export function StoreProductCard({
       {/* Imagem + botao + badges */}
       <div className="relative aspect-square overflow-hidden bg-gray-50 border-b border-[#E8D7B0]/30">
         <Link
-          to={`/produto/${product.id}`}
+          to={productPath(product)}
           className="absolute inset-0 flex items-center justify-center"
           aria-label={`Ver detalhes de ${formatProductTitle(product.name)}`}
         >
@@ -240,7 +241,7 @@ export function StoreProductCard({
             </p>
           )}
 
-          <Link to={`/produto/${product.id}`} className="block">
+          <Link to={productPath(product)} className="block">
             <h3 className="font-sans text-body font-semibold leading-snug text-[#231F20] line-clamp-3 hover:text-[#5D082A] transition-colors">
               {formatProductTitle(viewModel.title)}
             </h3>

@@ -210,15 +210,23 @@ describe('ProductsService', () => {
   describe('findOne', () => {
     it('should return product by ID', async () => {
       const mockProduct = { id: '1', name: 'Product', price: 100 };
-      mockPrismaService.product.findUnique.mockResolvedValue(mockProduct);
+      mockPrismaService.product.findFirst.mockResolvedValue(mockProduct);
 
       const result = await service.findOne('1');
 
       expect(result.id).toBe('1');
     });
 
+    it('id so com digitos resolve pelo erpProductId (URL limpa /p/<nome>-<id>)', async () => {
+      mockPrismaService.product.findFirst.mockResolvedValue({ id: 'cabc', erpProductId: 22030, name: 'Vinho', price: 10 });
+
+      await service.findOne('22030');
+
+      expect(mockPrismaService.product.findFirst).toHaveBeenLastCalledWith({ where: expect.objectContaining({ erpProductId: 22030 }) });
+    });
+
     it('should return null for invalid ID', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue(null);
+      mockPrismaService.product.findFirst.mockResolvedValue(null);
 
       const result = await service.findOne('invalid');
 
@@ -714,7 +722,7 @@ describe('ProductsService', () => {
 
   describe('fractional products', () => {
     it('should return fractional 0.1', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '1',
         isFractional: true,
         fractionStep: 0.1,
@@ -726,7 +734,7 @@ describe('ProductsService', () => {
     });
 
     it('should return fractional 0.2', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '2',
         isFractional: true,
         fractionStep: 0.2,
@@ -740,7 +748,7 @@ describe('ProductsService', () => {
     });
 
     it('should return fractional 0.5', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '3',
         isFractional: true,
         fractionStep: 0.5,
@@ -752,7 +760,7 @@ describe('ProductsService', () => {
     });
 
     it('should return non-fractional product', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '4',
         isFractional: false,
         fractionStep: null,
@@ -764,7 +772,7 @@ describe('ProductsService', () => {
     });
 
     it('should validate fractionStep range', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '5',
         isFractional: true,
         fractionStep: 0.25,
@@ -779,7 +787,7 @@ describe('ProductsService', () => {
 
   describe('pricing', () => {
     it('should prioritize promotional price', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '1',
         price: 100,
         promotionalPrice: 75,
@@ -791,7 +799,7 @@ describe('ProductsService', () => {
     });
 
     it('should handle null promotional price', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '1',
         price: 50,
         promotionalPrice: null,
@@ -804,7 +812,7 @@ describe('ProductsService', () => {
     });
 
     it('should handle zero price', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '1',
         price: 0,
       });
@@ -845,7 +853,7 @@ describe('ProductsService', () => {
 
   describe('availability', () => {
     it('should check stock availability', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '1',
         active: true,
         stock: 100,
@@ -857,7 +865,7 @@ describe('ProductsService', () => {
     });
 
     it('should handle out of stock', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '1',
         active: true,
         stock: 0,
@@ -869,7 +877,7 @@ describe('ProductsService', () => {
     });
 
     it('should handle inactive product', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({
+      mockPrismaService.product.findFirst.mockResolvedValue({
         id: '1',
         active: false,
         stock: 50,

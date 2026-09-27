@@ -1,6 +1,7 @@
 import { useProducts, useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import { useStoreBanners } from '../hooks/useCMS'
+import { productPath } from '../utils/productUrl'
 import { findWineCategoryBanner, resolveBannerLink } from '../utils/homeCategories'
 import { PromoBanner } from '../components/PromoBanner'
 import { resolveApiUrl } from '../services/api'
@@ -362,7 +363,7 @@ function WineCard({ product }: { product: Product }) {
        {/* 1:1 Photo Container */}
        <div className="relative aspect-square overflow-hidden mb-4 shadow-2xl rounded-xl bg-gradient-to-b from-[#FAF7F2] to-[#F2EDE4] border border-[#D2BB8A]/30 transition-colors duration-300 hover:border-[#D2BB8A]">
          <Link
-            to={`/produto/${product.id}`}
+            to={productPath(product)}
             state={{ from: '/adega' }}
           className="absolute inset-0 z-[1]"
           aria-label={`Ver detalhes de ${product.name}`}
@@ -411,7 +412,7 @@ function WineCard({ product }: { product: Product }) {
        {/* Info Below */}
        <div className="flex flex-col flex-1 px-1">
           <div className="mb-3">
-             <Link to={`/produto/${product.id}`} state={{ from: '/adega' }} className="block">
+             <Link to={productPath(product)} state={{ from: '/adega' }} className="block">
                <h3 className="luxury-text text-base text-white line-clamp-2 leading-tight min-h-[2.5rem] group-hover:text-[#D2BB8A] transition-colors">
                  {formatWineTitle(product.name)}
                </h3>

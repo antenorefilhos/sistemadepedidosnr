@@ -1,165 +1,121 @@
 import type { Product } from '../types'
 import { formatPortionFromStep, getFractionDisplayUnit, getProductStep } from './productPricing'
 
-export type ProductDetailSectionType =
-  | 'summary'
-  | 'attributes'
-  | 'additionalInfo'
-  | 'storage'
-  | 'cutTips'
-  | 'harmonization'
+// Pagina do produto so mostra o que e verdade SOBRE ESTE produto. Ate
+// 27/09/2026 ela montava secoes genericas (estoque, EAN, "categoria
+// comercial", "harmoniza com carnes vermelhas" ate para vinho branco) --
+// informacao de sistema, nao de produto. Regra: se o dado nao existe no
+// cadastro, a linha nao aparece.
+
+export type ProductFact = { label: string; value: string }
 
 export type ProductDetailSection = {
-  id: ProductDetailSectionType
+  id: 'wine' | 'info' | 'storage'
   title: string
-  paragraphs: string[]
+  facts: ProductFact[]
 }
 
-const DEFAULT_TITLES: Record<ProductDetailSectionType, string> = {
-  summary: 'Resumo do produto',
-  attributes: 'Atributos principais',
-  additionalInfo: 'Informacoes adicionais',
-  storage: 'Conservacao',
-  cutTips: 'Dicas de preparo',
-  harmonization: 'Harmonizacao sugerida',
+const strip = (value: string) => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+
+// Adjetivo de origem usado no nome do cadastro -> pais.
+const WINE_COUNTRIES: Record<string, string> = {
+  nacional: 'Brasil',
+  brasileiro: 'Brasil',
+  chileno: 'Chile',
+  argentino: 'Argentina',
+  uruguaio: 'Uruguai',
+  portugues: 'Portugal',
+  italiano: 'Itália',
+  frances: 'França',
+  espanhol: 'Espanha',
+  alemao: 'Alemanha',
+  americano: 'Estados Unidos',
+  africano: 'África do Sul',
+  'sul-africano': 'África do Sul',
+  australiano: 'Austrália',
+  neozelandes: 'Nova Zelândia',
 }
 
-const SCHEMA_BY_CATEGORY: Record<string, ProductDetailSectionType[]> = {
-  VINHOS: ['summary', 'attributes', 'harmonization', 'additionalInfo', 'storage'],
-  CERVEJAS: ['summary', 'attributes', 'harmonization', 'additionalInfo', 'storage'],
-  CHURRASCO: ['summary', 'attributes', 'cutTips', 'additionalInfo', 'storage'],
-  CARNES_DIA_A_DIA: ['summary', 'attributes', 'cutTips', 'additionalInfo', 'storage'],
-  HORTIFRUTI: ['summary', 'attributes', 'additionalInfo', 'storage'],
-  PADARIA: ['summary', 'attributes', 'additionalInfo', 'storage'],
+const GRAPES = [
+  'Cabernet Sauvignon', 'Cabernet Franc', 'Sauvignon Blanc', 'Pinot Noir', 'Pinot Grigio', 'Touriga Nacional',
+  'Petit Verdot', 'Chardonnay', 'Merlot', 'Malbec', 'Syrah', 'Shiraz', 'Tannat', 'Carmenere', 'Carménère',
+  'Tempranillo', 'Sangiovese', 'Moscatel', 'Riesling', 'Pinotage', 'Zinfandel', 'Primitivo', 'Nebbiolo',
+  'Montepulciano', 'Bonarda', 'Teroldego', 'Torrontes', 'Alvarinho', 'Garnacha', 'Grenache', 'Marselan',
+]
+
+const WINE_TYPES: Record<string, string> = { tinto: 'Tinto', branco: 'Branco', rose: 'Rosé' }
+
+const SERVING_TEMPERATURE: Record<string, string> = {
+  Tinto: '16 °C a 18 °C',
+  Branco: '8 °C a 10 °C',
+  Rosé: '8 °C a 12 °C',
+  Espumante: '6 °C a 8 °C',
 }
 
-const normalizeCategory = (value?: string) =>
-  String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
+const isWine = (product: Product) =>
+  product.category === 'ADEGA_VINHOS_ESPUMANTES' || /^(vinho|espumante|champagne)\b/.test(strip(product.name))
 
-const buildSummary = (product: Product) => {
-  const lines = [
-    product.alternativeDescription || `Produto da categoria ${String(product.category || 'geral').toLowerCase().replace(/_/g, ' ')}.`,
-  ]
+/** Ficha do vinho extraida do nome padronizado do cadastro (tipo, pais, uva, volume). */
+export const getWineFacts = (product: Product): ProductFact[] => {
+  const words = product.name.split(/\s+/)
+  const lower = words.map(strip)
+  const facts: ProductFact[] = []
 
-  if (product.badges) {
-    lines.push(`Destaques comerciais: ${product.badges}.`)
-  }
+  const isSparkling = lower[0] === 'espumante' || lower[0] === 'champagne'
+  const type = isSparkling ? 'Espumante' : WINE_TYPES[lower[1]]
+  if (type) facts.push({ label: 'Tipo', value: type })
 
-  return lines
+  const country = lower.map((w) => WINE_COUNTRIES[w]).find(Boolean)
+  if (country) facts.push({ label: 'País', value: country })
+
+  const name = strip(product.name)
+  const grapes = GRAPES.filter((grape) => name.includes(strip(grape)))
+  const uniqueGrapes = grapes.filter((g, i) => grapes.findIndex((o) => strip(o) === strip(g)) === i)
+  if (uniqueGrapes.length) facts.push({ label: uniqueGrapes.length > 1 ? 'Uvas' : 'Uva', value: uniqueGrapes.join(', ') })
+
+  const sweetness = ['seco', 'suave', 'demi-sec', 'brut', 'nature', 'doce'].find((s) => lower.includes(s))
+  if (sweetness) facts.push({ label: 'Estilo', value: sweetness === 'demi-sec' ? 'Demi-sec' : sweetness[0].toUpperCase() + sweetness.slice(1) })
+
+  if (/\bgran reserva\b/.test(name)) facts.push({ label: 'Classificação', value: 'Gran Reserva' })
+  else if (/\breserva\b/.test(name)) facts.push({ label: 'Classificação', value: 'Reserva' })
+
+  const volume = product.name.match(/(\d+(?:[.,]\d+)?)\s?(ml|l)\b/i)
+  if (volume) facts.push({ label: 'Volume', value: `${volume[1]} ${volume[2].toLowerCase() === 'l' ? 'L' : 'ml'}` })
+
+  if (type && SERVING_TEMPERATURE[type]) facts.push({ label: 'Servir entre', value: SERVING_TEMPERATURE[type] })
+
+  return facts
 }
 
-const buildAttributes = (product: Product) => {
-  const lines: string[] = []
-
-  const unitLabel = getFractionDisplayUnit(product)
-  const step = getProductStep(product)
-  const portionLabel = formatPortionFromStep(step, unitLabel)
-
-  lines.push(`Unidade de venda: ${(product.unit || 'un').toUpperCase()}.`)
-
+const buildInfo = (product: Product): ProductFact[] => {
+  const facts: ProductFact[] = []
   if (product.isFractional) {
-    lines.push(`Produto pesavel com porcao minima de ${portionLabel}.`)
+    const portion = formatPortionFromStep(getProductStep(product), getFractionDisplayUnit(product))
+    facts.push({ label: 'Venda', value: 'Por peso, pesado na hora da separação' })
+    facts.push({ label: 'Porção mínima', value: portion })
   }
-
-  // JON-31: achado na varredura de 09/09/2026 -- estoque negativo do ERP e
-  // dado real (producao propria/peso, ver CLAUDE.md), mas mostrar "-11" cru
-  // pro cliente e confuso. So exibe quando faz sentido pro cliente ver.
-  if (typeof product.stock === 'number' && product.stock >= 0) {
-    lines.push(`Estoque informado: ${product.stock}.`)
-  }
-
-  if (product.origin) {
-    lines.push(`Origem: ${product.origin}.`)
-  }
-
-  return lines
+  const content = product.name.match(/(\d+(?:[.,]\d+)?)\s?(kg|g|ml|l|un|unidades)\b/i)
+  if (!product.isFractional && content) facts.push({ label: 'Conteúdo', value: `${content[1]} ${content[2]}` })
+  if (product.origin) facts.push({ label: 'Origem', value: product.origin })
+  return facts
 }
 
-const buildStorage = (product: Product) => {
-  if (product.category === 'VINHOS' || product.category === 'CERVEJAS') {
-    return ['Manter em local fresco e protegido de luz direta.', 'Refrigerar antes de servir quando aplicavel.']
-  }
-
-  if (product.category === 'CHURRASCO' || product.category === 'CARNES_DIA_A_DIA') {
-    return ['Manter refrigerado entre 0C e 4C.', 'Se nao for consumir no dia, conservar congelado.']
-  }
-
-  return ['Conservar conforme orientacao da embalagem.', 'Apos aberto, manter em recipiente fechado.']
-}
-
-const buildAdditionalInfo = (product: Product) => {
-  const lines: string[] = []
-
-  if (product.ean) {
-    lines.push(`EAN: ${product.ean}.`)
-  }
-
-  if (product.category) {
-    lines.push(`Categoria comercial: ${String(product.category).replace(/_/g, ' ')}.`)
-  }
-
-  if (product.badges) {
-    lines.push(`Selo editorial ativo: ${product.badges}.`)
-  }
-
-  if (product.titleMask || product.titleMaskShort) {
-    lines.push('Titulo de vitrine personalizado aplicado para comunicacao comercial.')
-  }
-
-  return lines
-}
-
-const buildCutTips = () => {
-  return [
-    'Para melhor resultado, tempere com antecedencia e respeite o tempo de descanso apos o preparo.',
-    'Use fogo medio para preservar suculencia e textura.',
-  ]
-}
-
-const buildHarmonization = (product: Product) => {
-  if (product.category === 'VINHOS') {
-    return ['Harmoniza bem com carnes vermelhas, massas e queijos curados.', 'Sirva na temperatura recomendada para o estilo do rotulo.']
-  }
-
-  if (product.category === 'CERVEJAS') {
-    return ['Combina com petiscos, churrasco e sanduiches.', 'Sirva gelada para melhor experiencia.']
-  }
-
-  return ['Pode ser combinado com os itens mais vendidos da mesma categoria.']
+const STORAGE_BY_CATEGORY: Record<string, string> = {
+  ACOUGUE_CHURRASCO: 'Manter refrigerado entre 0 °C e 4 °C. Se não for consumir no dia, congele.',
+  CONGELADOS_PRATICOS: 'Manter congelado a -18 °C ou menos. Não recongele depois de descongelado.',
+  QUEIJOS_FRIOS_LATICINIOS: 'Manter refrigerado. Depois de aberto, consumir conforme a embalagem.',
 }
 
 export const getProductDetailSections = (product: Product): ProductDetailSection[] => {
-  const categoryCode = normalizeCategory(product.category)
-  const schema = SCHEMA_BY_CATEGORY[categoryCode] || ['summary', 'attributes', 'additionalInfo', 'storage']
-
-  return schema
-    .map((sectionType): ProductDetailSection => {
-      if (sectionType === 'summary') {
-        return { id: sectionType, title: DEFAULT_TITLES[sectionType], paragraphs: buildSummary(product) }
-      }
-
-      if (sectionType === 'attributes') {
-        return { id: sectionType, title: DEFAULT_TITLES[sectionType], paragraphs: buildAttributes(product) }
-      }
-
-      if (sectionType === 'storage') {
-        return { id: sectionType, title: DEFAULT_TITLES[sectionType], paragraphs: buildStorage(product) }
-      }
-
-      if (sectionType === 'additionalInfo') {
-        return { id: sectionType, title: DEFAULT_TITLES[sectionType], paragraphs: buildAdditionalInfo(product) }
-      }
-
-      if (sectionType === 'cutTips') {
-        return { id: sectionType, title: DEFAULT_TITLES[sectionType], paragraphs: buildCutTips() }
-      }
-
-      return { id: sectionType, title: DEFAULT_TITLES[sectionType], paragraphs: buildHarmonization(product) }
-    })
-    .filter((section) => section.paragraphs.length > 0)
+  const sections: ProductDetailSection[] = []
+  if (isWine(product)) {
+    const wine = getWineFacts(product)
+    if (wine.length) sections.push({ id: 'wine', title: 'Ficha do vinho', facts: wine })
+  } else {
+    const info = buildInfo(product)
+    if (info.length) sections.push({ id: 'info', title: 'Informações', facts: info })
+  }
+  const storage = STORAGE_BY_CATEGORY[String(product.category || '')]
+  if (storage) sections.push({ id: 'storage', title: 'Conservação', facts: [{ label: '', value: storage }] })
+  return sections
 }
