@@ -12,6 +12,48 @@ import { SEO, StructuredData } from '../components/SEO'
 import { getProductDetailSections } from '../utils/productDetailSchema'
 import { erpIdFromSlug, productPath } from '../utils/productUrl'
 import { toCategoryUrlParam } from '../utils/homeCategories'
+import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
+import { readDeliveryVerification, subscribeDeliveryVerification } from '../services/deliveryVerification'
+
+// Missoes (tagsEcommerce da AntenorApi) que viram o titulo do bloco de
+// sugestoes -- "Monte seu churrasco" vende mais que "Compre junto".
+// Tags de atributo (linha-premium, diet-light, integral...) ficam de fora.
+const MISSIONS: Array<[string, string]> = [
+  ['churrasco', 'Monte seu churrasco'],
+  ['queijos-e-vinhos', 'Queijos & vinhos'],
+  ['boteco-em-casa', 'Boteco em casa'],
+  ['cafe-da-manha', 'Café da manhã completo'],
+  ['lanche-rapido', 'Lanche rápido'],
+  ['sobremesa', 'Hora da sobremesa'],
+]
+
+const brl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+/** Frete do bairro do cliente (o que ele ja informou no site) ou convite para informar o CEP. */
+function DeliveryInfoCard() {
+  const { openModal } = useDeliveryVerificationModal()
+  const [verification, setVerification] = useState(() => readDeliveryVerification())
+  useEffect(() => subscribeDeliveryVerification(() => setVerification(readDeliveryVerification())), [])
+  const calc = verification?.calc
+  const place = calc?.locality || calc?.zoneName || verification?.address?.neighborhood
+
+  let body: React.ReactNode
+  if (!calc) {
+    body = <>Veja se entregamos no seu endereço: <button type="button" onClick={() => openModal()} className="font-semibold text-[#5D082A] underline">Informe seu CEP</button> e veja o frete.</>
+  } else if (calc.outOfArea) {
+    body = <>Ainda não entregamos {place ? `em ${place}` : 'no seu endereço'}, mas você pode <strong>retirar na loja</strong>. <button type="button" onClick={() => openModal()} className="font-semibold text-[#5D082A] underline">Trocar endereço</button></>
+  } else {
+    const fee = calc.fee ?? 0
+    body = (
+      <>
+        <strong>Entrega {place ? `em ${place}` : 'no seu endereço'}</strong>: {fee > 0 ? brl(fee) : 'grátis'}
+        {fee > 0 && calc.freeAbove ? <> · grátis acima de {brl(calc.freeAbove)}</> : null}
+        {' '}<button type="button" onClick={() => openModal()} className="text-[#5D082A] underline">trocar</button>
+      </>
+    )
+  }
+  return <p className="rounded-lg border border-[#E8D7B0]/70 bg-[#FBFAF7] px-4 py-3 text-sm text-[#5d4f33]">{body}</p>
+}
 import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
 import { useAuth } from '../hooks/useAuth'
@@ -139,6 +181,7 @@ export default function ProductDetail() {
 
   const price = getProductPricePresentation(product)
   const sections = getProductDetailSections(product)
+  const mission = MISSIONS.find(([tag]) => product.tags?.includes(tag))
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const isAdega = product.category === 'ADEGA_VINHOS_ESPUMANTES'
   const categoryCrumb = product.category
@@ -354,6 +397,7 @@ export default function ProductDetail() {
           </div>
 
           <ProductPurchasePanel product={product} />
+          <DeliveryInfoCard />
 
           <div className="space-y-4 pt-2">
             {sections.map((section) => (
@@ -393,9 +437,9 @@ export default function ProductDetail() {
       {recommendations.length > 0 && (
         <section className="max-w-6xl mx-auto px-4 pb-12">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-[#231F20]">Compre junto</h2>
-            <Link to="/mercado" className="text-xs text-[#5D082A] font-bold hover:underline">
-              Ver mais no Mercado
+            <h2 className="text-xl font-bold text-[#231F20]">{mission ? mission[1] : 'Compre junto'}</h2>
+            <Link to={mission ? `/mercado?tag=${mission[0]}` : '/mercado'} className="text-xs text-[#5D082A] font-bold hover:underline">
+              {mission ? 'Ver tudo' : 'Ver mais no Mercado'}
             </Link>
           </div>
 

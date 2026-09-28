@@ -25,6 +25,7 @@ describe('ficha do vinho', () => {
       { label: 'Uva', value: 'Cabernet Sauvignon' },
       { label: 'Classificação', value: 'Gran Reserva' },
       { label: 'Volume', value: '750 ml' },
+      { label: 'Harmoniza com', value: 'Carnes vermelhas grelhadas, cordeiro e queijos curados' },
       { label: 'Servir entre', value: '16 °C a 18 °C' },
     ])
   })
@@ -35,5 +36,24 @@ describe('ficha do vinho', () => {
   it('nao mostra estoque nem EAN em nenhum produto', () => {
     const all = getProductDetailSections(p({ name: 'Arroz Branco 5kg', stock: 30, ean: '789', category: 'MERCEARIA_DESPENSA' }))
     expect(JSON.stringify(all)).not.toMatch(/Estoque|EAN/)
+  })
+})
+
+describe('ficha de carne e harmonizacao', () => {
+  it('picanha: preparo e quanto comprar', () => {
+    const [meat] = getProductDetailSections(p({ name: 'Picanha Bovina Bassi kg', category: 'ACOUGUE_CHURRASCO', isFractional: true, fractionStep: 0.5, unit: 'kg' }))
+    expect(meat.title).toBe('Sobre este corte')
+    expect(meat.facts[0]).toEqual({ label: 'Indicado para', value: 'Churrasco e grelha (em peça ou em bifes grossos)' })
+    expect(meat.facts.map((f) => f.label)).toContain('Quanto comprar')
+  })
+  it('linguica da "Casa" nao vira asa de frango', () => {
+    const [meat] = getProductDetailSections(p({ name: 'Linguiça Toscana da Casa kg', category: 'ACOUGUE_CHURRASCO' }))
+    expect(meat.facts[0].value).toBe('Churrasco, frigideira e forno')
+  })
+  it('harmonizacao pela uva; suave vai para sobremesa', () => {
+    const cab = getWineFacts(p({ name: 'Vinho Tinto Chileno Reserva Cabernet Sauvignon Viu Manent Garrafa 750ml' }))
+    expect(cab.find((f) => f.label === 'Harmoniza com')?.value).toMatch(/Carnes vermelhas grelhadas/)
+    const suave = getWineFacts(p({ name: 'Vinho Tinto Nacional Suave Galiotto Garrafa' }))
+    expect(suave.find((f) => f.label === 'Harmoniza com')?.value).toMatch(/Sobremesas/)
   })
 })

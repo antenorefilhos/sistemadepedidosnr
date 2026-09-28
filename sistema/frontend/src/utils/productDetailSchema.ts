@@ -10,7 +10,7 @@ import { formatPortionFromStep, getFractionDisplayUnit, getProductStep } from '.
 export type ProductFact = { label: string; value: string }
 
 export type ProductDetailSection = {
-  id: 'wine' | 'info' | 'storage'
+  id: 'wine' | 'meat' | 'info' | 'storage'
   title: string
   facts: ProductFact[]
 }
@@ -44,6 +44,33 @@ const GRAPES = [
 ]
 
 const WINE_TYPES: Record<string, string> = { tinto: 'Tinto', branco: 'Branco', rose: 'Rosé' }
+
+// Harmonizacao classica por uva (a primeira uva do nome decide); sem uva, pelo tipo.
+const PAIRING_BY_GRAPE: Record<string, string> = {
+  'cabernet sauvignon': 'Carnes vermelhas grelhadas, cordeiro e queijos curados',
+  'cabernet franc': 'Carnes assadas, pratos com ervas e queijos de média cura',
+  merlot: 'Massas ao molho vermelho, carnes assadas e queijos de média cura',
+  malbec: 'Churrasco, cortes gordos e carnes na brasa',
+  syrah: 'Carnes condimentadas, embutidos e costela',
+  shiraz: 'Carnes condimentadas, embutidos e costela',
+  tannat: 'Carnes gordas, costela e cordeiro',
+  carmenere: 'Carnes com especiarias, pimentões e comida mexicana',
+  'pinot noir': 'Aves, salmão, cogumelos e massas leves',
+  sangiovese: 'Massas ao sugo, pizza e antepastos',
+  tempranillo: 'Embutidos, cordeiro e presunto cru',
+  'touriga nacional': 'Carnes assadas, cabrito e bacalhau no forno',
+  pinotage: 'Carnes defumadas e churrasco',
+  chardonnay: 'Peixes, frutos do mar, aves e queijos cremosos',
+  'sauvignon blanc': 'Saladas, frutos do mar, ceviche e queijo de cabra',
+  moscatel: 'Sobremesas, frutas e doces',
+  riesling: 'Comida asiática, peixes e pratos agridoces',
+}
+const PAIRING_BY_TYPE: Record<string, string> = {
+  Tinto: 'Carnes vermelhas, massas ao molho vermelho e queijos curados',
+  Branco: 'Peixes, frutos do mar, aves e saladas',
+  Rosé: 'Saladas, peixes, pratos leves e petiscos',
+  Espumante: 'Entradas, frutos do mar, petiscos e brindes',
+}
 
 const SERVING_TEMPERATURE: Record<string, string> = {
   Tinto: '16 °C a 18 °C',
@@ -82,9 +109,45 @@ export const getWineFacts = (product: Product): ProductFact[] => {
   const volume = product.name.match(/(\d+(?:[.,]\d+)?)\s?(ml|l)\b/i)
   if (volume) facts.push({ label: 'Volume', value: `${volume[1]} ${volume[2].toLowerCase() === 'l' ? 'L' : 'ml'}` })
 
+  const sweet = sweetness === 'suave' || sweetness === 'doce'
+  const pairing = sweet ? 'Sobremesas, frutas e pratos agridoces' : uniqueGrapes.map((g) => PAIRING_BY_GRAPE[strip(g).replace('carménère', 'carmenere')]).find(Boolean) || (type ? PAIRING_BY_TYPE[type] : undefined)
+  if (pairing) facts.push({ label: 'Harmoniza com', value: pairing })
+
   if (type && SERVING_TEMPERATURE[type]) facts.push({ label: 'Servir entre', value: SERVING_TEMPERATURE[type] })
 
   return facts
+}
+
+// Preparo indicado por corte (palavra do nome do cadastro). Ordem importa:
+// "contra file" antes de "file", "file mignon" antes de "file".
+const MEAT_CUTS: Array<[RegExp, string]> = [
+  [/picanha/, 'Churrasco e grelha (em peça ou em bifes grossos)'],
+  [/file de costela|steak/, 'Grelha e chapa (steak)'],
+  [/maminha|fraldinha|fraldao|vazio|entranha|flat iron|denver|ancho|chorizo|ojo de bife|short rib|tomahawk/, 'Churrasco e grelha'],
+  [/contra ?file/, 'Grelha, churrasco e bife na chapa'],
+  [/file mignon/, 'Medalhões, bife alto, estrogonofe e carpaccio'],
+  [/alcatra|miolo da alcatra|baby beef/, 'Churrasco, bifes e assados'],
+  [/costela|cupim/, 'Fogo de chão, forno baixo e panela de pressão (cozimento longo)'],
+  [/patinho|coxao|lagarto/, 'Bife, carne moída, assado de panela e rosbife'],
+  [/acem|musculo|paleta|peito bovino|ossobuco/, 'Panela: ensopados, caldos e carne desfiada'],
+  [/moida/, 'Molhos, almôndegas, recheios e hambúrguer'],
+  [/linguica/, 'Churrasco, frigideira e forno'],
+  [/\b(asa|coxa|sobrecoxa|drumet|tulipa)\b/, 'Churrasco, forno e airfryer'],
+  [/peito de frango|file de peito|file de frango/, 'Grelhado, empanado, desfiado e estrogonofe'],
+  [/pernil|lombo/, 'Forno (assado) e churrasco'],
+  [/costelinha|barriga|panceta|torresmo/, 'Forno baixo, churrasco e pururuca'],
+  [/cordeiro|carre|cabrito/, 'Grelha e forno'],
+]
+
+const buildMeat = (product: Product): ProductFact[] => {
+  const name = strip(product.name)
+  const facts: ProductFact[] = []
+  const cut = MEAT_CUTS.find(([re]) => re.test(name))
+  if (cut) facts.push({ label: 'Indicado para', value: cut[1] })
+  if (product.isFractional) {
+    facts.push({ label: 'Quanto comprar', value: 'Churrasco: cerca de 400 g por adulto. Prato do dia a dia: 150 g a 200 g por pessoa.' })
+  }
+  return [...facts, ...buildInfo(product)]
 }
 
 const buildInfo = (product: Product): ProductFact[] => {
@@ -111,6 +174,9 @@ export const getProductDetailSections = (product: Product): ProductDetailSection
   if (isWine(product)) {
     const wine = getWineFacts(product)
     if (wine.length) sections.push({ id: 'wine', title: 'Ficha do vinho', facts: wine })
+  } else if (product.category === 'ACOUGUE_CHURRASCO') {
+    const meat = buildMeat(product)
+    if (meat.length) sections.push({ id: 'meat', title: 'Sobre este corte', facts: meat })
   } else {
     const info = buildInfo(product)
     if (info.length) sections.push({ id: 'info', title: 'Informações', facts: info })
