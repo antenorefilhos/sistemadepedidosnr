@@ -499,7 +499,9 @@ export class ProductsService {
       // limita o pior caso (termo muito generico casando milhares de linhas);
       // acima do teto a pagina ainda funciona, so perde ranking fino no fim.
       const RELEVANCE_CANDIDATES_CAP = 1000
-      const searchLower = search!.trim().toLowerCase()
+      // Sem acento dos dois lados: "limao" tem que ranquear "Limão kg" no topo.
+      const fold = (value: string) => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+      const searchLower = fold(search!.trim())
       const [candidates, count] = await this.prisma.$transaction([
         this.prisma.product.findMany({ where, take: RELEVANCE_CANDIDATES_CAP }),
         this.prisma.product.count({ where }),
@@ -507,7 +509,7 @@ export class ProductsService {
 
       const ranked = candidates
         .map((product) => {
-          const nameLower = (product.name || '').toLowerCase()
+          const nameLower = fold(product.name || '')
           const isAvailable =
             product.active &&
             (String(product.syncOption || '').toUpperCase() === 'SEMPRE' || Number(product.stock || 0) > 0)
