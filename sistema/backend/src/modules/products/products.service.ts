@@ -46,6 +46,8 @@ const RECOMMENDATION_SELECT = {
   unit: true,
   badges: true,
   stock: true,
+  // Sem syncOption o card trata SEMPRE com estoque negativo (banana, 28/09) como indisponivel.
+  syncOption: true,
   isFractional: true,
   fractionStep: true,
   manualIsFractional: true,
