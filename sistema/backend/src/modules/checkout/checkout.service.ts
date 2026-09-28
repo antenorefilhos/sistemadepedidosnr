@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { isWithinDeliveryHours, parseHoursConfig } from '../../common/delivery-hours'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { isProductSellable } from '../../common/product-availability'
@@ -175,6 +176,7 @@ export class CheckoutService {
     const paymentMethod = String(dto.paymentMethod || 'CASH').toUpperCase()
     const paymentSnapshot = this.buildPaymentSnapshot(paymentMethod)
     this.assertScheduledForIsSane(dto.scheduledFor)
+    await this.assertWithinDeliveryHours(dto.scheduledFor)
 
     await this.prisma.checkoutSession.update({
       where: { id },
@@ -758,6 +760,31 @@ export class CheckoutService {
    * ficando preso). O front so oferece horarios validos, mas quem chama a
    * API direto nao passa por ele.
    */
+  /**
+   * Pedido "o quanto antes" so com a loja aberta; agendado, so dentro de uma
+   * janela de entrega (semana + datas especiais do admin). Ate 28/09/2026 so a
+   * tela do checkout barrava -- com a loja fechada, o site caia numa janela
+   * generica de 45min-3h e o pedido entrava do mesmo jeito.
+   */
+  private async assertWithinDeliveryHours(scheduledFor?: string) {
+    const brand = await this.prisma.brandConfig.findUnique({
+      where: { id: 'singleton' },
+      select: { businessHours: true, specialDates: true },
+    })
+    const hours = parseHoursConfig(brand?.businessHours, brand?.specialDates)
+    if (!hours) return
+
+    if (!scheduledFor) {
+      if (!isWithinDeliveryHours(hours, new Date())) {
+        throw new BadRequestException('Estamos fechados agora. Escolha um horário para receber o pedido.')
+      }
+      return
+    }
+    if (!isWithinDeliveryHours(hours, new Date(scheduledFor), true)) {
+      throw new BadRequestException('O horário escolhido está fora do nosso horário de entrega. Escolha outro horário.')
+    }
+  }
+
   private assertScheduledForIsSane(scheduledFor?: string) {
     if (!scheduledFor) return
 

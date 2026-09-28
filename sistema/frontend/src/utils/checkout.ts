@@ -1,5 +1,5 @@
 import type { CheckoutQuoteResponse } from '../services/api'
-import { getAsapWindow } from './deliveryOperation'
+import { getAsapWindow, type HoursConfig } from './deliveryOperation'
 
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CASH: 'Dinheiro',
@@ -27,8 +27,8 @@ export function createIdempotencyKey() {
  * decide se pode fechar pedido fora do horario e o backend/checkout, nao
  * este util de UI.
  */
-export function createFallbackDeliverySlot(weekly?: Record<number, { enabled: boolean; windows: { start: string; end: string }[] }>) {
-  const clamped = weekly ? getAsapWindow({ weekly }) : null
+export function createFallbackDeliverySlot(hours?: HoursConfig) {
+  const clamped = hours ? getAsapWindow(hours) : null
   const windowStart = clamped?.windowStart ?? new Date(Date.now() + 45 * 60 * 1000)
   const windowEnd = clamped?.windowEnd ?? new Date(Date.now() + 3 * 60 * 60 * 1000)
   return {

@@ -17,7 +17,7 @@ import { DynamicVitrineBanner } from '../components/DynamicVitrineBanner'
 import { PromoBanner, type PromoBannerView } from '../components/PromoBanner'
 import { BannerImage } from '../components/BannerImage'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
-import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
+import { DeliveryHoursBar } from '../components/DeliveryHoursBar'
 import { useBrand } from '../hooks/useBrand'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useDragScroll } from '../hooks/useDragScroll'
@@ -31,7 +31,7 @@ import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
 import { stripEmoji } from '../utils/format'
 import {
-  Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock,
+  Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin,
   Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight, X, Megaphone,
   ScanLine,
 } from 'lucide-react'
@@ -83,7 +83,6 @@ export default function Home() {
   const freeShipping = useFreeShipping(subtotal)
   const { user } = useAuth()
   const { deliveryAddressLabel } = useDeliveryAddress()
-  const deliveryOperation = useDeliveryOperation()
   const brand = useBrand()
   const { openModal: openDeliveryVerificationModal } = useDeliveryVerificationModal()
   const { data: rebuyProducts = [] } = useRebuyRecommendations(user?.id, 10)
@@ -537,6 +536,7 @@ export default function Home() {
       {/* ── MOBILE HEADER (< md) ── */}
       {!isDesktop && (
       <header className="md:hidden sticky top-0 z-50">
+        <DeliveryHoursBar variant="strip" />
         <div className="bg-[#5D082A] px-4 pt-4 pb-3">
           <div className="flex items-center justify-between mb-3">
             {/* Logo + endereço */}
@@ -658,12 +658,7 @@ export default function Home() {
                 {deliveryAddressLabel || 'Escolher endereço de entrega'}
               </span>
             </Button>
-            <div className={`inline-flex h-8 max-w-full items-center gap-2 rounded-lg border px-3 text-caption ${deliveryOperation.isOpen ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-[#D2BB8A]/60 bg-[#FBFAF7] text-[#5d4f33]'}`}>
-              <Clock size={14} className="shrink-0" />
-              <span className="truncate">
-                {deliveryOperation.headline}: {deliveryOperation.countdownLabel || deliveryOperation.detail}
-              </span>
-            </div>
+            <DeliveryHoursBar />
           </div>
         </div>
 

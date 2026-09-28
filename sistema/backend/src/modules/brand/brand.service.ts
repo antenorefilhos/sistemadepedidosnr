@@ -10,6 +10,7 @@ export interface BrandConfigDto {
   contactWhatsapp?: string | null;
   freeShippingThreshold?: number | null;
   businessHours?: string | null;
+  specialDates?: string | null;
   openMessage?: string | null;
   closedMessage?: string | null;
   countdownLabel?: string | null;
@@ -62,6 +63,7 @@ const DEFAULTS: BrandConfigDto = {
   contactWhatsapp: null,
   freeShippingThreshold: null,
   businessHours: null,
+  specialDates: null,
   openMessage: null,
   closedMessage: null,
   countdownLabel: null,

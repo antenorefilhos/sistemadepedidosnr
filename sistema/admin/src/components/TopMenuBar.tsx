@@ -55,7 +55,7 @@ const MENU_GROUPS: MenuGroup[] = [
       { key: 'sponsoredShelves', label: 'Vitrines Patrocinadas', icon: Megaphone },
       { key: 'brandIdentity', label: 'Identidade Visual', icon: Palette },
       { key: 'deliveryZones', label: 'Taxas de Entrega', icon: Truck },
-      { key: 'businessHours', label: 'Horários', icon: Clock3 },
+      { key: 'businessHours', label: 'Horário de entrega', icon: Clock3 },
     ],
   },
   {

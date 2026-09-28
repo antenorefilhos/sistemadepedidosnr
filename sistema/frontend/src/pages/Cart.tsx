@@ -1,4 +1,5 @@
 import { useCart } from '../hooks/useCart'
+import { DeliveryHoursBar } from '../components/DeliveryHoursBar'
 import { useAuth } from '../hooks/useAuth'
 import { Link, useSearchParams } from 'react-router-dom'
 import NotificationBell from '../components/NotificationBell'
@@ -176,6 +177,7 @@ export default function Cart() {
           <p className="text-sm text-[#5d4f33] mt-1">
             Revise os itens antes de finalizar o pedido.
           </p>
+          <DeliveryHoursBar className="mt-3" />
         </div>
 
         {cart.length === 0 ? (

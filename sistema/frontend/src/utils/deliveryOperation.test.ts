@@ -38,3 +38,52 @@ describe('getAsapWindow', () => {
     expect(result).toBeNull()
   })
 })
+
+import { getDeliveryOperationStatusWithConfig, getScheduleOptionsWithConfig } from './deliveryOperation'
+
+// Segunda a sabado com pausa de almoco, domingo so manha (como em producao).
+const loja = {
+  weekly: {
+    0: { enabled: true, windows: [{ start: '07:00', end: '13:45' }] },
+    1: { enabled: true, windows: [{ start: '07:00', end: '14:00' }, { start: '14:30', end: '20:50' }] },
+    2: { enabled: true, windows: [{ start: '07:00', end: '14:00' }, { start: '14:30', end: '20:50' }] },
+  },
+  specialDates: [{ date: '2026-09-15', closed: true, note: 'Fechado para balanço' }],
+}
+const at = (iso: string) => new Date(`${iso}-03:00`)
+const msg = (iso: string) => getDeliveryOperationStatusWithConfig(loja, at(iso))
+
+describe('getDeliveryOperationStatusWithConfig', () => {
+  it('aberto com folga: diz ate quando entrega', () => {
+    expect(msg('2026-09-14T10:00:00')).toMatchObject({ state: 'open', message: 'Entregamos hoje até 14h' })
+  })
+  it('ultima hora: urgencia em minutos', () => {
+    expect(msg('2026-09-14T20:15:00')).toMatchObject({ state: 'closing', message: 'Últimos 35 min para pedir' })
+  })
+  it('intervalo de almoco nao vira "fechado"', () => {
+    expect(msg('2026-09-14T14:10:00')).toMatchObject({ state: 'pause', message: 'Voltamos às 14h30' })
+  })
+  it('antes de abrir: abre hoje', () => {
+    expect(msg('2026-09-14T06:00:00').message).toBe('Fechado agora · abrimos hoje às 7h')
+  })
+  it('data especial fechada pula para o proximo dia aberto e mostra o recado', () => {
+    const status = msg('2026-09-15T10:00:00')
+    expect(status.state).toBe('closed')
+    expect(status.note).toBe('Fechado para balanço')
+    expect(status.message).toBe('Fechado agora · abrimos domingo às 7h')
+  })
+})
+
+describe('getScheduleOptionsWithConfig', () => {
+  it('com a loja fechada oferece o proximo dia aberto', () => {
+    const options = getScheduleOptionsWithConfig(loja, at('2026-09-14T22:00:00'))
+    // 15/09 fechado (data especial) -> proximo aberto e domingo 20/09
+    expect(options[0]).toMatchObject({ day: 'Dom 20/09', label: '07:00' })
+    expect(new Date(options[0].value).toISOString()).toBe(at('2026-09-20T07:00:00').toISOString())
+  })
+  it('hoje respeita a antecedencia minima e inclui o proximo dia', () => {
+    const options = getScheduleOptionsWithConfig(loja, at('2026-09-14T20:10:00'))
+    expect(options[0]).toMatchObject({ day: 'Hoje', label: '20:30' })
+    expect(options.some((o) => o.day !== 'Hoje')).toBe(true)
+  })
+})

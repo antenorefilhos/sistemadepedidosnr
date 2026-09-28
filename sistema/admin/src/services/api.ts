@@ -1480,9 +1480,7 @@ export const brandAPI = {
     secondaryColor?: string
     freeShippingThreshold?: number | null
     businessHours?: string | null
-    openMessage?: string | null
-    closedMessage?: string | null
-    countdownLabel?: string | null
+    specialDates?: string | null
   }) => api.put('/brand', data),
 }
 

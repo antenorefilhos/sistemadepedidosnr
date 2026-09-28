@@ -1,68 +1,58 @@
-import { DELIVERY_OPERATION_CONFIG, type DeliveryDateException, type DeliveryDayConfig } from '../config/deliveryOperation'
+import { DELIVERY_OPERATION_CONFIG } from '../config/deliveryOperation'
 
-type ZonedDateParts = {
-  isoDate: string
-  weekday: number
-  minutesOfDay: number
-}
+// Horario de entrega (28/09/2026, refeito a pedido do Jonathan). Um so lugar
+// decide: a faixa do topo, os horarios do checkout e a janela "o quanto
+// antes". Espelho no backend: backend/src/common/delivery-hours.ts -- quem
+// mudar a regra aqui muda la tambem.
+
+export type HoursWindow = { start: string; end: string }
+export type WeeklyHours = Record<number, { enabled: boolean; windows: HoursWindow[] }>
+/** Data especial cadastrada no admin: fechado, horario reduzido e/ou recado. */
+export type SpecialDate = { date: string; closed?: boolean; windows?: HoursWindow[]; note?: string }
+export type HoursConfig = { weekly: WeeklyHours; specialDates?: SpecialDate[] }
 
 export type DeliveryOperationStatus = {
+  /** open: aceitando pedido | closing: ultima hora | pause: intervalo curto no dia | closed */
+  state: 'open' | 'closing' | 'pause' | 'closed'
   isOpen: boolean
-  headline: string
-  detail: string
-  countdownLabel: string | null
-  storeHoursLabel: string
-  exceptionNote: string | null
+  message: string
+  /** Recado da data especial de hoje (ex.: "Vespera de Natal: ate 16h"). */
+  note: string | null
 }
 
-const WEEKDAY_SHORT_TO_INDEX: Record<string, number> = {
-  sun: 0,
-  mon: 1,
-  tue: 2,
-  wed: 3,
-  thu: 4,
-  fri: 5,
-  sat: 6,
+export type ScheduleOption = {
+  /** ISO enviado ao backend (vira hrCombinada no ERP). */
+  value: string
+  /** Rotulo curto, ex.: "14:30". */
+  label: string
+  /** Agrupador do select, ex.: "Hoje", "Amanha", "Seg 29/09". */
+  day: string
 }
 
-const WEEKDAY_LABEL_PT: Record<number, string> = {
-  0: 'domingo',
-  1: 'segunda',
-  2: 'terca',
-  3: 'quarta',
-  4: 'quinta',
-  5: 'sexta',
-  6: 'sabado',
-}
+/** Antecedencia minima entre o pedido e a entrega/retirada. */
+export const SCHEDULE_LEAD_MINUTES = 15
+const SCHEDULE_STEP_MINUTES = 30
+const TIMEZONE = 'America/Sao_Paulo'
 
-const toInt = (value?: string) => Number.parseInt(String(value || '0'), 10)
+const WEEKDAY_SHORT_TO_INDEX: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
+const WEEKDAY_PT = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+const WEEKDAY_PT_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 const pad2 = (value: number) => String(value).padStart(2, '0')
-
 const parseHHMM = (value: string) => {
   const [h, m] = value.split(':').map((part) => Number.parseInt(part, 10))
   return h * 60 + m
 }
-
-const formatHHMM = (minutesOfDay: number) => {
-  const hours = Math.floor(minutesOfDay / 60)
-  const minutes = minutesOfDay % 60
-  return `${pad2(hours)}h${pad2(minutes)}`
+/** 420 -> "7h", 1250 -> "20h50". */
+const formatHour = (minutes: number) => {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m ? `${h}h${pad2(m)}` : `${h}h`
 }
 
-const formatCountdown = (seconds: number) => {
-  if (seconds <= 0) return 'encerrando agora'
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = seconds % 60
-
-  if (h > 0) return `${h}h ${pad2(m)}m ${pad2(s)}s`
-  return `${m}m ${pad2(s)}s`
-}
-
-const getZonedDateParts = (date: Date): ZonedDateParts => {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: DELIVERY_OPERATION_CONFIG.timezone,
+const getZonedDateParts = (date: Date) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -70,219 +60,102 @@ const getZonedDateParts = (date: Date): ZonedDateParts => {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  })
-
-  const parts = formatter.formatToParts(date)
+  }).formatToParts(date)
   const map = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-  const weekday = WEEKDAY_SHORT_TO_INDEX[String(map.weekday || '').slice(0, 3).toLowerCase()] ?? 0
-  const month = toInt(map.month)
-  const day = toInt(map.day)
-  const year = toInt(map.year)
-  const hour = toInt(map.hour)
-  const minute = toInt(map.minute)
-
+  const hour = Number(map.hour) % 24
   return {
-    isoDate: `${year}-${pad2(month)}-${pad2(day)}`,
-    weekday,
-    minutesOfDay: hour * 60 + minute,
+    isoDate: `${map.year}-${map.month}-${map.day}`,
+    weekday: WEEKDAY_SHORT_TO_INDEX[String(map.weekday).slice(0, 3).toLowerCase()] ?? 0,
+    minutesOfDay: hour * 60 + Number(map.minute),
   }
 }
 
-const addDaysIso = (isoDate: string, dayOffset: number) => {
-  const [y, m, d] = isoDate.split('-').map((value) => Number.parseInt(value, 10))
-  const utc = new Date(Date.UTC(y, m - 1, d + dayOffset))
+const addDaysIso = (isoDate: string, days: number) => {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const utc = new Date(Date.UTC(y, m - 1, d + days))
   return `${utc.getUTCFullYear()}-${pad2(utc.getUTCMonth() + 1)}-${pad2(utc.getUTCDate())}`
 }
 
-const getScheduleForDate = (isoDate: string, weekday: number): { schedule: DeliveryDayConfig; exception: DeliveryDateException | null } => {
-  const exception = DELIVERY_OPERATION_CONFIG.exceptions[isoDate] || null
-  if (DELIVERY_OPERATION_CONFIG.holidays.includes(isoDate)) {
-    return { schedule: { enabled: false, windows: [] }, exception }
-  }
-  if (exception?.closed) {
-    return { schedule: { enabled: false, windows: [] }, exception }
-  }
-  if (exception?.windows) {
-    return { schedule: { enabled: exception.windows.length > 0, windows: exception.windows }, exception }
-  }
-  const weekly = DELIVERY_OPERATION_CONFIG.weekly[weekday] || { enabled: false, windows: [] }
-  return { schedule: weekly, exception }
+/** Janelas de um dia: data especial vence a semana. */
+export const getDayHours = (config: HoursConfig, isoDate: string, weekday: number) => {
+  const special = config.specialDates?.find((d) => d.date === isoDate)
+  if (special?.closed) return { windows: [] as HoursWindow[], note: special.note || null }
+  if (special?.windows?.length) return { windows: special.windows, note: special.note || null }
+  const day = config.weekly[weekday]
+  return { windows: day?.enabled ? day.windows : [], note: special?.note || null }
 }
 
-const findOpenWindow = (minutesOfDay: number, windows: { start: string; end: string }[]) => {
-  return windows.find((window) => {
-    const start = parseHHMM(window.start)
-    const end = parseHHMM(window.end)
-    return minutesOfDay >= start && minutesOfDay < end
-  })
-}
-
-const findNextWindow = (currentIsoDate: string, currentWeekday: number, currentMinutes: number) => {
-  for (let dayOffset = 0; dayOffset <= 7; dayOffset += 1) {
-    const isoDate = addDaysIso(currentIsoDate, dayOffset)
-    const weekday = (currentWeekday + dayOffset) % 7
-    const { schedule } = getScheduleForDate(isoDate, weekday)
-
-    if (!schedule.enabled || schedule.windows.length === 0) continue
-
-    const candidate = schedule.windows.find((window) => {
-      if (dayOffset > 0) return true
-      return parseHHMM(window.start) > currentMinutes
-    })
-
-    if (candidate) {
-      return {
-        dayOffset,
-        weekday,
-        isoDate,
-        start: candidate.start,
-      }
-    }
+/** Proxima abertura a partir de agora (hoje mais tarde ou nos proximos 7 dias). */
+const findNextOpening = (config: HoursConfig, isoDate: string, weekday: number, minutesOfDay: number) => {
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const { windows } = getDayHours(config, addDaysIso(isoDate, offset), (weekday + offset) % 7)
+    const next = windows
+      .map((w) => parseHHMM(w.start))
+      .sort((a, b) => a - b)
+      .find((start) => offset > 0 || start > minutesOfDay)
+    if (next !== undefined) return { offset, weekday: (weekday + offset) % 7, start: next }
   }
-
   return null
 }
 
-export const getDeliveryOperationStatus = (now = new Date()): DeliveryOperationStatus => {
+export const getDeliveryOperationStatusWithConfig = (config: HoursConfig, now = new Date()): DeliveryOperationStatus => {
   const { isoDate, weekday, minutesOfDay } = getZonedDateParts(now)
-  const { schedule, exception } = getScheduleForDate(isoDate, weekday)
+  const today = getDayHours(config, isoDate, weekday)
+  const open = today.windows.find((w) => minutesOfDay >= parseHHMM(w.start) && minutesOfDay < parseHHMM(w.end))
 
-  if (schedule.enabled && schedule.windows.length > 0) {
-    const openWindow = findOpenWindow(minutesOfDay, schedule.windows)
-    if (openWindow) {
-      const closesAtMinutes = parseHHMM(openWindow.end)
-      const secondsRemaining = Math.max(0, (closesAtMinutes - minutesOfDay) * 60 - now.getSeconds())
-      return {
-        isOpen: true,
-        headline: 'Entrega aberta agora',
-        detail: `Pedidos ate ${formatHHMM(closesAtMinutes)}`,
-        countdownLabel: formatCountdown(secondsRemaining),
-        storeHoursLabel: DELIVERY_OPERATION_CONFIG.storeHoursLabel,
-        exceptionNote: exception?.note || null,
-      }
+  if (open) {
+    const end = parseHHMM(open.end)
+    const left = end - minutesOfDay
+    // Urgencia so quando e verdade: na ultima hora.
+    if (left <= 60) {
+      return { state: 'closing', isOpen: true, message: left <= 1 ? 'Últimos instantes para pedir' : `Últimos ${left} min para pedir`, note: today.note }
     }
+    return { state: 'open', isOpen: true, message: `Entregamos hoje até ${formatHour(end)}`, note: today.note }
   }
 
-  const nextWindow = findNextWindow(isoDate, weekday, minutesOfDay)
-  const nextLabel = nextWindow
-    ? nextWindow.dayOffset === 0
-      ? `Abre hoje as ${nextWindow.start.replace(':', 'h')}`
-      : `Abre ${WEEKDAY_LABEL_PT[nextWindow.weekday]} as ${nextWindow.start.replace(':', 'h')}`
-    : 'Sem janela de entrega configurada'
+  const next = findNextOpening(config, isoDate, weekday, minutesOfDay)
+  if (!next) return { state: 'closed', isOpen: false, message: 'Entregas indisponíveis no momento', note: today.note }
 
-  return {
-    isOpen: false,
-    headline: 'Entrega fechada no momento',
-    detail: nextLabel,
-    countdownLabel: null,
-    storeHoursLabel: DELIVERY_OPERATION_CONFIG.storeHoursLabel,
-    exceptionNote: exception?.note || null,
+  const alreadyOpenedToday = today.windows.some((w) => parseHHMM(w.end) <= minutesOfDay)
+  // Intervalo curto no meio do dia (ex.: 14h-14h30) nao e "fechado".
+  if (next.offset === 0 && alreadyOpenedToday) {
+    return { state: 'pause', isOpen: false, message: `Voltamos às ${formatHour(next.start)}`, note: today.note }
   }
+
+  const when = next.offset === 0 ? 'hoje' : next.offset === 1 ? 'amanhã' : WEEKDAY_PT[next.weekday]
+  return { state: 'closed', isOpen: false, message: `Fechado agora · abrimos ${when} às ${formatHour(next.start)}`, note: today.note }
 }
-
-// Variante que aceita configuração dinâmica do backend (businessHours JSON)
-export const getDeliveryOperationStatusWithConfig = (
-  config: {
-    weekly: Record<number, { enabled: boolean; windows: { start: string; end: string }[] }>
-    openMessage?: string
-    closedMessage?: string
-    countdownLabel?: string
-  },
-  now = new Date(),
-): DeliveryOperationStatus => {
-  const { weekday, minutesOfDay } = getZonedDateParts(now)
-
-  const dayConfig = config.weekly[weekday] ?? { enabled: false, windows: [] }
-
-  if (dayConfig.enabled && dayConfig.windows.length > 0) {
-    const openWindow = findOpenWindow(minutesOfDay, dayConfig.windows)
-    if (openWindow) {
-      const closesAtMinutes = parseHHMM(openWindow.end)
-      const secondsRemaining = Math.max(0, (closesAtMinutes - minutesOfDay) * 60 - now.getSeconds())
-      return {
-        isOpen: true,
-        headline: config.openMessage ?? 'Entrega aberta agora',
-        detail: `Pedidos até ${formatHHMM(closesAtMinutes)}`,
-        countdownLabel: formatCountdown(secondsRemaining),
-        storeHoursLabel: '',
-        exceptionNote: null,
-      }
-    }
-  }
-
-  // Próxima abertura com base na configuração dinâmica
-  let nextLabel = config.closedMessage ?? 'Entrega fechada no momento'
-  for (let offset = 0; offset <= 7; offset++) {
-    const futureWeekday = (weekday + offset) % 7
-    const futureDayConfig = config.weekly[futureWeekday] ?? { enabled: false, windows: [] }
-    if (!futureDayConfig.enabled || futureDayConfig.windows.length === 0) continue
-    const candidate = futureDayConfig.windows.find((w) => {
-      if (offset > 0) return true
-      return parseHHMM(w.start) > minutesOfDay
-    })
-    if (candidate) {
-      const label = offset === 0
-        ? `${config.countdownLabel ?? 'Abrimos em'} ${candidate.start.replace(':', 'h')}`
-        : `${config.countdownLabel ?? 'Abrimos'} ${WEEKDAY_LABEL_PT[futureWeekday]} às ${candidate.start.replace(':', 'h')}`
-      nextLabel = label
-      break
-    }
-  }
-
-  return {
-    isOpen: false,
-    headline: config.closedMessage ?? 'Entrega fechada no momento',
-    detail: nextLabel,
-    countdownLabel: null,
-    storeHoursLabel: '',
-    exceptionNote: null,
-  }
-}
-export type ScheduleOption = {
-  /** ISO enviado ao backend (vira hrCombinada no ERP). */
-  value: string
-  /** Rotulo curto, ex.: "14:30". */
-  label: string
-}
-
-/** Antecedencia minima entre o pedido e a entrega/retirada. */
-export const SCHEDULE_LEAD_MINUTES = 15
-const SCHEDULE_STEP_MINUTES = 30
 
 /**
- * Horarios que o cliente pode escolher HOJE, dentro das janelas de
- * funcionamento configuradas no admin (que ja embutem o fechamento
- * antecipado) e respeitando a antecedencia minima.
- *
- * O ISO e derivado do deslocamento em minutos a partir de `now`, em vez de
- * montar a data no fuso -- evita erro de timezone sem depender de lib.
+ * Horarios que o cliente pode escolher: o que resta de hoje (com antecedencia
+ * minima) e o proximo dia aberto -- assim, com a loja fechada, ainda da pra
+ * agendar para amanha em vez de perder a venda.
  */
-export const getScheduleOptionsWithConfig = (
-  config: { weekly: Record<number, { enabled: boolean; windows: { start: string; end: string }[] }> },
-  now = new Date(),
-): ScheduleOption[] => {
-  const { weekday, minutesOfDay } = getZonedDateParts(now)
-  const dayConfig = config.weekly[weekday]
-  if (!dayConfig?.enabled || !dayConfig.windows.length) return []
-
-  const earliest = minutesOfDay + SCHEDULE_LEAD_MINUTES
+export const getScheduleOptionsWithConfig = (config: HoursConfig, now = new Date()): ScheduleOption[] => {
+  const { isoDate, weekday, minutesOfDay } = getZonedDateParts(now)
   const options: ScheduleOption[] = []
+  let daysWithOptions = 0
 
-  for (const window of dayConfig.windows) {
-    const windowStart = parseHHMM(window.start)
-    const windowEnd = parseHHMM(window.end)
-    // Primeiro passo cheio a partir do maior entre abertura e agora+lead.
-    const from = Math.max(windowStart, earliest)
-    const firstStep = Math.ceil(from / SCHEDULE_STEP_MINUTES) * SCHEDULE_STEP_MINUTES
+  for (let offset = 0; offset <= 7 && daysWithOptions < 2; offset += 1) {
+    const dayIso = addDaysIso(isoDate, offset)
+    const dayWeekday = (weekday + offset) % 7
+    const { windows } = getDayHours(config, dayIso, dayWeekday)
+    const [, month, day] = dayIso.split('-')
+    const dayLabel = offset === 0 ? 'Hoje' : offset === 1 ? 'Amanhã' : `${WEEKDAY_PT_SHORT[dayWeekday]} ${day}/${month}`
+    const earliest = offset === 0 ? minutesOfDay + SCHEDULE_LEAD_MINUTES : 0
+    const before = options.length
 
-    for (let minute = firstStep; minute <= windowEnd; minute += SCHEDULE_STEP_MINUTES) {
-      const target = new Date(now.getTime() + (minute - minutesOfDay) * 60 * 1000)
-      target.setSeconds(0, 0)
-      options.push({
-        value: target.toISOString(),
-        label: `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`,
-      })
+    for (const window of windows) {
+      const from = Math.max(parseHHMM(window.start), earliest)
+      const firstStep = Math.ceil(from / SCHEDULE_STEP_MINUTES) * SCHEDULE_STEP_MINUTES
+      for (let minute = firstStep; minute <= parseHHMM(window.end); minute += SCHEDULE_STEP_MINUTES) {
+        // ISO pelo deslocamento em minutos a partir de `now` (sem lib de fuso).
+        const target = new Date(now.getTime() + (offset * 1440 + minute - minutesOfDay) * 60 * 1000)
+        target.setSeconds(0, 0)
+        options.push({ value: target.toISOString(), label: `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`, day: dayLabel })
+      }
     }
+    if (options.length > before) daysWithOptions += 1
   }
 
   return options
@@ -292,26 +165,34 @@ export const getScheduleOptionsWithConfig = (
  * JON-177 (Auditoria 360): janela "o quanto antes" clampada ao horario de
  * funcionamento -- sem isso, createFallbackDeliverySlot() prometia entrega
  * em ate 3h mesmo com a loja fechada. Retorna null se a loja esta fechada
- * agora (quem chama decide o que fazer: bloquear ASAP, oferecer agendamento).
+ * agora (o checkout entao exige escolher um horario).
  */
-export const getAsapWindow = (
-  config: { weekly: Record<number, { enabled: boolean; windows: { start: string; end: string }[] }> },
-  now = new Date(),
-): { windowStart: Date; windowEnd: Date } | null => {
-  const { weekday, minutesOfDay } = getZonedDateParts(now)
-  const dayConfig = config.weekly[weekday]
-  if (!dayConfig?.enabled || !dayConfig.windows.length) return null
-
-  const openWindow = findOpenWindow(minutesOfDay, dayConfig.windows)
+export const getAsapWindow = (config: HoursConfig, now = new Date()): { windowStart: Date; windowEnd: Date } | null => {
+  const { isoDate, weekday, minutesOfDay } = getZonedDateParts(now)
+  const { windows } = getDayHours(config, isoDate, weekday)
+  const openWindow = windows.find((w) => minutesOfDay >= parseHHMM(w.start) && minutesOfDay < parseHHMM(w.end))
   if (!openWindow) return null
 
-  const closesAtMinutes = parseHHMM(openWindow.end)
+  const closesAt = new Date(now.getTime() + (parseHHMM(openWindow.end) - minutesOfDay) * 60 * 1000)
   const windowStart = new Date(now.getTime() + 45 * 60 * 1000)
   const uncappedEnd = new Date(now.getTime() + 3 * 60 * 60 * 1000)
-  const closesAt = new Date(now.getTime() + (closesAtMinutes - minutesOfDay) * 60 * 1000)
   const windowEnd = uncappedEnd < closesAt ? uncappedEnd : closesAt
-
   if (windowEnd <= windowStart) return null
-
   return { windowStart, windowEnd }
+}
+
+/** Horario da marca (admin) ou, sem ele, o padrao embutido. */
+export const parseHoursConfig = (businessHours?: string | null, specialDates?: string | null): HoursConfig => {
+  const parse = <T,>(raw: string | null | undefined, fallback: T): T => {
+    if (!raw) return fallback
+    try {
+      return JSON.parse(raw) as T
+    } catch {
+      return fallback
+    }
+  }
+  return {
+    weekly: parse<WeeklyHours>(businessHours, DELIVERY_OPERATION_CONFIG.weekly),
+    specialDates: parse<SpecialDate[]>(specialDates, []),
+  }
 }

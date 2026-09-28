@@ -38,8 +38,8 @@ import { LocalityPickerModal } from '../components/LocalityPickerModal'
 import { Input } from '../components/ui/input'
 import { Radio } from '../components/ui/radio'
 import { surfaceClasses } from '../components/ui/surface'
-import { useBrand } from '../hooks/useBrand'
-import { getScheduleOptionsWithConfig } from '../utils/deliveryOperation'
+import { getAsapWindow, getScheduleOptionsWithConfig } from '../utils/deliveryOperation'
+import { useHoursConfig } from '../hooks/useDeliveryOperation'
 import {
   formatZipCode,
   mapDeliveryCalcResponse,
@@ -57,19 +57,14 @@ export default function Checkout() {
   // '' = o quanto antes. Os horarios saem das janelas do admin, que ja
   // embutem o fechamento antecipado da loja.
   const [scheduledFor, setScheduledFor] = useState('')
-  const brandForSchedule = useBrand()
-  const weeklyBusinessHours = useMemo(() => {
-    if (!brandForSchedule.businessHours) return undefined
-    try {
-      return JSON.parse(brandForSchedule.businessHours)
-    } catch {
-      return undefined
-    }
-  }, [brandForSchedule.businessHours])
-  const scheduleOptions = useMemo(() => {
-    if (!weeklyBusinessHours) return []
-    return getScheduleOptionsWithConfig({ weekly: weeklyBusinessHours })
-  }, [weeklyBusinessHours])
+  const hoursConfig = useHoursConfig()
+  const scheduleOptions = useMemo(() => getScheduleOptionsWithConfig(hoursConfig), [hoursConfig])
+  // Loja fechada agora: "o quanto antes" nao existe -- o cliente agenda
+  // (hoje mais tarde ou o proximo dia aberto). O backend confere o mesmo.
+  const asapAvailable = getAsapWindow(hoursConfig) !== null
+  useEffect(() => {
+    if (!asapAvailable && !scheduledFor && scheduleOptions.length > 0) setScheduledFor(scheduleOptions[0].value)
+  }, [asapAvailable, scheduledFor, scheduleOptions])
   const [whatsappDispatch, setWhatsappDispatch] = useState<WhatsAppDispatch | null>(null)
   const whatsappAutoOpenFailedRef = useRef(false)
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null)
@@ -370,7 +365,7 @@ export default function Checkout() {
       // ativa nao pode fazer o modo PICKUP escolhido pelo cliente virar
       // DELIVERY (e o backend rejeitar por "fora da zona" sem CEP nenhum).
       if (!deliverySlotRef.current) {
-        deliverySlotRef.current = createFallbackDeliverySlot(weeklyBusinessHours)
+        deliverySlotRef.current = createFallbackDeliverySlot(hoursConfig)
       }
       return {
         mode: 'PICKUP',
@@ -394,7 +389,7 @@ export default function Checkout() {
     }
 
     if (!deliverySlotRef.current) {
-      deliverySlotRef.current = createFallbackDeliverySlot(weeklyBusinessHours)
+      deliverySlotRef.current = createFallbackDeliverySlot(hoursConfig)
     }
 
     return {
@@ -407,7 +402,7 @@ export default function Checkout() {
       deliveryPointCode: formData.deliveryPointCode || undefined,
       ...deliverySlotRef.current,
     }
-  }, [formData.lat, formData.lng, formData.zipCode, formData.locality, formData.deliveryPointCode, selectedDeliverySlot, isPickup, weeklyBusinessHours])
+  }, [formData.lat, formData.lng, formData.zipCode, formData.locality, formData.deliveryPointCode, selectedDeliverySlot, isPickup, hoursConfig])
 
   const ensureCheckoutSession = useCallback(async ({
     customerId,
@@ -1244,15 +1239,21 @@ export default function Checkout() {
                       onChange={(e) => setScheduledFor(e.target.value)}
                       className="w-full min-h-12 rounded-lg border border-[#D2BB8A]/60 bg-white px-3 text-sm text-[#231F20] focus:border-[#5D082A] focus:outline-none focus:ring-1 focus:ring-[#5D082A]"
                     >
-                      <option value="">O quanto antes</option>
-                      {scheduleOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          A partir das {option.label}
-                        </option>
+                      {asapAvailable && <option value="">O quanto antes</option>}
+                      {[...new Set(scheduleOptions.map((option) => option.day))].map((day) => (
+                        <optgroup key={day} label={day}>
+                          {scheduleOptions.filter((option) => option.day === day).map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {day} · a partir das {option.label}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                     <p className="mt-1 text-xs text-[#5d4f33]">
-                      Horários de hoje, dentro do funcionamento da loja.
+                      {asapAvailable
+                        ? 'Horários dentro do funcionamento da loja.'
+                        : 'Estamos fechados agora. Escolha quando quer receber: seu pedido fica agendado.'}
                     </p>
                   </div>
                 )}

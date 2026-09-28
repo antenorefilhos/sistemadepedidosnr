@@ -10,9 +10,8 @@ export interface BrandConfig {
   contactWhatsapp: string | null
   freeShippingThreshold: number | null
   businessHours: string | null
-  openMessage: string | null
-  closedMessage: string | null
-  countdownLabel: string | null
+  /** JSON SpecialDate[] (utils/deliveryOperation.ts): feriados e horario reduzido. */
+  specialDates: string | null
   cnpj: string | null
   legalName: string | null
   stateRegistration: string | null
@@ -36,9 +35,7 @@ const DEFAULTS: BrandConfig = {
   contactWhatsapp: null,
   freeShippingThreshold: null,
   businessHours: null,
-  openMessage: null,
-  closedMessage: null,
-  countdownLabel: null,
+  specialDates: null,
   cnpj: null,
   legalName: null,
   stateRegistration: null,
@@ -72,9 +69,7 @@ export function useBrand() {
     contactWhatsapp: data?.contactWhatsapp ?? DEFAULTS.contactWhatsapp,
     freeShippingThreshold: data?.freeShippingThreshold ?? null,
     businessHours: data?.businessHours ?? null,
-    openMessage: data?.openMessage ?? null,
-    closedMessage: data?.closedMessage ?? null,
-    countdownLabel: data?.countdownLabel ?? null,
+    specialDates: data?.specialDates ?? null,
     cnpj: data?.cnpj ?? null,
     legalName: data?.legalName ?? null,
     stateRegistration: data?.stateRegistration ?? null,
