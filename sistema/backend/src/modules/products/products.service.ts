@@ -14,6 +14,7 @@ import { Prisma } from '@prisma/client'
 import { IntegrationModulesService } from '../../modules/integrations/integration-modules.service'
 import { CategoryHierarchyService } from '../categories/category-hierarchy.service'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
+import { productIdsMatchingText } from '../../common/unaccent-search'
 import { resolveEffectiveFractional, type FractionalSource } from '../../common/fractional.util'
 
 // Categorias que combinam com cada categoria no "compre junto" (ordem = prioridade).
@@ -442,11 +443,11 @@ export class ProductsService {
     // ERP grava a unidade solta no nome (ex.: "Abacaxi Kg Extra").
     const searchTokens = (search || '').trim().toLowerCase().split(/\s+/).filter(Boolean)
     if (searchTokens.length > 0) {
+      const idsByToken = await Promise.all(searchTokens.map((token) => productIdsMatchingText(this.prisma, token)))
       andFilters.push(
-        ...searchTokens.map<Prisma.ProductWhereInput>((token) => ({
+        ...searchTokens.map<Prisma.ProductWhereInput>((token, i) => ({
           OR: [
-            { name: { contains: token, mode: 'insensitive' } },
-            { alternativeDescription: { contains: token, mode: 'insensitive' } },
+            { id: { in: idsByToken[i] } },
             { ean: { contains: token, mode: 'insensitive' } },
             { secondaryEans: { has: token } },
             { unit: { contains: token, mode: 'insensitive' } },

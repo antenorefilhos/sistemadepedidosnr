@@ -1,3 +1,4 @@
+import { productIdsMatchingText } from '../../common/unaccent-search'
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { RequireModule } from '../../common/decorators/require-module.decorator'
@@ -207,7 +208,7 @@ export class PickerController {
         active: true,
         id: { notIn: excludeIds },
         OR: [
-          { name: { contains: term, mode: 'insensitive' } },
+          { id: { in: await productIdsMatchingText(prisma, term) } },
           { ean: { contains: term } },
           { secondaryEans: { has: term } },
         ],

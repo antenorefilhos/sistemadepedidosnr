@@ -165,13 +165,15 @@ describe('ProductsService', () => {
       });
     });
 
-    it('should search admin products', async () => {
-      mockPrismaService.product.findMany.mockResolvedValue([{ id: '1', name: 'Arroz' }]);
+    it('should search admin products ignoring accents (via unaccent ids)', async () => {
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([{ id: 'agua-1' }]);
+      mockPrismaService.product.findMany.mockResolvedValue([{ id: 'agua-1', name: 'Água Coco' }]);
       mockPrismaService.product.count.mockResolvedValue(1);
 
-      await service.findAllAdmin(1, 10, 'Arroz');
+      await service.findAllAdmin(1, 10, 'agua');
 
-      expect(mockPrismaService.product.findMany).toHaveBeenCalled();
+      const where = mockPrismaService.product.findMany.mock.calls.at(-1)[0].where;
+      expect(JSON.stringify(where)).toContain('agua-1');
     });
   });
 
