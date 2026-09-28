@@ -304,9 +304,11 @@ export class ProductsService {
     // carne -> hortifruti/cerveja...). Ate 27/09/2026 usava co-ocorrencia nos
     // pedidos online (poucas dezenas) e caia em "mais vendidos" de qualquer
     // categoria: banana e frango na pagina do vinho.
-    // ponytail: afinidade fixa por categoria; troca pela cesta real do PDV
-    // (GET /api/ecommerce/cesta/:cdProduto da AntenorApi, previsto 11/10).
-    const base = await this.prisma.product.findUnique({ where: { id: productId }, select: { category: true, tags: true } })
+    // Ordem: 1) pares reais da cesta do PDV (AntenorApi /cesta, so origem
+    // "produto"); 2) completa com missao/afinidade de categoria abaixo.
+    const base = await this.prisma.product.findUnique({ where: { id: productId }, select: { category: true, tags: true, erpProductId: true } })
+    const fromBasket = base?.erpProductId ? await this.getBasketRecommendations(productId, base.erpProductId, limit) : []
+    if (fromBasket.length >= limit) return fromBasket
     const baseTags = base?.tags ?? []
     const categories = [...(COMPLEMENTARY_CATEGORIES[base?.category || ''] || []), base?.category].filter(
       (c, i, all): c is string => Boolean(c) && all.indexOf(c) === i,
@@ -345,12 +347,55 @@ export class ProductsService {
       if (sharesMission && c.category !== base?.category) return 0
       return 1 + (categoryPos === -1 ? categories.length : categoryPos)
     }
-    return candidates
+    const already = new Set(fromBasket.map((p) => p.id))
+    const byAffinity = candidates
+      .filter((c) => !already.has(c.id))
       .sort((a, b) =>
         rank(a) - rank(b) ||
         (soldCount.get(b.id) || 0) - (soldCount.get(a.id) || 0) ||
         a.name.localeCompare(b.name),
       )
+      .slice(0, limit - fromBasket.length)
+      .map(({ category: _category, tags: _tags, ...item }) => this.toCustomerFacingProduct(item))
+    return [...fromBasket, ...byAffinity]
+  }
+
+  // ponytail: cache em memoria de 1 h por produto (o indice da cesta muda uma
+  // vez por noite); por processo, some no restart -- suficiente para uma VPS.
+  private basketCache = new Map<number, { at: number; ids: number[] }>()
+
+  private async getBasketRecommendations(productId: string, erpProductId: number, limit: number) {
+    let cached = this.basketCache.get(erpProductId)
+    if (!cached || Date.now() - cached.at > 3_600_000) {
+      try {
+        const cesta = await this.antenorApiService.getCesta(erpProductId, 12)
+        // Recuo por "categoria" fica de fora: gerava ruido (ervilha na picanha).
+        cached = { at: Date.now(), ids: (cesta.itens || []).filter((i) => i.origem === 'produto').map((i) => i.cdProduto) }
+      } catch (error) {
+        this.logger.warn(`cesta_indisponivel produto=${erpProductId}: ${error instanceof Error ? error.message : error}`)
+        cached = { at: Date.now(), ids: [] }
+      }
+      this.basketCache.set(erpProductId, cached)
+    }
+    if (cached.ids.length === 0) return []
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        erpProductId: { in: cached.ids },
+        id: { not: productId },
+        active: true,
+        syncOption: { not: 'NUNCA' },
+        OR: [
+          { syncOption: 'SEMPRE' },
+          { AND: [{ syncOption: { in: ['ESTOQUE', 'ESTQOUE'] } }, { stock: { gt: 0 } }] },
+        ],
+      },
+      select: RECOMMENDATION_SELECT,
+    })
+    // Mantem a ordem da API (pontuacao ja pondera lift x margem).
+    const order = new Map(cached.ids.map((id, i) => [id, i]))
+    return products
+      .sort((a, b) => (order.get(a.erpProductId!) ?? 99) - (order.get(b.erpProductId!) ?? 99))
       .slice(0, limit)
       .map(({ category: _category, tags: _tags, ...item }) => this.toCustomerFacingProduct(item))
   }

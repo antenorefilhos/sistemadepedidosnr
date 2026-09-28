@@ -75,6 +75,7 @@ const mockSolidcomERPService = {
   fetchRecentChanges: jest.fn().mockResolvedValue([]),
 };
 const mockAntenorApiService = {
+  getCesta: jest.fn(),
   syncProducts: jest.fn(),
   fetchRecentChanges: jest.fn().mockResolvedValue([]),
   getMostruarioProdutosSalvos: jest.fn().mockResolvedValue([]),
@@ -248,6 +249,33 @@ describe('ProductsService', () => {
 
       // queijo da mesma missao primeiro; iogurte so por categoria nao entra no vinho
       expect(result.map((r: { id: string }) => r.id)).toEqual(['q1', 'v2', 'y1'])
+    })
+  })
+
+  describe('getRecommendations com a cesta do PDV', () => {
+    it('par real da cesta vem primeiro, na ordem da API; recuo "categoria" e ignorado; completa com missao', async () => {
+      mockPrismaService.product.findUnique.mockResolvedValue({ category: 'ACOUGUE_CHURRASCO', tags: ['churrasco'], erpProductId: 4696 })
+      mockAntenorApiService.getCesta.mockResolvedValue({
+        versao: 2,
+        itens: [
+          { cdProduto: 900, origem: 'produto', pontuacao: 9 },
+          { cdProduto: 800, origem: 'produto', pontuacao: 8 },
+          { cdProduto: 64, origem: 'categoria', pontuacao: 1 },
+        ],
+      })
+      mockPrismaService.product.findMany
+        .mockResolvedValueOnce([
+          { id: 'b', erpProductId: 800, name: 'Cerveja', category: 'CERVEJAS_CHOPP', tags: [], price: 5, stock: 9 },
+          { id: 'a', erpProductId: 900, name: 'Carvao', category: 'BAZAR_UTILIDADES', tags: [], price: 20, stock: 9 },
+        ])
+        .mockResolvedValueOnce([{ id: 'c', erpProductId: 1, name: 'Linguica', category: 'ACOUGUE_CHURRASCO', tags: ['churrasco'], price: 30, stock: 9 }])
+      mockPrismaService.orderItem.groupBy.mockResolvedValue([])
+
+      const result = await service.getRecommendations('picanha', 3)
+
+      expect(result.map((r: { id: string }) => r.id)).toEqual(['a', 'b', 'c'])
+      const basketWhere = mockPrismaService.product.findMany.mock.calls.at(-2)[0].where
+      expect(basketWhere.erpProductId.in).toEqual([900, 800])
     })
   })
 

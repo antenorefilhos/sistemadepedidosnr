@@ -520,6 +520,16 @@ export class AntenorApiService {
   }
 
   /**
+   * Compre-junto da cesta real do PDV (ORD-021): pares observados nos cupons,
+   * recalculado toda noite na AntenorApi. So devolve cdProduto + pontuacao;
+   * custo/margem ja vem embutidos na pontuacao e nunca saem da API.
+   */
+  async getCesta(cdProduto: number, limite = 12): Promise<{ versao: number; itens: Array<{ cdProduto: number; origem: 'produto' | 'categoria'; pontuacao: number }> }> {
+    const { data } = await this.cliente.get(`/api/ecommerce/cesta/${cdProduto}`, { params: { limite } })
+    return data
+  }
+
+  /**
    * JON-204/205 (22/09/2026): Motor de Presenca Real & Mostruario Inteligente
    * (v1.18.0, AEF-048) -- endpoints de governanca pro admin acompanhar/agir
    * sobre a classificacao dinamica de TipoIntegracao (SEMPRE/ESTOQUE/NUNCA
