@@ -16,6 +16,7 @@ export interface AdminProduct {
   erpProductId?: number | null
   secondaryEans?: string[]
   erpDescription?: string | null
+  pdvDescription?: string | null
   category?: string | null
   ecommerceCategory?: string | null
   promotionalPriceValidUntil?: string | null

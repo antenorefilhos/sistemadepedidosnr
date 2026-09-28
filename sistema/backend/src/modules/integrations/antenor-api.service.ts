@@ -692,8 +692,10 @@ export class AntenorApiService {
     if (Number.isFinite(fractionStep) && fractionStep > 0) normalized.fractionStep = fractionStep
     if (unit) normalized.unit = unit
     if (alternativeDescription) normalized.alternativeDescription = alternativeDescription
-    const erpDescription = String(row.DescricaoPDV || row.DescricaoCadastro || '').trim()
+    const erpDescription = String(row.DescricaoCadastro || '').trim()
     if (erpDescription) normalized.erpDescription = erpDescription
+    const pdvDescription = String(row.DescricaoPDV || '').trim()
+    if (pdvDescription) normalized.pdvDescription = pdvDescription
     if (classification01) normalized.classification01 = classification01
     if (classification02) normalized.classification02 = classification02
     if (classification03) normalized.classification03 = classification03

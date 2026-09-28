@@ -465,8 +465,9 @@ model Product {
   secondaryEans String[] @default([])
   name      String
   alternativeDescription String?
-  // Descricao do cadastro/PDV (caixa). So exibicao no admin; o site usa `name` (DescricaoEcommerce).
-  erpDescription String?
+  // Descricoes do ERP so para exibicao no admin; o site usa `name` (DescricaoEcommerce).
+  erpDescription String? // DescricaoCadastro: nome cadastral (produto-pai + variacao)
+  pdvDescription String? // DescricaoPDV: descricao do caixa, ate 24 caracteres
   classification01 String?
   classification02 String?
   classification03 String?

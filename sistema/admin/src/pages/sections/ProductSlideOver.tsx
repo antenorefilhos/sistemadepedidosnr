@@ -639,13 +639,8 @@ export default function ProductSlideOver({
               <SectionTitle icon={<FileText size={14} />}>Descrições (vêm do ERP)</SectionTitle>
               <div className="space-y-2.5">
                 <ReadOnlyField label="Descrição e-commerce" source="usada no site" value={editingProduct.name} />
-                <ReadOnlyField
-                  label="Descrição do cadastro / caixa"
-                  source="PDV"
-                  value={editingProduct.erpDescription || (
-                    <span className="italic text-gray-400">ainda não enviada pela AntenorApi</span>
-                  )}
-                />
+                <ReadOnlyField label="Descrição do cadastro" source="nome cadastral" value={editingProduct.erpDescription || ''} />
+                <ReadOnlyField label="Descrição do caixa" source="PDV · até 24 caracteres" value={editingProduct.pdvDescription || ''} />
                 {editingProduct.alternativeDescription && (
                   <ReadOnlyField label="Texto de fracionamento" source="aparece no carrinho" value={editingProduct.alternativeDescription.replace(/^Fracionamento:\s*/, '')} />
                 )}

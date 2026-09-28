@@ -1788,6 +1788,7 @@ export class ProductsService {
           name: item.name,
           // undefined (Solidcom, ou feed sem o campo) nao apaga o gravado.
           erpDescription: item.erpDescription,
+          pdvDescription: item.pdvDescription,
           alternativeDescription: item.alternativeDescription,
           classification01: item.classification01,
           classification02: item.classification02,
