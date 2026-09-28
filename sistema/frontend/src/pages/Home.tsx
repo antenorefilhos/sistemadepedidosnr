@@ -727,7 +727,11 @@ export default function Home() {
                 <ScanLine size={18} />
               </button>
             </form>
-          
+
+            <div className="mr-6">
+              <DesktopNavLinks />
+            </div>
+
             <div className="flex items-center gap-4">
             <Link to="/cart" className="relative p-2 text-white hover:text-[#D2BB8A] transition-colors" aria-label={`Carrinho com ${count} itens`}>
               <ShoppingCart size={24} />
@@ -751,9 +755,6 @@ export default function Home() {
               </span>
             </Link>
             </div>
-          </div>
-          <div className="max-w-7xl mx-auto px-4 pb-2.5">
-            <DesktopNavLinks />
           </div>
         </header>
       </div>
@@ -794,6 +795,14 @@ export default function Home() {
               <ChevronLeft size={18} />
             </button>
             <div ref={categoryScrollRef} className="flex overflow-x-auto no-scrollbar py-3 px-1 gap-3 snap-x scroll-smooth">
+              {/* Promo primeiro, com o mesmo icone do menu do app (MobileBottomNav). */}
+              <Link
+                to="/promocoes"
+                className="snap-start shrink-0 flex flex-col items-center gap-1.5 px-4 py-3 rounded-lg bg-[#FBF7F0] border border-[#E8D7B0]/40 hover:bg-[#F3E7C9] hover:border-[#D2BB8A] hover:scale-105 transition-all duration-200 min-w-[90px] text-center group cursor-pointer"
+              >
+                <img src="/icons/icon-promo-menu.gif" alt="" width={28} height={28} className="-my-1 h-7 w-7 object-contain" />
+                <span className="text-caption font-semibold text-[#5d4f33] group-hover:text-[#5D082A] transition-colors leading-tight">Promo</span>
+              </Link>
               {homeCategories.map((category) => {
                 const IconComponent = CATEGORY_ICONS[category.id] || CATEGORY_ICONS.default
                 return (

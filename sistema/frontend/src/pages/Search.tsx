@@ -581,6 +581,8 @@ export default function MercadoPage() {
             )}
           </div>
 
+          <DesktopNavLinks tone="light" />
+
           {/* JON-163 (Auditoria 360): link so com icone, sem nome acessivel. */}
           <Link
             to="/cart"
@@ -605,10 +607,6 @@ export default function MercadoPage() {
               {user?.name?.split(' ')[0] || 'Entrar'}
             </span>
           </Link>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 pb-2">
-          <DesktopNavLinks tone="light" />
         </div>
 
         {/* Linha 3: categorias + botão filtros */}
