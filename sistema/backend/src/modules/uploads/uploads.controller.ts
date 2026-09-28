@@ -86,7 +86,9 @@ export class UploadsController {
   // -- por isso a foto continuava errada mesmo com o purge "funcionando".
   private productImagePurgeUrls(ean: string, suffix: string) {
     const base = `https://mercado.antenorefilhos.com.br/uploads/products/${ean}${suffix}.webp`;
-    return [base, `${base}?v=2`];
+    // Miniatura dos cards (thumbs.controller.ts) tambem fica na borda.
+    const thumb = `https://mercado.antenorefilhos.com.br/thumbs/products/${ean}${suffix}.webp`;
+    return [base, `${base}?v=2`, thumb, `${thumb}?v=2`];
   }
 
   @Post()

@@ -163,7 +163,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const total = Math.max(0, subtotal - discount)
 
-  const count = cart.reduce((sum, item) => sum + item.quantity, 0)
+  // Item pesavel conta como 1: quantity dele e numero de porcoes (6 porcoes de
+  // pao = 1 item, nao "6 itens").
+  const count = cart.reduce((sum, item) => sum + (item.product?.isFractional ? 1 : item.quantity), 0)
 
   return (
     <CartContext.Provider

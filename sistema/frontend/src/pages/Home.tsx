@@ -32,7 +32,8 @@ import { trackEvent } from '../utils/analytics'
 import { stripEmoji } from '../utils/format'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin, Clock,
-  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight, X, Megaphone
+  Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight, X, Megaphone,
+  ScanLine,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
@@ -599,6 +600,15 @@ export default function Home() {
               enterKeyHint="search"
               className="min-w-0 flex-1 bg-transparent text-sm text-[#231F20] outline-none placeholder:text-[#6B7280]"
             />
+            <button
+              type="button"
+              onClick={() => navigate('/mercado?scan=1')}
+              aria-label="Buscar pelo código de barras (câmera)"
+              title="Ler código de barras"
+              className="shrink-0 text-[#5D082A]"
+            >
+              <ScanLine size={18} />
+            </button>
           </form>
         </div>
         {/* Mobile Category Chips */}
@@ -711,6 +721,15 @@ export default function Home() {
                 enterKeyHint="search"
                 className="min-w-0 flex-1 bg-transparent text-sm text-[#231F20] outline-none placeholder:text-[#6B7280]"
               />
+              <button
+                type="button"
+                onClick={() => navigate('/mercado?scan=1')}
+                aria-label="Buscar pelo código de barras (câmera)"
+                title="Ler código de barras"
+                className="shrink-0 text-[#5D082A]"
+              >
+                <ScanLine size={18} />
+              </button>
             </form>
           
             <div className="flex items-center gap-4">

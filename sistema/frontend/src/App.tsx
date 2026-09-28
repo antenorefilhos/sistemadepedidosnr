@@ -125,6 +125,7 @@ function AppRoutes() {
 
           <Route path="/" element={<PageTransition><Home /></PageTransition>} />
           <Route path="/cart" element={<PageTransition><Cart /></PageTransition>} />
+          <Route path="/carrinho" element={<Navigate to="/cart" replace />} />
           <Route
             path="/checkout"
             element={

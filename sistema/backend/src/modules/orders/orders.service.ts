@@ -1536,8 +1536,13 @@ export class OrdersService {
       return null
     }
 
+    // O DAV nasce no syncCreatedOrder (chamado antes daqui) -- o objeto `order`
+    // em memoria e anterior a ele, entao le do banco. E o numero que a loja
+    // digita no PDV para puxar o pedido.
+    const { erpDav } = (await this.prisma.order.findUnique({ where: { id: order.id }, select: { erpDav: true } })) ?? { erpDav: null }
     return this.whatsappService.sendOrderConfirmation(storeWhatsapp, {
       id: order.id.slice(-8).toUpperCase(),
+      dav: erpDav,
       total: order.total,
       // Contagem de produtos: somar quantity misturava kg de pesavel com unidades ("Itens: 2.42").
       items: order.items.length,

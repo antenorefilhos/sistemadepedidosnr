@@ -331,7 +331,7 @@ function WineCard({ product }: { product: Product }) {
   const [step, setStep] = useState<WineQuantityStep>(1)
 
   const imageBaseUrl = `/uploads/products/${product.ean}`
-  const imageCandidates = [`${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`]
+  const imageCandidates = [`/thumbs/products/${product.ean}.webp`, `${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`]
     .map((url) => `${url}?v=2`)
   const imageUrl = imageCandidates[imageIndex]
 

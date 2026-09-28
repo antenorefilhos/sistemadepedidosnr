@@ -66,7 +66,7 @@ export default function RecipeDetail() {
   const { user } = useAuth()
   const [cartOpen, setCartOpen] = useState(false)
 
-  const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0)
+  const cartCount = cart.reduce((acc, item) => acc + (item.product?.isFractional ? 1 : item.quantity), 0)
 
   const handleAdd = (rp: RecipeProduct) => {
     addItem(rp.product, 1)

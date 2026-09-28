@@ -87,7 +87,7 @@ export default function Cart() {
   const [couponFeedback, setCouponFeedback] = useState<string | null>(null)
   const [couponRemaining, setCouponRemaining] = useState<{ remaining: number; maxUses: number } | null>(null)
   const [unitModeByItem, setUnitModeByItem] = useState<Record<string, 'unit' | 'weight'>>({})
-  const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0)
+  const totalItems = cart.reduce((acc, item) => acc + (item.product?.isFractional ? 1 : item.quantity), 0)
   const anchorProductId = cart[0]?.productId || ''
   const { data: contextualRecommendations = [] } = useProductRecommendations(anchorProductId, 8)
   const { data: topSellingProducts = [] } = useTopSellingProducts(8)
@@ -215,7 +215,7 @@ export default function Cart() {
               {cart.map((item) => {
                 const pricePresentation = item.product ? getProductPricePresentation(item.product) : null
                 const subtotal = item.product ? getProductLineTotal(item.product, item.quantity) : 0
-                const imageUrl = item.product?.ean ? `/uploads/products/${item.product.ean}.webp?v=2` : ''
+                const imageUrl = item.product?.ean ? `/thumbs/products/${item.product.ean}.webp?v=2` : ''
                 const availability = getAvailabilityLabel(item.product)
 
                 return (

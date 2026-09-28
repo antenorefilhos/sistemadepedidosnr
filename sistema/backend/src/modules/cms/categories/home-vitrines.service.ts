@@ -125,7 +125,30 @@ export class HomeVitrinesService {
     private readonly antenorApi: AntenorApiService,
   ) {}
 
+  // ponytail: cache em memoria de 10 min por combinacao de query, servindo o
+  // valor antigo enquanto recalcula em segundo plano. A home levava 1,3 s
+  // (7,7 s com a AntenorApi fria) em TODA visita; as vitrines mudam por dia/
+  // perfil, nao por minuto. Some no restart -- aceitavel para uma VPS.
+  private cache = new Map<string, { at: number; value: Promise<Awaited<ReturnType<HomeVitrinesService['build']>>> }>();
+
   async getHomeVitrines(query: HomeVitrinesQuery) {
+    const key = JSON.stringify(query ?? {});
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.at < 10 * 60_000) return hit.value;
+    const value = this.build(query);
+    if (hit) {
+      // Tem valor antigo: responde com ele e so troca quando o novo ficar pronto
+      // (renova o relogio ja, para varias visitas nao dispararem varios recalculos).
+      this.cache.set(key, { at: Date.now(), value: hit.value });
+      value.then(() => this.cache.set(key, { at: Date.now(), value })).catch(() => undefined);
+      return hit.value;
+    }
+    this.cache.set(key, { at: Date.now(), value });
+    value.catch(() => this.cache.delete(key));
+    return value;
+  }
+
+  private async build(query: HomeVitrinesQuery) {
     const remota = await this.antenorApi.getVitrines(query);
 
     const erpIds = Array.from(

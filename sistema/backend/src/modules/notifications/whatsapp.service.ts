@@ -21,6 +21,7 @@ export class WhatsAppService {
     whatsappNumber: string,
     orderData: {
       id: string;
+      dav?: string | null;
       total: number;
       items: number;
       paymentMethod?: string;
@@ -42,7 +43,8 @@ export class WhatsAppService {
     let message = `
 ${greeting} Acabei de fazer um pedido no site:
 
-ID: #${orderData.id}
+ID: #${orderData.id}${orderData.dav ? `
+DAV: ${orderData.dav}` : ''}
 Itens: ${orderData.items}
 *Total: ${brl(orderData.total)}*
 Pagamento: ${paymentLabel}

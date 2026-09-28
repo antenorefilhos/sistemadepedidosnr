@@ -264,7 +264,14 @@ export default function MercadoPage() {
 
   // Busca pelo codigo de barras lido com a camera: um produto so -> abre a
   // pagina dele; mais de um (ou nenhum) -> mostra o resultado da busca.
-  const [scannerOpen, setScannerOpen] = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(() => searchParams.get('scan') === '1')
+  // Botao de camera da home chega com ?scan=1: abre o leitor e limpa o parametro.
+  useEffect(() => {
+    if (searchParams.get('scan') !== '1') return
+    const next = new URLSearchParams(searchParams)
+    next.delete('scan')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
   const handleBarcode = useCallback(async (code: string) => {
     setScannerOpen(false)
     const ean = code.replace(/\D/g, '')

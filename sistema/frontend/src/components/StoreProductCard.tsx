@@ -40,7 +40,7 @@ export function StoreProductCard({
   const quantity = cartItem?.quantity || 0
   const imageBaseUrl = `/uploads/products/${product.ean}`
   const imageVersion = '2'
-  const imageCandidates = [`${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`]
+  const imageCandidates = [`/thumbs/products/${product.ean}.webp`, `${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`]
     .map((url) => `${url}?v=${imageVersion}`)
   const imageUrl = imageCandidates[imageIndex]
   const viewModel = useMemo(() => getProductCardViewModel(product), [product])
