@@ -38,6 +38,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
 import NotificationBell from '../components/NotificationBell'
+import { DesktopNavLinks } from '../components/DesktopNavLinks'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { BackToTopButton } from '../components/BackToTopButton'
 import { Footer } from '../components/Footer'
@@ -755,6 +756,9 @@ export default function Home() {
               </span>
             </Link>
             </div>
+          </div>
+          <div className="max-w-7xl mx-auto px-4 pb-2.5">
+            <DesktopNavLinks />
           </div>
         </header>
       </div>

@@ -33,6 +33,7 @@ import { Button, buttonVariants } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { surfaceClasses } from '../components/ui/surface'
 import { cn } from '../lib/cn'
+import { DesktopNavLinks } from '../components/DesktopNavLinks'
 
 interface PaginatedProducts {
   data: Product[]
@@ -604,6 +605,10 @@ export default function MercadoPage() {
               {user?.name?.split(' ')[0] || 'Entrar'}
             </span>
           </Link>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 pb-2">
+          <DesktopNavLinks tone="light" />
         </div>
 
         {/* Linha 3: categorias + botão filtros */}
