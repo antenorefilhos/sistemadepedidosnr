@@ -174,7 +174,7 @@ describe('HomeVitrinesService', () => {
 
     expect(resultado.carrosseis[0].produtos.length).toBe(30);
     // reforco filtrado por category no where da segunda chamada
-    expect(prisma.product.findMany.mock.calls[1][0].where.category).toBe('HORTIFRUTI_ORGANICOS');
+    expect(prisma.product.findMany.mock.calls[1][0].where.category).toEqual({ in: ['HORTIFRUTI_ORGANICOS'] });
   });
 
   // 22/09/2026: tipoFiltro='categoria' (ex.: "Carnes para o Dia a Dia",
@@ -213,10 +213,7 @@ describe('HomeVitrinesService', () => {
     const resultado = await service.getHomeVitrines({});
 
     expect(resultado.carrosseis[0].produtos.length).toBe(30);
-    expect(prisma.product.findMany.mock.calls[1][0].where.classification02).toEqual({
-      contains: 'Bovinos',
-      mode: 'insensitive',
-    });
+    expect(prisma.product.findMany.mock.calls[1][0].where.ecommerceCategory).toEqual({ equals: 'Bovinos', mode: 'insensitive' });
   });
 
   // 23/09/2026: carrossel "Carnes" resolveu a ZERO localmente (erpProductId
@@ -257,7 +254,7 @@ describe('HomeVitrinesService', () => {
 
     expect(resultado.carrosseis).toHaveLength(1);
     expect(resultado.carrosseis[0].produtos.length).toBe(30);
-    expect(prisma.product.findMany.mock.calls[1][0].where.category).toBe('ACOUGUE_CHURRASCO');
+    expect(prisma.product.findMany.mock.calls[1][0].where.category).toEqual({ in: ['ACOUGUE_CHURRASCO'] });
   });
 });
 

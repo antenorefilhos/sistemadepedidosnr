@@ -204,12 +204,27 @@ export const DEPARTMENT_TO_CATEGORY: Record<string, string> = {
 // 5 categoriaEcommerce canonicas do departamento "Bebidas & Adega" --
 // confirmado pelo agente da AntenorApi, fecha 100% do catalogo de bebidas
 // sem keyword matching. Codigo = categoria N1 oficial correspondente.
-const BEVERAGE_CATEGORIA_TO_CATEGORY: Record<string, string> = {
+export const BEVERAGE_CATEGORIA_TO_CATEGORY: Record<string, string> = {
   'Vinhos & Espumantes': 'ADEGA_VINHOS_ESPUMANTES',
   'Cervejas': 'CERVEJAS_CHOPP',
   'Destilados & Aperitivos': 'DESTILADOS_COQUETEIS',
   'Sucos & Néctares': 'SUCOS_REFRIGERANTES',
   'Refrigerantes': 'SUCOS_REFRIGERANTES',
+}
+
+/**
+ * Categorias do site cobertas por um departamento e-commerce da AntenorApi
+ * (null se o nome nao e um departamento). "Bebidas & Adega" cobre 4 categorias
+ * nossas. Usado pelo "Ver tudo"/preenchimento das vitrines da home, que antes
+ * filtravam pela arvore do ERP (Classificacao01/02) -- ela muda na v3
+ * (ORD-025, 28/09/2026) e o departamento e-commerce nao.
+ */
+export function departmentCategories(department?: string | null): string[] | null {
+  const name = String(department || '').trim()
+  if (!name) return null
+  if (DEPARTMENT_TO_CATEGORY[name]) return [DEPARTMENT_TO_CATEGORY[name]]
+  if (name === 'Bebidas & Adega') return [...new Set(Object.values(BEVERAGE_CATEGORIA_TO_CATEGORY))]
+  return null
 }
 
 const CLASSIFICATION_ROOT_FALLBACKS: Array<{ pattern: string; category: string }> = [
@@ -774,6 +789,11 @@ export class ProductsService {
     const safeLimit = Math.max(1, Math.min(100, limit))
     const skip = (safePage - 1) * safeLimit
     const parsed = this.parseSearchQuery(search)
+    // Link de vitrine com o nome de um departamento e-commerce em
+    // classification01 ("Bebidas & Adega"): filtra pelas categorias do site,
+    // nao pela arvore do ERP. Ver departmentCategories().
+    const deptCategories = departmentCategories(classification01)
+    if (deptCategories) classification01 = undefined
     const effectiveCategory = this.normalizeCategory(category || parsed.category)
     const effectiveMinPrice = typeof minPrice === 'number' ? minPrice : parsed.minPrice
     const effectiveMaxPrice = typeof maxPrice === 'number' ? maxPrice : parsed.maxPrice
@@ -815,7 +835,7 @@ export class ProductsService {
     const useSearchBackend =
       String(process.env.USE_MEILISEARCH || '').toLowerCase() === 'true' &&
       this.productSearchService.isEnabled()
-    if (parsed.text && parsed.excludes.length === 0 && useSearchBackend && !tag) {
+    if (parsed.text && parsed.excludes.length === 0 && useSearchBackend && !tag && !deptCategories) {
       const meili = await this.productSearchService.searchProducts(parsed.text, safePage, safeLimit, {
         tenantId: context?.tenantId,
         storeId: context?.storeId,
@@ -839,7 +859,7 @@ export class ProductsService {
     // case-insensitive mas NAO ignora acento: "moido" nao achava "Patinho
     // Bovino Moído". Fora de uma categoria mapeada, usa o match por regex (~*)
     // que trata as duas grafias e ja respeita a visibilidade do storefront.
-    if (parsed.text && categoryMappingFilter === undefined && !tag) {
+    if (parsed.text && categoryMappingFilter === undefined && !tag && !deptCategories) {
       const accentAware = await this.findAllAccentTolerant(
         effectiveParsed,
         safePage,
@@ -867,6 +887,9 @@ export class ProductsService {
     // caso real do clique "ver tudo", que nunca manda `search`).
     if (tag) {
       where['AND'] = [...(where['AND'] || []), { tags: { has: tag } }]
+    }
+    if (deptCategories) {
+      where['AND'] = [...(where['AND'] || []), { category: { in: deptCategories } }]
     }
 
     // Sobrepõe o filtro de categoria pelos mapeamentos manuais se disponível

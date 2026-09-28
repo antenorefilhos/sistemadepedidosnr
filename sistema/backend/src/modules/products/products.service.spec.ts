@@ -1013,3 +1013,16 @@ describe('ProductsService', () => {
     });
   });
 });
+
+describe('departmentCategories (vitrines independentes da arvore do ERP, ORD-025)', () => {
+  const { departmentCategories } = jest.requireActual('./products.service')
+  it('departamento 1:1 vira a categoria do site', () => {
+    expect(departmentCategories('Hortifruti & Orgânicos')).toEqual(['HORTIFRUTI_ORGANICOS'])
+  })
+  it('"Bebidas & Adega" cobre as 4 categorias de bebida', () => {
+    expect(departmentCategories('Bebidas & Adega')?.sort()).toEqual(['ADEGA_VINHOS_ESPUMANTES', 'CERVEJAS_CHOPP', 'DESTILADOS_COQUETEIS', 'SUCOS_REFRIGERANTES'])
+  })
+  it('valor da arvore do ERP nao e departamento', () => {
+    expect(departmentCategories('05 - HORTIFRUTI & FLV')).toBeNull()
+  })
+})

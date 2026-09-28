@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma.service';
 import { AntenorApiService } from '../../integrations/antenor-api.service';
 import { isProductSellable } from '../../../common/product-availability';
-import { DEPARTMENT_TO_CATEGORY } from '../../products/products.service';
+import { BEVERAGE_CATEGORIA_TO_CATEGORY, DEPARTMENT_TO_CATEGORY, departmentCategories } from '../../products/products.service';
 
 /** Abaixo disso a prateleira fica rala demais pra exibir (mesmo criterio de JON-172, useHomeShelves.ts). */
 const MIN_SHELF_ITEMS = 4;
@@ -59,10 +59,11 @@ function buildLinkVerTudo(tipoFiltro?: string, valorFiltro?: string): string {
     return `/mercado?classification01=${encodeURIComponent(valorFiltro)}`;
   }
   if (tipoFiltro === 'categoria') {
-    // classification02 no banco vem com prefixo numerico ("02 - BOVINOS"),
-    // valorFiltro vem so o nome ("Bovinos") -- buildPrismaWhere/Meili tratam
-    // esse parametro com match parcial (case-insensitive) por causa disso.
-    return `/mercado?classification02=${encodeURIComponent(valorFiltro)}`;
+    // 28/09/2026 (ORD-025): era /mercado?classification02=..., que dependia da
+    // arvore do ERP (muda na v3). valorFiltro e uma categoriaEcommerce.
+    const categoria = BEVERAGE_CATEGORIA_TO_CATEGORY[valorFiltro];
+    if (categoria) return `/mercado?cat=${encodeURIComponent(categoria)}`;
+    return `/mercado?q=${encodeURIComponent(valorFiltro)}`;
   }
   return '/mercado';
 }
@@ -194,10 +195,10 @@ export class HomeVitrinesService {
       // loop -- aqui so falta checar se ha espaco pra reforcar (< alvo).
       if (produtosResolvidos.length < TARGET_POOL_SIZE) {
         const faltam = TARGET_POOL_SIZE - produtosResolvidos.length;
-        const categoryCode =
-          carrossel.tipoFiltro === 'departamento' && carrossel.valorFiltro
-            ? DEPARTMENT_TO_CATEGORY[carrossel.valorFiltro]
-            : undefined;
+        // Departamento e-commerce -> categorias do site (1 ou, em "Bebidas &
+        // Adega", 4). Nunca pela arvore do ERP, que muda na v3 (ORD-025).
+        const categoryCodes =
+          carrossel.tipoFiltro === 'departamento' ? departmentCategories(carrossel.valorFiltro) : null;
         const tagFiltro = carrossel.tipoFiltro === 'tag' ? carrossel.valorFiltro : undefined;
         // 22/09/2026: tipoFiltro='categoria' (ex.: "Carnes para o Dia a Dia",
         // valorFiltro='Bovinos') nunca tinha backfill -- so 'departamento' e
@@ -206,16 +207,16 @@ export class HomeVitrinesService {
         // 5/12). classification02 no banco vem com prefixo numerico
         // ("02 - BOVINOS"), por isso contains em vez de igualdade exata --
         // mesmo criterio do buildLinkVerTudo/buildPrismaWhere.
-        const classification02Filtro = carrossel.tipoFiltro === 'categoria' ? carrossel.valorFiltro : undefined;
+        const categoriaEcommerce = carrossel.tipoFiltro === 'categoria' ? carrossel.valorFiltro : undefined;
 
-        if (categoryCode || tagFiltro || classification02Filtro) {
+        if (categoryCodes || tagFiltro || categoriaEcommerce) {
           const reforco = await this.prisma.product.findMany({
             where: {
               id: { notIn: Array.from(jaUsados) },
               active: true,
-              ...(categoryCode ? { category: categoryCode } : {}),
+              ...(categoryCodes ? { category: { in: categoryCodes } } : {}),
               ...(tagFiltro ? { tags: { has: tagFiltro } } : {}),
-              ...(classification02Filtro ? { classification02: { contains: classification02Filtro, mode: 'insensitive' } } : {}),
+              ...(categoriaEcommerce ? { ecommerceCategory: { equals: categoriaEcommerce, mode: 'insensitive' } } : {}),
             },
             select: PRODUCT_SELECT,
             take: faltam * 3, // folga pra sobrar apos o filtro de isProductSellable
