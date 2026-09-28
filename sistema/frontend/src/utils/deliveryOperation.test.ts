@@ -54,8 +54,11 @@ const at = (iso: string) => new Date(`${iso}-03:00`)
 const msg = (iso: string) => getDeliveryOperationStatusWithConfig(loja, at(iso))
 
 describe('getDeliveryOperationStatusWithConfig', () => {
-  it('aberto com folga: diz ate quando entrega', () => {
-    expect(msg('2026-09-14T10:00:00')).toMatchObject({ state: 'open', message: 'Entregamos hoje até 14h' })
+  it('aberto: diz o fechamento do dia, nao o inicio da pausa de almoco', () => {
+    expect(msg('2026-09-14T10:00:00')).toMatchObject({ state: 'open', message: 'Entregamos hoje até 20h50' })
+  })
+  it('antes da pausa de almoco nao ha urgencia falsa', () => {
+    expect(msg('2026-09-14T13:30:00')).toMatchObject({ state: 'open', message: 'Entregamos hoje até 20h50' })
   })
   it('ultima hora: urgencia em minutos', () => {
     expect(msg('2026-09-14T20:15:00')).toMatchObject({ state: 'closing', message: 'Últimos 35 min para pedir' })

@@ -104,9 +104,11 @@ export const getDeliveryOperationStatusWithConfig = (config: HoursConfig, now = 
   const open = today.windows.find((w) => minutesOfDay >= parseHHMM(w.start) && minutesOfDay < parseHHMM(w.end))
 
   if (open) {
-    const end = parseHHMM(open.end)
+    // "Ate" e o fechamento do DIA, nao o fim da janela atual: a pausa de
+    // almoco (14h-14h30) e curta e nao e o horario de fechamento (Jonathan, 28/09).
+    const end = Math.max(...today.windows.map((w) => parseHHMM(w.end)))
     const left = end - minutesOfDay
-    // Urgencia so quando e verdade: na ultima hora.
+    // Urgencia so quando e verdade: na ultima hora antes de fechar o dia.
     if (left <= 60) {
       return { state: 'closing', isOpen: true, message: left <= 1 ? 'Últimos instantes para pedir' : `Últimos ${left} min para pedir`, note: today.note }
     }
