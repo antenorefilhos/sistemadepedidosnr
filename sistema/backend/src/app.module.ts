@@ -20,6 +20,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { RecipesModule } from './modules/recipes/recipes.module';
 import { SeoModule } from './modules/seo/seo.module';
+import { CheckupModule } from './modules/checkup/checkup.module';
 import { BrandModule } from './modules/brand/brand.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { CategoriesModule } from './modules/categories/categories.module';
@@ -115,6 +116,7 @@ class AppController {
     CouponsModule,
     RecipesModule,
     SeoModule,
+    CheckupModule,
     BrandModule,
     DeliveryModule,
     CategoriesModule,

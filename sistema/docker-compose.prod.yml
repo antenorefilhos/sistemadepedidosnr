@@ -116,6 +116,9 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       QA_CUSTOMER_PASSWORD: ${QA_CUSTOMER_PASSWORD:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      CHECKUP_CRON: ${CHECKUP_CRON:-30 6 * * *}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
       # Purge de cache do Cloudflare apos troca de foto de produto (ver
       # cloudflare-cache.service.ts) -- existia em .env.production mas nunca
