@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useInfiniteProducts, useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
@@ -17,7 +17,9 @@ import { PromoBanner } from '../components/PromoBanner'
 import { productsAPI, resolveApiUrl } from '../services/api'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { trackEvent } from '../utils/analytics'
-import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X } from 'lucide-react'
+import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X, ScanLine } from 'lucide-react'
+import BarcodeScanner from '../components/BarcodeScanner'
+import { productPath } from '../utils/productUrl'
 import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { BackToTopButton } from '../components/BackToTopButton'
@@ -260,6 +262,22 @@ export default function MercadoPage() {
     return () => observer.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
+  // Busca pelo codigo de barras lido com a camera: um produto so -> abre a
+  // pagina dele; mais de um (ou nenhum) -> mostra o resultado da busca.
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const handleBarcode = useCallback(async (code: string) => {
+    setScannerOpen(false)
+    const ean = code.replace(/\D/g, '')
+    if (!ean) return
+    try {
+      const { data } = await productsAPI.getAll(ean, 1, 2)
+      const found = (data?.data || data || []) as Product[]
+      if (found.length === 1) return navigate(productPath(found[0]))
+    } catch { /* cai na busca normal */ }
+    setInputValue(ean)
+    setSearchParams({ q: ean })
+  }, [navigate, setSearchParams])
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     const params: Record<string, string> = {}
@@ -492,6 +510,19 @@ export default function MercadoPage() {
                 className="h-auto border-0 bg-transparent p-0 text-title shadow-none ring-0 placeholder:text-[#6B7280] focus-visible:ring-0"
               />
               {isSuggesting && <Loader2 size={14} className="animate-spin text-[#5D082A]" />}
+              {!inputValue && (
+                <Button
+                  type="button"
+                  onClick={() => setScannerOpen(true)}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-[#5D082A]"
+                  aria-label="Buscar pelo código de barras (câmera)"
+                  title="Ler código de barras"
+                >
+                  <ScanLine size={18} />
+                </Button>
+              )}
               {inputValue && (
                 <Button
                   type="button"
@@ -515,6 +546,15 @@ export default function MercadoPage() {
                 </Button>
               )}
             </form>
+
+            {scannerOpen && (
+              <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={() => setScannerOpen(false)}>
+                <div className="w-full max-w-md rounded-2xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
+                  <p className="mb-3 text-sm font-semibold text-[#231F20]">Aponte a câmera para o código de barras do produto</p>
+                  <BarcodeScanner onResult={handleBarcode} onClose={() => setScannerOpen(false)} />
+                </div>
+              </div>
+            )}
 
             {showSuggestions && suggestions.length > 0 && (
               <div className={surfaceClasses({ className: 'absolute left-0 right-0 top-[50px] z-50 overflow-hidden shadow-xl' })}>

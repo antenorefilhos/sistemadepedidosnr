@@ -421,6 +421,10 @@ export default function ProductDetail() {
             ))}
           </div>
 
+          {/^\d{8,14}$/.test(product.ean || '') && (
+            <p className="text-xs text-[#5d4f33]">Código de barras (EAN): <span className="font-mono">{product.ean}</span></p>
+          )}
+
           <div className="pt-2 flex flex-wrap gap-2">
             {categoryCrumb && (
               <Link to={categoryCrumb.to} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
