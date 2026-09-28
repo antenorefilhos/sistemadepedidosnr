@@ -927,3 +927,15 @@ fiscal tratada: pedido ja faturado no PDV (`hrRegistro` preenchido) responde
 `409` e vira `OrderAlreadyInvoicedError` — logado como
 `CANCEL_ORDER_REFUSED_ALREADY_INVOICED`, sem retentativa (repetir amanha
 continuaria dando 409, o estorno tem que ser manual no caixa).
+
+## SEO do storefront: URL limpa e HTML do produto gerado no servidor (27-28/09/2026)
+
+O storefront é SPA. Google e preview de link (WhatsApp/Facebook) não rodam o JS, então **o nginx do storefront manda três rotas para a API antes da SPA** (`frontend/nginx.conf`, nos dois `server{}`):
+
+- `/sitemap.xml` → `GET /seo/sitemap.xml` (dinâmico: todo produto ativo, categorias e receitas). **Não recrie `public/sitemap.xml`**: o arquivo estático tinha 6 URLs e foi removido de propósito.
+- `/p/<slug>-<erpProductId>` → `GET /seo/p/:slug`: devolve o `index.html` do build com `<title>`, description, canonical, `og:*`, JSON-LD (Product + Breadcrumb) e h1/preço no `#root`; o React substitui ao montar. Slug desatualizado responde 301 para o canônico.
+- `/produto/<cuid>` (links antigos) → 301 para `/p/...`.
+
+Quem resolve o produto é o **`erpProductId` no fim do slug** (estável); o nome é só leitura/SEO. `GET /products/:id` aceita id só com dígitos como `erpProductId` (o cuid sempre começa com letra). Se a API cair, o nginx cai para a SPA normal (`error_page 502 503 504 = /index.html`).
+
+**Search Console**: propriedade `https://mercado.antenorefilhos.com.br/` (prefixo de URL, separada do institucional `antenorefilhos.com.br` da filial 2), verificada pela meta tag `google-site-verification` no `frontend/index.html`. **Não remova essa tag**: sem ela a propriedade perde a verificação. Sitemap enviado em 28/09/2026.
