@@ -382,7 +382,6 @@ export function useProductsAdmin(activeSection: string, onMutated: () => void) {
       payload.titleMaskShort = productForm.titleMaskShort.trim() || null
       payload.videoUrl = productForm.videoUrl.trim() || null
       payload.badges = productForm.badges.trim() || null
-      payload.promotionalPrice = productForm.promotionalPrice.trim() ? Number(productForm.promotionalPrice) : null
       payload.manualIsFractional = productForm.manualIsFractional
       payload.manualFractionStep = productForm.manualIsFractional && productForm.manualFractionStep.trim()
         ? Number(productForm.manualFractionStep)

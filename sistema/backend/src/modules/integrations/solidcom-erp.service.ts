@@ -10,6 +10,8 @@ export interface ERPProduct {
   // compartilhar o mesmo id_produto; usado pra agrupar em applyErpProducts.
   erpProductId?: number
   name: string
+  // Descricao do cadastro/PDV (so AntenorApi: DescricaoPDV/DescricaoCadastro).
+  erpDescription?: string
   active: boolean
   alternativeDescription?: string
   classification01?: string

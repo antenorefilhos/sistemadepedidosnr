@@ -13,6 +13,13 @@ export interface AdminProduct {
   id: string
   ean: string
   name: string
+  erpProductId?: number | null
+  secondaryEans?: string[]
+  erpDescription?: string | null
+  category?: string | null
+  ecommerceCategory?: string | null
+  promotionalPriceValidUntil?: string | null
+  erpMissingSince?: string | null
   alternativeDescription?: string | null
   classification01?: string | null
   classification02?: string | null
