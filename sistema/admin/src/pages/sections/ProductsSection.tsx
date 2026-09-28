@@ -23,6 +23,7 @@ import {
   CheckCircle2,
 } from 'lucide-react'
 import type { AdminProduct, ProductAvailabilityMetricsResponse, SolidcomStatusResponse } from '../../services/api'
+import { resolveApiUrl } from '../../services/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -173,6 +174,27 @@ function PriceDisplay({ price, promoPrice, unit, formatPrice }: { price: number;
 }
 
 // --- Main Component ---
+
+/** Miniatura do produto (a mesma dos cards do site); sem foto, mostra o icone. */
+function ProductThumb({ ean, name, className, iconSize }: { ean: string; name: string; className: string; iconSize: number }) {
+  const [failed, setFailed] = useState(false)
+  if (failed || !ean) {
+    return (
+      <div className={`flex shrink-0 items-center justify-center bg-[#fff0f5] text-[#5d082a] ${className}`} title="Sem foto">
+        <Package size={iconSize} />
+      </div>
+    )
+  }
+  return (
+    <img
+      src={resolveApiUrl(`/thumbs/products/${ean}.webp`)}
+      alt={name}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className={`shrink-0 border border-[#f1e4ea] bg-white object-contain p-0.5 ${className}`}
+    />
+  )
+}
 
 export default function ProductsSection({
   productsSearch,
@@ -768,9 +790,7 @@ export default function ProductsSection({
                           {/* Produto */}
                           <TableCell className="align-top">
                             <div className="flex items-start gap-2">
-                              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#fff0f5] text-[#5d082a]">
-                                <Package size={14} />
-                              </div>
+                              <ProductThumb ean={product.ean} name={product.name} className="h-12 w-12 rounded-lg" iconSize={16} />
                               <div>
                                 <p className="max-w-[260px] truncate font-semibold text-gray-800" title={product.name}>{product.name}</p>
                                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -953,9 +973,7 @@ export default function ProductsSection({
                     <div key={product.id} className="group rounded-2xl border border-[#ead7df]/60 bg-white p-5 shadow-[0_4px_20px_rgba(93,8,42,0.02)] transition-all duration-300 hover:shadow-[0_12px_30px_rgba(93,8,42,0.06)] hover:border-[#5d082a]/30 hover:-translate-y-0.5 flex flex-col justify-between min-h-[220px]">
                       <div>
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#fff0f5] border border-[#e7d2db]/30 text-[#5d082a] transition duration-300 group-hover:scale-105 group-hover:bg-[#fff0f5]/80">
-                            <Package size={18} />
-                          </div>
+                          <ProductThumb ean={product.ean} name={product.name} className="h-16 w-16 rounded-xl" iconSize={20} />
                           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border transition ${product.active ? 'bg-emerald-50 text-emerald-800 border-emerald-200/50' : 'bg-slate-50 text-slate-600 border-slate-200/60'}`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${product.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                             {product.active ? 'Ativo' : 'Inativo'}
