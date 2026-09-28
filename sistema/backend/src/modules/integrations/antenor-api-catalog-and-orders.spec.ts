@@ -149,6 +149,16 @@ describe('AntenorApiService — catalogo e criacao de pedido', () => {
       expect(result[0].ean).toBe('789')
     })
 
+    it('nome vem de DescricaoEcommerce: o /alterados manda PRODUTO cru e sobrescrevia o nome bom', async () => {
+      cliente.get.mockResolvedValue({
+        data: { produtos: [{ ID_LOJA: 1, ID_PRODUTO: 26766, CODIGO_EAN: '789', PRODUTO: 'CERVEJA PILSEN ANTARCTICA LATA 473ML 12un', DescricaoEcommerce: 'Cerveja Pilsen Antarctica Lata 473ml Pack 12 Unidades', VL_PRODUTO: 53.9, VL_PRODUTO_NORMAL: 53.9, QTD_PRODUTO: 5, Ativo: true }] },
+      })
+
+      const [item] = await service.fetchRecentChanges(1)
+
+      expect(item.name).toBe('Cerveja Pilsen Antarctica Lata 473ml Pack 12 Unidades')
+    })
+
     it('banco fora do ar: devolve lista vazia, nao propaga erro', async () => {
       cliente.get.mockRejectedValue(new Error('timeout'))
       await expect(service.fetchRecentChanges(2)).resolves.toEqual([])

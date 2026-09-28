@@ -606,7 +606,11 @@ export class AntenorApiService {
    */
   private normalizeProduct(row: Record<string, unknown>): ERPProduct | null {
     const ean = String(row.CODIGO_EAN ?? '').trim()
-    const name = String(row.PRODUTO ?? '').trim()
+    // Nome de exibicao = DescricaoEcommerce (padronizado na JON-129). Ate
+    // 28/09/2026 usava PRODUTO, que no feed completo e igual mas no
+    // /alterados vem cru do ERP ("CERVEJA PILSEN ANTARCTICA LATA 473ML 12un"):
+    // o sync de hora em hora sobrescrevia os nomes bons do sync completo.
+    const name = String(row.DescricaoEcommerce || row.PRODUTO || '').trim()
     const erpProductIdRaw = Number(row.ID_PRODUTO)
     const erpProductId = Number.isFinite(erpProductIdRaw) ? erpProductIdRaw : undefined
 
