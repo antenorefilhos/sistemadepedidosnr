@@ -369,8 +369,10 @@ export class ProductsService {
     if (!cached || Date.now() - cached.at > 3_600_000) {
       try {
         const cesta = await this.antenorApiService.getCesta(erpProductId, 12)
-        // Recuo por "categoria" fica de fora: gerava ruido (ervilha na picanha).
-        cached = { at: Date.now(), ids: (cesta.itens || []).filter((i) => i.origem === 'produto').map((i) => i.cdProduto) }
+        // Indice v3 (27/09): "produto" (par observado) e "categoria" (recuo com
+        // evidencia no proprio SKU) -- ja vem ordenado pela API. Na v2 o recuo
+        // era ruido (ervilha na picanha) e ficava de fora.
+        cached = { at: Date.now(), ids: (cesta.itens || []).map((i) => i.cdProduto) }
       } catch (error) {
         this.logger.warn(`cesta_indisponivel produto=${erpProductId}: ${error instanceof Error ? error.message : error}`)
         cached = { at: Date.now(), ids: [] }

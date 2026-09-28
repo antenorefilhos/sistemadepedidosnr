@@ -253,7 +253,7 @@ describe('ProductsService', () => {
   })
 
   describe('getRecommendations com a cesta do PDV', () => {
-    it('par real da cesta vem primeiro, na ordem da API; recuo "categoria" e ignorado; completa com missao', async () => {
+    it('itens da cesta vem primeiro, na ordem da API (produto e categoria); completa com missao', async () => {
       mockPrismaService.product.findUnique.mockResolvedValue({ category: 'ACOUGUE_CHURRASCO', tags: ['churrasco'], erpProductId: 4696 })
       mockAntenorApiService.getCesta.mockResolvedValue({
         versao: 2,
@@ -275,7 +275,7 @@ describe('ProductsService', () => {
 
       expect(result.map((r: { id: string }) => r.id)).toEqual(['a', 'b', 'c'])
       const basketWhere = mockPrismaService.product.findMany.mock.calls.at(-2)[0].where
-      expect(basketWhere.erpProductId.in).toEqual([900, 800])
+      expect(basketWhere.erpProductId.in).toEqual([900, 800, 64])
     })
   })
 
