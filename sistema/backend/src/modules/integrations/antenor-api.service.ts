@@ -524,7 +524,7 @@ export class AntenorApiService {
    * recalculado toda noite na AntenorApi. So devolve cdProduto + pontuacao;
    * custo/margem ja vem embutidos na pontuacao e nunca saem da API.
    */
-  async getCesta(cdProduto: number, limite = 12): Promise<{ versao: number; itens: Array<{ cdProduto: number; origem: 'produto' | 'categoria'; pontuacao: number }> }> {
+  async getCesta(cdProduto: number, limite = 12): Promise<{ versao: number; geradoEm?: string; itens: Array<{ cdProduto: number; origem: 'produto' | 'categoria'; pontuacao: number }> }> {
     const { data } = await this.cliente.get(`/api/ecommerce/cesta/${cdProduto}`, { params: { limite } })
     return data
   }

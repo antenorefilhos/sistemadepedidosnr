@@ -62,12 +62,30 @@ export class CheckupService {
       select: { id: true, ean: true, name: true, price: true, erpProductId: true, syncOption: true, stock: true, active: true },
     })
 
+    let feed: Awaited<ReturnType<AntenorApiService['syncProducts']>>['data'] = []
+
     // 1) 25/09: tomate/batata/cebola vendiam na loja e sumiram do site.
     await run('Produto do feed escondido no site', async () => {
-      const feed = (await this.antenorApi.syncProducts()).data
+      feed = (await this.antenorApi.syncProducts()).data
       const activeIds = new Set(active.map((p) => p.erpProductId))
       const hidden = feed.filter((f) => f.erpProductId && isProductSellable(f) && !activeIds.has(f.erpProductId))
       return { ok: hidden.length === 0, detail: hidden.length ? `${hidden.length}: ${sample(hidden.map((h) => h.name))}` : `feed com ${feed.length} linhas, nada escondido` }
+    })
+
+    // 1b) 27/09: /alterados divergia do feed completo (nome cru) e o sync de
+    // hora em hora desfazia o sync completo. Mesmo SKU tem de vir igual nos dois.
+    await run('Simetria feed completo x atualização de hora em hora', async () => {
+      if (feed.length === 0) return { ok: false, detail: 'feed completo indisponível' }
+      const recent = await this.antenorApi.fetchRecentChanges(24)
+      const byId = new Map(feed.map((f) => [f.erpProductId, f]))
+      const diffs: string[] = []
+      for (const r of recent) {
+        const f = byId.get(r.erpProductId)
+        if (!f) continue
+        const fields = (['name', 'price', 'promotionalPrice', 'syncOption', 'active'] as const).filter((k) => (r[k] ?? null) !== (f[k] ?? null))
+        if (fields.length) diffs.push(`${r.erpProductId} (${fields.join(', ')})`)
+      }
+      return { ok: diffs.length === 0, detail: diffs.length ? `${diffs.length}: ${sample(diffs)}` : `${recent.length} alterados, todos iguais ao feed` }
     })
 
     // 2) 27/09: o sync de hora em hora trazia nome cru em caixa alta.
@@ -125,7 +143,14 @@ export class CheckupService {
     await run('Compre junto (cesta do caixa)', async () => {
       const ref = active.find((p) => p.erpProductId === 6065) || active.find((p) => p.erpProductId)
       const cesta = await this.antenorApi.getCesta(ref!.erpProductId!, 6)
-      return { ok: (cesta.itens || []).length > 0, detail: `versão ${cesta.versao}, ${cesta.itens?.length ?? 0} sugestões para ${ref!.name}` }
+      // A tarefa da cesta roda 23:30; se falhar, a API segue servindo a versao
+      // anterior sem erro -- so a idade denuncia (sugestao do ORQ-API, 28/09).
+      const hours = cesta.geradoEm ? (Date.now() - new Date(cesta.geradoEm).getTime()) / 3_600_000 : Infinity
+      const fresh = hours < 26
+      return {
+        ok: (cesta.itens || []).length > 0 && fresh,
+        detail: `versão ${cesta.versao} gerada há ${Number.isFinite(hours) ? Math.round(hours) + ' h' : '?'}${fresh ? '' : ' (DESATUALIZADA)'}, ${cesta.itens?.length ?? 0} sugestões para ${ref!.name}`,
+      }
     })
 
     // 8) Foto: produto a venda sem nenhuma imagem (mostra "sem foto").
