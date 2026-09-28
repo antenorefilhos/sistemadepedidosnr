@@ -1,4 +1,6 @@
 import { createHash } from 'crypto'
+import { copyFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { PrismaService } from '../../common/prisma.service'
@@ -1661,6 +1663,22 @@ export class ProductsService {
     return [...eans].sort((a, b) => b.length - a.length)[0]
   }
 
+  // Foto e salva por EAN e o principal ja mudou (troca Solidcom -> AntenorApi):
+  // 52 produtos ficaram "sem foto" com a foto no EAN secundario (Coca 2 L em
+  // 2650.webp, 28/09/2026). So preenche o principal vazio; nunca sobrescreve.
+  private adoptPhotoFromOtherEan(mainEan: string, eans: string[]) {
+    const dir = join(process.cwd(), 'uploads', 'products')
+    const target = join(dir, mainEan + '.webp')
+    if (existsSync(target)) return
+    const source = eans.map((e) => join(dir, e + '.webp')).find((p) => p !== target && existsSync(p))
+    if (!source) return
+    try {
+      copyFileSync(source, target)
+    } catch {
+      // Sem foto nao quebra o sync.
+    }
+  }
+
   /** Agrupa as linhas do ERP por id_produto (fallback: por ean quando ausente). */
   private groupErpItemsByProduct(items: ERPProduct[]): ERPProduct[][] {
     const groups = new Map<string, ERPProduct[]>()
@@ -1855,6 +1873,7 @@ export class ProductsService {
           unmappedSyncedEans.add(mainEan)
         }
 
+        this.adoptPhotoFromOtherEan(mainEan, groupEans)
         indexedIds.push(product.id)
 
         synced += 1
