@@ -128,28 +128,6 @@ export interface MercadologicalTreeResponse {
   data: MercadologicalTreeLevel1[]
 }
 
-export interface TaxonomySyncResponse {
-  success: true
-  productsProcessed: number
-  productsRecategorized: number
-  productsKeptByRegisteredCategory?: number
-  productsInferredFromClassification?: number
-  categoriesDetected: number
-  categoriesCreated: number
-  categoriesUpdated?: number
-  categoriesSeededForFuture?: number
-  mercadologicalRoots: number
-}
-
-export interface ProductAvailabilityMetricsResponse {
-  totalActive: number
-  outOfStock: number
-  lowStockProducts: number
-  alwaysEnabledWithZeroStock: number
-  inactiveWithStock: number
-  uncategorizedProducts: number
-}
-
 export interface SolidcomSyncHistoryItem {
   id: string
   at: string
@@ -1118,6 +1096,64 @@ export const authAPI = {
   resetPassword: (token: string, newPassword: string) => api.post('/auth/reset-password', { token, newPassword }),
 }
 
+/** Catalogo do admin (29/09/2026): situacao no site com motivo. */
+export type CatalogTab = 'site' | 'noPhoto' | 'promo' | 'offSite' | 'adjusted' | 'inactive' | 'all'
+export interface CatalogProduct {
+  id: string
+  ean: string
+  erpProductId: number | null
+  secondaryEans: string[]
+  name: string
+  displayName: string
+  titleMask: string | null
+  erpDescription: string | null
+  pdvDescription: string | null
+  alternativeDescription: string | null
+  price: number
+  promotionalPrice: number | null
+  promotionalPriceValidUntil: string | null
+  stock: number | null
+  unit: string
+  isFractional: boolean
+  fractionStep: number | null
+  manualIsFractional: boolean | null
+  manualFractionStep: number | null
+  badges: string | null
+  videoUrl: string | null
+  ecommerceCategory: string | null
+  classification01: string | null
+  classification02: string | null
+  classification03: string | null
+  classification04: string | null
+  active: boolean
+  erpActive: boolean
+  syncOption: string
+  erpSyncOption: string | null
+  siteVisibility: 'OCULTO' | 'SEMPRE' | null
+  categoryOverrideId: string | null
+  categoryId: string | null
+  categoryName: string | null
+  hasPhoto: boolean
+  onPromo: boolean
+  status: 'ON' | 'OFF' | 'HIDDEN' | 'INACTIVE'
+  reason: string | null
+  updatedAt: string
+}
+export interface CatalogResponse {
+  data: CatalogProduct[]
+  total: number
+  page: number
+  limit: number
+  tab: CatalogTab
+  counts: Record<CatalogTab, number>
+  categories: Array<{ id: string; name: string }>
+  sync: {
+    lastFull: { at: string; products?: number; synced?: number; errors?: number; deactivated?: number } | null
+    lastRecent: { at: string; received: number } | null
+    job: { running: boolean; startedAt: string | null; finishedAt: string | null; lastError: string | null }
+  }
+}
+
 export const productsAPI = {
   getAll: () => api.get('/products'),
   getAdmin: (params: {
@@ -1134,14 +1170,14 @@ export const productsAPI = {
   }) =>
     api.get<AdminProductsResponse>('/products/admin', { params }),
   getMercadologicalTree: () => api.get<MercadologicalTreeResponse>('/products/admin/mercadological-tree'),
-  getAvailabilityMetrics: () => api.get<ProductAvailabilityMetricsResponse>('/products/admin/availability-metrics'),
-  syncTaxonomy: () => api.post<TaxonomySyncResponse>('/products/admin/taxonomy/sync'),
+  catalog: (params: { tab?: CatalogTab; search?: string; category?: string; page?: number; limit?: number }) =>
+    api.get<CatalogResponse>('/products/admin/catalog', { params }),
+  updateSite: (id: string, data: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null }) =>
+    api.patch(`/products/admin/${id}/site`, data),
   createAdmin: (data: ProductPayload) => api.post('/products/admin', data),
   create: (data: ProductPayload) => api.post('/products', data),
   update: (id: string, data: Partial<ProductPayload>) => api.put(`/products/${id}`, data),
   delete: (id: string) => api.delete(`/products/${id}`),
-  bulkUpdateStatus: (ids: string[], active: boolean) => api.patch('/products/admin/bulk-status', { ids, active }),
-  bulkDelete: (ids: string[]) => api.post('/products/admin/bulk-delete', { ids }),
   sync: () => api.get('/products/sync'),
   syncBackground: () => api.post<{ started: boolean; alreadyRunning: boolean }>('/products/admin/sync'),
   syncStatus: () =>

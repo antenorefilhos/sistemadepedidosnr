@@ -501,7 +501,7 @@ describe('ProductsService', () => {
 
       expect(mockPrismaService.product.updateMany).toHaveBeenCalledWith({
         where: { id: { in: ['b'] } },
-        data: { active: false },
+        data: { active: false, erpActive: false },
       });
       expect((result as any).deactivation.deactivated).toBe(1);
     });

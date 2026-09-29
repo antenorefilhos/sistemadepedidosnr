@@ -84,26 +84,30 @@ export class ProductsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  @Patch('admin/bulk-status')
+  @Get('admin/catalog')
   @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Atualizar status de múltiplos produtos em lote',
-    description: 'Ativa ou desativa produtos em massa fornecendo um array de IDs.',
-  })
-  async bulkUpdateStatus(@Body() body: { ids: string[]; active: boolean }) {
-    return this.productsService.bulkUpdateStatus(body.ids, body.active)
+  @ApiOperation({ summary: 'Catalogo do admin: situacao no site com motivo, contagem por aba e ultimo sync' })
+  catalogAdmin(
+    @Query('tab') tab?: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.productsService.catalogAdmin({ tab, search, category, page: Number(page) || 1, limit: Number(limit) || 50 })
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  @Post('admin/bulk-delete')
+  @Patch('admin/:id/site')
   @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Excluir múltiplos produtos em lote',
-    description: 'Exclui permanentemente produtos em massa fornecendo um array de IDs.',
-  })
-  async bulkDelete(@Body() body: { ids: string[] }) {
-    return this.productsService.bulkDelete(body.ids)
+  @ApiOperation({ summary: 'Ajustes do site que o sync respeita: ocultar/sempre a venda, categoria, nome no site' })
+  updateSiteSettings(
+    @Param('id') id: string,
+    @Body() body: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null },
+    @Req() req: TenantContextRequest,
+  ) {
+    return this.productsService.updateSiteSettings(id, body || {}, req.user?.id)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -1,54 +1,13 @@
 // Dashboard types and interfaces
 import {
-  AdminProduct,
   AdminOrder,
   AdminCustomer,
-  SolidcomStatusResponse,
 } from '../services/api'
 
 export type Section = 'dashboard' | 'products' | 'orders' | 'customers' | 'layout' | 'intelligence'
 export type ViewMode = 'list' | 'kanban'
 
 // Stats
-// Products
-export interface ProductFormState {
-  ean: string
-  name: string
-  alternativeDescription: string
-  price: string
-  promotionalPrice: string
-  stock: string
-  unit: string
-  badges: string
-  origin: string
-}
-
-export type ProductFormErrors = Partial<Record<keyof ProductFormState, string>>
-
-export interface ProductsSection {
-  products: AdminProduct[]
-  productsLoading: boolean
-  productsError: string
-  productsSearch: string
-  productsPage: number
-  productsTotalPages: number
-  savingProduct: boolean
-  syncingProducts: boolean
-  solidcomStatus: SolidcomStatusResponse | null
-  solidcomStatusLoading: boolean
-  isProductFormOpen: boolean
-  editingProductId?: string | null
-  productForm?: ProductFormState
-  productFormErrors?: ProductFormErrors
-  // New fields for section integration
-  page?: number
-  limit?: number
-  totalProducts?: number
-  searchTerm?: string
-  formOpen?: boolean
-  selectedProductId?: string | null
-}
-
 // Orders
 export interface OrdersSection {
   orders: AdminOrder[]

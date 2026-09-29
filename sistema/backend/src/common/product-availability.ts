@@ -39,3 +39,22 @@ export function isProductSellable(product: {
   }
   return true
 }
+
+/**
+ * Ajuste de visibilidade feito no admin (29/09/2026), aplicado por cima do que
+ * o ERP diz. O sync grava o valor do ERP em erpActive/erpSyncOption e chama
+ * isto para obter o estado efetivo -- entao o ajuste sobrevive a todo sync.
+ *
+ *   null   -> segue o ERP
+ *   OCULTO -> fora do site, mesmo ativo e com estoque no ERP
+ *   SEMPRE -> a venda mesmo sem estoque (o ERP ainda precisa ter o produto ativo:
+ *             o pedido vai para o PDV, que nao fatura produto inativo)
+ */
+export function applySiteVisibility(
+  erp: { active: boolean; syncOption: string },
+  siteVisibility?: string | null,
+): { active: boolean; syncOption: string } {
+  if (siteVisibility === 'OCULTO') return { active: false, syncOption: erp.syncOption }
+  if (siteVisibility === 'SEMPRE') return { active: erp.active, syncOption: 'SEMPRE' }
+  return erp
+}

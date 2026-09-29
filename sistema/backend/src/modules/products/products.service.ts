@@ -15,6 +15,8 @@ import { IntegrationModulesService } from '../../modules/integrations/integratio
 import { CategoryHierarchyService } from '../categories/category-hierarchy.service'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import { productIdsMatchingText } from '../../common/unaccent-search'
+import { applySiteVisibility, isProductSellable } from '../../common/product-availability'
+import { readdirSync } from 'fs'
 import { resolveEffectiveFractional, type FractionalSource } from '../../common/fractional.util'
 
 // Categorias que combinam com cada categoria no "compre junto" (ordem = prioridade).
@@ -601,45 +603,6 @@ export class ProductsService {
       total,
       totalPages: Math.ceil(total / safeLimit) || 1,
     }
-  }
-
-  async bulkUpdateStatus(ids: string[], active: boolean) {
-    const result = await this.prisma.product.updateMany({
-      where: { id: { in: ids } },
-      data: { active },
-    })
-
-    try {
-      await this.auditLogService.log({
-        action: active ? 'BULK_ACTIVATE' : 'BULK_DEACTIVATE',
-        entity: 'Product',
-        entityId: 'multiple',
-        changes: { ids, count: result.count },
-      })
-    } catch (e) {
-      // ignore audit log errors
-    }
-
-    return { success: true, count: result.count }
-  }
-
-  async bulkDelete(ids: string[]) {
-    const result = await this.prisma.product.deleteMany({
-      where: { id: { in: ids } },
-    })
-
-    try {
-      await this.auditLogService.log({
-        action: 'BULK_DELETE',
-        entity: 'Product',
-        entityId: 'multiple',
-        changes: { ids, count: result.count },
-      })
-    } catch (e) {
-      // ignore audit log errors
-    }
-
-    return { success: true, count: result.count }
   }
 
   async getMercadologicalTree(): Promise<{ data: ClassificationTreeLevel1[] }> {
@@ -1415,14 +1378,220 @@ export class ProductsService {
     }
   }
 
-  async remove(id: string) {
-    const product = await this.prisma.product.update({
-      where: { id },
-      data: { active: false },
+  async remove(id: string, adminId?: string) {
+    // "Excluir" apenas escondia (e o sync reativava). Agora e ocultar de verdade.
+    return this.updateSiteSettings(id, { visibility: 'OCULTO' }, adminId)
+  }
+
+  private lastRecentSync: { at: string; received: number } | null = null
+
+  /**
+   * Ajustes do site feitos no admin (29/09/2026): ocultar / sempre a venda,
+   * categoria e nome no site. Tudo o que vem do ERP (preco, estoque, cadastro)
+   * continua sendo do ERP; isto so decide como o produto aparece aqui.
+   */
+  async updateSiteSettings(
+    id: string,
+    dto: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null },
+    adminId?: string,
+  ) {
+    const product = await this.prisma.product.findUnique({ where: { id } })
+    if (!product) throw new NotFoundException('Produto nao encontrado.')
+    const data: Prisma.ProductUpdateInput = {}
+
+    if (dto.visibility !== undefined) {
+      if (!['ERP', 'OCULTO', 'SEMPRE'].includes(dto.visibility)) throw new BadRequestException('Visibilidade invalida.')
+      const siteVisibility = dto.visibility === 'ERP' ? null : dto.visibility
+      const effective = applySiteVisibility(
+        { active: product.erpActive, syncOption: product.erpSyncOption || product.syncOption },
+        siteVisibility,
+      )
+      Object.assign(data, { siteVisibility, active: effective.active, syncOption: effective.syncOption })
+    }
+
+    if (dto.categoryId !== undefined) {
+      if (dto.categoryId) {
+        const category = await this.prisma.category.findFirst({ where: { id: dto.categoryId, parentId: null }, select: { id: true, name: true } })
+        if (!category) throw new BadRequestException('Categoria invalida.')
+        Object.assign(data, { categoryOverrideId: category.id, category: this.normalizeCategory(category.name) })
+        await this.prisma.productCategoryMapping.upsert({
+          where: { ean: product.ean },
+          update: { categoryId: category.id, subCategoryId: null, source: 'admin' },
+          create: { ean: product.ean, categoryId: category.id, source: 'admin' },
+        })
+      } else {
+        // Volta a seguir o ERP: o proximo sync completo regrava a categoria.
+        Object.assign(data, { categoryOverrideId: null })
+        await this.prisma.productCategoryMapping.updateMany({ where: { ean: product.ean, source: 'admin' }, data: { source: 'antenor_api' } })
+      }
+    }
+
+    if (dto.displayName !== undefined) {
+      Object.assign(data, { titleMask: String(dto.displayName || '').trim() || null })
+    }
+
+    const updated = await this.prisma.product.update({ where: { id }, data })
+    await this.auditLogService.log({ action: 'PRODUCT_SITE_SETTINGS', entity: 'PRODUCT', entityId: id, adminId, changes: dto })
+    await this.productSearchService.indexProductById(id)
+    return updated
+  }
+
+  /**
+   * Catalogo do admin (29/09/2026): cada produto com a situacao no site e o
+   * motivo quando esta fora, contagem por aba e o ultimo sync.
+   */
+  async catalogAdmin(q: { tab?: string; search?: string; category?: string; page?: number; limit?: number }) {
+    const limit = Math.max(1, Math.min(20000, q.limit || 50))
+    const page = Math.max(1, q.page || 1)
+    const dir = join(process.cwd(), 'uploads', 'products')
+    let files: string[] = []
+    try {
+      files = readdirSync(dir)
+    } catch {
+      files = []
+    }
+    const withPhoto = new Set(files.map((f) => f.replace(/\.(webp|jpe?g|png)$/i, '')).filter((f, i) => f !== files[i]))
+
+    const [mappings, categories] = await Promise.all([
+      this.prisma.productCategoryMapping.findMany({ select: { ean: true, categoryId: true } }),
+      this.prisma.category.findMany({ where: { parentId: null }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+    ])
+    const categoryByEan = new Map(mappings.map((m) => [m.ean, m.categoryId]))
+    const categoryName = new Map(categories.map((c) => [c.id, c.name]))
+
+    // Vendaveis (poucos milhares): daqui saem "no site", "sem foto" e "sem categoria".
+    const sellable = (
+      await this.prisma.product.findMany({
+        where: { active: true, syncOption: { not: 'NUNCA' } },
+        select: { id: true, ean: true, active: true, syncOption: true, stock: true, price: true, promotionalPrice: true, promotionalPriceValidUntil: true },
+      })
+    ).filter((p) => isProductSellable(p))
+    const uncategorized = sellable.filter((p) => !categoryByEan.has(p.ean)).map((p) => p.id)
+    const onSite = sellable.filter((p) => categoryByEan.has(p.ean))
+    const now = Date.now()
+    const isPromo = (p: { price: number; promotionalPrice: number | null; promotionalPriceValidUntil: Date | null }) =>
+      p.promotionalPrice != null && p.promotionalPrice > 0 && p.promotionalPrice < p.price &&
+      (!p.promotionalPriceValidUntil || p.promotionalPriceValidUntil.getTime() >= now)
+    const ids = {
+      site: onSite.map((p) => p.id),
+      noPhoto: onSite.filter((p) => !withPhoto.has(p.ean)).map((p) => p.id),
+      promo: onSite.filter(isPromo).map((p) => p.id),
+    }
+    const offSiteWhere: Prisma.ProductWhereInput = { erpActive: true, id: { notIn: ids.site } }
+    const adjustedWhere: Prisma.ProductWhereInput = {
+      OR: [{ siteVisibility: { not: null } }, { categoryOverrideId: { not: null } }, { titleMask: { not: null } }],
+    }
+    const tabWhere: Record<string, Prisma.ProductWhereInput> = {
+      site: { id: { in: ids.site } },
+      noPhoto: { id: { in: ids.noPhoto } },
+      promo: { id: { in: ids.promo } },
+      offSite: offSiteWhere,
+      adjusted: adjustedWhere,
+      inactive: { erpActive: false },
+      all: {},
+    }
+    const tab = q.tab && tabWhere[q.tab] ? q.tab : 'site'
+
+    const and: Prisma.ProductWhereInput[] = [tabWhere[tab]]
+    const tokens = (q.search || '').trim().toLowerCase().split(/\s+/).filter(Boolean)
+    for (const token of tokens) {
+      const byText = await productIdsMatchingText(this.prisma, token)
+      and.push({
+        OR: [
+          { id: { in: byText } },
+          { ean: { contains: token } },
+          { secondaryEans: { has: token } },
+          ...(/^\d+$/.test(token) && token.length <= 9 ? [{ erpProductId: Number(token) }] : []),
+        ],
+      })
+    }
+    if (q.category) {
+      and.push({ ean: { in: mappings.filter((m) => m.categoryId === q.category).map((m) => m.ean) } })
+    }
+    const where: Prisma.ProductWhereInput = { AND: and }
+
+    const [rows, total, counts, lastFull] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        orderBy: [{ name: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true, ean: true, erpProductId: true, secondaryEans: true, name: true, titleMask: true, erpDescription: true, pdvDescription: true,
+          price: true, promotionalPrice: true, promotionalPriceValidUntil: true, stock: true, unit: true,
+          active: true, erpActive: true, syncOption: true, erpSyncOption: true, siteVisibility: true, categoryOverrideId: true, updatedAt: true,
+          alternativeDescription: true, isFractional: true, fractionStep: true, manualIsFractional: true, manualFractionStep: true, badges: true, videoUrl: true,
+          ecommerceCategory: true, classification01: true, classification02: true, classification03: true, classification04: true,
+        },
+      }),
+      this.prisma.product.count({ where }),
+      Promise.all(['offSite', 'adjusted', 'inactive', 'all'].map((k) => this.prisma.product.count({ where: tabWhere[k] }))),
+      this.prisma.auditLog.findFirst({ where: { action: 'SYNC_PRODUCTS' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true, changes: true } }),
+    ])
+
+    const uncategorizedSet = new Set(uncategorized)
+    const data = rows.map((p) => {
+      const categoryId = categoryByEan.get(p.ean) || null
+      const erpSync = p.erpSyncOption || p.syncOption
+      let status: string
+      let reason: string | null = null
+      if (!p.erpActive) {
+        status = 'INACTIVE'
+        reason = 'Inativo no ERP'
+      } else if (p.siteVisibility === 'OCULTO') {
+        status = 'HIDDEN'
+        reason = 'Oculto por você'
+      } else if (p.syncOption === 'NUNCA') {
+        status = 'OFF'
+        reason = 'Marcado "Nunca" no ERP'
+      } else if (!isProductSellable(p)) {
+        status = 'OFF'
+        reason = erpSync === 'SEMPRE' ? 'Sem estoque (sem venda recente no PDV)' : 'Sem estoque'
+      } else if (uncategorizedSet.has(p.id) || !categoryId) {
+        status = 'OFF'
+        reason = 'Sem categoria no site'
+      } else {
+        status = 'ON'
+      }
+      return {
+        ...p,
+        displayName: p.titleMask || p.name,
+        hasPhoto: withPhoto.has(p.ean),
+        categoryId,
+        categoryName: categoryId ? categoryName.get(categoryId) || null : null,
+        onPromo: status === 'ON' && isPromo(p),
+        status,
+        reason,
+      }
     })
 
-    await this.productSearchService.indexProductById(product.id)
-    return product
+    let lastFullSync: Record<string, unknown> | null = null
+    if (lastFull) {
+      try {
+        lastFullSync = { at: lastFull.createdAt, ...(JSON.parse(lastFull.changes || '{}') as Record<string, unknown>) }
+      } catch {
+        lastFullSync = { at: lastFull.createdAt }
+      }
+    }
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      tab,
+      counts: {
+        site: ids.site.length,
+        noPhoto: ids.noPhoto.length,
+        promo: ids.promo.length,
+        offSite: counts[0],
+        adjusted: counts[1],
+        inactive: counts[2],
+        all: counts[3],
+      },
+      categories,
+      sync: { lastFull: lastFullSync, lastRecent: this.lastRecentSync, job: this.syncJob },
+    }
   }
 
   // Dispara o sync completo em background e retorna na hora -- o sync
@@ -1595,7 +1764,7 @@ export class ProductsService {
     // 789100xx, "Picanha R$ 129,90", "Pao Frances R$ 0,90") ficaram a venda em
     // producao desde 12/08 sem existir no ERP.
     const currentlyActive = await this.prisma.product.findMany({
-      where: { active: true },
+      where: { erpActive: true },
       select: { id: true, ean: true, secondaryEans: true, erpProductId: true, erpMissingSince: true },
     })
 
@@ -1640,7 +1809,7 @@ export class ProductsService {
 
     await this.prisma.product.updateMany({
       where: { id: { in: readyToDeactivate.map((p) => p.id) } },
-      data: { active: false },
+      data: { active: false, erpActive: false },
     })
     await this.productSearchService.indexProductsByIds(readyToDeactivate.map((p) => p.id))
 
@@ -1687,7 +1856,7 @@ export class ProductsService {
     )
 
     const candidatos = await this.prisma.product.findMany({
-      where: { active: true, syncOption: 'SEMPRE', stock: { lte: 0 } },
+      where: { active: true, syncOption: 'SEMPRE', stock: { lte: 0 }, OR: [{ siteVisibility: null }, { siteVisibility: { not: 'SEMPRE' } }] },
       select: { id: true, erpProductId: true },
     })
 
@@ -1798,6 +1967,10 @@ export class ProductsService {
       (await this.prisma.category.findMany({ where: { parentId: null }, select: { id: true, name: true } }))
         .map((c) => [this.normalizeCategoryKey(c.name), c.id]),
     )
+    const cmsCodeById = new Map(
+      (await this.prisma.category.findMany({ where: { parentId: null }, select: { id: true, name: true } }))
+        .map((c) => [c.id, this.normalizeCategory(c.name)]),
+    )
 
     let synced = 0
     let errors = 0
@@ -1886,8 +2059,8 @@ export class ProductsService {
           // solidcom-erp.service.ts). Aplicado logo abaixo, por branch.
           badges: item.badges,
           origin: item.origin,
-          active: item.active !== false,
         }
+        const erpActive = item.active !== false
 
         // Produto ja existente do mesmo id_produto (mesmo se o ean principal
         // mudou de nome no ERP) tem prioridade sobre o lookup por ean, senao
@@ -1910,15 +2083,25 @@ export class ProductsService {
         // vende com estoque). Produto que ja existe so tem o syncOption tocado
         // se o ERP mandou o campo -- senao preserva o que esta gravado, que
         // veio do ultimo sync completo ou de ajuste manual no admin.
+        // Ajustes do admin (ocultar, sempre a venda, categoria) vencem o ERP.
+        const effective = applySiteVisibility(
+          { active: erpActive, syncOption: item.syncOption || existing?.syncOption || 'ESTOQUE' },
+          existing?.siteVisibility,
+        )
+        const overrideCategoryCode = existing?.categoryOverrideId ? cmsCodeById.get(existing.categoryOverrideId) : undefined
         const product = existing
           ? await this.prisma.product.update({
               where: { id: existing.id },
               data: {
                 ...fields,
+                ...(overrideCategoryCode ? { category: overrideCategoryCode } : {}),
+                active: effective.active,
+                erpActive,
                 ean: mainEan,
                 erpProductId,
                 secondaryEans,
-                ...(item.syncOption ? { syncOption: item.syncOption } : {}),
+                ...(item.syncOption ? { erpSyncOption: item.syncOption } : {}),
+                ...(item.syncOption || existing.siteVisibility === 'SEMPRE' ? { syncOption: effective.syncOption } : {}),
                 ...(item.ecommerceCategory ? { ecommerceCategory: item.ecommerceCategory } : {}),
                 ...(item.ecommerceTags ? { tags: item.ecommerceTags } : {}),
               },
@@ -1926,10 +2109,13 @@ export class ProductsService {
           : await this.prisma.product.create({
               data: {
                 ...fields,
+                active: erpActive,
+                erpActive,
                 ean: mainEan,
                 erpProductId,
                 secondaryEans,
                 syncOption: item.syncOption || 'ESTOQUE',
+                erpSyncOption: item.syncOption || 'ESTOQUE',
                 ecommerceCategory: item.ecommerceCategory,
                 tags: item.ecommerceTags ?? [],
               },
@@ -1937,13 +2123,15 @@ export class ProductsService {
 
         await this.ensureProductMasterFromLegacyProduct(product)
 
-        const departmentCategoryId = siteCategoryCode ? cmsCategoryIdByCode.get(siteCategoryCode) : undefined
+        const departmentCategoryId =
+          (overrideCategoryCode && existing?.categoryOverrideId) || (siteCategoryCode ? cmsCategoryIdByCode.get(siteCategoryCode) : undefined)
         if (departmentCategoryId) {
           if (mappingByEan.get(mainEan)?.categoryId !== departmentCategoryId) {
+            const source = overrideCategoryCode ? 'admin' : 'antenor_api'
             await this.prisma.productCategoryMapping.upsert({
               where: { ean: mainEan },
-              update: { categoryId: departmentCategoryId, subCategoryId: null, source: 'antenor_api' },
-              create: { ean: mainEan, categoryId: departmentCategoryId, source: 'antenor_api' },
+              update: { categoryId: departmentCategoryId, subCategoryId: null, source },
+              create: { ean: mainEan, categoryId: departmentCategoryId, source },
             })
           }
         } else if (!mapped) {
@@ -2063,6 +2251,7 @@ export class ProductsService {
       source === 'antenorapi'
         ? await this.antenorApiService.fetchRecentChanges(hours)
         : await this.solidcomERPService.fetchRecentChanges(hours)
+    this.lastRecentSync = { at: new Date().toISOString(), received: items.length }
     if (!items.length) {
       return { success: true, window: `${hours}h`, received: 0, changed: 0, changes: [] }
     }

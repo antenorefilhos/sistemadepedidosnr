@@ -40,3 +40,17 @@ describe('isProductSellable', () => {
     expect(isProductSellable({ stock: 0 })).toBe(true)
   })
 })
+
+describe('applySiteVisibility', () => {
+  const { applySiteVisibility } = require('./product-availability')
+  it('segue o ERP sem ajuste', () => {
+    expect(applySiteVisibility({ active: true, syncOption: 'ESTOQUE' }, null)).toEqual({ active: true, syncOption: 'ESTOQUE' })
+  })
+  it('OCULTO tira do site mesmo ativo no ERP', () => {
+    expect(applySiteVisibility({ active: true, syncOption: 'SEMPRE' }, 'OCULTO').active).toBe(false)
+  })
+  it('SEMPRE vende sem estoque, mas nao reativa inativo no ERP', () => {
+    expect(applySiteVisibility({ active: true, syncOption: 'ESTOQUE' }, 'SEMPRE')).toEqual({ active: true, syncOption: 'SEMPRE' })
+    expect(applySiteVisibility({ active: false, syncOption: 'ESTOQUE' }, 'SEMPRE').active).toBe(false)
+  })
+})

@@ -1,7 +1,6 @@
 import { Suspense, lazy, useCallback, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { useProductsAdmin, formatClassificationOptionLabel, formatClassificationPath } from '../hooks/useProductsAdmin'
 import { useCustomersAdmin } from '../hooks/useCustomersAdmin'
 import { MessageCircle, Sparkles } from 'lucide-react'
 import { TopMenuBar, SECTION_LABELS } from '@/components/TopMenuBar'
@@ -130,8 +129,6 @@ export default function AdminDashboard() {
     [setSearchParams]
   )
 
-  // O painel inicial busca os proprios dados (overviewAPI); nada a atualizar aqui.
-  const p = useProductsAdmin(activeSection, () => {})
   // Pedido a abrir quando se chega em Pedidos por um alerta da Visao geral.
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
   const c = useCustomersAdmin(activeSection)
@@ -186,94 +183,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'products' && (
             <Suspense fallback={lazySectionFallback}>
-              <ProductsSection
-                productsSearch={p.productsSearch}
-                onProductsSearchChange={p.setProductsSearch}
-                onSearch={() => p.loadProducts(1, p.productsSearch, p.productsFilterOutOfStock, p.productsFilterInactive, p.productsFilterUncategorized)}
-                productsFilterOutOfStock={p.productsFilterOutOfStock}
-                onProductsFilterOutOfStockChange={(value) => {
-                  p.setProductsFilterOutOfStock(value)
-                  p.setProductsPage(1)
-                }}
-                productsFilterInactive={p.productsFilterInactive}
-                onProductsFilterInactiveChange={(value) => {
-                  p.setProductsFilterInactive(value)
-                  p.setProductsPage(1)
-                }}
-                productsFilterUncategorized={p.productsFilterUncategorized}
-                onProductsFilterUncategorizedChange={(value) => {
-                  p.setProductsFilterUncategorized(value)
-                  p.setProductsPage(1)
-                }}
-                onBulkUpdateStatus={p.handleBulkUpdateStatus}
-                onBulkDelete={p.handleBulkDelete}
-                onUpdateProductFields={p.handleUpdateProductFields}
-                productFeedback={p.productFeedback}
-                onDismissProductFeedback={() => p.setProductFeedback(null)}
-                onSyncProducts={p.handleSyncProducts}
-                syncingProducts={p.syncingProducts}
-                onSyncTaxonomy={p.handleSyncTaxonomy}
-                syncingTaxonomy={p.syncingTaxonomy}
-                onCreateProduct={p.openCreateProductForm}
-                classification01Filter={p.classification01Filter}
-                classification02Filter={p.classification02Filter}
-                classification03Filter={p.classification03Filter}
-                classification04Filter={p.classification04Filter}
-                onClassification01FilterChange={(value) => {
-                  p.setClassification01Filter(value)
-                  p.setClassification02Filter('')
-                  p.setClassification03Filter('')
-                  p.setClassification04Filter('')
-                  p.setProductsPage(1)
-                }}
-                onClassification02FilterChange={(value) => {
-                  p.setClassification02Filter(value)
-                  p.setClassification03Filter('')
-                  p.setClassification04Filter('')
-                  p.setProductsPage(1)
-                }}
-                onClassification03FilterChange={(value) => {
-                  p.setClassification03Filter(value)
-                  p.setClassification04Filter('')
-                  p.setProductsPage(1)
-                }}
-                onClassification04FilterChange={(value) => {
-                  p.setClassification04Filter(value)
-                  p.setProductsPage(1)
-                }}
-                groupedMercadologicalTree={p.groupedMercadologicalTree}
-                level2Options={p.level2Options}
-                level3Options={p.level3Options}
-                level4Options={p.level4Options}
-                formatClassificationOptionLabel={formatClassificationOptionLabel}
-                isProductFormOpen={p.isProductFormOpen}
-                editingProductId={p.editingProductId}
-                onSaveProduct={p.handleSaveProduct}
-                productForm={p.productForm}
-                productFormErrors={p.productFormErrors}
-                onProductFormChange={(updates) => p.setProductForm((prev) => ({ ...prev, ...updates }))}
-                formLevel2Options={p.formLevel2Options}
-                formLevel3Options={p.formLevel3Options}
-                formLevel4Options={p.formLevel4Options}
-                onResetProductForm={p.resetProductForm}
-                savingProduct={p.savingProduct}
-                productsLoading={p.productsLoading}
-                productsError={p.productsError}
-                products={p.products}
-                formatClassificationPath={formatClassificationPath}
-                onEditProduct={p.openEditProductForm}
-                onDeleteProduct={p.handleDeleteProduct}
-                productsPage={p.productsPage}
-                productsTotalPages={p.productsTotalPages}
-                onPreviousPage={() => p.loadProducts(p.productsPage - 1, p.productsSearch)}
-                onNextPage={() => p.loadProducts(p.productsPage + 1, p.productsSearch)}
-                solidcomStatusLoading={p.solidcomStatusLoading}
-                solidcomStatus={p.solidcomStatus}
-                onReloadSolidcomStatus={p.loadSolidcomStatus}
-                solidcomStatusExpanded={p.solidcomStatusExpanded}
-                onToggleSolidcomStatusExpanded={() => p.setSolidcomStatusExpanded(!p.solidcomStatusExpanded)}
-                availabilityMetrics={p.availabilityMetrics}
-              />
+              <ProductsSection />
             </Suspense>
           )}
 

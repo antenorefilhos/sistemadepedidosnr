@@ -510,7 +510,15 @@ model Product {
   titleMask String?
   titleMaskShort String?
   videoUrl  String?
+  // `active`/`syncOption` sao o estado EFETIVO (o que a vitrine, a busca e o
+  // checkout leem). erpActive/erpSyncOption guardam o que o ERP disse, e
+  // siteVisibility/categoryOverrideId os ajustes feitos no admin, que o sync
+  // respeita (29/09/2026). Ver applySiteVisibility em product-availability.ts.
   active    Boolean  @default(true)
+  erpActive Boolean  @default(true)
+  erpSyncOption String?
+  siteVisibility String? // null = segue o ERP | OCULTO | SEMPRE
+  categoryOverrideId String? // categoria do site escolhida no admin (Category.id, raiz)
   // 22/09/2026: marcado no primeiro sync COMPLETO em que o produto nao veio
   // na resposta do ERP; limpo (null) assim que ele reaparecer. Deactivacao
   // automatica so acontece apos N syncs completos consecutivos ausente (ver
