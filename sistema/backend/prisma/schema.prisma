@@ -114,6 +114,8 @@ model Admin {
   // ele so importa para contas de equipe criadas via Equipe.
   moduleAccess String[] @default([])
   active    Boolean  @default(true)
+  // Ultimo uso (qualquer requisicao autenticada), gravado no maximo a cada 10 min. Mostrado na tela Equipe.
+  lastSeenAt DateTime?
   // Recuperacao de senha por e-mail: token e o HASH (sha256) de um valor
   // aleatorio enviado por e-mail, nunca o valor em si -- se o banco vazar,
   // o token sozinho nao serve pra resetar a senha de ninguem.

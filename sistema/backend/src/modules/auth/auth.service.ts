@@ -404,7 +404,9 @@ export class AuthService {
     await this.prisma.driver.upsert({
       where: { adminId },
       create: { adminId, tenantId, storeId, name },
-      update: {},
+      // O perfil de entregador acompanha o nome da pessoa (29/09/2026: a Equipe
+      // dizia "Entregador 01" e as Entregas "Motorista Antenor").
+      update: { name },
     })
   }
 
@@ -556,7 +558,7 @@ export class AuthService {
   async listStaff(tenantId: string) {
     const staff = await this.prisma.admin.findMany({
       where: { tenantId },
-      select: { id: true, email: true, name: true, role: true, moduleAccess: true, active: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, moduleAccess: true, active: true, createdAt: true, lastSeenAt: true },
       orderBy: { createdAt: 'desc' },
     })
 
@@ -615,6 +617,8 @@ export class AuthService {
     }
     if (!isMaster && dto.moduleAccess?.includes('delivery')) {
       await this.ensureDriverProfile(id, tenantId, DEFAULT_STORE_ID, updated.name)
+    } else if (dto.name) {
+      await this.prisma.driver.updateMany({ where: { adminId: id }, data: { name: updated.name } })
     }
 
     return updated

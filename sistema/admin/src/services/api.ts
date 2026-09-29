@@ -1839,6 +1839,7 @@ export interface StaffMember {
   permissions: string[]
   active: boolean
   createdAt: string
+  lastSeenAt?: string | null
 }
 
 export interface PermissionCatalogItem {

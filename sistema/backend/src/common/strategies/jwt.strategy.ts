@@ -82,10 +82,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     } else {
       const admin = await this.prisma.admin.findUnique({
         where: { id: payload.id },
-        select: { id: true, active: true, role: true, moduleAccess: true, tokenVersion: true, tenantId: true },
+        select: { id: true, active: true, role: true, moduleAccess: true, tokenVersion: true, tenantId: true, lastSeenAt: true },
       })
       if (!admin) throw new UnauthorizedException('Conta nao encontrada.')
       if (!admin.active) throw new UnauthorizedException('Conta desativada.')
+      // Ultimo uso para a tela Equipe; no maximo uma escrita a cada 10 min por conta.
+      if (!admin.lastSeenAt || Date.now() - admin.lastSeenAt.getTime() > 10 * 60_000) {
+        // Isolado: falha ao registrar o uso nunca pode barrar a autenticacao.
+        Promise.resolve()
+          .then(() => this.prisma.admin.update({ where: { id: admin.id }, data: { lastSeenAt: new Date() } }))
+          .catch(() => undefined)
+      }
       if ((payload.tokenVersion ?? 0) !== (admin.tokenVersion ?? 0)) {
         throw new UnauthorizedException('Sessao expirada por troca de senha. Faca login novamente.')
       }
