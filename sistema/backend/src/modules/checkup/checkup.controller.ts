@@ -1,4 +1,4 @@
-import { Controller, Post, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
@@ -19,5 +19,11 @@ export class CheckupController {
   @ApiOperation({ summary: 'Roda o check-up agora e manda o resumo no Telegram' })
   run() {
     return this.checkup.runAndNotify()
+  }
+
+  @Get('last')
+  @ApiOperation({ summary: 'Ultimo check-up (roda na hora se nao houver nenhum desde o deploy)' })
+  last() {
+    return this.checkup.getLast()
   }
 }

@@ -26,6 +26,9 @@ export const looksRaw = (name: string) =>
 
 @Injectable()
 export class CheckupService {
+  /** Ultimo resultado, para o rodape do painel do admin (em memoria; some a cada deploy). */
+  private last: { at: string; results: CheckResult[] } | null = null
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly antenorApi: AntenorApiService,
@@ -161,7 +164,14 @@ export class CheckupService {
       return { ok: true, detail: noPhoto.length ? `${noPhoto.length} de ${active.length} (ex.: ${sample(noPhoto.map((p) => p.name))})` : 'todos com foto' }
     })
 
+    this.last = { at: new Date().toISOString(), results }
     return results
+  }
+
+  /** Ultimo check-up; sem nenhum desde o boot, roda agora (sem Telegram). */
+  async getLast() {
+    if (!this.last) await this.runChecks()
+    return this.last
   }
 
   format(results: CheckResult[]) {
