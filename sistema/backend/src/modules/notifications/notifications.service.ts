@@ -1,4 +1,6 @@
+import { randomUUID } from 'crypto'
 import { Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { productPath } from '../seo/seo.service'
 import { Prisma } from '@prisma/client'
 import { resolveBannerLink } from '../cms/store-banners/banner-link'
 import { PrismaService } from '../../common/prisma.service'
@@ -25,6 +27,13 @@ export interface CreateNotificationDto {
    * persistida (Notification nao tem coluna de url) -- so afeta o push.
    */
   url?: string
+  /** De onde veio o aviso, para medir resultado por origem (29/09/2026). */
+  source?: 'MANUAL' | 'AUTO' | 'SCHEDULED' | 'ORDER' | 'CART'
+}
+
+/** Destino do clique com ?n=<id>: o site registra a abertura (ver POST :id/opened). */
+function withNotificationId(url: string, id: string) {
+  return `${url}${url.includes('?') ? '&' : '?'}n=${encodeURIComponent(id)}`
 }
 
 /**
@@ -94,15 +103,17 @@ export class NotificationsService {
         customerId: dto.customerId,
         imageUrl: dto.imageUrl,
         productId: dto.productId,
+        source: dto.source || (dto.type === 'ORDER_UPDATE' ? 'ORDER' : 'MANUAL'),
       },
     })
 
     if (notification.customerId) {
+      const base = dto.url || urlDoBanner || (await this.productUrl(notification.productId))
       await this.pushNotificationService.sendNotification(notification.customerId, {
         title: notification.title,
         body: notification.body,
         image: notification.imageUrl || undefined,
-        url: dto.url || urlDoBanner || (notification.productId ? `/produto/${notification.productId}` : '/'),
+        url: withNotificationId(base, notification.id),
       })
     }
 
@@ -133,30 +144,50 @@ export class NotificationsService {
       if (!imageUrl) imageUrl = banner.desktopImageUrl || undefined
     }
 
+    // Id por cliente gerado aqui: vai na URL do push (?n=) para medir o clique.
+    const batchId = randomUUID()
+    const rows = customerIds.map((customerId) => ({ id: randomUUID(), customerId }))
     await this.prisma.notification.createMany({
-      data: customerIds.map((customerId) => ({
+      data: rows.map((row) => ({
+        id: row.id,
         type: dto.type,
         title: dto.title,
         body: dto.body,
-        customerId,
+        customerId: row.customerId,
         imageUrl,
         productId: dto.productId,
+        batchId,
+        source: dto.source || 'MANUAL',
       })),
     })
 
-    const url = urlDoBanner || (dto.productId ? `/produto/${dto.productId}` : '/')
+    const url = dto.url || urlDoBanner || (await this.productUrl(dto.productId))
     await Promise.all(
-      customerIds.map((customerId) =>
-        this.pushNotificationService.sendNotification(customerId, {
+      rows.map((row) =>
+        this.pushNotificationService.sendNotification(row.customerId, {
           title: dto.title,
           body: dto.body,
           image: imageUrl,
-          url,
+          url: withNotificationId(url, row.id),
         }),
       ),
     )
 
-    return { count: customerIds.length }
+    return { count: customerIds.length, batchId }
+  }
+
+  /** URL limpa do produto (/p/<nome>-<codigo>); a antiga /produto/<id> redirecionava e perdia o ?n=. */
+  private async productUrl(productId?: string | null) {
+    if (!productId) return '/'
+    // Mesmo nome que a pagina do produto usa no endereco canonico (sem redirecionar).
+    const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true, name: true, erpProductId: true } })
+    return product ? productPath(product) : '/'
+  }
+
+  /** Clique no push: grava a abertura uma vez (e marca como lida). */
+  async markOpened(id: string) {
+    await this.prisma.notification.updateMany({ where: { id, clickedAt: null }, data: { clickedAt: new Date(), read: true } })
+    return { ok: true }
   }
 
   /**
@@ -182,6 +213,9 @@ export class NotificationsService {
   async listDispatches(limit = 50, types?: string[], offset = 0) {
     const filtro = types && types.length > 0 ? Prisma.sql`WHERE type = ANY(${types})` : Prisma.empty
     const limitSeguro = Math.min(Math.max(limit, 1), 200)
+    // Um disparo = mesmo lote (batchId, desde 29/09/2026) ou, nos antigos, mesmo
+    // titulo+corpo+minuto. "orders": pedido nao cancelado do mesmo cliente em
+    // ate 48 h depois do aviso (efeito provavel, nao prova de causa).
     const rows = await this.prisma.$queryRaw<Array<{
       title: string
       body: string
@@ -189,24 +223,36 @@ export class NotificationsService {
       productId: string | null
       imageUrl: string | null
       sentAt: Date
+      source: string | null
       recipients: bigint
       reads: bigint
+      opened: bigint
+      orders: bigint
+      revenue: number | null
     }>>`
-      SELECT
-        title,
-        body,
-        MIN(type) AS type,
-        MIN("productId") AS "productId",
-        MIN("imageUrl") AS "imageUrl",
-        MIN("createdAt") AS "sentAt",
-        COUNT(*) AS recipients,
-        COUNT(*) FILTER (WHERE read) AS reads
-      FROM notifications
-      ${filtro}
-      GROUP BY title, body, date_trunc('minute', "createdAt")
-      ORDER BY MIN("createdAt") DESC
-      LIMIT ${limitSeguro + 1}
-      OFFSET ${Math.max(offset, 0)}
+      WITH n AS (
+        SELECT *, COALESCE("batchId", title || '|' || body || '|' || to_char(date_trunc('minute', "createdAt"), 'YYYY-MM-DD HH24:MI')) AS k
+        FROM notifications
+        ${filtro}
+      ),
+      d AS (
+        SELECT k, MIN(title) AS title, MIN(body) AS body, MIN(type) AS type, MIN("productId") AS "productId",
+          MIN("imageUrl") AS "imageUrl", MIN("createdAt") AS "sentAt", MIN(source) AS source,
+          COUNT(*) AS recipients, COUNT(*) FILTER (WHERE read) AS reads, COUNT(*) FILTER (WHERE "clickedAt" IS NOT NULL) AS opened
+        FROM n GROUP BY k
+        ORDER BY MIN("createdAt") DESC
+        LIMIT ${limitSeguro + 1} OFFSET ${Math.max(offset, 0)}
+      ),
+      o AS (
+        SELECT DISTINCT n.k, ord.id, ord.total
+        FROM n JOIN d ON d.k = n.k
+        JOIN orders ord ON ord."customerId" = n."customerId"
+          AND n.type <> 'ORDER_UPDATE'
+          AND ord."createdAt" > n."createdAt" AND ord."createdAt" <= n."createdAt" + interval '48 hours'
+          AND ord.status NOT IN ('CANCELLED', 'REFUNDED')
+      )
+      SELECT d.*, (SELECT COUNT(*) FROM o WHERE o.k = d.k) AS orders, (SELECT COALESCE(SUM(o.total), 0) FROM o WHERE o.k = d.k)::float AS revenue
+      FROM d ORDER BY d."sentAt" DESC
     `
 
     const hasMore = rows.length > limitSeguro
@@ -223,6 +269,10 @@ export class NotificationsService {
         sentAt: r.sentAt,
         recipients: Number(r.recipients),
         reads: Number(r.reads),
+        opened: Number(r.opened),
+        orders: Number(r.orders),
+        revenue: Number(r.revenue || 0),
+        source: r.source,
         // Taxa de leitura da notificacao in-app. NAO e taxa de entrega do push:
         // o retorno do envio (sent/failed) nao e persistido hoje, entao ninguem
         // sabe se o aviso chegou no aparelho -- so se foi gravado e lido aqui.

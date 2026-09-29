@@ -1,6 +1,6 @@
-import { Controller, Get, Header, Param, Res } from '@nestjs/common'
+import { Controller, Get, Header, Param, Req, Res } from '@nestjs/common'
 import { ApiExcludeController } from '@nestjs/swagger'
-import type { Response } from 'express'
+import type { Request, Response } from 'express'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 import { productPath, SeoService } from './seo.service'
 
@@ -20,14 +20,16 @@ export class SeoController {
   }
 
   @Get('p/:slug')
-  async productPage(@Param('slug') slug: string, @Res() res: Response) {
+  async productPage(@Param('slug') slug: string, @Req() req: Request, @Res() res: Response) {
     const erpProductId = Number((String(slug).match(/-(\d+)$/) || [])[1])
     const product = erpProductId ? await this.seo.findProductByErpId(erpProductId) : null
     if (!product) return this.sendIndex(res, 404)
 
     // Slug desatualizado (nome mudou no ERP): 301 para a URL canonica.
     const canonical = productPath(product)
-    if (canonical !== `/p/${slug}`) return res.redirect(301, canonical)
+    // Mantem a query (?n= do aviso, utm_*): sem ela o clique no push se perdia.
+    const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''
+    if (canonical !== `/p/${slug}`) return res.redirect(301, canonical + query)
 
     try {
       const html = await this.seo.renderProductPage(product)
@@ -39,9 +41,10 @@ export class SeoController {
 
   // Link antigo /produto/<cuid> -> 301 para a URL limpa (sinal certo para o Google).
   @Get('produto/:id')
-  async legacyProduct(@Param('id') id: string, @Res() res: Response) {
+  async legacyProduct(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
     const product = await this.seo.findProductById(id)
-    if (product?.erpProductId) return res.redirect(301, productPath(product))
+    const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''
+    if (product?.erpProductId) return res.redirect(301, productPath(product) + query)
     return this.sendIndex(res, product ? 200 : 404)
   }
 

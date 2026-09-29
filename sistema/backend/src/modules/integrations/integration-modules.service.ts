@@ -9,7 +9,6 @@ export type IntegrationModuleKey =
   | 'meta-pixel'
   | 'nfe'
   | 'payments'
-  | 'ai-notifications'
 
 export type IntegrationModuleDescriptor = {
   key: IntegrationModuleKey
@@ -66,12 +65,6 @@ export class IntegrationModulesService {
       removable: true,
       notes: 'Gateway de pagamento opcional (pagamento operacional pode continuar por fora).',
     },
-    'ai-notifications': {
-      key: 'ai-notifications',
-      name: 'Notificacao Automatica por IA',
-      removable: true,
-      notes: 'IA decide sozinha quando notificar promocoes (NVIDIA NIM). Ver tela de Notificacoes.',
-    },
   }
 
   private readonly envFlagNames: Record<IntegrationModuleKey, string> = {
@@ -82,7 +75,6 @@ export class IntegrationModulesService {
     'meta-pixel': 'INTEGRATION_META_PIXEL_ENABLED',
     nfe: 'INTEGRATION_NFE_ENABLED',
     payments: 'INTEGRATION_PAYMENTS_ENABLED',
-    'ai-notifications': 'AI_NOTIFICATIONS_CRON_ENABLED',
   }
 
   private readonly envDefaultValues: Record<IntegrationModuleKey, boolean> = {
@@ -94,7 +86,6 @@ export class IntegrationModulesService {
     'meta-pixel': false,
     nfe: false,
     payments: false,
-    'ai-notifications': false,
   }
 
   private getSupportedKeys(): IntegrationModuleKey[] {

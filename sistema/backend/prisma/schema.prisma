@@ -2239,8 +2239,14 @@ model Notification {
   imageUrl   String?
   productId  String?
   read       Boolean  @default(false)
+  // 29/09/2026: clique no push (?n=<id> na URL) e o lote de envio. Sem isso nao
+  // dava para medir resultado nem agrupar disparos com precisao.
+  clickedAt  DateTime?
+  batchId    String?
+  source     String?  // MANUAL | AUTO | SCHEDULED | ORDER
   createdAt  DateTime @default(now())
 
+  @@index([batchId])
   @@index([tenantId, storeId, customerId])
   @@index([tenantId, read])
   @@index([customerId])
@@ -2461,5 +2467,18 @@ model IbgeAddress {
   @@map("ibge_addresses")
 }
 
+// Avisos automaticos de oferta (29/09/2026): algoritmo proprio, sem IA externa.
+// Singleton (id = "singleton"). learnedWeights: peso aprendido por departamento.
+model AutoOfferSettings {
+  id             String    @id @default("singleton")
+  enabled        Boolean   @default(false)
+  minDiscount    Int       @default(15)
+  maxPerWeek     Int       @default(3)
+  sendHours      String    @default("11,17")
+  learnedWeights Json?
+  lastRunAt      DateTime?
+  lastRunSummary Json?
+  updatedAt      DateTime  @updatedAt
 
-
+  @@map("auto_offer_settings")
+}

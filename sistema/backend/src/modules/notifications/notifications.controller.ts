@@ -2,8 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Re
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { NotificationsService } from './notifications.service'
 import { NotificationService } from './notification.service'
-import { AiNotificationService } from './ai-notification.service'
-import { IntegrationModulesService } from '../integrations/integration-modules.service'
+import { OfferPushService } from './offer-push.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
@@ -16,8 +15,7 @@ export class NotificationsController {
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly notificationService: NotificationService,
-    private readonly aiNotificationService: AiNotificationService,
-    private readonly integrationModules: IntegrationModulesService,
+    private readonly offerPush: OfferPushService,
   ) {}
 
   @Get()
@@ -38,6 +36,12 @@ export class NotificationsController {
     const customerId = String(req.user?.id || '')
     if (!customerId) return 0
     return this.notificationsService.countUnread(customerId)
+  }
+
+  @Post(':id/opened')
+  @ApiOperation({ summary: 'Registra o clique no aviso (?n= na URL do push)' })
+  async markOpened(@Param('id') id: string) {
+    return this.notificationsService.markOpened(String(id).slice(0, 64))
   }
 
   @Patch(':id/read')
@@ -253,31 +257,42 @@ export class NotificationsController {
     return this.notificationsService.countDispatchesByType()
   }
 
-  @Get('admin/ai-cycle/status')
+  // ---- Avisos automaticos de oferta (algoritmo proprio, 29/09/2026) ----
+
+  @Get('admin/auto-offers')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Le se a notificacao automatica por IA esta ligada' })
-  async getAiNotificationStatus() {
-    return { enabled: await this.integrationModules.isEnabled('ai-notifications') }
+  @ApiOperation({ summary: 'Configuracao, resultado de 30 dias e pesos aprendidos dos avisos automaticos' })
+  async autoOffersOverview() {
+    return this.offerPush.overview()
   }
 
-  @Post('admin/ai-cycle/toggle')
+  @Patch('admin/auto-offers')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Liga/desliga a notificacao automatica por IA' })
-  async toggleAiNotification(@Body() body: { enabled: boolean }) {
-    return this.integrationModules.setEnabled('ai-notifications', Boolean(body?.enabled))
+  async updateAutoOffers(@Body() body: { enabled?: boolean; minDiscount?: number; maxPerWeek?: number; sendHours?: string }) {
+    return this.offerPush.updateSettings(body || {})
   }
 
-  @Post('admin/ai-cycle/run')
+  @Get('admin/auto-offers/preview')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Roda manualmente um ciclo de notificacao automatica por IA (para teste/disparo avulso)' })
-  async runAiNotificationCycle() {
-    return this.aiNotificationService.runCycle()
+  @ApiOperation({ summary: 'Simula: quem receberia qual oferta agora (nao envia nada)' })
+  async previewAutoOffers() {
+    const { picks, candidates, customers } = await this.offerPush.plan()
+    return { candidates, customers, picks }
+  }
+
+  @Post('admin/auto-offers/run')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Envia agora o que a simulacao mostra (respeita horario da loja e limites)' })
+  async runAutoOffers() {
+    return this.offerPush.run({ force: true })
   }
 
   @Post('admin/pending-mappings/notify')

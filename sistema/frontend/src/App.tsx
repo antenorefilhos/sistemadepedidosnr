@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
 import { useAuth } from './hooks/useAuth'
 import { useAutoDeliveryVerification } from './hooks/useAutoDeliveryVerification'
+import { useNotificationOpened } from './hooks/useNotificationOpened'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { NetworkToast } from './components/NetworkToast'
 import { PageTransition } from './components/PageTransition'
@@ -99,6 +100,7 @@ function AppRoutes() {
   const guestCheckoutEnabled = (import.meta.env.VITE_GUEST_CHECKOUT_ENABLED ?? 'true') !== 'false'
   const location = useLocation()
   useAutoDeliveryVerification()
+  useNotificationOpened()
 
   return (
     <Suspense fallback={<PageLoader />}>

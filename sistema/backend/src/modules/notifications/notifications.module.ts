@@ -5,8 +5,7 @@ import { NotificationService } from './notification.service'
 import { NotificationsService } from './notifications.service'
 import { NotificationsController } from './notifications.controller'
 import { EmailService } from './email.service'
-import { AiNotificationService } from './ai-notification.service'
-import { AiNotificationScheduler } from './ai-notification.scheduler'
+import { OfferPushService } from './offer-push.service'
 import { ScheduledNotificationScheduler } from './scheduled-notification.scheduler'
 import { IntegrationModulesService } from '../integrations/integration-modules.service'
 
@@ -18,8 +17,7 @@ import { IntegrationModulesService } from '../integrations/integration-modules.s
     WhatsAppService,
     NotificationService,
     EmailService,
-    AiNotificationService,
-    AiNotificationScheduler,
+    OfferPushService,
     ScheduledNotificationScheduler,
     IntegrationModulesService,
   ],
@@ -29,7 +27,7 @@ import { IntegrationModulesService } from '../integrations/integration-modules.s
     WhatsAppService,
     NotificationService,
     EmailService,
-    AiNotificationService,
+    OfferPushService,
   ],
 })
 export class NotificationsModule {}

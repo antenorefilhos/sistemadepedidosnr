@@ -75,14 +75,16 @@ describe('NotificationsService', () => {
         title: 'Oferta do dia',
         body: 'Confira as ofertas no mercado.',
         customerId: 'customer-1',
+        source: 'MANUAL',
       },
     })
+    // ?n=<id> no destino: o site registra o clique no aviso.
     expect(pushNotificationService.sendNotification).toHaveBeenCalledWith('customer-1', {
       title: 'Oferta do dia',
       body: 'Confira as ofertas no mercado.',
-      url: '/',
+      url: '/?n=notif-1',
     })
-    expect(notification).toEqual({
+    expect(notification).toMatchObject({
       id: 'notif-1',
       read: false,
       type: 'PROMO',
@@ -112,7 +114,7 @@ describe('NotificationsService', () => {
       title: '✅ Pedido Confirmado',
       body: 'Pedido #ORDER-1 confirmado e em preparo',
       image: undefined,
-      url: '/account',
+      url: '/account?n=notif-1',
     })
     expect(whatsAppService.sendStatusUpdate).toHaveBeenCalled()
   })
@@ -139,15 +141,14 @@ describe('NotificationsService', () => {
     })
 
     expect(prisma.storeBanner.findUnique).toHaveBeenCalledTimes(1)
-    expect(prisma.notification.createMany).toHaveBeenCalledWith({
-      data: [
-        { type: 'PROMO', title: 'Oferta', body: 'Confira', customerId: 'c1', imageUrl: '/banner.webp', productId: undefined },
-        { type: 'PROMO', title: 'Oferta', body: 'Confira', customerId: 'c2', imageUrl: '/banner.webp', productId: undefined },
-        { type: 'PROMO', title: 'Oferta', body: 'Confira', customerId: 'c3', imageUrl: '/banner.webp', productId: undefined },
-      ],
-    })
+    const { data } = prisma.notification.createMany.mock.calls[0][0]
+    expect(data.map((d: any) => d.customerId)).toEqual(['c1', 'c2', 'c3'])
+    expect(data.every((d: any) => d.imageUrl === '/banner.webp' && d.batchId === data[0].batchId && d.source === 'MANUAL')).toBe(true)
     expect(pushNotificationService.sendNotification).toHaveBeenCalledTimes(3)
-    expect(resultado).toEqual({ count: 3 })
+    // Cada cliente recebe o proprio id na URL (clique medido por pessoa).
+    const urls = pushNotificationService.sendNotification.mock.calls.map((c: any) => c[1].url)
+    expect(urls).toEqual(data.map((d: any) => expect.stringContaining(`n=${d.id}`)))
+    expect(resultado).toMatchObject({ count: 3 })
   })
 
   it('aceita subscription do formato PushSubscriptionJSON do navegador', async () => {
