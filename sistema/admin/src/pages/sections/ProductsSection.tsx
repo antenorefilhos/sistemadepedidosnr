@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AlertCircle, ChevronLeft, ChevronRight, Download, ExternalLink, ImageOff, Loader2, RefreshCw, Search, Trash2, UploadCloud, X } from 'lucide-react'
 import {
   getApiErrorMessage,
@@ -88,10 +89,12 @@ function Price({ p }: { p: CatalogProduct }) {
 }
 
 export default function ProductsSection() {
-  const [tab, setTab] = useState<CatalogTab>('site')
+  // Aba e departamento podem vir da tela Departamentos (?tab=&category=).
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState<CatalogTab>(() => (TABS.some((t) => t.key === params.get('tab')) ? (params.get('tab') as CatalogTab) : 'site'))
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState('')
+  const [category, setCategory] = useState(() => params.get('category') || '')
   const [page, setPage] = useState(1)
   const [res, setRes] = useState<CatalogResponse | null>(null)
   const [loading, setLoading] = useState(true)

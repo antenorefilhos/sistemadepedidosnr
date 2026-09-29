@@ -79,7 +79,7 @@ function WhatsAppBadge({ phone, compact = false }: { phone?: string; compact?: b
 const LayoutManager = lazy(() => import('../components/LayoutManager'))
 const Intelligence = lazy(() => import('./Intelligence'))
 const Integrations = lazy(() => import('./Integrations'))
-const CategoriesManager = lazy(() => import('./CategoriesManager'))
+const DepartmentsSection = lazy(() => import('./sections/DepartmentsSection'))
 const DeliveryZones = lazy(() => import('./DeliveryZones'))
 const DeliveryRoutesSection = lazy(() => import('./sections/DeliveryRoutesSection'))
 const BusinessHours = lazy(() => import('./BusinessHours'))
@@ -246,7 +246,12 @@ export default function AdminDashboard() {
 
           {activeSection === 'categories' && (
             <Suspense fallback={lazySectionFallback}>
-              <CategoriesManager />
+              <DepartmentsSection
+                onOpenProducts={(category, tab) => {
+                  setActiveSectionState('products')
+                  setSearchParams({ section: 'products', tab, category }, { replace: true })
+                }}
+              />
             </Suspense>
           )}
 

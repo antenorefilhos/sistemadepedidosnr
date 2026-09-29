@@ -14,6 +14,8 @@ type CMSCategoryItem = {
   active?: boolean
   code?: string
   name?: string
+  /** Nome curto editavel no admin (Departamentos); vazio usa o da regra. */
+  shortName?: string | null
   limit?: number
   priority?: number
   productCount?: number
@@ -143,7 +145,7 @@ export function useHomeShelves({
         if (!rule) return
 
         configs.push({
-          rule,
+          rule: item?.shortName?.trim() ? { ...rule, shortLabel: item.shortName.trim() } : rule,
           code: categoryCode,
           limit: item?.limit ?? 12,
           priority: item?.priority ?? 0,

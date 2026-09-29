@@ -60,27 +60,18 @@ export interface CmsCategory {
   children?: CmsCategory[]
 }
 
-export interface CmsProductCategoryMapping {
+export interface DepartmentOverview {
   id: string
-  ean: string
-  categoryId: string
-  category: { id: string; name: string; parentId: string | null }
-  subCategoryId: string | null
-  subCategory: { id: string; name: string } | null
-  source: string
+  name: string
+  shortName: string | null
+  active: boolean
   priority: number
-}
-
-export interface PendingCategoryMappingItem {
-  id: string
-  ean: string
-  productName: string
-  suggestedCategoryN1: string | null
-  suggestedCategoryN2: string | null
-  suggestedCategory?: { id: string; name: string } | null
-  reason: string
-  notes?: string | null
-  createdAt: string
+  onSite: number
+  offSite: number
+  noPhoto: number
+  promo: number
+  orders: number
+  revenue: number
 }
 
 export interface ProductPayload {
@@ -1412,43 +1403,9 @@ export const integrationsAPI = {
 export const cmsAPI = {
   categories: {
     getAll: () => api.get('/cms/categories'),
-    getMappingStats: () => api.get('/api/categories/stats/mapping'),
-    getMappingCountsByCategory: () =>
-      api.get<{ success: boolean; data: Array<{ id: string; name: string; active: boolean; priority: number; productCount: number }> }>(
-        '/api/categories/stats/by-category',
-      ),
-    getPendingMappings: (params?: { limit?: number; offset?: number }) =>
-      api.get<{ success: boolean; data: PendingCategoryMappingItem[]; pagination: { limit: number; offset: number; total: number } }>(
-        '/api/categories/pending/list',
-        { params },
-      ),
-    create: (data: { name: string; priority?: number; limit?: number }) =>
-      api.post('/cms/categories', data),
+    /** Tela Departamentos: numeros por departamento e vendas de 30 dias. */
+    adminOverview: () => api.get<DepartmentOverview[]>('/cms/categories/admin/overview'),
     update: (id: string, data: any) => api.patch(`/cms/categories/${id}`, data),
-    remove: (id: string) => api.delete(`/cms/categories/${id}`),
-    approvePendingMapping: (id: string, data: { categoryId: string; subcategoryId?: string; notes?: string }) =>
-      api.post(`/api/admin/categories/pending/${id}/approve`, data),
-    rejectPendingMapping: (id: string, data?: { notes?: string }) =>
-      api.post(`/api/admin/categories/pending/${id}/reject`, data ?? {}),
-    getMappingByEan: (ean: string) =>
-      api.get<{ success: boolean; found: boolean; data: CmsProductCategoryMapping | null }>(
-        `/api/admin/categories/mappings/by-ean/${ean}`,
-      ),
-    upsertMapping: (ean: string, data: { categoryId: string; subcategoryId?: string | null }) =>
-      api.post<{ success: boolean; data: CmsProductCategoryMapping }>(
-        '/api/admin/categories/mappings/create',
-        { ean, ...data },
-      ).catch(() =>
-        // fallback: se já existe, atualiza
-        api.put<{ success: boolean; data: CmsProductCategoryMapping }>(
-          `/api/admin/categories/mappings/${ean}`,
-          { categoryId: data.categoryId, subcategoryId: data.subcategoryId ?? null },
-        )
-      ),
-    getMappingSuggestions: (params?: { limit?: number; onlyUnmapped?: boolean }) =>
-      api.get('/api/admin/categories/mappings/suggestions', { params }),
-    applyMappingSuggestions: (data?: { dryRun?: boolean; limit?: number }) =>
-      api.post('/api/admin/categories/mappings/apply-suggestions', data ?? {}),
   },
   classificationMappings: {
     getAll: () => api.get('/cms/categories/classification-mappings'),

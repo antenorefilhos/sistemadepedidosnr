@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { RelaxedThrottle } from '../../../common/decorators/relaxed-throttle.decorator'
+import { invalidateNotOffered } from '../../../common/not-offered-categories';
 import { Logger, Query } from '@nestjs/common';
 
 @RelaxedThrottle()
@@ -69,24 +70,24 @@ export class CategoriesController {
     return this.categoriesService.findAll();
   }
 
-  @Post()
+  @Get('admin/overview')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  create(@Body() data: { name: string; shortName?: string; bannerUrl?: string; priority?: number; limit?: number; curatedProductIds?: string[] }) {
-    return this.categoriesService.create(data);
+  adminOverview() {
+    return this.categoriesService.adminOverview();
   }
 
+  // 29/09/2026: sem criar nem excluir pelo painel. Categoria nova nunca aparecia
+  // no site (o site conhece as 19 oficiais) e excluir apagava a categoria de
+  // todos os produtos dela, tirando-os do site.
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  update(@Param('id') id: string, @Body() data: { name?: string; shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
-    return this.categoriesService.update(id, data);
-  }
-
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  remove(@Param('id') id: string) {
-    return this.categoriesService.remove(id);
+  async update(@Param('id') id: string, @Body() data: { shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
+    const result = await this.categoriesService.update(id, data);
+    // Ocultar/reexibir departamento vale na hora (vitrine, recomendacao, listagem).
+    invalidateNotOffered();
+    this.homeVitrinesService.clearCache();
+    return result;
   }
 }

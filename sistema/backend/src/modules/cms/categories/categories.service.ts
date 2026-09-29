@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { readdirSync } from 'fs';
+import { join } from 'path';
+import { isProductSellable } from '../../../common/product-availability';
 import { PrismaService } from '../../../common/prisma.service';
 
 const COMMERCIAL_CATEGORY_PRIORITY = [
@@ -440,8 +443,10 @@ export class CategoriesService {
     });
   }
 
-  async update(id: string, data: { name?: string; shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
-    const { curatedProductIds, ...categoryData } = data;
+  async update(id: string, data: { shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
+    // O nome e a chave que liga a categoria ao site e ao sync do ERP: renomear
+    // tirava a categoria do site. So o nome curto (o que o cliente le) e editavel.
+    const { curatedProductIds, name: _name, ...categoryData } = data as typeof data & { name?: string };
 
     await this.prisma.category.update({
       where: { id },
@@ -465,6 +470,70 @@ export class CategoriesService {
     return this.prisma.category.delete({
       where: { id },
     });
+  }
+
+  /**
+   * Tela Departamentos do admin (29/09/2026): cada departamento com o que o
+   * cliente ve (no site, fora do site, sem foto, em promocao) e as vendas dos
+   * ultimos 30 dias. A ligacao produto -> departamento e o mapeamento por EAN,
+   * a mesma que a navegacao do site usa.
+   */
+  async adminOverview() {
+    let files: string[] = [];
+    try {
+      files = readdirSync(join(process.cwd(), 'uploads', 'products'));
+    } catch {
+      files = [];
+    }
+    const withPhoto = new Set(files.filter((f) => /\.(webp|jpe?g|png)$/i.test(f)).map((f) => f.replace(/\.[^.]+$/, '')));
+
+    const [categories, mappings, products, sales] = await Promise.all([
+      this.prisma.category.findMany({ where: { parentId: null }, select: { id: true, name: true, shortName: true, active: true, priority: true } }),
+      this.prisma.productCategoryMapping.findMany({ select: { ean: true, categoryId: true } }),
+      this.prisma.product.findMany({
+        where: { erpActive: true },
+        select: { ean: true, active: true, syncOption: true, stock: true, price: true, promotionalPrice: true, promotionalPriceValidUntil: true },
+      }),
+      this.prisma.$queryRaw<Array<{ categoryId: string; orders: bigint; revenue: number | null }>>`
+        select m."categoryId", count(distinct o.id) as orders, sum(coalesce(i."finalSubtotal", i.subtotal))::float as revenue
+        from order_items i
+        join orders o on o.id = i."orderId"
+        join products p on p.id = i."productId"
+        join product_category_mappings m on m.ean = p.ean
+        where o."createdAt" >= now() - interval '30 days' and o.status not in ('CANCELLED', 'REFUNDED')
+        group by 1`,
+    ]);
+
+    const categoryByEan = new Map(mappings.map((m) => [m.ean, m.categoryId]));
+    const now = Date.now();
+    const stats = new Map<string, { onSite: number; offSite: number; noPhoto: number; promo: number }>();
+    for (const p of products) {
+      const categoryId = categoryByEan.get(p.ean);
+      if (!categoryId) continue;
+      const st = stats.get(categoryId) || { onSite: 0, offSite: 0, noPhoto: 0, promo: 0 };
+      if (isProductSellable(p)) {
+        st.onSite += 1;
+        if (!withPhoto.has(p.ean)) st.noPhoto += 1;
+        const promo = p.promotionalPrice != null && p.promotionalPrice > 0 && p.promotionalPrice < p.price;
+        if (promo && (!p.promotionalPriceValidUntil || p.promotionalPriceValidUntil.getTime() >= now)) st.promo += 1;
+      } else {
+        st.offSite += 1;
+      }
+      stats.set(categoryId, st);
+    }
+    const salesById = new Map(sales.map((r) => [r.categoryId, { orders: Number(r.orders), revenue: Number(r.revenue || 0) }]));
+
+    return categories
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        shortName: c.shortName,
+        active: c.active,
+        priority: c.priority,
+        ...(stats.get(c.id) || { onSite: 0, offSite: 0, noPhoto: 0, promo: 0 }),
+        ...(salesById.get(c.id) || { orders: 0, revenue: 0 }),
+      }))
+      .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name, 'pt-BR'));
   }
 
   // ─── Mapeamento Manual de Classificações ─────────────────────────────────

@@ -386,7 +386,7 @@ export default function MercadoPage() {
         return {
           id: rule.id,
           key: code,
-          label: rule.shortLabel,
+          label: String(item?.shortName || '').trim() || rule.shortLabel,
           priority: item?.priority ?? HOME_COMMERCIAL_PRIORITY[rule.id] ?? 999,
         }
       })

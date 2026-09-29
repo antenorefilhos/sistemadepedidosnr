@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
+import { notOfferedCategoryCodes } from '../../common/not-offered-categories'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext } from '../../common/tenant/tenant-context'
 
@@ -334,7 +335,8 @@ export class RecommendationsService {
       where: { id: { in: ids }, tenantId: context.tenantId, storeId: context.storeId },
       select: this.productSelect(),
     })
-    return products.filter((product) => this.isAvailable(product))
+    const notOffered = await notOfferedCategoryCodes(this.prisma)
+    return products.filter((product) => this.isAvailable(product, notOffered))
   }
 
   private async requireProduct(productId: string, context: { tenantId: string; storeId: string }) {
@@ -396,12 +398,12 @@ export class RecommendationsService {
     return candidatePrice >= sourcePrice * 0.6 && candidatePrice <= sourcePrice * 1.4
   }
 
-  private isAvailable(product: Pick<ProductRow, 'active' | 'syncOption' | 'stock' | 'category'>) {
+  private isAvailable(product: Pick<ProductRow, 'active' | 'syncOption' | 'stock' | 'category'>, notOffered: Set<string> = new Set(['TABACARIA'])) {
     if (!product.active) return false
-    // TABACARIA nao e oferecida automaticamente (recomendacao e surfacing
-    // algoritmico) -- so aparece se o cliente buscar/clicar a categoria
-    // explicitamente (Jonathan, 22/09/2026).
-    if (product.category === 'TABACARIA') return false
+    // TABACARIA e departamento oculto no admin nao sao oferecidos em
+    // recomendacao -- so aparecem se o cliente buscar/clicar a categoria
+    // (Jonathan, 22/09 e 29/09/2026). Ver not-offered-categories.ts.
+    if (notOffered.has(String(product.category || ''))) return false
     const syncOption = String(product.syncOption || 'ESTOQUE').toUpperCase()
     if (syncOption === 'NUNCA') return false
     if (syncOption === 'SEMPRE') return true

@@ -2,15 +2,19 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma.service';
 import { AntenorApiService } from '../../integrations/antenor-api.service';
 import { isProductSellable } from '../../../common/product-availability';
+import { notOfferedCategoryCodes } from '../../../common/not-offered-categories';
 import { BEVERAGE_CATEGORIA_TO_CATEGORY, DEPARTMENT_TO_CATEGORY, departmentCategories } from '../../products/products.service';
 
 /** Abaixo disso a prateleira fica rala demais pra exibir (mesmo criterio de JON-172, useHomeShelves.ts). */
 const MIN_SHELF_ITEMS = 4;
 
-// TABACARIA nao e oferecida automaticamente em vitrine -- so aparece se o
-// cliente buscar ou clicar a categoria explicitamente (Jonathan, 22/09/2026).
-function isAutoSurfaceable(produto: { category?: string | null; active?: boolean | null; syncOption?: string | null; stock?: unknown }) {
-  return produto.category !== 'TABACARIA' && isProductSellable(produto);
+// TABACARIA e departamento oculto no admin nao sao oferecidos automaticamente
+// em vitrine -- so aparecem se o cliente buscar (ver not-offered-categories.ts).
+function isAutoSurfaceable(
+  produto: { category?: string | null; active?: boolean | null; syncOption?: string | null; stock?: unknown },
+  notOffered: Set<string>,
+) {
+  return !notOffered.has(String(produto.category || '')) && isProductSellable(produto);
 }
 
 // 25/09/2026: a AntenorApi aplica tag de ocasiao por PALAVRA NO NOME, nao
@@ -149,8 +153,14 @@ export class HomeVitrinesService {
     return value;
   }
 
+  /** Departamento oculto/reexibido no admin vale na hora na Home. */
+  clearCache() {
+    this.cache.clear();
+  }
+
   private async build(query: HomeVitrinesQuery) {
     const remota = await this.antenorApi.getVitrines(query);
+    const notOffered = await notOfferedCategoryCodes(this.prisma);
 
     const erpIds = Array.from(
       new Set(remota.carrosseis.flatMap((c) => c.produtos.map((p) => p.id))),
@@ -179,7 +189,7 @@ export class HomeVitrinesService {
       const produtosResolvidos = carrossel.produtos
         .map((item) => porErpId.get(item.id))
         .filter((produto): produto is NonNullable<typeof produto> => !!produto)
-        .filter((produto) => isAutoSurfaceable(produto))
+        .filter((produto) => isAutoSurfaceable(produto, notOffered))
         .filter((produto) => carrossel.tipoFiltro !== 'tag' || !carrossel.valorFiltro || fitsTagShelf(carrossel.valorFiltro, produto.category))
         // A lista vem pronta da AntenorApi pelo departamento e-commerce, que
         // errava (talharim em "Carnes", 29/09). Carrossel de departamento so
@@ -231,7 +241,7 @@ export class HomeVitrinesService {
           });
           for (const produto of reforco) {
             if (produtosResolvidos.length >= TARGET_POOL_SIZE) break;
-            if (jaUsados.has(produto.id) || !isAutoSurfaceable(produto)) continue;
+            if (jaUsados.has(produto.id) || !isAutoSurfaceable(produto, notOffered)) continue;
             if (tagFiltro && !fitsTagShelf(tagFiltro, produto.category)) continue;
             jaUsados.add(produto.id);
             produtosResolvidos.push(produto);

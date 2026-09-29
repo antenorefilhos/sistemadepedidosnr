@@ -12,10 +12,10 @@ import { AuditLogService } from '../audit-log/audit-log.service'
 import { ProductSearchService } from './product-search.service'
 import { Prisma } from '@prisma/client'
 import { IntegrationModulesService } from '../../modules/integrations/integration-modules.service'
-import { CategoryHierarchyService } from '../categories/category-hierarchy.service'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import { productIdsMatchingText } from '../../common/unaccent-search'
 import { applySiteVisibility, isProductSellable } from '../../common/product-availability'
+import { notOfferedCategoryCodes } from '../../common/not-offered-categories'
 import { readdirSync } from 'fs'
 import { resolveEffectiveFractional, type FractionalSource } from '../../common/fractional.util'
 
@@ -354,7 +354,6 @@ export class ProductsService {
     private auditLogService: AuditLogService,
     private productSearchService: ProductSearchService,
     private integrationModules: IntegrationModulesService,
-    private categoryHierarchyService: CategoryHierarchyService,
   ) {}
 
   /**
@@ -878,7 +877,7 @@ export class ProductsService {
       }
     }
 
-    const where = this.buildPrismaWhere(effectiveParsed, effectiveCategory, mercadologicalFilters)
+    const where = this.buildPrismaWhere(effectiveParsed, effectiveCategory, mercadologicalFilters, await notOfferedCategoryCodes(this.prisma))
     Object.assign(where, tenantStoreWhere(context))
 
     // Enforce de visibilidade global por mapeamento (desktop + mobile)
@@ -1998,7 +1997,6 @@ export class ProductsService {
     let synced = 0
     let errors = 0
     const indexedIds: string[] = []
-    const unmappedSyncedEans = new Set<string>()
 
     for (const { item, mainEan, secondaryEans, erpProductId, allEans: groupEans } of resolved) {
       try {
@@ -2157,8 +2155,6 @@ export class ProductsService {
               create: { ean: mainEan, categoryId: departmentCategoryId, source },
             })
           }
-        } else if (!mapped) {
-          unmappedSyncedEans.add(mainEan)
         }
 
         this.adoptPhotoFromOtherEan(mainEan, groupEans)
@@ -2170,9 +2166,6 @@ export class ProductsService {
       }
     }
 
-    if (unmappedSyncedEans.size > 0) {
-      await this.generatePendingSuggestionsForSyncedUnmappedEans(Array.from(unmappedSyncedEans))
-    }
 
     return { synced, errors, indexedIds }
   }
@@ -2505,66 +2498,6 @@ export class ProductsService {
     return ['flv', 'hort', 'acougue', 'carnes', 'latic', 'frios', 'congel'].some((term) => text.includes(term))
   }
 
-  private async generatePendingSuggestionsForSyncedUnmappedEans(eans: string[]) {
-    const normalizedEans = Array.from(new Set(eans.map((ean) => String(ean || '').trim()).filter(Boolean)))
-    if (normalizedEans.length === 0) return
-
-    const [mappedRows, existingPendingRows] = await Promise.all([
-      this.prisma.productCategoryMapping.findMany({
-        where: { ean: { in: normalizedEans } },
-        select: { ean: true },
-      }),
-      this.prisma.categoryMappingPending.findMany({
-        where: {
-          ean: { in: normalizedEans },
-          status: 'PENDING',
-        },
-        select: { ean: true },
-      }),
-    ])
-
-    const mappedSet = new Set(mappedRows.map((row) => row.ean))
-    const pendingSet = new Set(existingPendingRows.map((row) => row.ean))
-    const missingEans = normalizedEans.filter((ean) => !mappedSet.has(ean) && !pendingSet.has(ean))
-
-    if (missingEans.length === 0) return
-
-    const suggestions = await this.categoryHierarchyService.generateMappingSuggestions(Math.max(200, missingEans.length * 2), true)
-    const suggestionByEan = new Map(suggestions.map((item) => [item.ean, item]))
-    const pendingProducts = await this.prisma.product.findMany({
-      where: {
-        ean: { in: missingEans },
-        active: true,
-      },
-      select: {
-        ean: true,
-        name: true,
-      },
-    })
-
-    if (pendingProducts.length === 0) return
-
-    await this.prisma.$transaction(
-      pendingProducts.map((product) => {
-        const suggestion = suggestionByEan.get(product.ean)
-        return this.prisma.categoryMappingPending.create({
-          data: {
-            ean: product.ean,
-            productName: product.name,
-            suggestedCategoryN1: suggestion?.categoryName || null,
-            suggestedCategoryN2: null,
-            suggestedCategoryId: suggestion?.categoryId || null,
-            reason: suggestion ? 'auto_classify' : 'not_found',
-            status: 'PENDING',
-            notes: suggestion
-              ? `Sugestao automatica baseada em aprendizado do handoff: ${suggestion.categoryName}`
-              : 'Produto sincronizado sem mapeamento no handoff; revisar manualmente',
-          },
-        })
-      }),
-    )
-  }
-
   private parseSearchQuery(search?: string): ParsedSearch {
     const raw = String(search || '').trim()
     if (!raw) {
@@ -2734,7 +2667,7 @@ export class ProductsService {
     return { ean: { in: eanRows.map((row) => row.ean) } }
   }
 
-  private buildPrismaWhere(parsed: ParsedSearch, category?: string, mercadologicalFilters?: MercadologicalFilters) {    const where: Record<string, any> = { active: true }
+  private buildPrismaWhere(parsed: ParsedSearch, category?: string, mercadologicalFilters?: MercadologicalFilters, notOffered: Set<string> = new Set(['TABACARIA'])) {    const where: Record<string, any> = { active: true }
     if (category) where["category"] = category
     // "contains" em vez de igualdade exata: o valor gravado tem prefixo
     // numerico ("02 - BOVINOS"), mas o "Ver mais" da vitrine manda so o nome
@@ -2752,12 +2685,12 @@ export class ProductsService {
     }
 
     const andConditions: any[] = []
-    // TABACARIA nao e oferecida por padrao (vitrine/listagem sem filtro) --
-    // so aparece se o cliente clicar a categoria explicitamente ou pesquisar
-    // por ela (Jonathan, 22/09/2026). Continua vendavel normalmente quando
-    // achada por um desses dois caminhos.
-    if (category !== "TABACARIA" && !parsed.text) {
-      andConditions.push({ category: { not: "TABACARIA" } })
+    // TABACARIA e departamento oculto no admin nao sao oferecidos na listagem
+    // sem filtro -- so aparecem se o cliente abrir a categoria ou pesquisar
+    // (Jonathan, 22/09 e 29/09/2026). Continuam vendaveis por esses caminhos.
+    const hidden = [...notOffered].filter((code) => code !== category)
+    if (!parsed.text && hidden.length) {
+      andConditions.push({ category: { notIn: hidden } })
     }
     andConditions.push(
       { syncOption: { not: "NUNCA" } },

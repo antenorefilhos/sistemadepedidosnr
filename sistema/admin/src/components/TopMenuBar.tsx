@@ -33,7 +33,7 @@ const MENU_GROUPS: MenuGroup[] = [
     label: 'Catálogo',
     items: [
       { key: 'products', label: 'Produtos', icon: Package },
-      { key: 'categories', label: 'Categorias', icon: Tag },
+      { key: 'categories', label: 'Departamentos', icon: Tag },
       { key: 'recipes', label: 'Receitas', icon: ChefHat },
     ],
   },
