@@ -94,7 +94,7 @@ export default function DeliveryRoutesSection() {
   const updatedAt = data ? new Date(data.generatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 sm:space-y-5">
+    <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
       {error && (
         <p role="alert" className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
           <AlertCircle size={16} /> {error}

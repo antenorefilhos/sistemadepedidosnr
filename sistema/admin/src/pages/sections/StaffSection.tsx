@@ -132,7 +132,7 @@ export default function StaffSection() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative min-w-[200px] flex-1">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

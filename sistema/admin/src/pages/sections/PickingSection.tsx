@@ -78,7 +78,7 @@ export default function PickingSection() {
   const waitingCustomer = data?.picking.filter((p) => p.waitingCustomer).length ?? 0
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 sm:space-y-5">
+    <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
       {error && (
         <p role="alert" className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
           <AlertCircle size={16} /> {error}

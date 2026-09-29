@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { AlertCircle, Check, ChevronRight, Copy, ExternalLink, MessageCircle, Printer, RefreshCw, Search, X } from 'lucide-react'
+import { AlertCircle, Check, ChevronRight, Copy, ExternalLink, MessageCircle, Printer, RefreshCw, Search } from 'lucide-react'
 import { escapeHtml } from '@/lib/utils'
+import { WorkspaceDialog } from '../../components/WorkspaceDialog'
 import { getApiErrorMessage, ordersAPI, type AdminOrder, type AdminOrderSummary } from '../../services/api'
 
 // Pedidos (refeito em 29/09/2026 com o Jonathan). Sobrio: lista por abas,
@@ -263,7 +264,7 @@ export default function OrdersSection({ openOrderId, onOpenOrderConsumed }: { op
   }, [filtered, tab, inTab])
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       {/* Abas + busca */}
       <div className="space-y-3">
         <div role="tablist" className="-mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
@@ -392,12 +393,6 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
     reload()
   }, [reload])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true)
     setError('')
@@ -430,10 +425,12 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
 
   return (
     <>
-      <div onClick={onClose} className="fixed inset-0 z-40 bg-black/30" />
-      <aside role="dialog" aria-modal="true" aria-label="Pedido" className="fixed inset-0 z-50 flex flex-col bg-gray-50 sm:inset-y-0 sm:left-auto sm:w-full sm:max-w-2xl sm:border-l sm:border-black/[0.06] sm:shadow-xl">
-        {/* Topo */}
-        <header className="border-b border-black/[0.06] bg-white px-5 py-4">
+      <WorkspaceDialog
+        label="Pedido"
+        onClose={onClose}
+        closeOnEsc={!cancelOpen}
+        title={
+          <>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="font-mono text-xs text-gray-500">#{code(orderId)}</p>
@@ -466,9 +463,6 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                 </>
               )}
             </div>
-            <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
-              <X size={20} />
-            </button>
           </div>
 
           {order && (
@@ -493,9 +487,10 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
               )}
             </div>
           )}
-        </header>
-
-        <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
+          </>
+        }
+      >
+        <div className="min-h-full space-y-3 bg-gray-50 p-4 sm:p-6">
           {error && (
             <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
               <AlertCircle size={16} className="mt-0.5 shrink-0" /> {error}
@@ -509,6 +504,8 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                 <p className="rounded-xl border border-black/[0.06] bg-white p-3 text-sm text-gray-700"><span className="text-gray-500">Motivo do cancelamento:</span> {order.cancellationReason}</p>
               )}
 
+              <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-4">
+              <div className="space-y-3">
               <Block title="Itens" aside={<span className="text-xs text-gray-400">{order.items?.length || 0}</span>}>
                 <ul className="divide-y divide-black/[0.05]">
                   {order.items?.map((item) => {
@@ -541,8 +538,10 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                   <div className="flex justify-between font-semibold text-gray-900"><dt>Total</dt><dd className="tabular-nums">{brl(order.total)}</dd></div>
                 </dl>
               </Block>
+              </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 <Block title="Cliente">
                   <p className="text-sm text-gray-900">{order.customer?.name || '—'}</p>
                   {order.customer?.whatsapp && <p className="text-sm tabular-nums text-gray-600">{order.customer.whatsapp}</p>}
@@ -638,13 +637,15 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                   </div>
                 </details>
               )}
+              </div>
+              </div>
             </>
           )}
         </div>
-      </aside>
+      </WorkspaceDialog>
 
       {cancelOpen && order && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4">
           <div className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl">
             <h3 className="text-base font-semibold text-gray-900">Cancelar pedido #{code(order.id)}?</h3>
             <p className="mt-1 text-sm text-gray-500">O pedido é cancelado também no ERP, e o estoque e o horário reservados são liberados.</p>

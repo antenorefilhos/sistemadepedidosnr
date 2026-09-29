@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, ArrowDown, ArrowUp, ChefHat, ExternalLink, ImageOff, Loader2, Plus, Search, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
+import { WorkspaceDialog } from '../../components/WorkspaceDialog'
 import { getApiErrorMessage, productsAPI, recipesAPI, resolveApiUrl, uploadsAPI, type CatalogProduct } from '../../services/api'
 
 // Receitas (refeita em 29/09/2026 com o Jonathan). A tela antiga so tinha
@@ -196,7 +197,7 @@ export default function RecipesSection() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <div className="flex w-max gap-1 rounded-2xl border border-black/[0.06] bg-white p-1">
@@ -377,12 +378,6 @@ function RecipeEditor({
   const set = (patch: Partial<Form>) => setF((prev) => ({ ...prev, ...patch }))
   const isNew = !f.id
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !pasting && onClose()
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose, pasting])
-
   // Busca de produto (so o que esta no site: e o que o cliente consegue comprar).
   useEffect(() => {
     const q = query.trim()
@@ -534,26 +529,67 @@ function RecipeEditor({
   const livePublished = statusOf({ active: initial.status !== 'draft', publishedAt: initial.publishedAt }) === 'published' && !isNew
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-end bg-black/30 sm:items-stretch" onClick={onClose}>
-      <aside onClick={(e) => e.stopPropagation()} role="dialog" aria-label={f.title || 'Nova receita'} className="flex max-h-[94vh] w-full flex-col rounded-t-2xl bg-white sm:max-h-none sm:max-w-2xl sm:rounded-none">
-        <header className="flex items-start gap-3 border-b border-black/[0.06] px-5 py-4">
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate text-base font-semibold text-gray-900">{f.title || 'Nova receita'}</h3>
-            <p className="mt-0.5 truncate text-xs text-gray-400">
-              {SITE.replace('https://', '')}/receitas/{f.slug || slugify(f.title) || '...'}
-            </p>
+    <>
+    <WorkspaceDialog
+      label={f.title || 'Nova receita'}
+      onClose={onClose}
+      closeOnEsc={!pasting}
+      title={
+        <>
+          <h3 className="truncate text-base font-semibold text-gray-900">{f.title || 'Nova receita'}</h3>
+          <p className="mt-0.5 truncate text-xs text-gray-400">
+            {SITE.replace('https://', '')}/receitas/{f.slug || slugify(f.title) || '...'}
+          </p>
+        </>
+      }
+      actions={
+        livePublished ? (
+          <a href={`${SITE}/receitas/${f.slug}`} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-100">
+            <ExternalLink size={13} /> Ver no site
+          </a>
+        ) : undefined
+      }
+      footer={
+        <div className="space-y-2 sm:flex sm:items-center sm:gap-3 sm:space-y-0">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1 sm:w-[380px] sm:shrink-0">
+            {(
+              [
+                ['draft', 'Rascunho'],
+                ['now', livePublished ? 'Publicada' : 'Publicar agora'],
+                ['schedule', 'Agendar'],
+              ] as Array<[Status, string]>
+            ).map(([v, label]) => (
+              <button key={v} type="button" onClick={() => set({ status: v })} className={`rounded-lg px-2 py-1.5 text-sm ${f.status === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}>
+                {label}
+              </button>
+            ))}
           </div>
-          {livePublished && (
-            <a href={`${SITE}/receitas/${f.slug}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-100">
-              <ExternalLink size={13} /> Ver no site
-            </a>
+          {f.status === 'schedule' && (
+            <input type="datetime-local" value={f.scheduleAt} min={localInput(new Date())} onChange={(e) => set({ scheduleAt: e.target.value })} className={`${inputCls} sm:w-56 sm:shrink-0`} />
           )}
-          <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
-            <X size={18} />
-          </button>
-        </header>
-
-        <div className="flex-1 space-y-7 overflow-y-auto px-5 py-5">
+          <div className="min-w-0 flex-1 text-xs">
+            {error && <p className="text-rose-700">{error}</p>}
+            {missing.length > 0 && <p className="text-gray-500">Falta: {missing.join(', ')}.</p>}
+          </div>
+          <div className="flex items-center gap-2">
+            {!isNew && (
+              <button type="button" onClick={remove} disabled={saving} aria-label="Excluir receita" className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-rose-700">
+                <Trash2 size={16} />
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="ml-auto rounded-xl px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+              Cancelar
+            </button>
+            <button type="button" onClick={save} disabled={saving || missing.length > 0} className="rounded-xl bg-gray-900 px-5 py-2 text-sm text-white disabled:opacity-40">
+              {saving ? 'Salvando…' : f.status === 'draft' ? 'Salvar rascunho' : f.status === 'schedule' ? 'Agendar' : 'Publicar'}
+            </button>
+          </div>
+        </div>
+      }
+    >
+      {/* Computador: a receita a esquerda; o que vende e o Google a direita. Celular: uma coluna. */}
+      <div className="grid gap-8 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-10">
+        <div className="space-y-8">
           <Section title="Receita">
             <div className="space-y-3">
               <input
@@ -681,7 +717,9 @@ function RecipeEditor({
               <Plus size={14} /> Passo
             </button>
           </Section>
+        </div>
 
+        <div className="space-y-8">
           <Section
             title={`Produtos para comprar · ${f.products.length}`}
             hint="O cliente adiciona ao carrinho com um clique. Produto que sair do site some da receita sozinho e volta quando voltar."
@@ -831,41 +869,8 @@ function RecipeEditor({
             </div>
           </Section>
         </div>
-
-        <footer className="border-t border-black/[0.06] px-5 py-3">
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
-            {(
-              [
-                ['draft', 'Rascunho'],
-                ['now', livePublished ? 'Publicada' : 'Publicar agora'],
-                ['schedule', 'Agendar'],
-              ] as Array<[Status, string]>
-            ).map(([v, label]) => (
-              <button key={v} type="button" onClick={() => set({ status: v })} className={`rounded-lg px-2 py-1.5 text-sm ${f.status === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {f.status === 'schedule' && (
-            <input type="datetime-local" value={f.scheduleAt} min={localInput(new Date())} onChange={(e) => set({ scheduleAt: e.target.value })} className={`${inputCls} mt-2`} />
-          )}
-          {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
-          {missing.length > 0 && <p className="mt-2 text-xs text-gray-500">Falta: {missing.join(', ')}.</p>}
-          <div className="mt-3 flex items-center gap-2">
-            {!isNew && (
-              <button type="button" onClick={remove} disabled={saving} aria-label="Excluir receita" className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-rose-700">
-                <Trash2 size={16} />
-              </button>
-            )}
-            <button type="button" onClick={onClose} className="ml-auto rounded-xl px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-              Cancelar
-            </button>
-            <button type="button" onClick={save} disabled={saving || missing.length > 0} className="rounded-xl bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-40">
-              {saving ? 'Salvando…' : f.status === 'draft' ? 'Salvar rascunho' : f.status === 'schedule' ? 'Agendar' : 'Publicar'}
-            </button>
-          </div>
-        </footer>
-      </aside>
+      </div>
+    </WorkspaceDialog>
 
       {pasting && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30 sm:items-center sm:p-4" onClick={(e) => (e.stopPropagation(), setPasting(null))}>
@@ -886,7 +891,7 @@ function RecipeEditor({
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 

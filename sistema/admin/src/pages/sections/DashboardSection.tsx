@@ -182,7 +182,7 @@ export function DashboardSection({ onNavigate, onOpenOrder }: { onNavigate?: (se
   const failures = checkup?.results.filter((r) => !r.ok) ?? []
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 sm:space-y-5">
+    <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
       {/* Cabecalho + periodo (fixo no topo no celular, como app) */}
       <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-end justify-between gap-3 bg-gray-100/90 px-4 pb-3 pt-1 backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:pt-0 sm:backdrop-blur-none">
         <p className="text-sm capitalize text-gray-500">{today}</p>

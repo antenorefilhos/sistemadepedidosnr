@@ -129,7 +129,7 @@ export default function DepartmentsSection({ onOpenProducts }: Props) {
     )
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 rounded-2xl border border-black/[0.06] bg-white px-4 py-3 text-sm text-gray-600">
         <span>
           <span className="tabular-nums text-gray-900">{visible.length}</span> de {rows.length} departamentos visíveis

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertCircle, ChevronLeft, ChevronRight, Download, ExternalLink, ImageOff, Loader2, RefreshCw, Search, Trash2, UploadCloud, X } from 'lucide-react'
+import { WorkspaceDialog } from '../../components/WorkspaceDialog'
 import {
   getApiErrorMessage,
   productsAPI,
@@ -205,7 +206,7 @@ export default function ProductsSection() {
   const recent = res?.sync.lastRecent
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       {/* Sync com o ERP */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-black/[0.06] bg-white px-4 py-3">
         <div className="min-w-0 flex-1 text-sm text-gray-600">
@@ -500,12 +501,6 @@ function ProductPanel({
   const [error, setError] = useState('')
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }))
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   const erpSync = p.erpSyncOption || p.syncOption
   const erpCategory = p.categoryOverrideId ? null : p.categoryName
   const dirty = JSON.stringify(form) !== JSON.stringify(initial)
@@ -549,14 +544,11 @@ function ProductPanel({
     .join(' › ')
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-end bg-black/30 sm:items-stretch" onClick={onClose}>
-      <aside
-        onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-white sm:max-h-none sm:max-w-xl sm:rounded-none"
-        role="dialog"
-        aria-label={p.displayName}
-      >
-        <header className="flex items-start gap-3 border-b border-black/[0.06] px-5 py-4">
+    <WorkspaceDialog
+      label={p.displayName}
+      onClose={onClose}
+      title={
+        <div className="flex items-start gap-3">
           <Thumb p={p} size={48} />
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold leading-snug text-gray-900">{p.displayName}</h3>
@@ -577,12 +569,23 @@ function ProductPanel({
               )}
             </div>
           </div>
-          <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
-            <X size={18} />
+        </div>
+      }
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          {error && <p className="mr-auto text-xs text-rose-700">{error}</p>}
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+            {dirty ? 'Cancelar' : 'Fechar'}
           </button>
-        </header>
-
-        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
+          <button type="button" disabled={!dirty || saving || fractionInvalid} onClick={save} className="rounded-xl bg-gray-900 px-5 py-2 text-sm text-white disabled:opacity-40">
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      }
+    >
+      {/* Computador: o que se edita a esquerda, o que vem do ERP a direita. Celular: uma coluna. */}
+      <div className="grid gap-8 px-4 py-5 sm:px-6 lg:grid-cols-2 lg:gap-10">
+        <div className="space-y-8">
           {/* Ajustes do site */}
           <section>
             <h4 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">No site</h4>
@@ -694,6 +697,7 @@ function ProductPanel({
             </div>
             <p className="mt-2 text-xs text-gray-400">JPG, PNG ou WebP até 5 MB. A foto é convertida e redimensionada sozinha.</p>
           </section>
+        </div>
 
           <section>
             <h4 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Do ERP</h4>
@@ -727,18 +731,7 @@ function ProductPanel({
               <Field label="Árvore do cadastro">{tree}</Field>
             </div>
           </section>
-        </div>
-
-        <footer className="flex items-center justify-end gap-2 border-t border-black/[0.06] px-5 py-3">
-          {error && <p className="mr-auto text-xs text-rose-700">{error}</p>}
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-            {dirty ? 'Cancelar' : 'Fechar'}
-          </button>
-          <button type="button" disabled={!dirty || saving || fractionInvalid} onClick={save} className="rounded-xl bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-40">
-            {saving ? 'Salvando…' : 'Salvar'}
-          </button>
-        </footer>
-      </aside>
-    </div>
+      </div>
+    </WorkspaceDialog>
   )
 }
