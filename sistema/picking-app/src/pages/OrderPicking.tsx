@@ -21,6 +21,21 @@ const ORDER_NOT_PICKABLE_LABEL: Record<string, string> = {
   REFUNDED: 'Este pedido foi estornado.',
 }
 
+// Depois do caixa a separacao fica travada (29/09/2026): antes so
+// READY_FOR_CHECKOUT contava como "enviado", e o pedido faturado ou ja entregue
+// voltava a mostrar "Revisar e enviar".
+const PAST_CASHIER_LABEL: Record<string, string> = {
+  READY_FOR_CHECKOUT: 'Enviado ao caixa',
+  READY_FOR_DELIVERY: 'Faturado · pronto para entrega',
+  READY_FOR_PICKUP: 'Faturado · pronto para retirada',
+  OUT_FOR_DELIVERY: 'Saiu para entrega',
+  DELIVERED: 'Entregue',
+  COMPLETED: 'Concluído',
+  PARTIALLY_CANCELLED: 'Concluído com cortes',
+  CANCELLED: 'Cancelado',
+  REFUNDED: 'Estornado',
+}
+
 type ConfirmMode = null | 'scan' | 'ean' | 'manual'
 
 interface ConfirmState {
@@ -432,7 +447,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const done = taskItems.filter(i => ['PICKED', 'MISSING', 'SUBSTITUTED', 'CANCELLED'].includes(i.status))
   const allDone = taskItems.length > 0 && pending.length === 0
   const isSeparated = ['CONFERENCE_PENDING', 'PACKING', 'COMPLETED'].includes(task?.status || '')
-  const isSentToCashier = order.status === 'READY_FOR_CHECKOUT'
+  const isSentToCashier = order.status in PAST_CASHIER_LABEL
   const canFinish = allDone && task && !isSeparated && !isSentToCashier
   const canSendToCashier = (isSeparated || allDone) && !isSentToCashier
 
@@ -485,7 +500,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
           {isSentToCashier && (
             <div className="flex-1 h-11 rounded-xl bg-green-50 border border-green-200 text-green-700 font-semibold text-sm flex items-center justify-center gap-2">
               <Check size={16} />
-              Enviado ao Caixa
+              {PAST_CASHIER_LABEL[order.status]}
             </div>
           )}
         </div>

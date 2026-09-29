@@ -38,6 +38,23 @@ type OrderForPicking = Prisma.OrderGetPayload<{
 
 const FINAL_ITEM_STATUSES = ['PICKED', 'MISSING', 'SUBSTITUTED', 'CANCELLED']
 
+// Pedido que ja foi para o caixa esta (ou vai estar) faturado no PDV: a
+// separacao nao mexe mais nele. 29/09/2026 (DAV 102118/102119): o app voltava
+// a mostrar "Revisar e enviar" depois do faturamento, o separador reenviava e
+// o pedido JA ENTREGUE voltava para "no caixa" e depois "pronto para entrega",
+// alem de reenviar os itens ao ERP num DAV ja faturado.
+const PAST_CASHIER_STATUSES = [
+  'READY_FOR_CHECKOUT',
+  'READY_FOR_PICKUP',
+  'READY_FOR_DELIVERY',
+  'OUT_FOR_DELIVERY',
+  'DELIVERED',
+  'COMPLETED',
+  'PARTIALLY_CANCELLED',
+  'CANCELLED',
+  'REFUNDED',
+]
+
 @Injectable()
 export class PickingService {
   private readonly logger = new Logger(PickingService.name)
@@ -105,6 +122,14 @@ export class PickingService {
     deliveryInstructions?: string,
   ) {
     const order = await this.findOrderForPicking(orderId, context)
+    // Ja no caixa: reenviar nao faz nada (sem novo evento, sem reenviar ao ERP).
+    if (order.status === 'READY_FOR_CHECKOUT') {
+      return this.prisma.order.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { customer: { select: CUSTOMER_SAFE_SELECT }, items: { include: { product: true } } },
+      })
+    }
+    this.assertStillInPicking(order.status)
     const task = await this.prisma.pickingTask.findFirst({
       where: { orderId, ...tenantStoreWhere(context) },
       include: { items: true },
@@ -639,9 +664,7 @@ export class PickingService {
     actor?: PickingActor,
   ) {
     const order = await this.findOrderForPicking(orderId, context)
-    if (['CANCELLED', 'COMPLETED', 'REFUNDED', 'READY_FOR_CHECKOUT'].includes(order.status)) {
-      throw new BadRequestException('Pedido nao permite inclusao de itens neste status.')
-    }
+    this.assertStillInPicking(order.status)
 
     const product = await this.prisma.product.findFirst({
       where: { id: dto.productId, tenantId: order.tenantId, storeId: order.storeId, active: true },
@@ -713,6 +736,7 @@ export class PickingService {
     actor?: PickingActor,
   ) {
     const task = await this.findTaskForOperation(taskId, context)
+    await this.assertOrderStillInPicking(task.orderId)
     const taskItem = this.getTaskItem(task, taskItemId)
 
     if (!FINAL_ITEM_STATUSES.includes(taskItem.status)) {
@@ -766,6 +790,7 @@ export class PickingService {
     actor?: PickingActor,
   ) {
     const task = await this.findTaskForOperation(taskId, context)
+    await this.assertOrderStillInPicking(task.orderId)
     const taskItem = this.getTaskItem(task, taskItemId)
     const orderItem = await this.findOrderItemForTask(task, taskItem.orderItemId)
 
@@ -1264,6 +1289,17 @@ export class PickingService {
     const item = task.items.find((candidate) => candidate.id === taskItemId)
     if (!item) throw new NotFoundException('Item da tarefa de separacao nao encontrado.')
     return item
+  }
+
+  private assertStillInPicking(status: string) {
+    if (PAST_CASHIER_STATUSES.includes(status)) {
+      throw new BadRequestException('Este pedido já foi enviado ao caixa. A separação não pode mais ser alterada.')
+    }
+  }
+
+  private async assertOrderStillInPicking(orderId: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { status: true } })
+    if (order) this.assertStillInPicking(order.status)
   }
 
   private async ensureTaskCanReceiveItems(taskId: string, context: Partial<PickingTenantContext>, actor?: PickingActor) {
