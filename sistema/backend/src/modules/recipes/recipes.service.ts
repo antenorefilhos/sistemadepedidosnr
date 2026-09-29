@@ -66,9 +66,11 @@ export class RecipesService {
 
   // ---- Recipes ----
 
-  async list(active?: boolean, categorySlug?: string, page = 1, limit = 12, isAdmin = false) {
+  async list(active?: boolean, categorySlug?: string, page = 1, limit = 12, isAdmin = false, productId?: string) {
     const where: Prisma.RecipeWhereInput = isAdmin ? (active !== undefined ? { active } : {}) : publishedWhere()
     if (categorySlug) where.category = { slug: categorySlug }
+    // "Receitas com este produto" na pagina do produto (29/09/2026).
+    if (productId) where.products = { some: { productId } }
 
     if (!isAdmin) {
       const [data, total] = await Promise.all([

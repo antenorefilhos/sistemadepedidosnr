@@ -150,6 +150,80 @@ export class SeoService {
       .replace(/<div id="root">\s*<\/div>/, `<div id="root">${body}</div>`)
   }
 
+  /** Receita publicada (agendada ainda nao), com o que a pagina precisa. */
+  async findPublishedRecipe(slug: string) {
+    return this.prisma.recipe.findFirst({
+      where: { slug, active: true, OR: [{ publishedAt: null }, { publishedAt: { lte: new Date() } }] },
+      include: { category: true, ingredients: { orderBy: { order: 'asc' } }, steps: { orderBy: { order: 'asc' } } },
+    })
+  }
+
+  /**
+   * Receita pronta no HTML (29/09/2026): link compartilhado no WhatsApp mostra
+   * foto, titulo e descricao, e o Google le ingredientes e preparo (Recipe).
+   */
+  async renderRecipePage(recipe: NonNullable<Awaited<ReturnType<SeoService['findPublishedRecipe']>>>) {
+    const html = await this.getIndexHtml()
+    const url = `${this.siteUrl}/receitas/${recipe.slug}`
+    const abs = (u?: string | null) => (!u ? '' : /^https?:\/\//.test(u) ? u : `${this.siteUrl}${u.startsWith('/') ? '' : '/'}${u}`)
+    const image = abs(recipe.imageUrl)
+    const title = `${recipe.seoTitle || recipe.title} | Receitas Antenor & Filhos`
+    const description =
+      recipe.seoDescription || recipe.description || `Receita de ${recipe.title} com ingredientes do Mercado Antenor & Filhos.`
+    const ingredientLine = (i: { quantity: string | null; unit: string | null; name: string }) => [i.quantity, i.unit, i.name].filter(Boolean).join(' ')
+
+    const jsonLd = [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Recipe',
+        name: recipe.title,
+        description,
+        image: image || undefined,
+        author: { '@type': 'Organization', name: 'Antenor & Filhos' },
+        datePublished: (recipe.publishedAt || recipe.createdAt).toISOString().slice(0, 10),
+        ...(recipe.prepTime ? { totalTime: `PT${recipe.prepTime}M` } : {}),
+        ...(recipe.servings ? { recipeYield: `${recipe.servings} porções` } : {}),
+        ...(recipe.category ? { recipeCategory: recipe.category.name } : {}),
+        recipeIngredient: recipe.ingredients.map(ingredientLine),
+        recipeInstructions: recipe.steps.map((s, i) => ({ '@type': 'HowToStep', position: i + 1, text: s.content })),
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Receitas', item: `${this.siteUrl}/receitas` },
+          { '@type': 'ListItem', position: 2, name: recipe.title },
+        ],
+      },
+    ]
+
+    const head = [
+      `<title>${escapeHtml(title)}</title>`,
+      `<meta name="description" content="${escapeHtml(description)}" />`,
+      `<link rel="canonical" href="${escapeHtml(url)}" />`,
+      `<meta property="og:site_name" content="Antenor &amp; Filhos" />`,
+      `<meta property="og:type" content="article" />`,
+      `<meta property="og:title" content="${escapeHtml(recipe.title)}" />`,
+      `<meta property="og:description" content="${escapeHtml(description)}" />`,
+      `<meta property="og:url" content="${escapeHtml(url)}" />`,
+      ...(image
+        ? [`<meta property="og:image" content="${escapeHtml(image)}" />`, `<meta property="og:image:width" content="1600" />`, `<meta property="og:image:height" content="900" />`]
+        : []),
+      `<meta name="twitter:card" content="summary_large_image" />`,
+      `<script type="application/ld+json">${safeJson(jsonLd)}</script>`,
+    ].join('\n    ')
+
+    const body = `<main><nav><a href="${this.siteUrl}/receitas">Receitas</a></nav><h1>${escapeHtml(recipe.title)}</h1>${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(recipe.title)}" width="1600" height="900" />` : ''}<p>${escapeHtml(description)}</p><h2>Ingredientes</h2><ul>${recipe.ingredients.map((i) => `<li>${escapeHtml(ingredientLine(i))}</li>`).join('')}</ul><h2>Modo de preparo</h2><ol>${recipe.steps.map((s) => `<li>${escapeHtml(s.content)}</li>`).join('')}</ol></main>`
+
+    return html
+      .replace(/<title>[\s\S]*?<\/title>/i, '')
+      .replace(/<meta\s+name="description"[^>]*>/i, '')
+      .replace(/<link\s+rel="canonical"[^>]*>/i, '')
+      .replace(/<meta\s+property="og:[^"]+"[^>]*>/gi, '')
+      .replace('</head>', `    ${head}\n  </head>`)
+      .replace(/<div id="root">\s*<\/div>/, `<div id="root">${body}</div>`)
+  }
+
   async buildSitemap(): Promise<string> {
     const products = await this.prisma.product.findMany({
       where: { active: true, syncOption: { not: 'NUNCA' }, erpProductId: { not: null } },

@@ -5,7 +5,7 @@ import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decora
 import { productPath, SeoService } from './seo.service'
 
 // Rotas servidas pelo nginx do storefront (ver frontend/nginx.conf):
-// /sitemap.xml, /p/<slug> e /produto/<id> chegam aqui antes da SPA.
+// /sitemap.xml, /p/<slug>, /produto/<id> e /receitas/<slug> chegam aqui antes da SPA.
 @ApiExcludeController()
 @RelaxedThrottle()
 @Controller('seo')
@@ -43,6 +43,18 @@ export class SeoController {
     const product = await this.seo.findProductById(id)
     if (product?.erpProductId) return res.redirect(301, productPath(product))
     return this.sendIndex(res, product ? 200 : 404)
+  }
+
+  @Get('receitas/:slug')
+  async recipePage(@Param('slug') slug: string, @Res() res: Response) {
+    const recipe = await this.seo.findPublishedRecipe(slug)
+    if (!recipe) return this.sendIndex(res, 404)
+    try {
+      const html = await this.seo.renderRecipePage(recipe)
+      res.status(200).type('html').set('Cache-Control', 'public, max-age=300').send(html)
+    } catch {
+      return this.sendIndex(res, 200)
+    }
   }
 
   private async sendIndex(res: Response, status: number) {

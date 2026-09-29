@@ -58,6 +58,7 @@ import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
+import { ProductRecipeShelf } from '../components/RecipeShelf'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { Button, buttonVariants } from '../components/ui/button'
 import { surfaceClasses } from '../components/ui/surface'
@@ -437,6 +438,8 @@ export default function ProductDetail() {
           </div>
         </section>
       </main>
+
+      <ProductRecipeShelf productId={product.id} className="max-w-6xl mx-auto px-4 pb-10" />
 
       {recommendations.length > 0 && (
         <section className="max-w-6xl mx-auto px-4 pb-12">

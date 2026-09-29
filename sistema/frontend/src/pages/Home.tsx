@@ -26,6 +26,7 @@ import { useQuery } from '@tanstack/react-query'
 import { resolveApiUrl, productsAPI, cmsAPI } from '../services/api'
 import type { Product } from '../types'
 import { StoreProductCard } from '../components/StoreProductCard'
+import { HomeRecipeShelf } from '../components/RecipeShelf'
 import { ProductShelf } from '../components/ProductShelf'
 import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
@@ -896,6 +897,7 @@ export default function Home() {
             to={shelf.to}
             linkLabel="Ver mais"
           />
+          {index === 1 && <HomeRecipeShelf className="md:hidden px-4 pt-5 pb-2" />}
           {/* 1o par so entra se ja existe conteudo real acima (hasMobileLeadContent)
               -- sem isso ele ficava colado direto no Hero quando rebuy/ofertas
               vinham vazios. Os pares seguintes (indices 5 e 8) nao tem essa
@@ -908,6 +910,7 @@ export default function Home() {
         </Fragment>
       ))}
 
+      {homeSections.length < 2 && <HomeRecipeShelf className="md:hidden px-4 pt-5 pb-2" />}
       <ProductShelf
         className="md:hidden px-4 pb-2"
         title="Tudo do Mercado"
@@ -981,11 +984,14 @@ export default function Home() {
         {homeSections.map((shelf, index) => (
           <Fragment key={shelf.key}>
             <ProductShelf layout="carousel" eyebrow={shelf.eyebrow} title={shelf.title} icon={shelf.icon} products={shelf.products} to={shelf.to} />
+            {index === 1 && <HomeRecipeShelf />}
             {(promoInsertionMap.get(index) || []).map((pairIndex) => (
               <PromoBannerPair key={pairIndex} banners={promoPairs[pairIndex]} />
             ))}
           </Fragment>
         ))}
+
+        {homeSections.length < 2 && <HomeRecipeShelf />}
 
           {/* General Grid -- catalogo completo, sem curadoria comercial:
               fica de fora do schema das vitrines de proposito, sempre por

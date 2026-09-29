@@ -485,8 +485,8 @@ export const recommendationsAPI = {
 }
 
 export const recipesAPI = {
-  list: (category?: string, page = 1, limit = 12) =>
-    api.get('/recipes', { params: { active: true, category, page, limit } }),
+  list: (category?: string, page = 1, limit = 12, product?: string) =>
+    api.get('/recipes', { params: { active: true, category, page, limit, ...(product ? { product } : {}) } }),
   getBySlug: (slug: string) => api.get(`/recipes/${slug}`),
   categories: () => api.get('/recipes/categories'),
 }

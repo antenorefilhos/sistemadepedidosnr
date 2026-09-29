@@ -70,12 +70,13 @@ export class RecipesController {
     @Req() req: { user?: { role?: string } },
     @Query('active') active?: string,
     @Query('category') category?: string,
+    @Query('product') product?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
     @Query('limit', new DefaultValuePipe(12), ParseIntPipe) limit?: number,
   ) {
     const isAdmin = req.user?.role === 'admin'
     const activeFilter = isAdmin ? (active === undefined ? undefined : active !== 'false') : true
-    return this.service.list(activeFilter, category, page, limit, isAdmin)
+    return this.service.list(activeFilter, category, page, limit, isAdmin, product || undefined)
   }
 
   @Get(':slug')
