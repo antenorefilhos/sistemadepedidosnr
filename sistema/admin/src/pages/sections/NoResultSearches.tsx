@@ -95,7 +95,8 @@ export function NoResultSearches({ items }: { items: NoResult[] }) {
                     {s.empty}× sem resultado · última em {new Date(s.last).toLocaleDateString('pt-BR')}
                   </span>
                 </span>
-                {c && c.total === 0 && editing !== s.term && (
+                {/* Produto existe mas esta fora do site: sinonimo nao resolve (resolve reativar no ERP). */}
+                {c && c.total === 0 && editing !== s.term && (!ex || ex.reason.startsWith('no site')) && (
                   <button
                     type="button"
                     onClick={() => {
