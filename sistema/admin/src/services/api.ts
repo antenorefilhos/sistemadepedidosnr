@@ -1268,6 +1268,49 @@ export const customersAPI = {
 
 type AdminCustomerAddress = NonNullable<AdminCustomer['addresses']>[number]
 
+export interface CustomerRow {
+  id: string
+  name: string
+  cpf: string
+  whatsapp: string
+  email: string | null
+  hasPassword: boolean
+  blocked: boolean
+  origin: string | null
+  createdAt: string
+  neighborhood: string | null
+  orders: number
+  cancelled: number
+  spent: number
+  avgTicket: number
+  lastOrderAt: string | null
+  firstOrderAt: string | null
+  pushDevices: number
+}
+export interface CustomerDetail {
+  id: string
+  name: string
+  cpf: string
+  whatsapp: string
+  email: string | null
+  hasPassword: boolean
+  blocked: boolean
+  blockedReason: string | null
+  origin: string | null
+  createdAt: string
+  pushDevices: number
+  addresses: AdminCustomerAddress[]
+  summary: { orders: number; cancelled: number; spent: number; avgTicket: number; lastOrderAt: string | null; firstOrderAt: string | null }
+  orders: Array<{ id: string; dav: string | null; status: string; total: number; createdAt: string; items: number; pickup: boolean }>
+  topProducts: Array<{ productId: string; name: string; ean: string; times: number }>
+}
+/** Clientes no admin (29/09/2026): numeros calculados no servidor. */
+export const customersAdminAPI = {
+  list: () => api.get<CustomerRow[]>('/admin/customers'),
+  detail: (id: string) => api.get<CustomerDetail>(`/admin/customers/${id}`),
+  loyalty: (id: string) => api.get<{ clubeFidelidade: boolean; categoria?: { descricao?: string }; ativo?: boolean }>(`/customers/${id}/fidelidade`),
+}
+
 export const addressesAPI = {
   update: (customerId: string, addressId: string, data: Partial<Omit<AdminCustomerAddress, 'id' | 'isDefault'>>) =>
     api.put<AdminCustomerAddress>(`/addresses/${customerId}/${addressId}`, data),

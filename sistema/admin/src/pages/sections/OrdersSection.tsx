@@ -10,7 +10,7 @@ import { getApiErrorMessage, ordersAPI, type AdminOrder, type AdminOrderSummary 
 // acoes conforme o momento do pedido -- sem seletor livre de status, que
 // deixava levar um pedido cancelado a "Concluido" com um clique.
 
-const STATUS_LABEL: Record<string, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Novo',
   PAYMENT_PENDING: 'Aguardando pagamento',
   CONFIRMED: 'Confirmado',

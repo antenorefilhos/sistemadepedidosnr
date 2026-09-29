@@ -1,8 +1,7 @@
 import { Suspense, lazy, useCallback, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { useCustomersAdmin } from '../hooks/useCustomersAdmin'
-import { MessageCircle, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { TopMenuBar, SECTION_LABELS } from '@/components/TopMenuBar'
 import { ChangelogModal } from '@/components/ChangelogModal'
 
@@ -30,51 +29,6 @@ export type Section =
   | 'intelligence'
   | 'integrations'
   | 'payments'
-
-const normalizePhone = (value?: string) => {
-  const digits = (value || '').replace(/\D/g, '')
-  if (!digits) return ''
-  if (digits.startsWith('55')) return digits
-  return `55${digits}`
-}
-
-const buildWhatsAppUrl = (whatsapp?: string, text?: string) => {
-  const phone = normalizePhone(whatsapp)
-  if (!phone) return ''
-  if (!text) return `https://wa.me/${phone}`
-  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
-}
-
-const formatWhatsappDisplay = (value?: string) => {
-  const digits = (value || '').replace(/\D/g, '')
-  const raw = digits.startsWith('55') ? digits.slice(2) : digits
-  if (raw.length === 11) {
-    return raw.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')
-  }
-  if (raw.length === 10) {
-    return raw.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3')
-  }
-  return value || '-'
-}
-
-function WhatsAppBadge({ phone, compact = false }: { phone?: string; compact?: boolean }) {
-  if (!phone) {
-    return <span className="text-xs text-gray-400">-</span>
-  }
-
-  return (
-    <a
-      href={buildWhatsAppUrl(phone)}
-      target="_blank"
-      rel="noreferrer"
-      className={`inline-flex items-center gap-1.5 rounded-full border border-[#1fae56] bg-[#25D366] text-white font-medium shadow-sm transition hover:bg-[#1fae56] ${compact ? 'px-2 py-1 text-xs' : 'px-2.5 py-1 text-xs'}`}
-      title="Abrir WhatsApp"
-    >
-      <MessageCircle size={compact ? 12 : 13} />
-      {formatWhatsappDisplay(phone)}
-    </a>
-  )
-}
 
 const LayoutManager = lazy(() => import('../components/LayoutManager'))
 const IntelligenceSection = lazy(() => import('./sections/IntelligenceSection'))
@@ -131,7 +85,6 @@ export default function AdminDashboard() {
 
   // Pedido a abrir quando se chega em Pedidos por um alerta da Visao geral.
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
-  const c = useCustomersAdmin(activeSection)
 
   const lazySectionFallback = (
     <div className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-500">Carregando secao...</div>
@@ -213,28 +166,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'customers' && (
             <Suspense fallback={lazySectionFallback}>
-              <CustomersSection
-                customersSearch={c.customersSearch}
-                onCustomersSearchChange={c.setCustomersSearch}
-                customersEmailFilter={c.customersEmailFilter}
-                onCustomersEmailFilterChange={c.setCustomersEmailFilter}
-                customersAddressFilter={c.customersAddressFilter}
-                onCustomersAddressFilterChange={c.setCustomersAddressFilter}
-                customersOrderFilter={c.customersOrderFilter}
-                onCustomersOrderFilterChange={c.setCustomersOrderFilter}
-                customersDateFilter={c.customersDateFilter}
-                onCustomersDateFilterChange={c.setCustomersDateFilter}
-                customersViewMode={c.customersViewMode}
-                onCustomersViewModeChange={c.setCustomersViewMode}
-                onReloadCustomers={() => c.loadCustomers(c.customersSearch)}
-                customersLoading={c.customersLoading}
-                filteredCustomers={c.filteredCustomers}
-                customerOrderCountMap={c.customerOrderCountMap}
-                onOpenCustomerDetails={c.openCustomerDetails}
-                selectedCustomer={c.selectedCustomer}
-                onSelectCustomer={c.setSelectedCustomer}
-                renderWhatsAppBadge={(phone, compact) => <WhatsAppBadge phone={phone} compact={compact} />}
-              />
+              <CustomersSection />
             </Suspense>
           )}
 

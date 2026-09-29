@@ -1,752 +1,626 @@
-import { Bell, BellOff, Columns, Copy, Eye, KeyRound, LayoutList, Mail, MessageCircle, Pencil, RefreshCw, Search, ShieldAlert, ShieldCheck, X, Filter } from 'lucide-react'
-import { useState, useEffect, type ReactNode } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { addressesAPI, customersAPI, getApiErrorMessage, type AdminCustomer } from '../../services/api'
-import { SectionEmptyState, SectionMetric, SectionPanel, SectionToolbar } from './SectionChrome'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertCircle, Bell, Copy, Download, ImageOff, KeyRound, Loader2, MessageCircle, Pencil, Search } from 'lucide-react'
+import { WorkspaceDialog } from '../../components/WorkspaceDialog'
+import {
+  addressesAPI,
+  customersAdminAPI,
+  customersAPI,
+  getApiErrorMessage,
+  resolveApiUrl,
+  type CustomerDetail,
+  type CustomerRow,
+} from '../../services/api'
+import { OrderDetail, STATUS_LABEL } from './OrdersSection'
 
-type Props = {
-  customersSearch: string
-  onCustomersSearchChange: (value: string) => void
-  customersEmailFilter: 'all' | 'with' | 'without'
-  onCustomersEmailFilterChange: (value: 'all' | 'with' | 'without') => void
-  customersAddressFilter: 'all' | 'with' | 'without'
-  onCustomersAddressFilterChange: (value: 'all' | 'with' | 'without') => void
-  customersOrderFilter: 'all' | 'with-orders' | 'without-orders'
-  onCustomersOrderFilterChange: (value: 'all' | 'with-orders' | 'without-orders') => void
-  customersDateFilter: 'all' | '7d' | '30d' | '90d'
-  onCustomersDateFilterChange: (value: 'all' | '7d' | '30d' | '90d') => void
-  customersViewMode: 'list' | 'kanban'
-  onCustomersViewModeChange: (value: 'list' | 'kanban') => void
-  onReloadCustomers: () => void
-  customersLoading: boolean
-  filteredCustomers: AdminCustomer[]
-  customerOrderCountMap: Record<string, number>
-  onOpenCustomerDetails: (customer: AdminCustomer) => void
-  selectedCustomer: AdminCustomer | null
-  onSelectCustomer: (customer: AdminCustomer | null) => void
-  renderWhatsAppBadge: (phone?: string, compact?: boolean) => ReactNode
+// Clientes (refeita em 29/09/2026 com o Jonathan). A tela antiga baixava todos os
+// pedidos so para contar (e contava cancelados), tinha colunas (kanban) e filtros
+// de "tem e-mail/endereco". Agora: quem compra, quanto, quando foi a ultima vez,
+// quem sumiu e quem nunca comprou -- e, no perfil, o historico de pedidos, o que
+// a pessoa mais compra, os dados e a conta (senha, bloqueio, avisos, clube).
+
+type Segment = 'all' | 'buyers' | 'repeat' | 'lapsed' | 'never' | 'new' | 'blocked'
+type Sort = 'last' | 'spent' | 'orders' | 'created' | 'name'
+const DAY = 86_400_000
+const SEGMENTS: Array<{ key: Segment; label: string; hint: string; test: (c: CustomerRow) => boolean }> = [
+  { key: 'all', label: 'Todos', hint: 'Todos os cadastros.', test: () => true },
+  { key: 'buyers', label: 'Compraram', hint: 'Pelo menos um pedido válido.', test: (c) => c.orders > 0 },
+  { key: 'repeat', label: 'Voltaram a comprar', hint: 'Dois pedidos ou mais: os clientes fiéis.', test: (c) => c.orders >= 2 },
+  {
+    key: 'lapsed',
+    label: 'Sumiram',
+    hint: 'Compraram, mas não pedem há mais de 30 dias. Bons para um aviso ou uma mensagem.',
+    test: (c) => c.orders > 0 && !!c.lastOrderAt && Date.now() - new Date(c.lastOrderAt).getTime() > 30 * DAY,
+  },
+  { key: 'never', label: 'Nunca compraram', hint: 'Cadastraram e não fizeram pedido válido.', test: (c) => c.orders === 0 },
+  { key: 'new', label: 'Novos', hint: 'Cadastro nos últimos 30 dias.', test: (c) => Date.now() - new Date(c.createdAt).getTime() <= 30 * DAY },
+  { key: 'blocked', label: 'Bloqueados', hint: 'Não conseguem entrar nem comprar.', test: (c) => c.blocked },
+]
+const ORIGIN_LABEL: Record<string, string> = {
+  INDICACAO: 'Indicação',
+  LOJA_FISICA: 'Loja física',
+  OUTROS: 'Outros',
+  DESCONHECIDO: 'Não informou',
+  guest_checkout: 'Comprou sem cadastro',
 }
 
-export default function CustomersSection({
-  customersSearch,
-  onCustomersSearchChange,
-  customersEmailFilter,
-  onCustomersEmailFilterChange,
-  customersAddressFilter,
-  onCustomersAddressFilterChange,
-  customersOrderFilter,
-  onCustomersOrderFilterChange,
-  customersDateFilter,
-  onCustomersDateFilterChange,
-  customersViewMode,
-  onCustomersViewModeChange,
-  onReloadCustomers,
-  customersLoading,
-  filteredCustomers,
-  customerOrderCountMap,
-  onOpenCustomerDetails,
-  selectedCustomer,
-  onSelectCustomer,
-  renderWhatsAppBadge,
-}: Props) {
-  const [showFilterBar, setShowFilterBar] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', email: '', whatsapp: '', cpf: '' })
-  const [savingEdit, setSavingEdit] = useState(false)
-  const [editError, setEditError] = useState('')
-  const [resetLink, setResetLink] = useState<{ resetUrl: string; expiresAt: string } | null>(null)
-  const [generatingReset, setGeneratingReset] = useState(false)
-  const [togglingBlock, setTogglingBlock] = useState(false)
-  const [actionError, setActionError] = useState('')
-  const [editingAddressId, setEditingAddressId] = useState<string | null>(null)
-  const [addressForm, setAddressForm] = useState({ street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '' })
-  const [savingAddress, setSavingAddress] = useState(false)
-  const [addressError, setAddressError] = useState('')
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const fold = (v: string) => v.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+const digits = (v: string) => v.replace(/\D/g, '')
+const phone = (v: string) => {
+  const d = digits(v)
+  return d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : v
+}
+const cpfFmt = (v: string) => (digits(v).length === 11 ? digits(v).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : v)
+function ago(iso: string | null) {
+  if (!iso) return '—'
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / DAY)
+  if (d <= 0) return 'hoje'
+  if (d === 1) return 'ontem'
+  if (d < 30) return `há ${d} dias`
+  return new Date(iso).toLocaleDateString('pt-BR')
+}
+const waLink = (whatsapp: string, text?: string) => {
+  const d = digits(whatsapp)
+  const full = d.startsWith('55') && d.length >= 12 ? d : `55${d}`
+  return `https://wa.me/${full}${text ? `?text=${encodeURIComponent(text)}` : ''}`
+}
 
+export default function CustomersSection() {
+  const [rows, setRows] = useState<CustomerRow[] | null>(null)
+  const [error, setError] = useState('')
+  const [segment, setSegment] = useState<Segment>('all')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<Sort>('last')
+  const [openId, setOpenId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setRows((await customersAdminAPI.list()).data)
+      setError('')
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Não foi possível carregar os clientes.'))
+    }
+  }, [])
   useEffect(() => {
-    setIsEditing(false)
-    setResetLink(null)
-    setEditError('')
-    setActionError('')
-    if (selectedCustomer) {
-      setEditForm({
-        name: selectedCustomer.name || '',
-        email: selectedCustomer.email || '',
-        whatsapp: selectedCustomer.whatsapp || '',
-        cpf: selectedCustomer.cpf || '',
-      })
-    }
-  }, [selectedCustomer])
+    load()
+  }, [load])
 
-  const handleSaveEdit = async () => {
-    if (!selectedCustomer) return
-    setSavingEdit(true)
-    setEditError('')
+  const counts = useMemo(() => Object.fromEntries(SEGMENTS.map((s) => [s.key, (rows || []).filter(s.test).length])) as Record<Segment, number>, [rows])
+  const list = useMemo(() => {
+    const test = SEGMENTS.find((s) => s.key === segment)!.test
+    const q = fold(search.trim())
+    const qd = digits(search)
+    const time = (v: string | null) => (v ? new Date(v).getTime() : 0)
+    return (rows || [])
+      .filter(test)
+      .filter((c) => !q || fold(`${c.name} ${c.email || ''}`).includes(q) || (qd.length >= 3 && (digits(c.whatsapp).includes(qd) || digits(c.cpf).includes(qd))))
+      .sort((a, b) =>
+        sort === 'spent'
+          ? b.spent - a.spent
+          : sort === 'orders'
+            ? b.orders - a.orders
+            : sort === 'created'
+              ? time(b.createdAt) - time(a.createdAt)
+              : sort === 'name'
+                ? a.name.localeCompare(b.name, 'pt-BR')
+                : time(b.lastOrderAt) - time(a.lastOrderAt) || time(b.createdAt) - time(a.createdAt),
+      )
+  }, [rows, segment, search, sort])
+
+  const exportCsv = () => {
+    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const lines = [
+      ['Nome', 'WhatsApp', 'E-mail', 'Bairro', 'Pedidos', 'Total gasto', 'Último pedido', 'Recebe avisos'].map(cell).join(';'),
+      ...list.map((c) =>
+        [c.name, phone(c.whatsapp), c.email, c.neighborhood, c.orders, c.spent.toFixed(2).replace('.', ','), c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleDateString('pt-BR') : '', c.pushDevices ? 'sim' : 'não']
+          .map(cell)
+          .join(';'),
+      ),
+    ]
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }))
+    a.download = `clientes-${segment}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  const totals = useMemo(() => {
+    const buyers = (rows || []).filter((c) => c.orders > 0)
+    const spent = buyers.reduce((a, c) => a + c.spent, 0)
+    const orders = buyers.reduce((a, c) => a + c.orders, 0)
+    return { buyers: buyers.length, spent, ticket: orders ? spent / orders : 0, repeatRate: buyers.length ? Math.round((buyers.filter((c) => c.orders >= 2).length / buyers.length) * 100) : 0 }
+  }, [rows])
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-4">
+      {rows && (
+        <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-2xl border border-black/[0.06] bg-white px-4 py-3 text-sm text-gray-600">
+          <span>
+            <span className="tabular-nums text-gray-900">{rows.length}</span> cadastros
+          </span>
+          <span>
+            <span className="tabular-nums text-gray-900">{totals.buyers}</span> já compraram
+          </span>
+          <span>
+            <span className="tabular-nums text-gray-900">{totals.repeatRate}%</span> voltaram a comprar
+          </span>
+          <span>
+            ticket médio <span className="tabular-nums text-gray-900">{brl(totals.ticket)}</span>
+          </span>
+          <span>
+            <span className="tabular-nums text-gray-900">{rows.filter((c) => c.pushDevices > 0).length}</span> recebem avisos no celular
+          </span>
+        </div>
+      )}
+
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="flex w-max gap-1 rounded-2xl border border-black/[0.06] bg-white p-1">
+          {SEGMENTS.map((s) => (
+            <button key={s.key} type="button" onClick={() => setSegment(s.key)} className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-sm ${segment === s.key ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              {s.label}
+              <span className={`ml-1.5 tabular-nums ${segment === s.key ? 'text-white/60' : 'text-gray-400'}`}>{counts[s.key] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-gray-500">{SEGMENTS.find((s) => s.key === segment)?.hint}</p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[220px] flex-1">
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome, WhatsApp, CPF ou e-mail" className="h-10 w-full rounded-xl border border-black/[0.06] bg-white pl-9 pr-3 text-sm outline-none focus:border-gray-400" />
+        </label>
+        <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="h-10 rounded-xl border border-black/[0.06] bg-white px-3 text-sm text-gray-700">
+          <option value="last">Último pedido</option>
+          <option value="spent">Mais gastou</option>
+          <option value="orders">Mais pedidos</option>
+          <option value="created">Cadastro mais recente</option>
+          <option value="name">Nome</option>
+        </select>
+        <button type="button" onClick={exportCsv} disabled={!list.length} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-black/[0.06] bg-white px-3 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+          <Download size={14} /> Exportar
+        </button>
+      </div>
+
+      {error && (
+        <p role="alert" className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+          <AlertCircle size={16} /> {error}
+        </p>
+      )}
+
+      {!rows ? (
+        !error && <div className="h-64 animate-pulse rounded-2xl bg-white/70" />
+      ) : list.length === 0 ? (
+        <p className="rounded-2xl border border-black/[0.06] bg-white p-8 text-center text-sm text-gray-400">Nenhum cliente aqui.</p>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
+          <div className="hidden grid-cols-[minmax(0,1fr)_80px_120px_120px_70px] gap-4 border-b border-black/[0.05] px-4 py-2 text-[11px] uppercase tracking-wide text-gray-400 md:grid">
+            <span>Cliente</span>
+            <span className="text-right">Pedidos</span>
+            <span className="text-right">Total gasto</span>
+            <span>Último pedido</span>
+            <span className="text-center">Avisos</span>
+          </div>
+          <ul className="divide-y divide-black/[0.05]">
+            {list.map((c) => (
+              <li key={c.id}>
+                <button type="button" onClick={() => setOpenId(c.id)} className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-gray-50/70 md:grid-cols-[minmax(0,1fr)_80px_120px_120px_70px]">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm text-gray-900">
+                      {c.name}
+                      {c.blocked && <span className="text-rose-700"> · bloqueado</span>}
+                      {!c.hasPassword && <span className="text-gray-400"> · sem senha</span>}
+                    </span>
+                    <span className="block truncate text-xs text-gray-500">
+                      {phone(c.whatsapp)}
+                      {c.neighborhood && ` · ${c.neighborhood}`}
+                    </span>
+                  </span>
+                  <span className="text-right text-sm tabular-nums text-gray-900 md:block">
+                    {c.orders}
+                    <span className="text-xs text-gray-400 md:hidden"> ped.</span>
+                  </span>
+                  <span className="col-span-2 text-xs text-gray-500 md:col-span-1 md:text-right md:text-sm md:text-gray-900">
+                    <span className="tabular-nums">{c.orders ? brl(c.spent) : '—'}</span>
+                    <span className="md:hidden"> · último pedido {ago(c.lastOrderAt)}</span>
+                  </span>
+                  <span className="hidden text-sm text-gray-600 md:block">{ago(c.lastOrderAt)}</span>
+                  <span className="hidden justify-center md:flex">{c.pushDevices > 0 ? <Bell size={15} className="text-gray-700" aria-label="Recebe avisos" /> : <span className="text-gray-300">—</span>}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {openId && <CustomerProfile id={openId} onClose={() => setOpenId(null)} onChanged={load} />}
+    </div>
+  )
+}
+
+// ─── Perfil ────────────────────────────────────────────────────────────────
+
+function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+  const [c, setC] = useState<CustomerDetail | null>(null)
+  const [error, setError] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({ name: '', whatsapp: '', email: '', cpf: '' })
+  const [addrEditing, setAddrEditing] = useState<string | null>(null)
+  const [addr, setAddr] = useState({ street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '' })
+  const [busy, setBusy] = useState<string | null>(null)
+  const [reset, setReset] = useState<{ resetUrl: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [loyalty, setLoyalty] = useState<string | null>(null)
+  const [orderOpen, setOrderOpen] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
     try {
-      const res = await customersAPI.update(selectedCustomer.id, editForm)
-      onSelectCustomer(res.data)
-      setIsEditing(false)
-      onReloadCustomers()
-    } catch (err) {
-      setEditError(getApiErrorMessage(err, 'Não foi possível salvar as alterações.'))
-    } finally {
-      setSavingEdit(false)
+      const d = (await customersAdminAPI.detail(id)).data
+      setC(d)
+      setForm({ name: d.name, whatsapp: d.whatsapp, email: d.email || '', cpf: d.cpf })
+      setError('')
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Não foi possível abrir o cliente.'))
     }
-  }
-
-  const handleGenerateResetLink = async () => {
-    if (!selectedCustomer) return
-    setGeneratingReset(true)
-    setActionError('')
-    try {
-      const res = await customersAPI.generateResetLink(selectedCustomer.id)
-      setResetLink(res.data)
-    } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Não foi possível gerar o link.'))
-    } finally {
-      setGeneratingReset(false)
-    }
-  }
-
-  const handleStartEditAddress = (addr: NonNullable<AdminCustomer['addresses']>[number]) => {
-    setEditingAddressId(addr.id)
-    setAddressError('')
-    setAddressForm({
-      street: addr.street || '',
-      number: addr.number || '',
-      complement: addr.complement || '',
-      neighborhood: addr.neighborhood || '',
-      city: addr.city || '',
-      state: addr.state || '',
-      zipCode: addr.zipCode || '',
-    })
-  }
-
-  const handleSaveAddress = async () => {
-    if (!selectedCustomer || !editingAddressId) return
-    setSavingAddress(true)
-    setAddressError('')
-    try {
-      await addressesAPI.update(selectedCustomer.id, editingAddressId, addressForm)
-      const updated = await customersAPI.getOne(selectedCustomer.id)
-      onSelectCustomer(updated.data)
-      setEditingAddressId(null)
-      onReloadCustomers()
-    } catch (err) {
-      setAddressError(getApiErrorMessage(err, 'Não foi possível salvar o endereço.'))
-    } finally {
-      setSavingAddress(false)
-    }
-  }
-
-  const handleToggleBlock = async () => {
-    if (!selectedCustomer) return
-    const willBlock = !selectedCustomer.blocked
-    if (willBlock && !window.confirm(`Bloquear ${selectedCustomer.name}? O cliente não conseguirá mais fazer login.`)) return
-
-    let reason: string | undefined
-    if (willBlock) {
-      reason = window.prompt('Motivo do bloqueio (opcional, fica registrado internamente):') || undefined
-    }
-
-    setTogglingBlock(true)
-    setActionError('')
-    try {
-      const res = await customersAPI.setBlocked(selectedCustomer.id, willBlock, reason)
-      onSelectCustomer({ ...selectedCustomer, blocked: res.data.blocked, blockedReason: res.data.blockedReason })
-      onReloadCustomers()
-    } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Não foi possível atualizar o bloqueio.'))
-    } finally {
-      setTogglingBlock(false)
-    }
-  }
-
+  }, [id])
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onSelectCustomer(null)
+    load()
+  }, [load])
+
+  const run = async (key: string, fn: () => Promise<unknown>) => {
+    setBusy(key)
+    setError('')
+    try {
+      await fn()
+      await load()
+      onChanged()
+      return true
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Não foi possível salvar.'))
+      return false
+    } finally {
+      setBusy(null)
     }
-    if (selectedCustomer) document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [selectedCustomer, onSelectCustomer])
+  }
 
-  // Calculations for KPIs
-  const withOrdersCount = filteredCustomers.filter((customer) => (customerOrderCountMap[customer.id] || 0) > 0).length
-  const newCustomersCount = filteredCustomers.filter((c) => {
-    if (!c.createdAt) return false
-    const diffTime = Date.now() - new Date(c.createdAt).getTime()
-    return diffTime <= 30 * 24 * 60 * 60 * 1000
-  }).length
+  const saveProfile = async () => {
+    const ok = await run('profile', () => customersAPI.update(id, { name: form.name.trim(), whatsapp: digits(form.whatsapp), email: form.email.trim() || undefined, cpf: digits(form.cpf) }))
+    if (ok) setEditing(false)
+  }
+  const saveAddress = async () => {
+    if (!addrEditing) return
+    const ok = await run('address', () => addressesAPI.update(id, addrEditing, addr))
+    if (ok) setAddrEditing(null)
+  }
+  const toggleBlock = async () => {
+    if (!c) return
+    if (!c.blocked) {
+      if (!window.confirm(`Bloquear ${c.name}? A pessoa não consegue mais entrar nem comprar, e a sessão cai na hora.`)) return
+      const reason = window.prompt('Motivo (fica registrado só aqui):') || undefined
+      await run('block', () => customersAPI.setBlocked(id, true, reason))
+    } else {
+      await run('block', () => customersAPI.setBlocked(id, false))
+    }
+  }
+  const makeReset = async () => {
+    setBusy('reset')
+    try {
+      setReset((await customersAPI.generateResetLink(id)).data)
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Não foi possível gerar o link.'))
+    } finally {
+      setBusy(null)
+    }
+  }
+  const checkLoyalty = async () => {
+    setBusy('loyalty')
+    try {
+      const r = (await customersAdminAPI.loyalty(id)).data
+      setLoyalty(r.clubeFidelidade ? `Participa do Clube Antenor${r.categoria?.descricao ? ` · ${r.categoria.descricao}` : ''}` : 'Não participa do Clube Antenor')
+    } catch {
+      setLoyalty('Não foi possível consultar agora.')
+    } finally {
+      setBusy(null)
+    }
+  }
 
-  const activeFilterCount = [
-    customersEmailFilter !== 'all' ? customersEmailFilter : '',
-    customersAddressFilter !== 'all' ? customersAddressFilter : '',
-    customersOrderFilter !== 'all' ? customersOrderFilter : '',
-    customersDateFilter !== 'all' ? customersDateFilter : '',
-  ].filter(Boolean).length
+  const input = 'h-10 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-gray-900'
 
   return (
     <>
-      <div className="space-y-6">
-      {/* KPI Bar */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <SectionMetric label="Clientes filtrados" value={filteredCustomers.length} tone="brand" />
-        <SectionMetric label="Com pedidos" value={withOrdersCount} tone="success" />
-        <SectionMetric label="Novos (30 dias)" value={newCustomersCount} tone="neutral" />
-      </div>
-
-      {/* Toolbar */}
-      <SectionToolbar>
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 items-center justify-between">
-            <div className="flex flex-wrap gap-3 items-center flex-1">
-              <div className="relative min-w-[260px] flex-1 max-w-md">
-                <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Buscar por nome, CPF, WhatsApp ou email..."
-                  value={customersSearch}
-                  onChange={(e) => onCustomersSearchChange(e.target.value)}
-                  className="h-11 rounded-xl border-[#ead7df] bg-white pl-10 pr-4 text-sm text-gray-700 shadow-none focus-visible:ring-[#5d082a]/20"
-                />
+      <WorkspaceDialog
+        label={c?.name || 'Cliente'}
+        onClose={onClose}
+        closeOnEsc={!orderOpen}
+        title={
+          <>
+            <h3 className="truncate text-base font-semibold text-gray-900">
+              {c?.name || 'Carregando…'}
+              {c?.blocked && <span className="text-sm font-normal text-rose-700"> · bloqueado</span>}
+            </h3>
+            {c && (
+              <p className="mt-0.5 truncate text-xs text-gray-500">
+                {phone(c.whatsapp)} · cliente desde {new Date(c.createdAt).toLocaleDateString('pt-BR')}
+              </p>
+            )}
+          </>
+        }
+        actions={
+          c ? (
+            <a href={waLink(c.whatsapp, `Olá, ${c.name.split(' ')[0]}! Aqui é da Antenor & Filhos.`)} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-black/[0.08] px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50">
+              <MessageCircle size={15} /> WhatsApp
+            </a>
+          ) : undefined
+        }
+      >
+        {!c ? (
+          error ? <p className="m-6 text-sm text-rose-700">{error}</p> : <div className="m-6 h-64 animate-pulse rounded-2xl bg-gray-100" />
+        ) : (
+          <div className="grid grid-cols-1 gap-8 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-10">
+            {/* Esquerda: o que o cliente compra */}
+            <div className="space-y-7">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <Stat label="Pedidos" value={String(c.summary.orders)} note={c.summary.cancelled ? `${c.summary.cancelled} cancelado(s)` : undefined} />
+                <Stat label="Total gasto" value={brl(c.summary.spent)} />
+                <Stat label="Ticket médio" value={c.summary.orders ? brl(c.summary.avgTicket) : '—'} />
+                <Stat label="Último pedido" value={ago(c.summary.lastOrderAt)} />
               </div>
 
-              {/* Botão de Filtrar */}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowFilterBar(!showFilterBar)}
-                className={`min-h-11 rounded-xl px-4 text-sm ${
-                  showFilterBar || activeFilterCount > 0
-                    ? 'border-[#5d082a] bg-[#fff7fa] text-[#5d082a]'
-                    : 'border-[#ead7df] bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <Filter size={16} />
-                <span>Filtrar</span>
-                {activeFilterCount > 0 && (
-                  <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#5d082a] text-[10px] font-black text-white">
-                    {activeFilterCount}
-                  </span>
+              <section>
+                <H title="Pedidos" hint="Toque para abrir o pedido." />
+                {c.orders.length === 0 ? (
+                  <p className="mt-2 text-sm text-gray-400">Nenhum pedido ainda.</p>
+                ) : (
+                  <ul className="mt-2 divide-y divide-black/[0.05] rounded-xl border border-black/[0.06]">
+                    {c.orders.map((o) => (
+                      <li key={o.id}>
+                        <button type="button" onClick={() => setOrderOpen(o.id)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50">
+                          <span className="w-24 shrink-0 text-xs tabular-nums text-gray-500">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-gray-900">{o.dav ? `DAV ${o.dav}` : `#${o.id.slice(-8).toUpperCase()}`}</span>
+                            <span className={`block truncate text-xs ${['CANCELLED', 'REFUNDED'].includes(o.status) ? 'text-gray-400 line-through' : 'text-gray-500'}`}>
+                              {STATUS_LABEL[o.status] || o.status} · {o.items} itens · {o.pickup ? 'retirada' : 'entrega'}
+                            </span>
+                          </span>
+                          <span className="shrink-0 tabular-nums text-gray-900">{brl(o.total)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </Button>
-            </div>
+              </section>
 
-            <div className="flex flex-wrap gap-3 items-center">
-              {/* Modo de visualização */}
-              <div className="flex overflow-hidden rounded-xl border border-[#ead7df] bg-white p-1">
-                <Button
-                  type="button"
-                  onClick={() => onCustomersViewModeChange('list')}
-                  variant={customersViewMode === 'list' ? 'default' : 'ghost'}
-                  size="sm"
-                  className={`min-h-[36px] rounded-lg px-3 text-xs ${
-                    customersViewMode === 'list' ? 'bg-[#5d082a] text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <LayoutList size={14} />
-                  Lista
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => onCustomersViewModeChange('kanban')}
-                  variant={customersViewMode === 'kanban' ? 'default' : 'ghost'}
-                  size="sm"
-                  className={`min-h-[36px] rounded-lg px-3 text-xs ${
-                    customersViewMode === 'kanban' ? 'bg-[#5d082a] text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <Columns size={14} />
-                  Colunas
-                </Button>
-              </div>
-
-              {/* Ações */}
-              <Button type="button" onClick={onReloadCustomers} variant="outline" className="min-h-11 rounded-xl border-[#ead7df] bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
-                <RefreshCw size={14} />
-                <span>Atualizar</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Active Filter Chips */}
-          {activeFilterCount > 0 && (
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-[#f1dbe3]/60">
-              {customersEmailFilter !== 'all' && (
-                <Badge variant="outline" className="rounded-lg border-[#f1dbe3] bg-[#fff7fa] px-2.5 py-1 text-xs font-semibold text-[#5d082a]">
-                  Email: {customersEmailFilter === 'with' ? 'Com email' : 'Sem email'}
-                  <Button type="button" variant="ghost" size="icon" onClick={() => onCustomersEmailFilterChange('all')} className="h-4 w-4 rounded-full p-0 text-[#5d082a] hover:bg-[#5d082a]/10 hover:text-[#3d041a]" aria-label="Limpar filtro de email"><X size={12} /></Button>
-                </Badge>
-              )}
-              {customersAddressFilter !== 'all' && (
-                <Badge variant="outline" className="rounded-lg border-[#f1dbe3] bg-[#fff7fa] px-2.5 py-1 text-xs font-semibold text-[#5d082a]">
-                  Endereço: {customersAddressFilter === 'with' ? 'Com endereço' : 'Sem endereço'}
-                  <Button type="button" variant="ghost" size="icon" onClick={() => onCustomersAddressFilterChange('all')} className="h-4 w-4 rounded-full p-0 text-[#5d082a] hover:bg-[#5d082a]/10 hover:text-[#3d041a]" aria-label="Limpar filtro de endereço"><X size={12} /></Button>
-                </Badge>
-              )}
-              {customersOrderFilter !== 'all' && (
-                <Badge variant="outline" className="rounded-lg border-[#f1dbe3] bg-[#fff7fa] px-2.5 py-1 text-xs font-semibold text-[#5d082a]">
-                  Pedidos: {customersOrderFilter === 'with-orders' ? 'Com pedidos' : 'Sem pedidos'}
-                  <Button type="button" variant="ghost" size="icon" onClick={() => onCustomersOrderFilterChange('all')} className="h-4 w-4 rounded-full p-0 text-[#5d082a] hover:bg-[#5d082a]/10 hover:text-[#3d041a]" aria-label="Limpar filtro de pedidos"><X size={12} /></Button>
-                </Badge>
-              )}
-              {customersDateFilter !== 'all' && (
-                <Badge variant="outline" className="rounded-lg border-[#f1dbe3] bg-[#fff7fa] px-2.5 py-1 text-xs font-semibold text-[#5d082a]">
-                  Cadastro: {customersDateFilter === '7d' ? '7 dias' : customersDateFilter === '30d' ? '30 dias' : '90 dias'}
-                  <Button type="button" variant="ghost" size="icon" onClick={() => onCustomersDateFilterChange('all')} className="h-4 w-4 rounded-full p-0 text-[#5d082a] hover:bg-[#5d082a]/10 hover:text-[#3d041a]" aria-label="Limpar filtro de cadastro"><X size={12} /></Button>
-                </Badge>
+              {c.topProducts.length > 0 && (
+                <section>
+                  <H title="O que mais compra" hint="Em quantos pedidos cada produto apareceu." />
+                  <ul className="mt-2 divide-y divide-black/[0.05]">
+                    {c.topProducts.map((p) => (
+                      <li key={p.productId} className="flex items-center gap-3 py-2 text-sm">
+                        <Thumb ean={p.ean} />
+                        <span className="min-w-0 flex-1 truncate text-gray-900">{p.name}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-gray-500">{p.times}×</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               )}
             </div>
-          )}
 
-          {/* Collapsible Advanced Filters Drawer */}
-          {showFilterBar && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 border-t border-[#f1dbe3] pt-4 mt-4 animate-in fade-in duration-200">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#9e7080]">Filtro de Email</label>
-                <Select value={customersEmailFilter} onChange={(e) => onCustomersEmailFilterChange(e.target.value as 'all' | 'with' | 'without')} className="h-11 rounded-xl border-[#ead7df] bg-white px-3 text-sm text-gray-700 shadow-none focus-visible:ring-[#5d082a]/20">
-                  <option value="all">Email: todos</option>
-                  <option value="with">Com email</option>
-                  <option value="without">Sem email</option>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#9e7080]">Filtro de Endereço</label>
-                <Select value={customersAddressFilter} onChange={(e) => onCustomersAddressFilterChange(e.target.value as 'all' | 'with' | 'without')} className="h-11 rounded-xl border-[#ead7df] bg-white px-3 text-sm text-gray-700 shadow-none focus-visible:ring-[#5d082a]/20">
-                  <option value="all">Endereço: todos</option>
-                  <option value="with">Com endereço</option>
-                  <option value="without">Sem endereço</option>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#9e7080]">Filtro de Pedidos</label>
-                <Select value={customersOrderFilter} onChange={(e) => onCustomersOrderFilterChange(e.target.value as 'all' | 'with-orders' | 'without-orders')} className="h-11 rounded-xl border-[#ead7df] bg-white px-3 text-sm text-gray-700 shadow-none focus-visible:ring-[#5d082a]/20">
-                  <option value="all">Pedidos: todos</option>
-                  <option value="with-orders">Com pedidos</option>
-                  <option value="without-orders">Sem pedidos</option>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#9e7080]">Data de Cadastro</label>
-                <Select value={customersDateFilter} onChange={(e) => onCustomersDateFilterChange(e.target.value as 'all' | '7d' | '30d' | '90d')} className="h-11 rounded-xl border-[#ead7df] bg-white px-3 text-sm text-gray-700 shadow-none focus-visible:ring-[#5d082a]/20">
-                  <option value="all">Qualquer data</option>
-                  <option value="7d">Últimos 7 dias</option>
-                  <option value="30d">Últimos 30 dias</option>
-                  <option value="90d">Últimos 90 dias</option>
-                </Select>
-              </div>
-            </div>
-          )}
-        </div>
-      </SectionToolbar>
-
-      {/* Content View Mode */}
-      {customersViewMode === 'list' ? (
-        <SectionPanel>
-          {customersLoading ? (
-            <div className="p-6 text-gray-500">Carregando clientes...</div>
-          ) : filteredCustomers.length === 0 ? (
-            <div className="p-6">
-              <SectionEmptyState title="Nenhum cliente encontrado" description="Ajuste a busca e os filtros para localizar perfis específicos." />
-            </div>
-          ) : (
-            <Table className="min-w-full text-sm">
-              <TableHeader className="border-b border-[#f1dbe3] bg-[#fff7fa] text-gray-600">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="px-6 py-4 text-[#9e7080]">Nome</TableHead>
-                  <TableHead className="px-6 py-4 text-[#9e7080]">CPF</TableHead>
-                  <TableHead className="px-6 py-4 text-[#9e7080]">WhatsApp</TableHead>
-                  <TableHead className="px-6 py-4 text-[#9e7080]">Email</TableHead>
-                  <TableHead className="px-6 py-4 text-[#9e7080]">Pedidos</TableHead>
-                  <TableHead className="px-6 py-4 text-[#9e7080]">Avisos</TableHead>
-                  <TableHead className="px-6 py-4 text-right text-[#9e7080]">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-[#f3e4ea]">
-                {filteredCustomers.map((customer) => (
-                  <TableRow key={customer.id} className="group border-[#f3e4ea] transition-colors duration-150 hover:bg-[#fff8fb]">
-                    <TableCell className="px-6 py-4 font-semibold text-gray-800">{customer.name}</TableCell>
-                    <TableCell className="px-6 py-4">
-                      {customer.cpf ? (
-                        <Badge variant="outline" className="rounded-md border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs font-medium text-gray-600">
-                          {customer.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.***-$4')}
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="px-6 py-4">{renderWhatsAppBadge(customer.whatsapp)}</TableCell>
-                    <TableCell className="px-6 py-4 text-gray-500">{customer.email ?? '—'}</TableCell>
-                    <TableCell className="px-6 py-4">
-                      <Badge variant="secondary" className="rounded-full bg-[#fdf0f4] px-2.5 py-0.5 text-xs font-bold text-[#4a0622]">
-                        {customerOrderCountMap[customer.id] || 0}
-                      </Badge>
-                    </TableCell>
-                    {/* Quem realmente recebe push. Sem isto, o alcance de um
-                        broadcast so era descoberto consultando o banco na mao --
-                        e em 28/08/2026 a resposta era zero, sem ninguem saber. */}
-                    <TableCell className="px-6 py-4">
-                      {customer.pushEnabled ? (
-                        <Badge
-                          variant="secondary"
-                          className="gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700"
-                          title={`Recebe notificações em ${customer.pushSubscriptionCount} aparelho(s)`}
-                        >
-                          <Bell size={11} />
-                          {(customer.pushSubscriptionCount ?? 0) > 1 ? customer.pushSubscriptionCount : 'Sim'}
-                        </Badge>
-                      ) : (
-                        <span
-                          className="inline-flex items-center gap-1 text-xs text-gray-400"
-                          title="Não ativou notificações no navegador — um broadcast não chega neste cliente"
-                        >
-                          <BellOff size={11} />
-                          Não
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="px-6 py-4 text-right">
-                      <Button
-                        type="button"
-                        onClick={() => onOpenCustomerDetails(customer)}
-                        variant="outline"
-                        size="icon"
-                        className="rounded-xl border-[#ead7df] text-gray-400 transition hover:border-[#5d082a] hover:bg-[#fff7fa] hover:text-[#5d082a]"
-                        title="Ver detalhes"
-                      >
-                        <Eye size={16} />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </SectionPanel>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[
-            { key: 'new', title: 'Novos (30 dias)', filter: (c: AdminCustomer) => c.createdAt && (Date.now() - new Date(c.createdAt).getTime()) <= 30 * 24 * 60 * 60 * 1000 },
-            { key: 'active', title: 'Com Pedidos', filter: (c: AdminCustomer) => (customerOrderCountMap[c.id] || 0) > 0 },
-            { key: 'inactive', title: 'Sem Pedidos', filter: (c: AdminCustomer) => (customerOrderCountMap[c.id] || 0) === 0 },
-          ].map((column) => {
-            const columnCustomers = filteredCustomers.filter(column.filter)
-            return (
-              <div key={column.key} className="min-h-[320px] rounded-[16px] border border-[#ead7df] bg-[linear-gradient(180deg,#fffafc_0%,#fff 100%)] p-3 shadow-[0_18px_32px_rgba(93,8,42,0.08)] flex flex-col">
-                <div className="flex items-center justify-between mb-3 border-b border-[#f1dbe3] pb-2">
-                  <h3 className="text-sm font-bold text-gray-700">{column.title}</h3>
-                  <Badge variant="secondary" className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-600">{columnCustomers.length}</Badge>
-                </div>
-                <div className="space-y-3 flex-1 overflow-y-auto pr-0.5">
-                  {columnCustomers.map((customer) => (
-                    <div key={customer.id} className="rounded-xl border border-[#f1dbe3] bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-gray-800 truncate">{customer.name}</p>
-                          <p className="text-xs text-gray-400 font-medium mt-0.5">Pedidos: {customerOrderCountMap[customer.id] || 0}</p>
-                        </div>
-                        <Button type="button" onClick={() => onOpenCustomerDetails(customer)} variant="outline" size="icon" className="h-8 w-8 shrink-0 rounded-lg border-[#ead7df] text-gray-400 hover:border-[#5d082a] hover:bg-[#fff7fa] hover:text-[#5d082a]">
-                          <Eye size={12} />
-                        </Button>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {/* Mesma informacao da coluna "Avisos" da tabela -- a
-                            visao em cards nao pode saber menos que a de linhas. */}
-                        {customer.pushEnabled && (
-                          <Badge
-                            variant="secondary"
-                            className="gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700"
-                            title={`Recebe notificações em ${customer.pushSubscriptionCount} aparelho(s)`}
-                          >
-                            <Bell size={10} />
-                            Avisos
-                          </Badge>
-                        )}
-                        {customer.whatsapp && renderWhatsAppBadge(customer.whatsapp, true)}
-                        {customer.email && (
-                          <Badge variant="outline" className="max-w-[180px] truncate rounded-md border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                            {customer.email}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {columnCustomers.length === 0 && <p className="text-xs text-gray-400 text-center py-6">Sem clientes nesta coluna</p>}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      </div>
-
-      {/* Slide-Over de Detalhes do Cliente */}
-      {selectedCustomer && (
-        <>
-          {/* Overlay */}
-          <div
-            onClick={() => onSelectCustomer(null)}
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[6px] transition-opacity duration-300 opacity-100 pointer-events-auto"
-          />
-
-          {/* Centered Premium Modal Panel */}
-          <div
-            className="fixed left-1/2 top-1/2 z-50 flex w-[92vw] max-w-3xl h-[85vh] max-h-[680px] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl bg-white shadow-[0_24px_60px_rgba(93,8,42,0.18)] border border-[#f1dbe3]/65 transition-all duration-300 ease-out scale-100 opacity-100 pointer-events-auto"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#f1dbe3] bg-[linear-gradient(135deg,#fff7fa_0%,#fff_100%)] px-6 py-5 rounded-t-2xl">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-gray-900">{selectedCustomer.name}</h2>
-                  {selectedCustomer.blocked && (
-                    <Badge variant="outline" className="rounded-md border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">
-                      Suspenso
-                    </Badge>
+            {/* Direita: dados e conta */}
+            <div className="space-y-7">
+              {error && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{error}</p>}
+              <section>
+                <div className="flex items-end justify-between">
+                  <H title="Dados" />
+                  {!editing && (
+                    <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-gray-700 hover:bg-gray-100">
+                      <Pencil size={12} /> Editar
+                    </button>
                   )}
                 </div>
-                <p className="mt-0.5 text-xs text-gray-400">Perfil do Cliente</p>
-              </div>
-              <Button
-                type="button"
-                onClick={() => onSelectCustomer(null)}
-                variant="outline"
-                size="icon"
-                className="rounded-xl border-[#ead7df] text-gray-400 transition hover:border-[#5d082a] hover:bg-[#fff7fa] hover:text-[#5d082a]"
-              >
-                <X size={18} />
-              </Button>
-            </div>
-
-            {/* Scrollable Body */}
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50/30">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Coluna Esquerda: Dados do Perfil */}
-                <div className="bg-white border border-[#ead7df] rounded-2xl p-5 space-y-4 shadow-sm">
-                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#f1dbe3]/60">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#5d082a]">Dados do Perfil</span>
-                    {!isEditing && (
-                      <Button type="button" onClick={() => setIsEditing(true)} variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs text-[#5d082a] hover:bg-[#fff7fa]">
-                        <Pencil size={12} /> Editar
-                      </Button>
-                    )}
+                {editing ? (
+                  <div className="mt-2 space-y-3">
+                    <Field label="Nome">
+                      <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={input} />
+                    </Field>
+                    <Field label="WhatsApp" help="É o login do cliente e o contato da entrega.">
+                      <input inputMode="tel" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} className={input} />
+                    </Field>
+                    <Field label="E-mail" help="Opcional.">
+                      <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={input} />
+                    </Field>
+                    <Field label="CPF" help="Usado na nota fiscal e no Clube Antenor.">
+                      <input inputMode="numeric" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} className={input} />
+                    </Field>
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setEditing(false)} className="rounded-xl px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100">
+                        Cancelar
+                      </button>
+                      <button type="button" onClick={saveProfile} disabled={busy === 'profile' || !form.name.trim()} className="rounded-xl bg-gray-900 px-3.5 py-1.5 text-sm text-white disabled:opacity-40">
+                        {busy === 'profile' ? 'Salvando…' : 'Salvar'}
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <dl className="mt-2 divide-y divide-black/[0.05] text-sm">
+                    <Row label="WhatsApp" value={phone(c.whatsapp)} />
+                    <Row label="E-mail" value={c.email || '—'} />
+                    <Row label="CPF" value={cpfFmt(c.cpf)} mono />
+                    <Row label="Como conheceu" value={c.origin ? ORIGIN_LABEL[c.origin] || c.origin : '—'} />
+                  </dl>
+                )}
+              </section>
 
-                  {isEditing ? (
-                    <div className="space-y-3">
-                      {editError && (
-                        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{editError}</p>
+              <section>
+                <H title="Endereços" />
+                {c.addresses.length === 0 ? (
+                  <p className="mt-2 text-sm text-gray-400">Nenhum endereço.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {c.addresses.map((a) => (
+                      <li key={a.id} className="rounded-xl border border-black/[0.06] p-3 text-sm">
+                        {addrEditing === a.id ? (
+                          <div className="grid grid-cols-6 gap-2">
+                            <input placeholder="Rua" value={addr.street} onChange={(e) => setAddr({ ...addr, street: e.target.value })} className={`${input} col-span-4`} />
+                            <input placeholder="Nº" value={addr.number} onChange={(e) => setAddr({ ...addr, number: e.target.value })} className={`${input} col-span-2`} />
+                            <input placeholder="Complemento" value={addr.complement} onChange={(e) => setAddr({ ...addr, complement: e.target.value })} className={`${input} col-span-6`} />
+                            <input placeholder="Bairro" value={addr.neighborhood} onChange={(e) => setAddr({ ...addr, neighborhood: e.target.value })} className={`${input} col-span-3`} />
+                            <input placeholder="Cidade" value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} className={`${input} col-span-3`} />
+                            <input placeholder="UF" value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value })} className={`${input} col-span-2`} />
+                            <input placeholder="CEP" value={addr.zipCode} onChange={(e) => setAddr({ ...addr, zipCode: e.target.value })} className={`${input} col-span-4`} />
+                            <div className="col-span-6 flex justify-end gap-2">
+                              <button type="button" onClick={() => setAddrEditing(null)} className="rounded-xl px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100">
+                                Cancelar
+                              </button>
+                              <button type="button" onClick={saveAddress} disabled={busy === 'address'} className="rounded-xl bg-gray-900 px-3.5 py-1.5 text-sm text-white disabled:opacity-40">
+                                {busy === 'address' ? 'Salvando…' : 'Salvar'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="min-w-0">
+                              <span className="block text-gray-900">
+                                {a.street}, {a.number}
+                                {a.complement ? ` · ${a.complement}` : ''}
+                              </span>
+                              <span className="block text-xs text-gray-500">
+                                {a.neighborhood} · {a.city}
+                                {a.isDefault && ' · principal'}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              aria-label="Editar endereço"
+                              onClick={() => {
+                                setAddrEditing(a.id)
+                                setAddr({ street: a.street, number: a.number, complement: a.complement || '', neighborhood: a.neighborhood, city: a.city, state: a.state, zipCode: a.zipCode })
+                              }}
+                              className="shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <section>
+                <H title="Conta" />
+                <dl className="mt-2 divide-y divide-black/[0.05] text-sm">
+                  <Row label="Senha" value={c.hasPassword ? 'Tem senha' : 'Sem senha (comprou como convidado)'} />
+                  <Row label="Avisos no celular" value={c.pushDevices ? `Ativados em ${c.pushDevices} aparelho(s)` : 'Não ativou'} />
+                  <div className="flex items-center justify-between gap-2 py-2">
+                    <dt className="text-gray-500">Clube Antenor</dt>
+                    <dd className="text-right text-gray-900">
+                      {loyalty ?? (
+                        <button type="button" onClick={checkLoyalty} disabled={busy === 'loyalty'} className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-100">
+                          {busy === 'loyalty' && <Loader2 size={12} className="animate-spin" />} Consultar no ERP
+                        </button>
                       )}
-                      <div>
-                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Nome</label>
-                        <Input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} className="mt-1 h-10 text-sm" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Email</label>
-                        <Input value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} className="mt-1 h-10 text-sm" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">WhatsApp</label>
-                        <Input value={editForm.whatsapp} onChange={(e) => setEditForm((f) => ({ ...f, whatsapp: e.target.value }))} className="mt-1 h-10 text-sm" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">CPF</label>
-                        <Input value={editForm.cpf} onChange={(e) => setEditForm((f) => ({ ...f, cpf: e.target.value }))} className="mt-1 h-10 text-sm font-mono" />
-                      </div>
-                      <div className="flex gap-2 pt-1">
-                        <Button type="button" onClick={handleSaveEdit} disabled={savingEdit} size="sm" className="h-9 flex-1 bg-[#5d082a] text-xs text-white hover:bg-[#4a0622]">
-                          {savingEdit ? 'Salvando...' : 'Salvar alterações'}
-                        </Button>
-                        <Button type="button" onClick={() => setIsEditing(false)} variant="outline" size="sm" className="h-9 text-xs">
-                          Cancelar
-                        </Button>
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="mt-3 space-y-2">
+                  {reset ? (
+                    <div className="rounded-xl border border-black/[0.08] p-3">
+                      <p className="text-xs text-gray-500">Link para {c.hasPassword ? 'trocar a' : 'criar uma'} senha. Vale por 1 hora.</p>
+                      <p className="mt-1 break-all font-mono text-[11px] text-gray-700">{reset.resetUrl}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <a
+                          href={waLink(c.whatsapp, `Olá, ${c.name.split(' ')[0]}! Use este link para ${c.hasPassword ? 'trocar' : 'criar'} sua senha na Antenor & Filhos (vale por 1 hora): ${reset.resetUrl}`)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs text-white"
+                        >
+                          <MessageCircle size={13} /> Enviar pelo WhatsApp
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(reset.resetUrl)
+                            setCopied(true)
+                            setTimeout(() => setCopied(false), 1500)
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.08] px-3 py-1.5 text-xs text-gray-800 hover:bg-gray-50"
+                        >
+                          <Copy size={13} /> {copied ? 'Copiado' : 'Copiar'}
+                        </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-3.5 text-sm">
-                      <div>
-                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">CPF</p>
-                        {selectedCustomer.cpf ? (
-                          <p className="font-mono text-gray-700 mt-0.5">
-                            {selectedCustomer.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
-                          </p>
-                        ) : (
-                          <p className="text-gray-400 mt-0.5">—</p>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">WhatsApp</p>
-                        <div className="mt-1">
-                          {renderWhatsAppBadge(selectedCustomer.whatsapp)}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Email</p>
-                        <p className="text-gray-700 mt-0.5 truncate" title={selectedCustomer.email || undefined}>
-                          {selectedCustomer.email ?? '—'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Data de Cadastro</p>
-                        <p className="text-gray-700 mt-0.5">
-                          {selectedCustomer.createdAt ? new Date(selectedCustomer.createdAt).toLocaleDateString('pt-BR') : '—'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Total de Pedidos</p>
-                        <p className="text-gray-900 mt-0.5 font-bold text-base">
-                          {customerOrderCountMap[selectedCustomer.id] || 0}
-                        </p>
-                      </div>
-                    </div>
+                    <button type="button" onClick={makeReset} disabled={busy === 'reset'} className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-black/[0.08] px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-40">
+                      <KeyRound size={14} /> {c.hasPassword ? 'Gerar link para trocar a senha' : 'Gerar link para criar a senha'}
+                    </button>
                   )}
-
-                  {/* Reset de senha + bloqueio */}
-                  <div className="space-y-2 border-t border-[#f1dbe3]/60 pt-4">
-                    {actionError && (
-                      <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{actionError}</p>
-                    )}
-
-                    {resetLink ? (
-                      <div className="space-y-2 rounded-xl border border-[#f1dbe3] bg-[#fff7fa] p-3">
-                        <p className="text-xs font-semibold text-gray-600">Link gerado (expira em 1h):</p>
-                        <p className="break-all rounded-lg bg-white px-2 py-1.5 font-mono text-[11px] text-gray-700 border border-[#f1dbe3]">{resetLink.resetUrl}</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => navigator.clipboard.writeText(resetLink.resetUrl)}>
-                            <Copy size={12} /> Copiar
-                          </Button>
-                          <Button
-                            type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs"
-                            onClick={() => {
-                              const digits = (selectedCustomer.whatsapp || '').replace(/\D/g, '')
-                              const text = encodeURIComponent(`Olá ${selectedCustomer.name}, aqui está o link para redefinir sua senha na Antenor & Filhos: ${resetLink.resetUrl}`)
-                              window.open(digits ? `https://wa.me/55${digits}?text=${text}` : `https://wa.me/?text=${text}`, '_blank')
-                            }}
-                          >
-                            <MessageCircle size={12} /> WhatsApp
-                          </Button>
-                          {selectedCustomer.email && (
-                            <Button
-                              type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs"
-                              onClick={() => {
-                                const subject = encodeURIComponent('Redefinição de senha — Antenor & Filhos')
-                                const body = encodeURIComponent(`Olá ${selectedCustomer.name},\n\nUse o link abaixo para redefinir sua senha:\n${resetLink.resetUrl}\n\nO link expira em 1 hora.`)
-                                window.location.href = `mailto:${selectedCustomer.email}?subject=${subject}&body=${body}`
-                              }}
-                            >
-                              <Mail size={12} /> E-mail
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <Button type="button" onClick={handleGenerateResetLink} disabled={generatingReset} variant="outline" size="sm" className="h-9 w-full gap-2 text-xs">
-                        <KeyRound size={14} /> {generatingReset ? 'Gerando...' : 'Resetar Senha'}
-                      </Button>
-                    )}
-
-                    <Button
-                      type="button"
-                      onClick={handleToggleBlock}
-                      disabled={togglingBlock}
-                      variant="outline"
-                      size="sm"
-                      className={`h-9 w-full gap-2 text-xs ${selectedCustomer.blocked ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' : 'border-red-200 text-red-700 hover:bg-red-50'}`}
-                    >
-                      {selectedCustomer.blocked ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
-                      {togglingBlock ? 'Atualizando...' : selectedCustomer.blocked ? 'Desbloquear Cliente' : 'Bloquear / Suspender Cliente'}
-                    </Button>
-                    {selectedCustomer.blocked && selectedCustomer.blockedReason && (
-                      <p className="text-xs text-gray-500">Motivo: {selectedCustomer.blockedReason}</p>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleBlock}
+                    disabled={busy === 'block'}
+                    className={`w-full rounded-xl px-3 py-2 text-sm disabled:opacity-40 ${c.blocked ? 'border border-black/[0.08] text-gray-800 hover:bg-gray-50' : 'text-rose-700 hover:bg-rose-50'}`}
+                  >
+                    {c.blocked ? 'Desbloquear' : 'Bloquear cliente'}
+                  </button>
+                  {c.blocked && c.blockedReason && <p className="text-xs text-gray-500">Motivo do bloqueio: {c.blockedReason}</p>}
                 </div>
-
-                {/* Coluna Direita: Endereços de Entrega */}
-                <div className="bg-white border border-[#ead7df] rounded-2xl p-5 space-y-4 shadow-sm flex flex-col h-full max-h-[500px]">
-                  <div className="flex items-center gap-2 pb-2 border-b border-[#f1dbe3]/60">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#5d082a]">Endereços de Entrega</span>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-                    {addressError && (
-                      <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{addressError}</p>
-                    )}
-                    {selectedCustomer.addresses && selectedCustomer.addresses.length > 0 ? (
-                      selectedCustomer.addresses.map((addr) => (
-                        <div key={addr.id} className="text-sm border border-slate-100 bg-slate-50/50 rounded-xl p-4 space-y-1 hover:border-[#f1dbe3] transition">
-                          {editingAddressId === addr.id ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-2 gap-2">
-                                <Input placeholder="Rua" value={addressForm.street} onChange={(e) => setAddressForm((f) => ({ ...f, street: e.target.value }))} className="h-9 text-xs" />
-                                <Input placeholder="Número" value={addressForm.number} onChange={(e) => setAddressForm((f) => ({ ...f, number: e.target.value }))} className="h-9 text-xs" />
-                              </div>
-                              <Input placeholder="Complemento" value={addressForm.complement} onChange={(e) => setAddressForm((f) => ({ ...f, complement: e.target.value }))} className="h-9 text-xs" />
-                              <Input placeholder="Bairro" value={addressForm.neighborhood} onChange={(e) => setAddressForm((f) => ({ ...f, neighborhood: e.target.value }))} className="h-9 text-xs" />
-                              <div className="grid grid-cols-3 gap-2">
-                                <Input placeholder="Cidade" value={addressForm.city} onChange={(e) => setAddressForm((f) => ({ ...f, city: e.target.value }))} className="col-span-2 h-9 text-xs" />
-                                <Input placeholder="UF" value={addressForm.state} onChange={(e) => setAddressForm((f) => ({ ...f, state: e.target.value }))} className="h-9 text-xs" />
-                              </div>
-                              <Input placeholder="CEP" value={addressForm.zipCode} onChange={(e) => setAddressForm((f) => ({ ...f, zipCode: e.target.value }))} className="h-9 text-xs font-mono" />
-                              <div className="flex gap-2 pt-1">
-                                <Button type="button" onClick={handleSaveAddress} disabled={savingAddress} size="sm" className="h-8 flex-1 bg-[#5d082a] text-xs text-white hover:bg-[#4a0622]">
-                                  {savingAddress ? 'Salvando...' : 'Salvar'}
-                                </Button>
-                                <Button type="button" onClick={() => setEditingAddressId(null)} variant="outline" size="sm" className="h-8 text-xs">
-                                  Cancelar
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="flex items-start justify-between gap-2">
-                                <p className="font-semibold text-gray-800">
-                                  {addr.street}, {addr.number}
-                                  {addr.complement ? ` — ${addr.complement}` : ''}
-                                </p>
-                                <Button type="button" onClick={() => handleStartEditAddress(addr)} variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-gray-400 hover:text-[#5d082a]" title="Editar endereço">
-                                  <Pencil size={12} />
-                                </Button>
-                              </div>
-                              <p className="text-xs text-gray-500">
-                                {addr.neighborhood}, {addr.city} - {addr.state}
-                              </p>
-                              <p className="text-xs text-gray-450 font-mono mt-1">CEP {addr.zipCode}</p>
-                            </>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-gray-400 text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                        Nenhum endereço cadastrado
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-[#f1dbe3] bg-white px-6 py-4 flex justify-end rounded-b-2xl">
-              <Button
-                type="button"
-                onClick={() => onSelectCustomer(null)}
-                variant="outline"
-                className="min-h-11 rounded-xl border-[#ead7df] px-6 text-sm text-gray-600 hover:bg-gray-50"
-              >
-                Fechar
-              </Button>
+              </section>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </WorkspaceDialog>
+      {orderOpen && <OrderDetail orderId={orderOpen} onClose={() => setOrderOpen(null)} onChanged={load} />}
     </>
   )
 }
+
+function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900">{value}</p>
+      {note && <p className="text-xs text-gray-400">{note}</p>}
+    </div>
+  )
+}
+
+function H({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div>
+      <h4 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{title}</h4>
+      {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
+    </div>
+  )
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2">
+      <dt className="text-gray-500">{label}</dt>
+      <dd className={`min-w-0 truncate text-right text-gray-900 ${mono ? 'font-mono text-xs' : ''}`}>{value}</dd>
+    </div>
+  )
+}
+
+function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-medium text-gray-700">{label}</span>
+      {help && <span className="block text-xs text-gray-400">{help}</span>}
+      <span className="mt-1 block">{children}</span>
+    </label>
+  )
+}
+
+function Thumb({ ean }: { ean: string }) {
+  const [broken, setBroken] = useState(false)
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+      {!broken ? <img src={resolveApiUrl(`/thumbs/products/${ean}.webp`)} alt="" loading="lazy" className="h-full w-full object-contain" onError={() => setBroken(true)} /> : <ImageOff size={13} className="text-gray-300" />}
+    </span>
+  )
+}
+
