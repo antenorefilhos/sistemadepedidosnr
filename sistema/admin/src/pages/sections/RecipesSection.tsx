@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, ArrowDown, ArrowUp, ChefHat, ExternalLink, ImageOff, Loader2, Plus, Search, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
 import { WorkspaceDialog } from '../../components/WorkspaceDialog'
+import { AutoTextarea } from '../../components/AutoTextarea'
 import { getApiErrorMessage, productsAPI, recipesAPI, resolveApiUrl, uploadsAPI, type CatalogProduct } from '../../services/api'
 
 // Receitas (refeita em 29/09/2026 com o Jonathan). A tela antiga so tinha
@@ -326,7 +327,20 @@ function Section({ title, hint, children, action }: { title: string; hint?: stri
   )
 }
 
-const inputCls = 'h-10 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400'
+const inputCls = 'h-10 rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400'
+const fieldCls = `${inputCls} w-full`
+const areaCls = 'w-full rounded-xl border border-black/[0.08] px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400'
+
+/** Rotulo + ajuda curta acima do campo. */
+function Field({ label, help, children, className = '' }: { label: string; help?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="block text-xs font-medium text-gray-700">{label}</span>
+      {help && <span className="mt-0.5 block text-xs text-gray-400">{help}</span>}
+      <span className="mt-1 block">{children}</span>
+    </label>
+  )
+}
 
 function move<T>(list: T[], i: number, d: number) {
   const j = i + d
@@ -524,6 +538,11 @@ function RecipeEditor({
     }
   }
 
+  const dirty = JSON.stringify(f) !== JSON.stringify(initial)
+  const requestClose = () => {
+    if (!dirty || window.confirm('Sair sem salvar? As alterações desta receita serão perdidas.')) onClose()
+  }
+
   const seoTitle = f.seoTitle || f.title
   const seoDesc = f.seoDescription || f.description || `Receita de ${f.title || '...'} com ingredientes do Mercado Antenor & Filhos.`
   const livePublished = statusOf({ active: initial.status !== 'draft', publishedAt: initial.publishedAt }) === 'published' && !isNew
@@ -532,7 +551,7 @@ function RecipeEditor({
     <>
     <WorkspaceDialog
       label={f.title || 'Nova receita'}
-      onClose={onClose}
+      onClose={requestClose}
       closeOnEsc={!pasting}
       title={
         <>
@@ -550,8 +569,8 @@ function RecipeEditor({
         ) : undefined
       }
       footer={
-        <div className="space-y-2 sm:flex sm:items-center sm:gap-3 sm:space-y-0">
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1 sm:w-[380px] sm:shrink-0">
+        <div className="space-y-2 lg:flex lg:items-center lg:gap-3 lg:space-y-0">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1 lg:w-[360px] lg:shrink-0">
             {(
               [
                 ['draft', 'Rascunho'],
@@ -565,9 +584,12 @@ function RecipeEditor({
             ))}
           </div>
           {f.status === 'schedule' && (
-            <input type="datetime-local" value={f.scheduleAt} min={localInput(new Date())} onChange={(e) => set({ scheduleAt: e.target.value })} className={`${inputCls} sm:w-56 sm:shrink-0`} />
+            <input aria-label="Data e hora da publicação" type="datetime-local" value={f.scheduleAt} min={localInput(new Date())} onChange={(e) => set({ scheduleAt: e.target.value })} className={`${fieldCls} lg:w-56 lg:shrink-0`} />
           )}
           <div className="min-w-0 flex-1 text-xs">
+            <p className="text-gray-400">
+              {f.status === 'draft' ? 'Rascunho: não aparece no site.' : f.status === 'schedule' ? 'Entra no site sozinha na data escolhida.' : 'Aparece no site assim que salvar.'}
+            </p>
             {error && <p className="text-rose-700">{error}</p>}
             {missing.length > 0 && <p className="text-gray-500">Falta: {missing.join(', ')}.</p>}
           </div>
@@ -577,46 +599,47 @@ function RecipeEditor({
                 <Trash2 size={16} />
               </button>
             )}
-            <button type="button" onClick={onClose} className="ml-auto rounded-xl px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+            <button type="button" onClick={requestClose} className="ml-auto rounded-xl px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
               Cancelar
             </button>
             <button type="button" onClick={save} disabled={saving || missing.length > 0} className="rounded-xl bg-gray-900 px-5 py-2 text-sm text-white disabled:opacity-40">
-              {saving ? 'Salvando…' : f.status === 'draft' ? 'Salvar rascunho' : f.status === 'schedule' ? 'Agendar' : 'Publicar'}
+              {saving ? 'Salvando…' : f.status === 'draft' ? 'Salvar rascunho' : f.status === 'schedule' ? 'Agendar' : livePublished ? 'Salvar alterações' : 'Publicar'}
             </button>
           </div>
         </div>
       }
     >
       {/* Computador: a receita a esquerda; o que vende e o Google a direita. Celular: uma coluna. */}
-      <div className="grid gap-8 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-10">
+      <div className="grid grid-cols-1 gap-8 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-10">
         <div className="space-y-8">
           <Section title="Receita">
-            <div className="space-y-3">
-              <input
-                value={f.title}
-                onChange={(e) => set({ title: e.target.value, ...(f.slugTouched ? {} : { slug: slugify(e.target.value) }) })}
-                placeholder="Título, ex.: Picanha na brasa com farofa"
-                className={`${inputCls} text-base`}
-              />
-              <textarea
-                value={f.description}
-                onChange={(e) => set({ description: e.target.value })}
-                rows={3}
-                placeholder="Uma ou duas frases que dão vontade de fazer. Aparece no topo da receita e no Google."
-                className="w-full rounded-xl border border-black/[0.08] px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
-              />
+            <div className="space-y-4">
+              <Field label="Nome da receita" help="Como aparece no site e no link compartilhado.">
+                <input
+                  value={f.title}
+                  onChange={(e) => set({ title: e.target.value, ...(f.slugTouched ? {} : { slug: slugify(e.target.value) }) })}
+                  placeholder="Ex.: Picanha na brasa com farofa"
+                  className={`${fieldCls} text-base`}
+                />
+              </Field>
+              <Field label="Apresentação" help="Uma ou duas frases que dão vontade de fazer. Fica logo abaixo do nome e aparece no Google.">
+                <AutoTextarea
+                  value={f.description}
+                  onChange={(e) => set({ description: e.target.value })}
+                  rows={2}
+                  placeholder="Ex.: O pudim clássico de família, cremoso e com calda dourada."
+                  className={areaCls}
+                />
+              </Field>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <label className="block text-xs text-gray-500">
-                  Tempo (min)
-                  <input inputMode="numeric" value={f.prepTime} onChange={(e) => set({ prepTime: e.target.value.replace(/\D/g, '') })} className={`${inputCls} mt-1`} />
-                </label>
-                <label className="block text-xs text-gray-500">
-                  Porções
-                  <input inputMode="numeric" value={f.servings} onChange={(e) => set({ servings: e.target.value.replace(/\D/g, '') })} className={`${inputCls} mt-1`} />
-                </label>
-                <label className="col-span-2 block text-xs text-gray-500">
-                  Categoria
-                  <select value={f.categoryId} onChange={(e) => set({ categoryId: e.target.value })} className={`${inputCls} mt-1`}>
+                <Field label="Tempo (min)" help="Do início ao fim">
+                  <input inputMode="numeric" value={f.prepTime} onChange={(e) => set({ prepTime: e.target.value.replace(/\D/g, '') })} placeholder="60" className={fieldCls} />
+                </Field>
+                <Field label="Rende" help="Porções">
+                  <input inputMode="numeric" value={f.servings} onChange={(e) => set({ servings: e.target.value.replace(/\D/g, '') })} placeholder="4" className={fieldCls} />
+                </Field>
+                <Field label="Categoria" help="Filtro da página de receitas" className="col-span-2">
+                  <select value={f.categoryId} onChange={(e) => set({ categoryId: e.target.value })} className={fieldCls}>
                     <option value="">Sem categoria</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -624,11 +647,11 @@ function RecipeEditor({
                       </option>
                     ))}
                   </select>
-                </label>
+                </Field>
               </div>
               <div>
-                <span className="text-xs text-gray-500">Dificuldade</span>
-                <div className="mt-1 grid grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1">
+                <span className="block text-xs font-medium text-gray-700">Dificuldade</span>
+                <div className="mt-1 grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1 sm:grid-cols-4">
                   {[['', 'Não informar'], ...DIFFICULTY].map(([v, label]) => (
                     <button key={v} type="button" onClick={() => set({ difficulty: v })} className={`rounded-lg px-2 py-1.5 text-sm ${f.difficulty === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}>
                       {label}
@@ -663,19 +686,30 @@ function RecipeEditor({
 
           <Section
             title={`Ingredientes · ${ingredients.length}`}
-            hint="Quantidade, medida e o ingrediente."
+            hint="A lista que o cliente lê na receita. Quantidade e medida são opcionais (ex.: sal a gosto)."
             action={
               <button type="button" onClick={() => setPasting('ingredients')} className="text-xs text-gray-700 underline-offset-2 hover:underline">
                 Colar lista
               </button>
             }
           >
-            <ul className="space-y-2">
+            <div className="mb-1 hidden gap-2 px-0.5 text-xs text-gray-400 sm:flex">
+              <span className="w-16">Qtd.</span>
+              <span className="w-24">Medida</span>
+              <span className="flex-1">Ingrediente</span>
+            </div>
+            <ul className="space-y-3 sm:space-y-2">
               {f.ingredients.map((ing, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <input value={ing.quantity} onChange={(e) => set({ ingredients: f.ingredients.map((x, k) => (k === i ? { ...x, quantity: e.target.value } : x)) })} placeholder="500" className={`${inputCls} w-16 shrink-0 px-2`} />
-                  <input value={ing.unit} onChange={(e) => set({ ingredients: f.ingredients.map((x, k) => (k === i ? { ...x, unit: e.target.value } : x)) })} placeholder="g" className={`${inputCls} w-20 shrink-0 px-2`} />
-                  <input value={ing.name} onChange={(e) => set({ ingredients: f.ingredients.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) })} placeholder="farinha de trigo" className={`${inputCls} min-w-0 flex-1`} />
+                <li key={i} className="flex flex-wrap items-center gap-2 border-b border-black/[0.04] pb-3 last:border-0 sm:flex-nowrap sm:border-0 sm:pb-0">
+                  <input
+                    aria-label="Ingrediente"
+                    value={ing.name}
+                    onChange={(e) => set({ ingredients: f.ingredients.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) })}
+                    placeholder="Ingrediente, ex.: farinha de trigo"
+                    className={`${inputCls} order-first w-full sm:order-none sm:w-auto sm:min-w-0 sm:flex-1`}
+                  />
+                  <input aria-label="Quantidade" value={ing.quantity} onChange={(e) => set({ ingredients: f.ingredients.map((x, k) => (k === i ? { ...x, quantity: e.target.value } : x)) })} placeholder="Qtd." className={`${inputCls} w-20 shrink-0 px-2 sm:order-first sm:w-16`} />
+                  <input aria-label="Medida" value={ing.unit} onChange={(e) => set({ ingredients: f.ingredients.map((x, k) => (k === i ? { ...x, unit: e.target.value } : x)) })} placeholder="Medida" className={`${inputCls} min-w-0 flex-1 px-2 sm:order-first sm:w-24 sm:flex-none`} />
                   <RowTools
                     i={i}
                     n={f.ingredients.length}
@@ -692,6 +726,7 @@ function RecipeEditor({
 
           <Section
             title={`Modo de preparo · ${steps.length} passos`}
+            hint="Cada campo vira um passo numerado na receita. Escreva um passo por campo."
             action={
               <button type="button" onClick={() => setPasting('steps')} className="text-xs text-gray-700 underline-offset-2 hover:underline">
                 Colar texto
@@ -702,12 +737,13 @@ function RecipeEditor({
               {f.steps.map((s, i) => (
                 <li key={i} className="flex items-start gap-2">
                   <span className="mt-2 w-5 shrink-0 text-right text-sm tabular-nums text-gray-400">{i + 1}.</span>
-                  <textarea
+                  <AutoTextarea
+                    aria-label={`Passo ${i + 1}`}
                     value={s}
                     onChange={(e) => set({ steps: f.steps.map((x, k) => (k === i ? e.target.value : x)) })}
                     rows={2}
-                    placeholder="Descreva o passo"
-                    className="min-w-0 flex-1 rounded-xl border border-black/[0.08] px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
+                    placeholder={i === 0 ? 'Ex.: Pré-aqueça o forno a 180 °C.' : 'Descreva o passo'}
+                    className={`${areaCls} min-w-0 flex-1`}
                   />
                   <RowTools i={i} n={f.steps.length} onMove={(d) => set({ steps: move(f.steps, i, d) })} onRemove={() => set({ steps: f.steps.length > 1 ? f.steps.filter((_, k) => k !== i) : [''] })} />
                 </li>
@@ -722,7 +758,7 @@ function RecipeEditor({
         <div className="space-y-8">
           <Section
             title={`Produtos para comprar · ${f.products.length}`}
-            hint="O cliente adiciona ao carrinho com um clique. Produto que sair do site some da receita sozinho e volta quando voltar."
+            hint="Aparecem ao lado da receita com o botão 'Adicionar todos ao carrinho'. Produto que sair do site some da receita sozinho e volta quando voltar."
             action={
               <button type="button" onClick={suggest} disabled={suggesting || !ingredients.length} className="inline-flex items-center gap-1 text-xs text-gray-700 underline-offset-2 hover:underline disabled:opacity-40">
                 {suggesting ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} Sugerir pelos ingredientes
@@ -772,7 +808,7 @@ function RecipeEditor({
 
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produto da loja para adicionar" className={`${inputCls} pl-9`} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produto da loja para adicionar (nome ou código)" className={`${fieldCls} pl-9`} />
               {results.length > 0 && (
                 <ul className="absolute left-0 right-0 top-11 z-10 max-h-72 overflow-y-auto rounded-xl border border-black/[0.08] bg-white shadow-lg">
                   {results.map((p) => (
@@ -788,8 +824,9 @@ function RecipeEditor({
               )}
             </div>
 
+            {f.products.length > 0 && <p className="mt-2 text-xs text-gray-400">A observação aparece embaixo do produto na receita, ex.: "para a calda".</p>}
             {f.products.length > 0 && (
-              <ul className="mt-2 divide-y divide-black/[0.05] rounded-xl border border-black/[0.06]">
+              <ul className="mt-1 divide-y divide-black/[0.05] rounded-xl border border-black/[0.06]">
                 {f.products.map((p, i) => (
                   <li key={p.productId} className="flex items-center gap-3 px-3 py-2">
                     <ProductThumb ean={p.ean} hasPhoto={p.hasPhoto ?? true} />
@@ -798,7 +835,8 @@ function RecipeEditor({
                       <input
                         value={p.note}
                         onChange={(e) => set({ products: f.products.map((x, k) => (k === i ? { ...x, note: e.target.value } : x)) })}
-                        placeholder="Observação (opcional), ex.: para a farofa"
+                        aria-label="Observação para o cliente"
+                        placeholder="+ observação para o cliente (opcional)"
                         className="mt-0.5 w-full border-0 bg-transparent p-0 text-xs text-gray-500 placeholder:text-gray-300 focus:outline-none"
                       />
                     </span>
@@ -839,23 +877,22 @@ function RecipeEditor({
             </Section>
           )}
 
-          <Section title="No Google" hint="Opcional. Vazio usa o título e a descrição.">
+          <Section title="No Google e no compartilhamento" hint="Opcional. Deixe vazio para usar o nome e a apresentação da receita. É assim que o link aparece numa busca:">
             <div className="rounded-xl border border-black/[0.06] p-3">
               <p className="truncate text-xs text-gray-500">{SITE.replace('https://', '')} › receitas</p>
               <p className="truncate text-base text-[#1a0dab]">{seoTitle.slice(0, 60) || 'Título da receita'}</p>
               <p className="line-clamp-2 text-sm text-gray-600">{seoDesc.slice(0, 160)}</p>
             </div>
             <div className="mt-3 space-y-3">
-              <label className="block text-xs text-gray-500">
-                Título no Google <span className={f.seoTitle.length > 60 ? 'text-amber-600' : ''}>{f.seoTitle.length}/60</span>
-                <input value={f.seoTitle} onChange={(e) => set({ seoTitle: e.target.value })} placeholder={f.title} className={`${inputCls} mt-1`} />
-              </label>
-              <label className="block text-xs text-gray-500">
-                Descrição no Google <span className={f.seoDescription.length > 160 ? 'text-amber-600' : ''}>{f.seoDescription.length}/160</span>
-                <textarea value={f.seoDescription} onChange={(e) => set({ seoDescription: e.target.value })} rows={2} className="mt-1 w-full rounded-xl border border-black/[0.08] px-3 py-2 text-sm text-gray-900" />
-              </label>
-              <label className="block text-xs text-gray-500">
-                Endereço da página
+              <Field label={`Título no Google · ${f.seoTitle.length}/60`} help="Até 60 caracteres; o Google corta o resto.">
+                <input value={f.seoTitle} onChange={(e) => set({ seoTitle: e.target.value })} placeholder={f.title} className={`${fieldCls} ${f.seoTitle.length > 60 ? 'border-amber-400' : ''}`} />
+              </Field>
+              <Field label={`Descrição no Google · ${f.seoDescription.length}/160`} help="Até 160 caracteres. Diga o que a receita tem de bom e o que leva.">
+                <AutoTextarea value={f.seoDescription} onChange={(e) => set({ seoDescription: e.target.value })} rows={2} placeholder={f.description} className={`${areaCls} ${f.seoDescription.length > 160 ? 'border-amber-400' : ''}`} />
+              </Field>
+              <label className="block">
+                <span className="block text-xs font-medium text-gray-700">Endereço da página</span>
+                <span className="mt-0.5 block text-xs text-gray-400">A parte final do link. Criado a partir do nome; só mude se precisar.</span>
                 <span className="mt-1 flex items-center rounded-xl border border-black/[0.08] pl-3 text-sm">
                   <span className="shrink-0 text-gray-400">/receitas/</span>
                   <input
@@ -873,13 +910,13 @@ function RecipeEditor({
     </WorkspaceDialog>
 
       {pasting && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30 sm:items-center sm:p-4" onClick={(e) => (e.stopPropagation(), setPasting(null))}>
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && setPasting(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg rounded-t-2xl bg-white p-5 sm:rounded-2xl">
             <h3 className="text-base font-semibold text-gray-900">{pasting === 'ingredients' ? 'Colar ingredientes' : 'Colar modo de preparo'}</h3>
             <p className="mt-1 text-xs text-gray-500">
               {pasting === 'ingredients' ? 'Um ingrediente por linha, ex.: "500 g de farinha de trigo". Quantidade e medida são separadas sozinhas.' : 'Um passo por linha. A numeração é tirada sozinha.'}
             </p>
-            <textarea autoFocus value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={10} className="mt-3 w-full rounded-xl border border-black/[0.08] px-3 py-2 text-sm text-gray-900" />
+            <textarea autoFocus value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={10} placeholder={pasting === 'ingredients' ? '1 lata de leite condensado\n2 xícaras de leite\n3 ovos' : 'Bata tudo no liquidificador.\nDespeje na forma.'} className={`${areaCls} mt-3 resize-y`} />
             <div className="mt-3 flex justify-end gap-2">
               <button type="button" onClick={() => setPasting(null)} className="rounded-xl px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                 Cancelar
@@ -936,7 +973,7 @@ function CategoriesDialog({ categories, onClose, onChanged }: { categories: Cate
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/30 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/30 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div onClick={(e) => e.stopPropagation()} className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 sm:rounded-2xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-gray-900">Categorias de receita</h3>
@@ -955,7 +992,7 @@ function CategoriesDialog({ categories, onClose, onChanged }: { categories: Cate
             run(() => recipesAPI.createCategory({ name: n, slug: slugify(n), order: categories.length })).then(() => setName(''))
           }}
         >
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nova categoria, ex.: Churrasco" className={inputCls} />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nova categoria, ex.: Churrasco" className={fieldCls} />
           <button type="submit" disabled={busy || !name.trim()} className="shrink-0 rounded-xl bg-gray-900 px-3 text-sm text-white disabled:opacity-40">
             Adicionar
           </button>
@@ -974,7 +1011,7 @@ function CategoriesDialog({ categories, onClose, onChanged }: { categories: Cate
                     if (n) run(() => recipesAPI.updateCategory(c.id, { name: n, slug: slugify(n) })).then(() => setEditing(null))
                   }}
                 >
-                  <input autoFocus value={editing.name} onChange={(e) => setEditing({ id: c.id, name: e.target.value })} className={`${inputCls} h-9`} />
+                  <input autoFocus value={editing.name} onChange={(e) => setEditing({ id: c.id, name: e.target.value })} className={`${fieldCls} h-9`} />
                   <button type="submit" className="rounded-lg px-2 text-sm text-gray-800 hover:bg-gray-100">
                     Salvar
                   </button>

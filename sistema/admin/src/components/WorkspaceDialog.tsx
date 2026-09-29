@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { ChevronLeft, X } from 'lucide-react'
 
 /**
@@ -37,13 +37,24 @@ export function WorkspaceDialog({
     }
   }, [onClose, closeOnEsc])
 
+  // So fecha se o clique COMECOU e TERMINOU no fundo. Antes, selecionar texto
+  // ou arrastar o canto de um campo e soltar fora da janela contava como
+  // clique no fundo e fechava o editor, perdendo o que foi digitado.
+  const downOnBackdrop = useRef(false)
+
   return (
-    <div className="fixed inset-0 z-[60] flex bg-black/30 sm:items-center sm:justify-center sm:p-6" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[60] flex bg-black/30 sm:items-center sm:justify-center sm:p-6"
+      onMouseDown={(e) => (downOnBackdrop.current = e.target === e.currentTarget)}
+      onClick={(e) => {
+        if (downOnBackdrop.current && e.target === e.currentTarget) onClose()
+        downOnBackdrop.current = false
+      }}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        onClick={(e) => e.stopPropagation()}
         className={`flex h-full w-full flex-col bg-white sm:h-[min(90vh,920px)] sm:overflow-hidden sm:rounded-2xl sm:shadow-2xl ${size === 'lg' ? 'sm:max-w-5xl' : 'sm:max-w-6xl'}`}
       >
         <header className="flex items-start gap-2 border-b border-black/[0.06] px-3 py-3 sm:px-6 sm:py-4">
