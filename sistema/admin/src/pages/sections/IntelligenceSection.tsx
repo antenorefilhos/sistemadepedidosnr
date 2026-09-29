@@ -110,8 +110,8 @@ export default function IntelligenceSection() {
 function Funnel({ current: c, previous: p, days }: { current: IntelligenceFunnel; previous: IntelligenceFunnel; days: number }) {
   const steps = [
     { label: 'Visitaram', value: c.visitors, prev: p.visitors },
-    { label: 'Viram produto', value: c.viewed, prev: p.viewed },
-    { label: 'Carrinho', value: c.carted, prev: p.carted },
+    // "Viram produto" nao e etapa: a maioria poe no carrinho direto da vitrine.
+    { label: 'Puseram no carrinho', value: c.carted, prev: p.carted },
     { label: 'Checkout', value: c.checkout, prev: p.checkout },
     { label: 'Pedidos', value: c.orders, prev: p.orders },
   ]
@@ -123,7 +123,7 @@ function Funnel({ current: c, previous: p, days }: { current: IntelligenceFunnel
         <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Do acesso ao pedido · {days} dias</h3>
         <p className="text-xs text-gray-400">Comparado aos {days} dias anteriores</p>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {steps.map((s, i) => (
           <div key={s.label}>
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -146,6 +146,9 @@ function Funnel({ current: c, previous: p, days }: { current: IntelligenceFunnel
         </span>
         <span>
           Ticket médio <span className="tabular-nums text-gray-900">{brl(c.ticket)}</span>
+        </span>
+        <span>
+          Abriram a página de um produto <span className="tabular-nums text-gray-900">{num(c.viewed)}</span>
         </span>
         <span className="text-gray-400">{num(c.bots)} acessos de robôs de busca (1 página só) fora da conta</span>
       </div>
