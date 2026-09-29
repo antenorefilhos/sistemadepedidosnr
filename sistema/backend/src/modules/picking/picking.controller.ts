@@ -27,6 +27,12 @@ import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decora
 export class AdminPickingController {
   constructor(private readonly pickingService: PickingService) {}
 
+  @Get('supervision')
+  @ApiOperation({ summary: 'Acompanhamento da separacao: fila agora e desempenho por separador' })
+  async supervision(@Query('period') period: string | undefined, @Req() req: TenantContextRequest) {
+    return this.pickingService.getSupervision(getTenantContext(req), period === 'week' ? 'week' : 'day')
+  }
+
   @Get('eligible-orders')
   @ApiOperation({ summary: 'Listar pedidos elegiveis para separacao' })
   async listEligibleOrders(@Req() req: TenantContextRequest, @Query('limit') limit?: string) {

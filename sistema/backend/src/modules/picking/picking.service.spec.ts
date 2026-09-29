@@ -341,3 +341,21 @@ describe('PickingService', () => {
     })
   })
 })
+
+describe('sendToCashier fecha a tarefa (29/09/2026)', () => {
+  it('tarefa em CONFERENCE_PENDING vira COMPLETED ao enviar ao caixa', async () => {
+    const svc = new PickingService(mockPrismaService as never, mockNotificationsService as never, {} as never, mockIntegrationModulesService as never)
+    mockPrismaService.order.findFirst.mockResolvedValueOnce(baseOrder)
+    mockPrismaService.pickingTask.findFirst.mockResolvedValueOnce({ id: 'task-1', status: 'CONFERENCE_PENDING', completedAt: null, items: [{ status: 'PICKED' }] })
+    mockPrismaService.order.update.mockResolvedValueOnce({ ...baseOrder, status: 'READY_FOR_CHECKOUT', erpDav: null })
+    mockPrismaService.orderEvent.create.mockResolvedValueOnce({})
+    mockPrismaService.pickingTask.update.mockClear()
+
+    await svc.sendToCashier('order-1', {})
+
+    expect(mockPrismaService.pickingTask.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'task-1' },
+      data: expect.objectContaining({ status: 'COMPLETED' }),
+    }))
+  })
+})

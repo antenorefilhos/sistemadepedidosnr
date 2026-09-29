@@ -13,6 +13,7 @@ import { BrandService } from '../brand/brand.service';
 import { AntenorApiService } from '../integrations/antenor-api.service';
 
 const mockPrismaService = {
+  pickingTask: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
   order: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -869,6 +870,11 @@ describe('OrdersService', () => {
 
       expect(mockInventoryService.releaseOrderReservations).toHaveBeenCalledWith('order-123', 'Out of stock');
       expect(result.status).toBe('CANCELLED');
+      // cancelar o pedido tira a tarefa da fila de separacao
+      expect(mockPrismaService.pickingTask.updateMany).toHaveBeenCalledWith({
+        where: { orderId: 'order-123', status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+        data: { status: 'CANCELLED' },
+      });
     });
   });
 

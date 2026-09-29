@@ -828,6 +828,11 @@ export class OrdersService {
     })
 
     if (status === 'CANCELLED') {
+      // Pedido cancelado sai da fila de separacao (antes a tarefa ficava aberta).
+      await this.prisma.pickingTask.updateMany({
+        where: { orderId: order.id, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+        data: { status: 'CANCELLED' },
+      })
       await this.inventoryService.releaseOrderReservations(order.id, reason || 'Pedido cancelado')
       await this.releaseFulfillmentSlotReservation(previousOrder, reason || 'Pedido cancelado')
       await this.orderOrchestrationService.syncCancelledOrder(

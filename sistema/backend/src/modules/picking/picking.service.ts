@@ -115,7 +115,11 @@ export class PickingService {
       if (pendingItems.length > 0) {
         throw new BadRequestException('Ainda existem itens pendentes de separacao.')
       }
-      if (!['COMPLETED', 'CONFERENCE_PENDING', 'PACKING'].includes(task.status)) {
+      // 29/09/2026: antes pulava CONFERENCE_PENDING/PACKING -- etapas que o
+      // fluxo real nao usa (o separador envia direto ao caixa). A tarefa ficava
+      // aberta para sempre: 13 "aguardando conferencia" com pedido ja
+      // entregue/cancelado, e nenhuma tarefa concluida na historia.
+      if (!['COMPLETED', 'CANCELLED'].includes(task.status)) {
         await this.prisma.pickingTask.update({
           where: { id: task.id },
           data: { status: 'COMPLETED', completedAt: task.completedAt || new Date() },
@@ -973,6 +977,118 @@ export class PickingService {
 
     const [detailed] = await this.attachTaskDetails([updatedTask], context)
     return detailed
+  }
+
+  /**
+   * Acompanhamento da separacao para o admin (29/09/2026): quem esta separando
+   * o que, ha quanto tempo, o que espera separador e o que espera o cliente,
+   * mais o desempenho por separador. A separacao em si acontece no app.
+   */
+  async getSupervision(context: Partial<PickingTenantContext>, period: 'day' | 'week' = 'day') {
+    const scoped = tenantStoreWhere(context)
+    const now = new Date()
+    const brtMidnight = (() => {
+      const local = new Date(now.getTime() - 3 * 3600_000)
+      return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) + 3 * 3600_000)
+    })()
+    const from = period === 'week' ? new Date(brtMidnight.getTime() - 6 * 86400_000) : brtMidnight
+    const minutesSince = (d?: Date | null) => (d ? Math.round((now.getTime() - d.getTime()) / 60000) : 0)
+    const code = (id: string) => id.slice(-8).toUpperCase()
+
+    const staff = await this.prisma.admin.findMany({ where: { active: true }, select: { id: true, name: true, moduleAccess: true, role: true } })
+    const nameOf = new Map(staff.map((a) => [a.id, a.name]))
+
+    // Em separacao: tarefas abertas de pedidos ainda no fluxo.
+    const openTasks = await this.prisma.pickingTask.findMany({
+      where: { ...scoped, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_SUBSTITUTION'] } },
+      include: { items: { select: { status: true } } },
+    })
+    const taskOrders = new Map(
+      (
+        await this.prisma.order.findMany({
+          where: { id: { in: openTasks.map((t) => t.orderId) } },
+          select: { id: true, status: true, erpDav: true, scheduledFor: true, customer: { select: { name: true } } },
+        })
+      ).map((o) => [o.id, o]),
+    )
+    const picking = openTasks
+      .filter((t) => {
+        const o = taskOrders.get(t.orderId)
+        return o && !['CANCELLED', 'REFUNDED', 'COMPLETED', 'DELIVERED'].includes(o.status)
+      })
+      .map((t) => {
+        const o = taskOrders.get(t.orderId)!
+        const done = t.items.filter((i) => FINAL_ITEM_STATUSES.includes(i.status)).length
+        const minutes = minutesSince(t.startedAt || t.createdAt)
+        return {
+          taskId: t.id,
+          orderId: t.orderId,
+          code: code(t.orderId),
+          dav: o.erpDav,
+          customer: o.customer?.name || '',
+          pickerId: t.assignedToId,
+          picker: t.assignedToId ? nameOf.get(t.assignedToId) || 'desconhecido' : null,
+          waitingCustomer: o.status === 'WAITING_CUSTOMER_SUBSTITUTION' || t.status === 'WAITING_SUBSTITUTION',
+          minutes,
+          late: minutes >= 45,
+          itemsDone: done,
+          itemsTotal: t.items.length,
+          missing: t.items.filter((i) => i.status === 'MISSING').length,
+          substituted: t.items.filter((i) => i.status === 'SUBSTITUTED').length,
+        }
+      })
+      .sort((a, b) => b.minutes - a.minutes)
+
+    // Esperando separador: pedido confirmado sem ninguem separando (agendado para mais de 1 h fica de fora).
+    const inPicking = new Set(picking.map((p) => p.orderId))
+    const waitingOrders = await this.prisma.order.findMany({
+      where: { ...scoped, status: { in: ['PENDING', 'CONFIRMED', 'PICKING_PENDING'] } },
+      select: { id: true, erpDav: true, createdAt: true, scheduledFor: true, customer: { select: { name: true } }, _count: { select: { items: true } } },
+      orderBy: { createdAt: 'asc' },
+    })
+    const waiting = waitingOrders
+      .filter((o) => !inPicking.has(o.id) && !(o.scheduledFor && o.scheduledFor.getTime() - now.getTime() > 3600_000))
+      .map((o) => {
+        const minutes = minutesSince(o.createdAt)
+        return { orderId: o.id, code: code(o.id), dav: o.erpDav, customer: o.customer?.name || '', minutes, late: minutes >= 15, items: o._count.items }
+      })
+
+    const sentToCashier = await this.prisma.orderEvent.count({ where: { ...scoped, type: 'order.sent_to_cashier', createdAt: { gte: brtMidnight } } })
+
+    // Desempenho: tarefas concluidas no periodo.
+    const done = await this.prisma.pickingTask.findMany({
+      where: { ...scoped, status: 'COMPLETED', completedAt: { gte: from } },
+      include: { items: { select: { status: true } } },
+    })
+    const perf = new Map<string, { orders: number; minutes: number; timed: number; items: number; missing: number }>()
+    for (const t of done) {
+      const key = t.assignedToId || 'sem-separador'
+      const e = perf.get(key) || { orders: 0, minutes: 0, timed: 0, items: 0, missing: 0 }
+      e.orders += 1
+      if (t.startedAt && t.completedAt) {
+        e.minutes += (t.completedAt.getTime() - t.startedAt.getTime()) / 60000
+        e.timed += 1
+      }
+      e.items += t.items.length
+      e.missing += t.items.filter((i) => i.status === 'MISSING').length
+      perf.set(key, e)
+    }
+    const team = [...perf.entries()]
+      .map(([id, e]) => ({
+        pickerId: id,
+        picker: id === 'sem-separador' ? 'Sem separador' : nameOf.get(id) || 'desconhecido',
+        orders: e.orders,
+        avgMinutes: e.timed ? Math.round(e.minutes / e.timed) : null,
+        items: e.items,
+        missingRate: e.items ? Math.round((e.missing / e.items) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.orders - a.orders)
+
+    const pickers = staff
+      .filter((a) => a.role !== 'customer' && (a.role === 'picker' || (a.moduleAccess || []).includes('picking')))
+      .map((a) => ({ id: a.id, name: a.name }))
+
+    return { generatedAt: now.toISOString(), period, waiting, picking, sentToCashier, team, pickers }
   }
 
   async getPerformance(context: Partial<PickingTenantContext>, filters: { from?: string; to?: string } = {}) {
