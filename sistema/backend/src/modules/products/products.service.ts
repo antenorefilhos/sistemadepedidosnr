@@ -246,6 +246,8 @@ const V3_CATEGORY_OVERRIDES: Record<string, string> = {
   'Adega e Cervejas|Licores e Aperitivos': 'DESTILADOS_COQUETEIS',
   'Mercearia Doce|Panificação Industrial': 'PADARIA_CONFEITARIA_CAFE',
   'Mercearia Doce|Doces, Geleias e Compotas': 'DOCES_CHOCOLATES_SNACKS',
+  // Na arvore v3 ovo fica no Acougue; no site o cliente procura em Hortifruti (como ja era).
+  'Açougue e Peixaria|Ovos': 'HORTIFRUTI_ORGANICOS',
 }
 export function v3CategoryCode(classification01?: string | null, classification02?: string | null): string | undefined {
   const dept = String(classification01 || '').trim()
@@ -1823,7 +1825,12 @@ export class ProductsService {
               : undefined)
           : undefined
         // Arvore v3 do ERP vence o departamento e-commerce (ver v3CategoryCode).
-        const siteCategoryCode = v3CategoryCode(item.classification01, item.classification02) || departmentCategoryCode
+        // Excecao: Mundo Saudavel e colecao por atributo, nao tipo de produto --
+        // a arvore v3 espalha esses itens pelos tipos e a categoria ficaria vazia.
+        const siteCategoryCode =
+          departmentCategoryCode === 'MUNDO_SAUDAVEL_ESPECIAL'
+            ? departmentCategoryCode
+            : v3CategoryCode(item.classification01, item.classification02) || departmentCategoryCode
         const ecommerceCategoryCode = !mappedCategoryCode && !siteCategoryCode
           ? this.inferCategoryFromMercadologicalPath(item.ecommerceDepartment, item.ecommerceCategory, undefined, undefined, item.name)
           : undefined
