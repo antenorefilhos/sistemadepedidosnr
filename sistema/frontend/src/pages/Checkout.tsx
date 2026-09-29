@@ -705,6 +705,15 @@ export default function Checkout() {
 
         setCreatedOrder(orderResponse.data.order)
         setWhatsappDispatch(orderResponse.data.whatsapp)
+        // Limpa ANTES de abrir o WhatsApp (29/09/2026, DAV 102117/102118): no
+        // navegador interno de app o window.open pode trocar a pagina, e o
+        // carrinho sobrevivia -- o cliente voltava ao checkout cheio e
+        // finalizava de novo.
+        orderIdempotencyKeyRef.current = null
+        backendCartIdRef.current = null
+        checkoutSessionIdRef.current = null
+        clear()
+        clearCheckoutDraft()
         // Abre aqui, ainda na cadeia sincrona da promise disparada pelo
         // clique -- navegador so libera window.open sem gesto explicito se
         // for "proximo" o bastante da acao do usuario. No useEffect (varios
@@ -715,14 +724,6 @@ export default function Checkout() {
           const popup = window.open(orderResponse.data.whatsapp.url, '_blank', 'noopener,noreferrer')
           whatsappAutoOpenFailedRef.current = !popup
         }
-        orderIdempotencyKeyRef.current = null
-        backendCartIdRef.current = null
-        checkoutSessionIdRef.current = null
-        clear()
-        // Pedido saiu: o proximo checkout comeca limpo. O endereco continua
-        // guardado em saveDeliveryAddress -- e o rascunho do formulario que
-        // nao deve sobreviver a um pedido concluido.
-        clearCheckoutDraft()
         setStep('confirmation')
       } catch (error) {
         // Mesmo motivo do catch da etapa de endereco: sessao pode ter

@@ -48,6 +48,8 @@ describe('CheckoutService', () => {
   const mockPrisma = {
     // Sem horario salvo no admin nao ha trava de horario (ver assertWithinDeliveryHours).
     brandConfig: { findUnique: jest.fn().mockResolvedValue(null) },
+    // Sem pedido recente do cliente = sem trava de duplicado.
+    order: { findMany: jest.fn().mockResolvedValue([]) },
     checkoutSession: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
@@ -466,5 +468,21 @@ describe('CheckoutService', () => {
       ).rejects.toThrow('Cotacao nao encontrada')
       expect(mockOrdersService.create).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('CheckoutService - pedido duplicado', () => {
+  it('recusa o mesmo pedido do mesmo cliente feito ha pouco', async () => {
+    const prisma = {
+      order: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'order_x', erpDav: '102117', createdAt: new Date(Date.now() - 60_000), items: [{ productId: 'b', quantity: 1, requestedQuantity: 1.05 }, { productId: 'a', quantity: 2, requestedQuantity: null }] },
+        ]),
+      },
+    }
+    const service = Object.create(CheckoutService.prototype) as any
+    service.prisma = prisma
+    await expect(service.assertNotDuplicateOrder('c1', [{ productId: 'a', quantity: 2 }, { productId: 'b', quantity: 1.05 }])).rejects.toThrow('102117')
+    await expect(service.assertNotDuplicateOrder('c1', [{ productId: 'a', quantity: 3 }, { productId: 'b', quantity: 1.05 }])).resolves.toBeUndefined()
   })
 })

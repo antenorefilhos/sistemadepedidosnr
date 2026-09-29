@@ -256,10 +256,10 @@ export default function OrdersSection({ openOrderId, onOpenOrderConsumed }: { op
   const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t.key, filtered.filter((o) => inTab(o, t.key)).length])) as Record<Tab, number>, [filtered, inTab])
   const rows = useMemo(() => {
     const list = filtered.filter((o) => inTab(o, tab))
-    // Em andamento: atrasados primeiro, depois o mais antigo. Agendados: o mais proximo.
-    if (tab === 'active') return [...list].sort((a, b) => Number(isLate(b)) - Number(isLate(a)) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    // Mais recente no topo (pedido do Jonathan, 29/09/2026); atrasado segue marcado.
+    // Agendados: o mais proximo primeiro.
     if (tab === 'scheduled') return [...list].sort((a, b) => new Date(a.scheduledFor!).getTime() - new Date(b.scheduledFor!).getTime())
-    return list
+    return [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   }, [filtered, tab, inTab])
 
   return (

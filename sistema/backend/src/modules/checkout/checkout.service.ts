@@ -128,6 +128,32 @@ export class CheckoutService {
     }
   }
 
+  /**
+   * Pedido duplicado (29/09/2026, DAV 102117/102118): o cliente finalizou,
+   * voltou ao checkout com o carrinho ainda cheio e finalizou de novo 44 s
+   * depois. Cada tentativa abre sessao e chave de idempotencia novas, entao so
+   * da para pegar comparando o conteudo: mesmo cliente, mesmos itens e
+   * quantidades, pedido nao cancelado nos ultimos 15 minutos.
+   */
+  private async assertNotDuplicateOrder(customerId: string, items: Array<{ productId: string; quantity: unknown }>) {
+    const key = (list: Array<{ productId: string | null; quantity: unknown }>) =>
+      list.map((i) => `${i.productId}:${Number(i.quantity)}`).sort().join('|')
+    const wanted = key(items)
+    const recent = await this.prisma.order.findMany({
+      where: { customerId, createdAt: { gte: new Date(Date.now() - 15 * 60_000) }, status: { notIn: ['CANCELLED', 'REFUNDED'] } },
+      select: { id: true, erpDav: true, createdAt: true, items: { select: { productId: true, quantity: true, requestedQuantity: true } } },
+    })
+    const dup = (recent || []).find(
+      (o) => key(o.items.map((i) => ({ productId: i.productId, quantity: i.requestedQuantity ?? i.quantity }))) === wanted,
+    )
+    if (dup) {
+      const min = Math.max(1, Math.round((Date.now() - dup.createdAt.getTime()) / 60000))
+      throw new BadRequestException(
+        `Este pedido já foi feito há ${min} min (pedido ${dup.erpDav || dup.id.slice(-8).toUpperCase()}). Ele está confirmado, não precisa enviar de novo. Para mudar algo, fale com a loja pelo WhatsApp.`,
+      )
+    }
+  }
+
   async confirmSession(context: CheckoutContext | undefined, id: string, dto: ConfirmCheckoutSessionDto & { clientIp?: string }) {
     const { tenantId, storeId } = this.resolveContext(context)
     const session = await this.findSessionOrThrow(id, { tenantId, storeId })
@@ -172,6 +198,7 @@ export class CheckoutService {
 
     const customerId = this.optionalString(dto.customerId) || quote.session.customerId || quote.cart.customerId
     if (!customerId) throw new BadRequestException('customerId e obrigatorio para confirmar checkout.')
+    await this.assertNotDuplicateOrder(customerId, quote.cart.items)
 
     const paymentMethod = String(dto.paymentMethod || 'CASH').toUpperCase()
     const paymentSnapshot = this.buildPaymentSnapshot(paymentMethod)
