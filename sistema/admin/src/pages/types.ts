@@ -3,10 +3,6 @@ import {
   AdminProduct,
   AdminOrder,
   AdminCustomer,
-  SalesAnalyticsPoint,
-  StatusAnalyticsResponse,
-  RevenueAnalyticsResponse,
-  TopProductAnalyticsItem,
   SolidcomStatusResponse,
 } from '../services/api'
 
@@ -14,13 +10,6 @@ export type Section = 'dashboard' | 'products' | 'orders' | 'customers' | 'layou
 export type ViewMode = 'list' | 'kanban'
 
 // Stats
-export interface DashboardStats {
-  orders: number
-  customers: number
-  products: number
-  revenue: number
-}
-
 // Products
 export interface ProductFormState {
   ean: string
@@ -101,12 +90,3 @@ export interface CustomersSection {
   selectedCustomerId?: string | null
 }
 
-// Dashboard Analytics
-export interface DashboardAnalytics {
-  salesPeriod: 'day' | 'week' | 'month'
-  salesSeries: SalesAnalyticsPoint[]
-  statusAnalytics: StatusAnalyticsResponse | null
-  revenueAnalytics: RevenueAnalyticsResponse | null
-  topProducts: TopProductAnalyticsItem[]
-  dashboardLoading: boolean
-}

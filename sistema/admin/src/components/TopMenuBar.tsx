@@ -18,7 +18,7 @@ type MenuGroup = {
   items: MenuItem[]
 }
 
-const DASHBOARD_ITEM: MenuItem = { key: 'dashboard', label: 'Dashboard', icon: BarChart3 }
+const DASHBOARD_ITEM: MenuItem = { key: 'dashboard', label: 'Visão geral', icon: BarChart3 }
 
 const MENU_GROUPS: MenuGroup[] = [
   {

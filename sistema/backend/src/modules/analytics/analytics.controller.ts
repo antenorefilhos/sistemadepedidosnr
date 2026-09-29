@@ -11,6 +11,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 
+const BOT_USER_AGENT = /bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview|headless|lighthouse|pingdom|monitor/i
+
 @ApiTags('Analytics')
 @RelaxedThrottle()
 @Controller('analytics')
@@ -39,6 +41,10 @@ export class AnalyticsController {
     if (['PURCHASE', 'CHECKOUT_COMPLETED'].includes(String(data.type))) {
       throw new BadRequestException('Este tipo de evento e registrado pelo servidor, nao aceita via API publica.')
     }
+    // 29/09/2026: robo de busca (Google renderiza o JS do site) virava
+    // "visitante" -- 871 de 894 aparelhos da semana eram 1 visualizacao de
+    // madrugada. Aceita a chamada, nao grava.
+    if (BOT_USER_AGENT.test(String(req.headers?.['user-agent'] || ''))) return { ignored: 'bot' }
     const context = getTenantContext(req)
     const customerId = req.user?.role === 'customer' ? req.user.id : data.customerId
     return this.analyticsService.trackEvent({

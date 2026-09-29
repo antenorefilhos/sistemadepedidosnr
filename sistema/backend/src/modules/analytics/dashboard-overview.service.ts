@@ -202,24 +202,36 @@ export class DashboardOverviewService {
 
   /** Site: funil por visitante (aparelho) e buscas que nao acharam nada. */
   private async site(range: ReturnType<typeof periodRange>) {
-    const distinct = async (type?: string, from = range.from, to = range.to) =>
-      (
-        await this.prisma.analyticsEvent.findMany({
-          where: { createdAt: { gte: from, lte: to }, deviceId: { not: null }, ...(type ? { type } : {}) },
-          distinct: ['deviceId'],
-          select: { deviceId: true },
-        })
-      ).length
-
-    const [visitors, viewed, carted, checkout, ordered, prevVisitors, prevOrdered] = await Promise.all([
-      distinct(),
-      distinct('VIEW_PRODUCT'),
-      distinct('ADD_TO_CART'),
-      distinct('INITIATE_CHECKOUT'),
-      distinct('ORDER_CREATED'),
-      distinct(undefined, range.prevFrom, range.prevTo),
-      distinct('ORDER_CREATED', range.prevFrom, range.prevTo),
-    ])
+    // Funil por pessoa, nao por evento. Aparelho com UM unico evento de
+    // visualizacao e robo de busca abrindo pagina por pagina (871 de 894 na
+    // semana de 29/09) -- fica de fora; a partir de 29/09 o servidor ja nem
+    // grava evento de robo (analytics.controller).
+    const funnelFor = async (from: Date, to: Date) => {
+      const events = await this.prisma.analyticsEvent.findMany({
+        where: { createdAt: { gte: from, lte: to }, deviceId: { not: null } },
+        select: { deviceId: true, type: true },
+      })
+      const byDevice = new Map<string, Set<string>>()
+      const counts = new Map<string, number>()
+      for (const e of events) {
+        if (!byDevice.has(e.deviceId!)) byDevice.set(e.deviceId!, new Set())
+        byDevice.get(e.deviceId!)!.add(e.type)
+        counts.set(e.deviceId!, (counts.get(e.deviceId!) || 0) + 1)
+      }
+      const people = [...byDevice.entries()].filter(([id, types]) => !(counts.get(id) === 1 && types.has('VIEW_PRODUCT')))
+      const did = (type: string) => people.filter(([, types]) => types.has(type)).length
+      return {
+        visitors: people.length,
+        viewed: did('VIEW_PRODUCT'),
+        carted: did('ADD_TO_CART'),
+        checkout: did('INITIATE_CHECKOUT'),
+        ordered: did('ORDER_CREATED'),
+      }
+    }
+    const [cur, prev] = await Promise.all([funnelFor(range.from, range.to), funnelFor(range.prevFrom, range.prevTo)])
+    const { visitors, viewed, carted, checkout, ordered } = cur
+    const prevVisitors = prev.visitors
+    const prevOrdered = prev.ordered
 
     const searches = await this.prisma.analyticsEvent.findMany({
       where: { type: 'SEARCH', createdAt: { gte: range.from, lte: range.to } },

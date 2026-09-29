@@ -1,9 +1,8 @@
 import { Suspense, lazy, useCallback, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { useDashboardStats } from '../hooks/useDashboardStats'
-import { useDashboardAnalytics } from '../hooks/useDashboardAnalytics'
 import { useProductsAdmin, formatClassificationOptionLabel, formatClassificationPath } from '../hooks/useProductsAdmin'
+import type { AdminOrder } from '../services/api'
 import { useOrdersAdmin, ORDER_STATUS_OPTIONS, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, getPaymentStatusClassName } from '../hooks/useOrdersAdmin'
 import { useCustomersAdmin } from '../hooks/useCustomersAdmin'
 import { MessageCircle, Sparkles } from 'lucide-react'
@@ -133,9 +132,8 @@ export default function AdminDashboard() {
     [setSearchParams]
   )
 
-  const { stats, loadStats } = useDashboardStats()
-  const analytics = useDashboardAnalytics(activeSection)
-  const p = useProductsAdmin(activeSection, loadStats)
+  // O painel inicial busca os proprios dados (overviewAPI); nada a atualizar aqui.
+  const p = useProductsAdmin(activeSection, () => {})
   const o = useOrdersAdmin(activeSection)
   const c = useCustomersAdmin(activeSection)
 
@@ -178,10 +176,11 @@ export default function AdminDashboard() {
           {activeSection === 'dashboard' && (
             <Suspense fallback={lazySectionFallback}>
               <DashboardSection
-                stats={stats}
-                analytics={analytics}
-                onAnalyticsChange={analytics.handleAnalyticsChange}
                 onNavigate={setActiveSection}
+                onOpenOrder={(orderId) => {
+                  setActiveSection('orders')
+                  o.openOrderDetails({ id: orderId } as AdminOrder)
+                }}
               />
             </Suspense>
           )}

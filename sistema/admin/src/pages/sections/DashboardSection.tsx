@@ -1,478 +1,409 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  integrationsAPI,
-  ordersAPI,
-  pickingAPI,
-  productsAPI,
-  type AdminOrder,
-  type IntegrationOperationsPanel,
-  type PickingPerformanceResponse,
-  type PickingTask,
-  type ProductAvailabilityMetricsResponse,
-} from '../../services/api'
-import { SalesChart, StatusDonutChart, TopProductsChart } from '../../components/BICharts'
-import { Select } from '../../components/ui/select'
-import { DashboardStats, DashboardAnalytics } from '../types'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { AlertCircle, Check, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
+import { overviewAPI, type AdminOverview, type CheckupLast, type OverviewPeriod } from '../../services/api'
 import type { Section } from '../Dashboard'
-import { SectionPanel } from './SectionChrome'
-import { SystemHealthWidget } from '../SystemHealthWidget'
-import {
-  Banknote,
-  Package,
-  AlertTriangle,
-  ChevronRight,
-  ClipboardList,
-  Gauge,
-  Megaphone,
-  PlugZap,
-  ShoppingCart,
-  TrendingUp,
-  TrendingDown,
-  Users,
-} from 'lucide-react'
 
-interface DashboardSectionProps {
-  stats: DashboardStats
-  analytics: DashboardAnalytics
-  onAnalyticsChange: (updates: Partial<DashboardAnalytics>) => void
-  onNavigate?: (section: Section) => void
-}
+// Painel inicial (refeito em 29/09/2026 com o Jonathan). Sobrio de proposito:
+// so o que leva a uma decisao. Nada de cor gritando -- o acento da marca
+// aparece nos graficos; verde/vermelho so nas variacoes, em tom baixo.
 
-interface StatCardProps {
-  label: string
-  value: string | number
-  trend?: number
-  trendComparisonPeriod?: string
-  hint?: string
-  icon: typeof Banknote
-  iconColor: string
-  iconBg: string
-}
+const ACCENT = '#5D082A'
+const REFRESH_MS = 60_000
 
-function StatCard({ label, value, trend, trendComparisonPeriod = 'últimos 30 dias', hint, icon: Icon, iconColor, iconBg }: StatCardProps) {
-  return (
-    <div className="rounded-[14px] border border-[#ead7df] bg-[linear-gradient(180deg,#fffafc_0%,#ffffff_100%)] p-6 shadow-[0_18px_36px_rgba(93,8,42,0.08)] transition duration-200 hover:-translate-y-1 hover:shadow-[0_24px_50px_rgba(93,8,42,0.14)]">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-gray-500">{label}</p>
-          <p className="mt-2 text-3xl font-bold text-[#5d082a]">{value}</p>
-        </div>
-        <div className={`rounded-lg p-3 shadow-sm ${iconBg}`} aria-hidden="true">
-          <Icon size={22} className={iconColor} />
-        </div>
-      </div>
-      {trend !== undefined && <div className="mt-4">{renderTrend(trend, trendComparisonPeriod)}</div>}
-      {hint && <p className="mt-4 text-xs text-gray-400">{hint}</p>}
-    </div>
-  )
-}
+const PERIODS: Array<{ value: OverviewPeriod; label: string; compare: string }> = [
+  { value: 'day', label: 'Hoje', compare: 'ontem até esta hora' },
+  { value: 'week', label: '7 dias', compare: '7 dias anteriores' },
+  { value: 'month', label: '30 dias', compare: '30 dias anteriores' },
+]
 
-interface RoleQueueCardProps {
-  role: string
-  title: string
-  description: string
-  actionLabel: string
-  hasAttention?: boolean
-  onClick?: () => void
-}
+const brl = (value: number, compact = false) =>
+  value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    ...(compact ? { maximumFractionDigits: 0, minimumFractionDigits: 0 } : {}),
+  })
+const int = (value: number) => value.toLocaleString('pt-BR')
+const pct = (value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 
-function RoleQueueCard({ role, title, description, actionLabel, hasAttention, onClick }: RoleQueueCardProps) {
-  const content = (
-    <>
-      <p className="text-xs font-black uppercase tracking-wider text-[#9e7080]">{role}</p>
-      <h4 className="mt-1 text-base font-bold text-gray-900">{title}</h4>
-      <p className="mt-2 text-sm text-gray-600">{description}</p>
-      {onClick && (
-        <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#5d082a]">
-          {actionLabel}
-          <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-        </span>
-      )}
-    </>
-  )
-
-  if (!onClick) {
-    return <div className="p-5">{content}</div>
+function duration(minutes: number) {
+  if (minutes < 60) return `${minutes} min`
+  if (minutes < 24 * 60) {
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
+    return m ? `${h} h ${m} min` : `${h} h`
   }
+  const days = Math.floor(minutes / (24 * 60))
+  return `${days} ${days === 1 ? 'dia' : 'dias'}`
+}
 
+/** Variacao contra o periodo anterior. `inverse`: cair e bom (ex.: cancelamento). */
+function Delta({ current, previous, inverse = false, percentPoints = false }: { current: number; previous: number; inverse?: boolean; percentPoints?: boolean }) {
+  if (!previous && !current) return <span className="text-gray-400">sem movimento</span>
+  if (!previous) return <span className="text-gray-400">sem base anterior</span>
+  const diff = percentPoints ? current - previous : ((current - previous) / previous) * 100
+  if (Math.abs(diff) < 0.5) return <span className="text-gray-400">estável</span>
+  const good = inverse ? diff < 0 : diff > 0
+  const sign = diff > 0 ? '+' : '−'
+  const value = Math.abs(diff).toLocaleString('pt-BR', { maximumFractionDigits: percentPoints ? 1 : 0 })
+  return <span className={good ? 'text-emerald-700' : 'text-rose-700'}>{`${sign}${value}${percentPoints ? ' p.p.' : '%'}`}</span>
+}
+
+function Panel({ title, aside, children, className = '' }: { title?: string; aside?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group relative flex w-full flex-col items-start p-5 text-left transition-colors hover:bg-[#fff5f8] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5d082a]"
-      aria-label={`${title} — ${actionLabel}`}
-    >
-      {hasAttention && (
-        <span className="absolute right-4 top-4 h-2 w-2 rounded-full bg-[#5d082a]" aria-hidden="true" />
+    <section className={`rounded-2xl border border-black/[0.06] bg-white p-5 sm:p-6 ${className}`}>
+      {(title || aside) && (
+        <header className="mb-4 flex items-baseline justify-between gap-3">
+          {title && <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-gray-500">{title}</h2>}
+          {aside && <div className="text-xs text-gray-400">{aside}</div>}
+        </header>
       )}
-      {content}
-    </button>
+      {children}
+    </section>
   )
 }
 
-function ChartPlaceholder() {
+function Kpi({ label, value, delta, note }: { label: string; value: string; delta?: ReactNode; note?: string }) {
   return (
-    <div className="flex h-[300px] animate-pulse flex-col justify-center gap-4 rounded-lg border border-dashed border-gray-200 bg-gray-50/70 p-6">
-      <div className="h-4 w-40 rounded bg-gray-200" />
-      <div className="h-24 rounded bg-gray-200/80" />
-      <div className="grid grid-cols-4 gap-3">
-        <div className="h-3 rounded bg-gray-200" />
-        <div className="h-3 rounded bg-gray-200" />
-        <div className="h-3 rounded bg-gray-200" />
-        <div className="h-3 rounded bg-gray-200" />
-      </div>
+    <div className="rounded-2xl border border-black/[0.06] bg-white p-4 sm:p-5">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight text-gray-900 tabular-nums">{value}</p>
+      <p className="mt-2 text-xs tabular-nums">{delta}{note && <span className="text-gray-400"> {note}</span>}</p>
     </div>
   )
 }
 
-function renderTrend(value: number, comparisonPeriod: string = 'últimos 30 dias') {
-  const isUp = value >= 0
-
+/** Barras de serie unica, com dica ao passar o mouse/tocar e tabela para leitor de tela. */
+function Bars({ data, format, caption }: { data: Array<{ label: string; value: number; sub?: string }>; format: (v: number) => string; caption: string }) {
+  const [hover, setHover] = useState<number | null>(null)
+  const max = Math.max(...data.map((d) => d.value), 0)
+  const every = data.length > 24 ? 5 : data.length > 12 ? 3 : 1
+  if (max === 0) return <p className="py-10 text-center text-sm text-gray-400">Nenhum pedido no período.</p>
   return (
-    <span 
-      className={`inline-flex items-center gap-1 text-sm font-semibold ${isUp ? 'text-emerald-600' : 'text-red-500'}`}
-      title={`${isUp ? 'Crescimento' : 'Redução'} de ${Math.abs(value)}% vs. ${comparisonPeriod}`}
-    >
-      {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-      {Math.abs(value)}%
-      <span className="text-xs font-normal opacity-75"> vs. {comparisonPeriod}</span>
-    </span>
-  )
-}
-
-function minutesUntil(value?: string | null) {
-  if (!value) return null
-  return Math.round((new Date(value).getTime() - Date.now()) / 60000)
-}
-
-function queueToneClass(tone: 'critical' | 'warning' | 'neutral' | 'success') {
-  const tones = {
-    critical: 'border-red-200 bg-red-50 text-red-800',
-    warning: 'border-amber-200 bg-amber-50 text-amber-800',
-    neutral: 'border-sky-200 bg-sky-50 text-sky-800',
-    success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  }
-  return tones[tone]
-}
-
-function OperationalQueueCard({
-  title,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  title: string
-  value: string | number
-  detail: string
-  icon: typeof Banknote
-  tone: 'critical' | 'warning' | 'neutral' | 'success'
-}) {
-  return (
-    <div className={`rounded-lg border p-4 ${queueToneClass(tone)}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-wider opacity-75">{title}</p>
-          <p className="mt-2 text-3xl font-black leading-none">{value}</p>
-        </div>
-        <div className="rounded-lg bg-white/70 p-2 shadow-sm">
-          <Icon size={20} />
-        </div>
+    <figure className="relative">
+      <div className="flex h-40 items-end gap-[2px]" onMouseLeave={() => setHover(null)}>
+        {data.map((d, i) => (
+          <button
+            key={d.label + i}
+            type="button"
+            aria-label={`${d.label}: ${format(d.value)}`}
+            onMouseEnter={() => setHover(i)}
+            onFocus={() => setHover(i)}
+            onClick={() => setHover(i)}
+            className="group relative flex h-full flex-1 items-end focus:outline-none"
+          >
+            <span
+              className="w-full rounded-t-[4px] transition-opacity"
+              style={{
+                height: d.value ? `${Math.max(3, (d.value / max) * 100)}%` : '1px',
+                background: d.value ? ACCENT : '#e5e7eb',
+                opacity: hover === null || hover === i ? 0.85 : 0.35,
+              }}
+            />
+          </button>
+        ))}
       </div>
-      <p className="mt-3 text-sm font-medium opacity-85">{detail}</p>
-    </div>
+      <div className="mt-2 flex gap-[2px] text-[10px] text-gray-400">
+        {data.map((d, i) => (
+          <span key={d.label + i} className="flex-1 text-center tabular-nums">{i % every === 0 ? d.label : ''}</span>
+        ))}
+      </div>
+      {hover !== null && data[hover] && (
+        <div
+          className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-lg bg-gray-900 px-2.5 py-1.5 text-xs text-white shadow"
+          style={{ left: `${((hover + 0.5) / data.length) * 100}%` }}
+        >
+          <span className="text-gray-300">{data[hover].label}</span> · <span className="tabular-nums">{format(data[hover].value)}</span>
+          {data[hover].sub && <span className="text-gray-300"> · {data[hover].sub}</span>}
+        </div>
+      )}
+      <table className="sr-only">
+        <caption>{caption}</caption>
+        <tbody>{data.map((d, i) => <tr key={i}><td>{d.label}</td><td>{format(d.value)}</td></tr>)}</tbody>
+      </table>
+    </figure>
   )
 }
 
-export function DashboardSection({
-  stats,
-  analytics,
-  onAnalyticsChange,
-  onNavigate,
-}: DashboardSectionProps) {
-  const [orders, setOrders] = useState<AdminOrder[]>([])
-  const [pickingTasks, setPickingTasks] = useState<PickingTask[]>([])
-  const [pickingPerformance, setPickingPerformance] = useState<PickingPerformanceResponse | null>(null)
-  const [availability, setAvailability] = useState<ProductAvailabilityMetricsResponse | null>(null)
-  const [integrationOps, setIntegrationOps] = useState<IntegrationOperationsPanel | null>(null)
+function List({ items, empty }: { items: Array<{ key: string; main: string; side: string; sub?: string }>; empty: string }) {
+  if (!items.length) return <p className="py-2 text-sm text-gray-400">{empty}</p>
+  return (
+    <ul className="divide-y divide-black/[0.05]">
+      {items.map((it) => (
+        <li key={it.key} className="flex items-baseline justify-between gap-3 py-2.5">
+          <span className="min-w-0">
+            <span className="block truncate text-sm text-gray-800" title={it.main}>{it.main}</span>
+            {it.sub && <span className="block text-xs text-gray-400">{it.sub}</span>}
+          </span>
+          <span className="shrink-0 text-sm tabular-nums text-gray-600">{it.side}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
-  const loadDashboardAnalytics = useCallback(async () => {
+export function DashboardSection({ onNavigate, onOpenOrder }: { onNavigate?: (section: Section) => void; onOpenOrder?: (orderId: string) => void }) {
+  const [period, setPeriod] = useState<OverviewPeriod>('day')
+  const [data, setData] = useState<AdminOverview | null>(null)
+  const [error, setError] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [checkup, setCheckup] = useState<CheckupLast | null>(null)
+  const [healthOpen, setHealthOpen] = useState(false)
+  const requestRef = useRef(0)
+
+  const load = useCallback(async () => {
+    const id = ++requestRef.current
+    setLoading(true)
     try {
-      onAnalyticsChange({ dashboardLoading: true })
-      const [salesRes, statusRes, revenueRes, topRes] = await Promise.all([
-        ordersAPI.getSalesAnalytics(analytics.salesPeriod),
-        ordersAPI.getStatusAnalytics(),
-        ordersAPI.getRevenueAnalytics(),
-        productsAPI.getTopAnalytics(5),
-      ])
-
-      onAnalyticsChange({
-        salesSeries: salesRes.data.data,
-        statusAnalytics: statusRes.data,
-        revenueAnalytics: revenueRes.data,
-        topProducts: topRes.data,
-        dashboardLoading: false,
-      })
-    } catch (error) {
-      onAnalyticsChange({ dashboardLoading: false })
-    }
-  }, [analytics.salesPeriod, onAnalyticsChange])
-
-  useEffect(() => {
-    loadDashboardAnalytics()
-  }, [loadDashboardAnalytics])
-
-  useEffect(() => {
-    let cancelled = false
-    async function loadOperationalQueues() {
-      try {
-        const [ordersRes, tasksRes, performanceRes, availabilityRes, integrationOpsRes] = await Promise.all([
-          ordersAPI.getAll(),
-          pickingAPI.getTasks({ limit: 100 }),
-          pickingAPI.getPerformance(),
-          productsAPI.getAvailabilityMetrics(),
-          integrationsAPI.getOperationsPanel(),
-        ])
-        if (cancelled) return
-        setOrders(ordersRes.data)
-        setPickingTasks(tasksRes.data)
-        setPickingPerformance(performanceRes.data)
-        setAvailability(availabilityRes.data)
-        setIntegrationOps(integrationOpsRes.data)
-      } catch {
-        if (cancelled) return
-        setOrders([])
-        setPickingTasks([])
-        setPickingPerformance(null)
-        setAvailability(null)
-        setIntegrationOps(null)
+      const res = await overviewAPI.get(period)
+      if (id === requestRef.current) {
+        setData(res.data)
+        setError(false)
       }
+    } catch {
+      if (id === requestRef.current) setError(true)
+    } finally {
+      if (id === requestRef.current) setLoading(false)
     }
-    loadOperationalQueues()
-    return () => {
-      cancelled = true
-    }
+  }, [period])
+
+  useEffect(() => {
+    load()
+    const timer = window.setInterval(load, REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [load])
+
+  useEffect(() => {
+    overviewAPI.lastCheckup().then((res) => setCheckup(res.data)).catch(() => setCheckup(null))
   }, [])
 
-  const roleQueues = useMemo(() => {
-    const activeStatuses = new Set(['PENDING', 'CONFIRMED', 'PAYMENT_PENDING', 'PICKING_PENDING', 'PICKING', 'WAITING_CUSTOMER_SUBSTITUTION', 'CONFERENCE_PENDING', 'PACKING', 'READY_FOR_CHECKOUT', 'FAILED_SYNC'])
-    const activeOrders = orders.filter((order) => activeStatuses.has(order.status))
-    const urgentOrders = activeOrders.filter((order) => {
-      const ageMinutes = (Date.now() - new Date(order.createdAt).getTime()) / 60000
-      return ageMinutes >= 45 || ['FAILED_SYNC', 'WAITING_CUSTOMER_SUBSTITUTION'].includes(order.status)
-    })
-    const activePicking = pickingTasks.filter((task) => !['COMPLETED', 'CANCELLED'].includes(task.status))
-    const slaRisk = activePicking.filter((task) => {
-      const minutes = minutesUntil(task.slaDueAt)
-      return minutes !== null && minutes <= 20
-    })
-    const ruptureQueue = activePicking.reduce((sum, task) => sum + task.items.filter((item) => ['MISSING', 'SUBSTITUTED'].includes(item.status)).length, 0)
-    const catalogIssues =
-      (availability?.lowStockProducts || 0) +
-      (availability?.alwaysEnabledWithZeroStock || 0) +
-      (availability?.inactiveWithStock || 0)
-    const integrationFailures =
-      (integrationOps?.deadLetters || 0) +
-      Number(integrationOps?.outbox?.FAILED || 0) +
-      Number(integrationOps?.jobs?.FAILED || 0)
-    const campaignSignals = analytics.topProducts.length
-
-    return {
-      activeOrders,
-      urgentOrders,
-      activePicking,
-      slaRisk,
-      ruptureQueue,
-      catalogIssues,
-      integrationFailures,
-      campaignSignals,
-    }
-  }, [analytics.topProducts.length, availability, integrationOps, orders, pickingTasks])
+  const compare = PERIODS.find((p) => p.value === period)!.compare
+  const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const updatedAt = data ? new Date(data.generatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
+  const failures = checkup?.results.filter((r) => !r.ok) ?? []
 
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Receita Total"
-          value={stats.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          hint="Acumulado até hoje"
-          icon={Banknote}
-          iconColor="text-[#5d082a]"
-          iconBg="bg-[#fdf0f4]"
-        />
-        <StatCard
-          label="Pedidos"
-          value={stats.orders}
-          hint="Total no periodo"
-          icon={ShoppingCart}
-          iconColor="text-sky-600"
-          iconBg="bg-sky-50"
-        />
-        <StatCard
-          label="Clientes"
-          value={stats.customers}
-          hint="Cadastros ativos"
-          icon={Users}
-          iconColor="text-fuchsia-600"
-          iconBg="bg-fuchsia-50"
-        />
-        <StatCard
-          label="Produtos"
-          value={stats.products}
-          hint="Catálogo ativo"
-          icon={Package}
-          iconColor="text-emerald-600"
-          iconBg="bg-emerald-50"
-        />
+    <div className="mx-auto max-w-6xl space-y-4 sm:space-y-5">
+      {/* Cabecalho + periodo (fixo no topo no celular, como app) */}
+      <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-end justify-between gap-3 bg-gray-100/90 px-4 pb-3 pt-1 backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:pt-0 sm:backdrop-blur-none">
+        <p className="text-sm capitalize text-gray-500">{today}</p>
+        <div className="flex items-center gap-2">
+          <div role="tablist" aria-label="Período" className="flex rounded-xl border border-black/[0.06] bg-white p-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p.value}
+                role="tab"
+                aria-selected={period === p.value}
+                type="button"
+                onClick={() => setPeriod(p.value)}
+                className={`rounded-lg px-3.5 py-1.5 text-sm transition-colors ${period === p.value ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={load} aria-label="Atualizar" title={updatedAt ? `Atualizado às ${updatedAt}` : 'Atualizar'} className="rounded-xl border border-black/[0.06] bg-white p-2 text-gray-500 hover:text-gray-900">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-        <OperationalQueueCard
-          title="Operador"
-          value={roleQueues.urgentOrders.length}
-          detail={`${roleQueues.activeOrders.length} pedidos ativos; prioridade por idade, falha ou substituição.`}
-          icon={Gauge}
-          tone={roleQueues.urgentOrders.length > 0 ? 'critical' : 'success'}
-        />
-        <OperationalQueueCard
-          title="Picking"
-          value={roleQueues.slaRisk.length}
-          detail={`${roleQueues.activePicking.length} tarefas ativas; risco de SLA em até 20 min.`}
-          icon={ClipboardList}
-          tone={roleQueues.slaRisk.length > 0 ? 'warning' : 'success'}
-        />
-        <OperationalQueueCard
-          title="Ruptura"
-          value={roleQueues.ruptureQueue}
-          detail="Itens faltantes ou substituídos aguardando atenção operacional."
-          icon={AlertTriangle}
-          tone={roleQueues.ruptureQueue > 0 ? 'critical' : 'success'}
-        />
-        <OperationalQueueCard
-          title="Catálogo"
-          value={roleQueues.catalogIssues}
-          detail="Baixo estoque, estoque inconsistente ou produto ativo sem lastro."
-          icon={Package}
-          tone={roleQueues.catalogIssues > 0 ? 'warning' : 'success'}
-        />
-        <OperationalQueueCard
-          title="Integrações"
-          value={roleQueues.integrationFailures}
-          detail={`${integrationOps?.connectors ?? 0} conectores; falhas em outbox/jobs/DLQ.`}
-          icon={PlugZap}
-          tone={roleQueues.integrationFailures > 0 ? 'critical' : 'success'}
-        />
-        <OperationalQueueCard
-          title="Campanhas"
-          value={roleQueues.campaignSignals}
-          detail="Produtos com tração para vitrine, oferta ou CRM."
-          icon={Megaphone}
-          tone={roleQueues.campaignSignals > 0 ? 'neutral' : 'warning'}
-        />
-      </div>
+      {error && !data && (
+        <Panel>
+          <p className="flex items-center gap-2 text-sm text-gray-600">
+            <AlertCircle size={16} className="text-rose-700" /> Não foi possível carregar o painel.
+            <button type="button" onClick={load} className="font-medium text-gray-900 underline underline-offset-2">Tentar de novo</button>
+          </p>
+        </Panel>
+      )}
 
-      <SectionPanel>
-        <div className="border-b border-[#f1dbe3] bg-[linear-gradient(180deg,#fffafc_0%,#fff_100%)] px-6 py-5">
-          <h3 className="text-lg font-semibold text-gray-800">Painel por função</h3>
-          <p className="mt-1 text-sm text-gray-500">Leitura rápida para operador, separador e gestor sem depender de treinamento longo.</p>
+      {!data && !error && (
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => <div key={i} className="h-40 animate-pulse rounded-2xl bg-white/70" />)}
         </div>
-        <div className="grid grid-cols-1 divide-y divide-[#f1dbe3] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-          <RoleQueueCard
-            role="Operador"
-            title="Priorizar pedido parado"
-            description={
-              roleQueues.urgentOrders.length > 0
-                ? `${roleQueues.urgentOrders.length} pedido(s) exigem ação por SLA, falha ou substituição.`
-                : 'Fila sem pedido crítico neste momento.'
-            }
-            actionLabel="Ver pedidos"
-            hasAttention={roleQueues.urgentOrders.length > 0}
-            onClick={onNavigate ? () => onNavigate('orders') : undefined}
-          />
-          <RoleQueueCard
-            role="Separador"
-            title="Concluir por setor e SLA"
-            description={
-              pickingPerformance
-                ? `${pickingPerformance.totals.completed}/${pickingPerformance.totals.tasks} tarefas concluídas no período; ${pickingPerformance.totals.delayed} atrasada(s).`
-                : 'Sem leitura de produtividade carregada.'
-            }
-            actionLabel="Ver separação"
-            hasAttention={Boolean(pickingPerformance && pickingPerformance.totals.delayed > 0)}
-            onClick={onNavigate ? () => onNavigate('picking') : undefined}
-          />
-          <RoleQueueCard
-            role="Gestor"
-            title="Enxergar gargalo"
-            description={
-              roleQueues.integrationFailures > 0 || roleQueues.catalogIssues > 0
-                ? `${roleQueues.catalogIssues} alerta(s) de catálogo e ${roleQueues.integrationFailures} falha(s) de integração.`
-                : 'Catálogo e integrações sem fila crítica nos indicadores principais.'
-            }
-            actionLabel="Ver integrações"
-            hasAttention={roleQueues.integrationFailures > 0 || roleQueues.catalogIssues > 0}
-            onClick={onNavigate ? () => onNavigate('integrations') : undefined}
-          />
-        </div>
-      </SectionPanel>
+      )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <SectionPanel>
-          <div className="border-b border-[#f1dbe3] bg-[linear-gradient(180deg,#fffafc_0%,#fff 100%)] px-6 py-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-lg font-semibold text-gray-800">Performance de Vendas</h3>
-            <Select
-              value={analytics.salesPeriod}
-              onChange={(e) => onAnalyticsChange({ salesPeriod: e.target.value as DashboardAnalytics['salesPeriod'] })}
-              className="w-full border-[#ead7df] bg-white focus-visible:ring-[#5d082a] sm:w-auto"
-              aria-label="Período de vendas"
-            >
-              <option value="day">Hoje</option>
-              <option value="week">Últimos 7 dias</option>
-              <option value="month">Últimos 30 dias</option>
-            </Select>
-          </div>
-          </div>
-          <div className="p-6">
-          {analytics.dashboardLoading ? (
-            <ChartPlaceholder />
-          ) : (
-            <SalesChart salesData={analytics.salesSeries} period={analytics.salesPeriod} />
-          )}
-          </div>
-        </SectionPanel>
-
-        <SectionPanel>
-          <div className="border-b border-[#f1dbe3] bg-[linear-gradient(180deg,#fffafc_0%,#fff 100%)] px-6 py-5">
-            <h3 className="text-lg font-semibold text-gray-800">Top 5 Produtos (Volume)</h3>
-          </div>
-          <div className="p-6">
-          {analytics.dashboardLoading ? (
-            <ChartPlaceholder />
-          ) : (
-            <TopProductsChart topProducts={analytics.topProducts} />
-          )}
-          </div>
-        </SectionPanel>
-
-        <SectionPanel>
-          <div className="border-b border-[#f1dbe3] bg-[linear-gradient(180deg,#fffafc_0%,#fff 100%)] px-6 py-5">
-            <h3 className="text-lg font-semibold text-gray-800">Resumo de Crescimento</h3>
-          </div>
-          <div className="p-6">
-          {analytics.statusAnalytics ? (
-            <StatusDonutChart statusData={analytics.statusAnalytics} />
-          ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-[14px] border border-dashed border-[#ead7df] bg-[linear-gradient(180deg,#fffafc_0%,#fff 100%)] text-center text-sm text-gray-500">
-              Sem dados para análise.
+      {data && (
+        <>
+          {/* 1. Agora */}
+          <Panel title="Agora" aside={`${data.operation.active} em andamento · ${updatedAt}`}>
+            <div className="grid grid-cols-5 gap-2">
+              {data.operation.stages.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => onNavigate?.('orders')}
+                  className="rounded-xl bg-gray-50 px-2 py-3 text-center transition-colors hover:bg-gray-100"
+                >
+                  <span className={`block text-2xl font-semibold tabular-nums ${s.count ? 'text-gray-900' : 'text-gray-300'}`}>{s.count}</span>
+                  <span className="mt-1 block truncate text-[11px] text-gray-500">{s.label}</span>
+                </button>
+              ))}
             </div>
-          )}
+
+            <div className="mt-4">
+              {data.operation.alerts.length === 0 ? (
+                <p className="flex items-center gap-2 text-sm text-gray-500"><Check size={16} className="text-emerald-700" /> Nenhum pedido parado.</p>
+              ) : (
+                <>
+                  <p className="mb-1 text-xs text-gray-500">
+                    {data.operation.alertCount} {data.operation.alertCount === 1 ? 'pedido precisa' : 'pedidos precisam'} de atenção
+                  </p>
+                  <ul className="divide-y divide-black/[0.05]">
+                    {data.operation.alerts.map((a) => (
+                      <li key={a.orderId}>
+                        <button type="button" onClick={() => onOpenOrder?.(a.orderId)} className="group flex w-full items-center gap-3 py-2.5 text-left">
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm text-gray-900">
+                              <span className="font-mono text-xs text-gray-500">#{a.code}</span>
+                              {a.customer && <span> · {a.customer}</span>}
+                            </span>
+                            <span className="block truncate text-xs text-gray-500">{a.message}</span>
+                          </span>
+                          <span className="shrink-0 text-xs tabular-nums text-gray-500">há {duration(a.minutes)}</span>
+                          <ChevronRight size={16} className="shrink-0 text-gray-300 group-hover:text-gray-500" aria-hidden="true" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </Panel>
+
+          {/* 2. Resultado */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+            <Kpi label="Faturamento" value={brl(data.results.current.revenue)} delta={<Delta current={data.results.current.revenue} previous={data.results.previous.revenue} />} note={`vs ${compare}`} />
+            <Kpi label="Pedidos" value={int(data.results.current.orders)} delta={<Delta current={data.results.current.orders} previous={data.results.previous.orders} />} />
+            <Kpi label="Ticket médio" value={brl(data.results.current.avgTicket)} delta={<Delta current={data.results.current.avgTicket} previous={data.results.previous.avgTicket} />} />
+            <Kpi label="Cancelamentos" value={pct(data.results.current.cancelRate)} delta={<Delta current={data.results.current.cancelRate} previous={data.results.previous.cancelRate} inverse percentPoints />} />
+            <Kpi
+              label="Clientes"
+              value={int(data.results.current.newCustomers + data.results.current.returningCustomers)}
+              delta={<span className="text-gray-500">{data.results.current.newCustomers} novos · {data.results.current.returningCustomers} voltaram</span>}
+            />
           </div>
-        </SectionPanel>
 
-        <SystemHealthWidget />
+          <div className={`grid gap-4 ${period === 'day' ? '' : 'lg:grid-cols-3'}`}>
+            <Panel title={period === 'day' ? 'Faturamento por hora' : 'Faturamento por dia'} className={period === 'day' ? '' : 'lg:col-span-2'}>
+              <Bars
+                caption="Faturamento no período"
+                data={data.results.series.map((s) => ({ label: s.label, value: s.revenue, sub: `${s.orders} ${s.orders === 1 ? 'pedido' : 'pedidos'}` }))}
+                format={(v) => brl(v)}
+              />
+            </Panel>
+            {period !== 'day' && (
+              <Panel title="Pedidos por hora do dia">
+                <Bars
+                  caption="Pedidos por hora do dia"
+                  data={data.results.ordersByHour.map((v, h) => ({ label: `${h}h`, value: v }))}
+                  format={(v) => `${v} ${v === 1 ? 'pedido' : 'pedidos'}`}
+                />
+              </Panel>
+            )}
+          </div>
 
-      </div>
+          {/* 3. Site */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Panel title="Funil do site" aside="robôs de busca excluídos">
+              <p className="mb-4 text-sm text-gray-600">
+                <span className="text-2xl font-semibold tabular-nums text-gray-900">{pct(data.site.conversion.current)}</span>
+                <span className="ml-2">dos visitantes fizeram pedido</span>
+                <span className="ml-2 text-xs"><Delta current={data.site.conversion.current} previous={data.site.conversion.previous} percentPoints /></span>
+              </p>
+              <ul className="space-y-2.5">
+                {data.site.funnel.map((step, i) => {
+                  const top = data.site.funnel[0].value || 1
+                  const prev = i > 0 ? data.site.funnel[i - 1].value : 0
+                  return (
+                    <li key={step.key}>
+                      <div className="flex items-baseline justify-between text-sm">
+                        <span className="text-gray-700">{step.label}</span>
+                        <span className="tabular-nums text-gray-900">
+                          {int(step.value)}
+                          {i > 0 && <span className="ml-2 text-xs text-gray-400">{prev ? pct((step.value / prev) * 100) : '—'}</span>}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                        <div className="h-full rounded-full" style={{ width: `${(step.value / top) * 100}%`, background: ACCENT, opacity: 0.8 }} />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Panel>
+
+            <Panel title="Buscas sem resultado" aside={`${int(data.site.searches)} buscas no período`}>
+              <List
+                empty="Todas as buscas encontraram produtos."
+                items={data.site.searchesWithoutResult.map((s) => ({ key: s.term, main: s.term, side: `${s.count}×` }))}
+              />
+              {data.site.searchesWithoutResult.length > 0 && (
+                <p className="mt-3 text-xs text-gray-400">O cliente procurou e não achou: produto que falta no site, nome diferente no cadastro ou sinônimo a ensinar à busca.</p>
+              )}
+            </Panel>
+          </div>
+
+          {/* 4. Produtos */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Panel title="Mais vendidos">
+              <List
+                empty="Nenhuma venda no período."
+                items={data.products.topSold.map((p, i) => ({ key: p.name + i, main: p.name, side: brl(p.revenue), sub: `${p.orders} ${p.orders === 1 ? 'pedido' : 'pedidos'}` }))}
+              />
+            </Panel>
+            <Panel title="Vistos e pouco comprados">
+              <List
+                empty="Nenhum produto com muita visita e pouca compra."
+                items={data.products.viewedNotBought.map((p, i) => ({ key: p.name + i, main: p.name, side: `${p.views} visitas`, sub: `${p.carts} no carrinho` }))}
+              />
+            </Panel>
+            <Panel title="Faltaram na separação">
+              <List
+                empty="Nada faltou na separação."
+                items={data.products.ruptures.map((p, i) => ({
+                  key: p.name + i,
+                  main: p.name,
+                  side: `${p.missing + p.substituted}×`,
+                  sub: [p.missing && `${p.missing} em falta`, p.substituted && `${p.substituted} substituído`].filter(Boolean).join(' · '),
+                }))}
+              />
+            </Panel>
+          </div>
+
+          {/* Saude do sistema: o mesmo check-up diario do Telegram */}
+          <Panel>
+            <button type="button" onClick={() => setHealthOpen((v) => !v)} className="flex w-full items-center justify-between gap-3 text-left">
+              <span className="flex items-center gap-2 text-sm text-gray-700">
+                {!checkup ? (
+                  <span className="text-gray-400">Verificando o sistema…</span>
+                ) : failures.length === 0 ? (
+                  <><Check size={16} className="text-emerald-700" /> Sistema em ordem · {checkup.results.length} verificações</>
+                ) : (
+                  <><AlertCircle size={16} className="text-rose-700" /> {failures.length} {failures.length === 1 ? 'verificação pede' : 'verificações pedem'} atenção</>
+                )}
+              </span>
+              <span className="flex items-center gap-2 text-xs text-gray-400">
+                {checkup && `check-up das ${new Date(checkup.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
+                <ChevronDown size={16} className={`transition-transform ${healthOpen ? 'rotate-180' : ''}`} />
+              </span>
+            </button>
+            {healthOpen && checkup && (
+              <ul className="mt-4 divide-y divide-black/[0.05]">
+                {checkup.results.map((r) => (
+                  <li key={r.name} className="flex gap-3 py-2.5 text-sm">
+                    {r.ok ? <Check size={16} className="mt-0.5 shrink-0 text-emerald-700" /> : <AlertCircle size={16} className="mt-0.5 shrink-0 text-rose-700" />}
+                    <span className="min-w-0">
+                      <span className="block text-gray-800">{r.name}</span>
+                      <span className="block break-words text-xs text-gray-500">{r.detail}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        </>
+      )}
     </div>
   )
 }

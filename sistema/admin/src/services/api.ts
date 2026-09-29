@@ -1856,3 +1856,47 @@ export const staffAPI = {
   toggleActive: (id: string) =>
     api.post<StaffMember>(`/auth/staff/${id}/toggle-active`),
 }
+
+// Painel inicial (29/09/2026): um unico endpoint, tudo calculado no servidor.
+export type OverviewPeriod = 'day' | 'week' | 'month'
+export interface OverviewKpis {
+  revenue: number
+  orders: number
+  avgTicket: number
+  cancelRate: number
+}
+export interface AdminOverview {
+  period: OverviewPeriod
+  generatedAt: string
+  operation: {
+    active: number
+    stages: Array<{ key: string; label: string; count: number }>
+    alerts: Array<{ orderId: string; code: string; customer: string; message: string; minutes: number }>
+    alertCount: number
+  }
+  results: {
+    current: OverviewKpis & { newCustomers: number; returningCustomers: number }
+    previous: OverviewKpis
+    series: Array<{ label: string; revenue: number; orders: number }>
+    ordersByHour: number[]
+  }
+  site: {
+    funnel: Array<{ key: string; label: string; value: number }>
+    conversion: { current: number; previous: number }
+    searches: number
+    searchesWithoutResult: Array<{ term: string; count: number }>
+  }
+  products: {
+    topSold: Array<{ name: string; revenue: number; orders: number }>
+    viewedNotBought: Array<{ name: string; views: number; carts: number }>
+    ruptures: Array<{ name: string; missing: number; substituted: number }>
+  }
+}
+export interface CheckupLast {
+  at: string
+  results: Array<{ name: string; ok: boolean; detail: string }>
+}
+export const overviewAPI = {
+  get: (period: OverviewPeriod) => api.get<AdminOverview>('/admin/overview', { params: { period } }),
+  lastCheckup: () => api.get<CheckupLast | null>('/admin/checkup/last'),
+}
