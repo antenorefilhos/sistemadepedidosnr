@@ -370,7 +370,7 @@ export default function OrdersSection({ openOrderId, onOpenOrderConsumed }: { op
   )
 }
 
-function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; onClose: () => void; onChanged: () => void }) {
+export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; onClose: () => void; onChanged: () => void }) {
   const [order, setOrder] = useState<AdminOrder | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)

@@ -1900,3 +1900,32 @@ export const overviewAPI = {
   get: (period: OverviewPeriod) => api.get<AdminOverview>('/admin/overview', { params: { period } }),
   lastCheckup: () => api.get<CheckupLast | null>('/admin/checkup/last'),
 }
+
+// Acompanhamento da separacao (29/09/2026).
+export interface PickingSupervision {
+  generatedAt: string
+  period: 'day' | 'week'
+  waiting: Array<{ orderId: string; code: string; dav?: string | null; customer: string; minutes: number; late: boolean; items: number }>
+  picking: Array<{
+    taskId: string
+    orderId: string
+    code: string
+    dav?: string | null
+    customer: string
+    pickerId?: string | null
+    picker: string | null
+    waitingCustomer: boolean
+    minutes: number
+    late: boolean
+    itemsDone: number
+    itemsTotal: number
+    missing: number
+    substituted: number
+  }>
+  sentToCashier: number
+  team: Array<{ pickerId: string; picker: string; orders: number; avgMinutes: number | null; items: number; missingRate: number }>
+  pickers: Array<{ id: string; name: string }>
+}
+export const pickingSupervisionAPI = {
+  get: (period: 'day' | 'week') => api.get<PickingSupervision>('/admin/picking/supervision', { params: { period } }),
+}
