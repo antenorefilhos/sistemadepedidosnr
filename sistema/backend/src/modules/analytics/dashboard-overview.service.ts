@@ -229,7 +229,9 @@ export class DashboardOverviewService {
       }
     }
     const [cur, prev] = await Promise.all([funnelFor(range.from, range.to), funnelFor(range.prevFrom, range.prevTo)])
-    const { visitors, viewed, carted, checkout, ordered } = cur
+    // "Viram produto" nao entra: da para por no carrinho direto do card da
+    // vitrine, entao a etapa nao e pre-requisito (6 viram, 9 puseram).
+    const { visitors, carted, checkout, ordered } = cur
     const prevVisitors = prev.visitors
     const prevOrdered = prev.ordered
 
@@ -249,7 +251,6 @@ export class DashboardOverviewService {
     return {
       funnel: [
         { key: 'visitors', label: 'Visitantes', value: visitors },
-        { key: 'viewed', label: 'Viram produto', value: viewed },
         { key: 'carted', label: 'Puseram no carrinho', value: carted },
         { key: 'checkout', label: 'Iniciaram checkout', value: checkout },
         { key: 'ordered', label: 'Fizeram pedido', value: ordered },
