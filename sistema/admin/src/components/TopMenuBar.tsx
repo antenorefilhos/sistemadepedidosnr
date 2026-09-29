@@ -59,9 +59,9 @@ const MENU_GROUPS: MenuGroup[] = [
   {
     label: 'Sistema',
     items: [
-      { key: 'intelligence', label: 'Inteligência IA', icon: Bot },
+      { key: 'intelligence', label: 'Inteligência', icon: Bot },
       { key: 'integrations', label: 'Integrações', icon: Workflow },
-      { key: 'mostruario', label: 'Mostruário Inteligente', icon: RadioTower },
+      { key: 'mostruario', label: 'Mostruário', icon: RadioTower },
       { key: 'notifications', label: 'Notificações', icon: BellRing },
       { key: 'coupons', label: 'Cupons', icon: Tag },
       { key: 'fraudAudit', label: 'Anti-fraude', icon: ShieldAlert },

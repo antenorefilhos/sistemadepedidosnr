@@ -66,6 +66,7 @@ export class AbandonedCartScheduler {
             body,
             customerId: cart.customerId,
             url: '/cart',
+            source: 'CART',
           })
           await this.prisma.cart.update({
             where: { id: cart.id },

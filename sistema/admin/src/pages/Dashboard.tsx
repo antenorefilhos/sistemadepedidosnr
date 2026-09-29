@@ -77,17 +77,17 @@ function WhatsAppBadge({ phone, compact = false }: { phone?: string; compact?: b
 }
 
 const LayoutManager = lazy(() => import('../components/LayoutManager'))
-const Intelligence = lazy(() => import('./Intelligence'))
+const IntelligenceSection = lazy(() => import('./sections/IntelligenceSection'))
 const Integrations = lazy(() => import('./Integrations'))
 const DepartmentsSection = lazy(() => import('./sections/DepartmentsSection'))
 const DeliveryZones = lazy(() => import('./DeliveryZones'))
 const DeliveryRoutesSection = lazy(() => import('./sections/DeliveryRoutesSection'))
 const BusinessHours = lazy(() => import('./BusinessHours'))
 const FraudAudit = lazy(() => import('./FraudAudit'))
-const NotificationsBroadcast = lazy(() => import('./NotificationsBroadcast'))
+const NotificationsSection = lazy(() => import('./sections/NotificationsSection'))
 const Coupons = lazy(() => import('./Coupons'))
 const SponsoredShelves = lazy(() => import('./SponsoredShelves'))
-const Mostruario = lazy(() => import('./Mostruario'))
+const MostruarioSection = lazy(() => import('./sections/MostruarioSection'))
 const RecipesSection = lazy(() => import('./sections/RecipesSection'))
 const StoreBannersManager = lazy(() => import('./StoreBannersManager'))
 const BrandIdentity = lazy(() => import('./BrandIdentity'))
@@ -281,7 +281,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'notifications' && (
             <Suspense fallback={lazySectionFallback}>
-              <NotificationsBroadcast />
+              <NotificationsSection />
             </Suspense>
           )}
 
@@ -299,7 +299,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'mostruario' && (
             <Suspense fallback={lazySectionFallback}>
-              <Mostruario />
+              <MostruarioSection />
             </Suspense>
           )}
 
@@ -323,7 +323,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'intelligence' && (
             <Suspense fallback={lazySectionFallback}>
-              <Intelligence />
+              <IntelligenceSection />
             </Suspense>
           )}
 

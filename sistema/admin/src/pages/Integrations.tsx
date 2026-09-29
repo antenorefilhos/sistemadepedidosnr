@@ -80,14 +80,6 @@ const INTEGRATION_META: Record<IntegrationKey, IntegrationMeta> = {
     observabilitySummary: 'Fila de cobrança, webhook e eventos de pagamento.',
     nextDeliverable: 'Conector plugável com provider configurável.',
   },
-  'ai-notifications': {
-    role: 'Notificação automática por IA',
-    summary: 'IA (NVIDIA NIM) decide sozinha quando notificar clientes sobre promoções, sem regra fixa de horário/produto.',
-    contractSummary: 'Consulta o catálogo e histórico de notificação, decide texto e timing via modelo de linguagem.',
-    triggerSummary: 'Disparo agendado (cron), ver tela de Notificações pra horários e histórico.',
-    observabilitySummary: 'Registro de notificações enviadas por produto (aiNotifiedAt).',
-    nextDeliverable: 'Em produção, ajustável pela tela de Notificações.',
-  },
 }
 
 export default function Integrations() {

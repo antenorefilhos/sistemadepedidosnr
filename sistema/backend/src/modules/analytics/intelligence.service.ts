@@ -14,14 +14,23 @@ export class IntelligenceService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async funnel(from: Date, to: Date) {
-    const [row] = await this.prisma.$queryRaw<Array<{ visitors: bigint; viewed: bigint; carted: bigint; checkout: bigint }>>`
+    // Robo de busca (Google etc.) abre UMA pagina por "aparelho" e some: em
+    // set/2026 eram 884 de 919 aparelhos. Visitante real = 2+ acoes ou logado.
+    const [row] = await this.prisma.$queryRaw<Array<{ visitors: bigint; viewed: bigint; carted: bigint; checkout: bigint; bots: bigint }>>`
+      WITH d AS (
+        SELECT "deviceId", COUNT(*) AS n, bool_or("customerId" IS NOT NULL) AS logged,
+          bool_or(type = 'VIEW_PRODUCT') AS v, bool_or(type = 'ADD_TO_CART') AS a, bool_or(type = 'INITIATE_CHECKOUT') AS k
+        FROM analytics_events
+        WHERE "createdAt" >= ${from} AND "createdAt" < ${to} AND "deviceId" IS NOT NULL
+        GROUP BY 1
+      )
       SELECT
-        COUNT(DISTINCT "deviceId") AS visitors,
-        COUNT(DISTINCT "deviceId") FILTER (WHERE type = 'VIEW_PRODUCT') AS viewed,
-        COUNT(DISTINCT "deviceId") FILTER (WHERE type = 'ADD_TO_CART') AS carted,
-        COUNT(DISTINCT "deviceId") FILTER (WHERE type = 'INITIATE_CHECKOUT') AS checkout
-      FROM analytics_events
-      WHERE "createdAt" >= ${from} AND "createdAt" < ${to} AND "deviceId" IS NOT NULL`
+        COUNT(*) FILTER (WHERE n >= 2 OR logged) AS visitors,
+        COUNT(*) FILTER (WHERE (n >= 2 OR logged) AND v) AS viewed,
+        COUNT(*) FILTER (WHERE a) AS carted,
+        COUNT(*) FILTER (WHERE k) AS checkout,
+        COUNT(*) FILTER (WHERE n = 1 AND NOT logged) AS bots
+      FROM d`
     const orders = await this.prisma.order.count({ where: { createdAt: { gte: from, lt: to }, status: { notIn: CANCELLED } } })
     const buyers = await this.prisma.order.findMany({
       where: { createdAt: { gte: from, lt: to }, status: { notIn: CANCELLED } },
@@ -33,6 +42,7 @@ export class IntelligenceService {
       viewed: Number(row?.viewed || 0),
       carted: Number(row?.carted || 0),
       checkout: Number(row?.checkout || 0),
+      bots: Number(row?.bots || 0),
       orders,
       revenue,
       ticket: orders ? revenue / orders : 0,
@@ -63,9 +73,12 @@ export class IntelligenceService {
 
     // Produtos: vistos x colocados no carrinho x vendidos.
     const products = await this.prisma.$queryRaw<Array<{ id: string; name: string; ean: string; views: bigint; adds: bigint; sold: bigint }>>`
-      WITH v AS (
+      WITH real AS (
+        SELECT "deviceId" FROM analytics_events WHERE "createdAt" >= ${from} AND "deviceId" IS NOT NULL
+        GROUP BY 1 HAVING COUNT(*) >= 2 OR bool_or("customerId" IS NOT NULL)
+      ), v AS (
         SELECT "entityId" AS id, COUNT(DISTINCT "deviceId") AS views FROM analytics_events
-        WHERE type = 'VIEW_PRODUCT' AND "createdAt" >= ${from} GROUP BY 1
+        WHERE type = 'VIEW_PRODUCT' AND "createdAt" >= ${from} AND "deviceId" IN (SELECT "deviceId" FROM real) GROUP BY 1
       ), a AS (
         SELECT "entityId" AS id, COUNT(DISTINCT "deviceId") AS adds FROM analytics_events
         WHERE type = 'ADD_TO_CART' AND "createdAt" >= ${from} GROUP BY 1

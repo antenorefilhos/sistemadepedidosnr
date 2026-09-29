@@ -156,7 +156,7 @@ export interface SolidcomStatusResponse {
 }
 
 export interface IntegrationModuleDescriptor {
-  key: 'solidcom' | 'antenorapi' | 'hubspot' | 'rdstation' | 'meta-pixel' | 'nfe' | 'payments' | 'ai-notifications'
+  key: 'solidcom' | 'antenorapi' | 'hubspot' | 'rdstation' | 'meta-pixel' | 'nfe' | 'payments'
   name: string
   enabled: boolean
   removable: boolean
@@ -1671,6 +1671,77 @@ export interface NotificationDispatch {
   reads: number
   /** Leitura no app -- NAO e entrega do push, que hoje nao e registrada. */
   readRate: number
+  /** Clicaram no aviso (registrado desde 29/09/2026). */
+  opened: number
+  /** Pedidos do mesmo cliente em ate 48 h depois do aviso. */
+  orders: number
+  revenue: number
+  source: 'MANUAL' | 'AUTO' | 'SCHEDULED' | 'ORDER' | 'CART' | null
+}
+
+export interface AutoOfferSettings {
+  enabled: boolean
+  minDiscount: number
+  maxPerWeek: number
+  sendHours: string
+  lastRunAt: string | null
+  lastRunSummary: { at: string; candidates: number; customers: number; sent: number; products: number } | null
+}
+export interface AutoOfferPick {
+  customerId: string
+  customerName: string
+  productId: string
+  productName: string
+  category: string
+  discount: number
+  score: number
+  reason: string
+  title: string
+  body: string
+}
+/** Avisos automaticos de oferta: algoritmo proprio (29/09/2026). */
+export const autoOffersAPI = {
+  overview: () =>
+    api.get<{
+      settings: AutoOfferSettings
+      subscribers: number
+      stats: Array<{ source: string; sent: number; opened: number; orders: number; revenue: number }>
+      departments: Array<{ category: string; weight: number; sent: number; opened: number }>
+    }>('/notifications/admin/auto-offers'),
+  update: (data: Partial<Pick<AutoOfferSettings, 'enabled' | 'minDiscount' | 'maxPerWeek' | 'sendHours'>>) =>
+    api.patch<AutoOfferSettings>('/notifications/admin/auto-offers', data),
+  preview: () => api.get<{ candidates: number; customers: number; picks: AutoOfferPick[] }>('/notifications/admin/auto-offers/preview'),
+  run: () => api.post<{ skipped?: boolean; reason?: string; sent?: number; products?: number }>('/notifications/admin/auto-offers/run'),
+}
+
+export interface IntelligenceFunnel {
+  visitors: number
+  viewed: number
+  carted: number
+  checkout: number
+  bots: number
+  orders: number
+  revenue: number
+  ticket: number
+}
+export interface IntelligenceProduct {
+  id: string
+  name: string
+  ean: string
+  views: number
+  adds: number
+  sold: number
+}
+export interface IntelligenceResponse {
+  days: number
+  funnel: { current: IntelligenceFunnel; previous: IntelligenceFunnel }
+  search: { total: number; top: Array<{ term: string; total: number; empty: number; last: string }>; noResult: Array<{ term: string; total: number; empty: number; last: string }> }
+  products: { topSold: IntelligenceProduct[]; lookNoBuy: IntelligenceProduct[]; abandoned: IntelligenceProduct[] }
+  heatmap: Array<{ dow: number; hour: number; n: number }>
+  customers: { buyers: number; firstTime: number; returning: number; boughtTwiceInPeriod: number }
+}
+export const intelligenceAPI = {
+  get: (days: number) => api.get<IntelligenceResponse>('/admin/intelligence', { params: { days } }),
 }
 
 export const notificationsAdminAPI = {
@@ -1698,9 +1769,6 @@ export const notificationsAdminAPI = {
   history: (params?: { limit?: number; offset?: number; type?: string }) =>
     api.get<{ hasMore: boolean; items: NotificationDispatch[] }>('/notifications/admin/history', { params }),
   historyCounts: () => api.get<Record<string, number>>('/notifications/admin/history/counts'),
-  getAiCycleStatus: () => api.get<{ enabled: boolean }>('/notifications/admin/ai-cycle/status'),
-  toggleAiCycle: (enabled: boolean) => api.post('/notifications/admin/ai-cycle/toggle', { enabled }),
-  runAiCycleNow: () => api.post('/notifications/admin/ai-cycle/run'),
 }
 
 export interface CouponPromotion {
@@ -1792,8 +1860,11 @@ export interface MostruarioProduto {
   departamento: string
   categoria: string
   precoVenda: number
+  precoNormal?: number
   estoqueERP: number
   vezesVendidoPDV48h: number
+  vezesVendidoPDV30d?: number
+  ultimaVendaPDV?: string | null
   totalCortesPicking48h: number
   ultimoCortePicking: string | null
   scorePresencaReal: number
