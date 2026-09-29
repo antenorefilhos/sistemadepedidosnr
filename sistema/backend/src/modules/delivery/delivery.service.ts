@@ -725,7 +725,9 @@ export class DeliveryService {
         status: 'READY_FOR_DELIVERY',
         // `stops` vazio = ninguem pegou ainda. E o que torna a fila
         // "compartilhada": some da lista de todos assim que um pega.
-        deliveryStops: { none: {} },
+        // Parada que falhou (entrega nao realizada) nao conta: depois do
+        // "tentar de novo" do admin o pedido volta a aparecer na fila.
+        deliveryStops: { none: { status: { not: 'FAILED' } } },
       },
       select: {
         id: true,
@@ -774,7 +776,7 @@ export class DeliveryService {
         throw new BadRequestException('Pedido ainda nao foi finalizado no PDV.')
       }
 
-      const jaPego = await tx.deliveryStop.findFirst({ where: { orderId } })
+      const jaPego = await tx.deliveryStop.findFirst({ where: { orderId, status: { not: 'FAILED' } } })
       if (jaPego) throw new BadRequestException('Outro entregador ja pegou este pedido.')
 
       // Reaproveita a rota aberta do entregador; so cria uma quando nao ha.
@@ -909,6 +911,158 @@ export class DeliveryService {
     })
 
     return this.findRouteOrThrow(routeId, scoped, ownerDriverId)
+  }
+
+  /**
+   * Entrega que nao deu certo volta para a fila (29/09/2026). Antes o pedido
+   * ficava "Saiu para entrega" para sempre. Nao e automatico de proposito:
+   * quase sempre alguem precisa falar com o cliente antes (endereco errado,
+   * ausente, desistiu) -- reenviar direto repetia a viagem perdida.
+   */
+  async retryFailedDelivery(context: Partial<FulfillmentContext> | undefined, orderId: string, actor?: { actorType?: string; actorId?: string }) {
+    const scoped = this.resolveContext(context)
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, tenantId: scoped.tenantId, storeId: scoped.storeId },
+      select: { id: true, status: true },
+    })
+    if (!order) throw new NotFoundException('Pedido nao encontrado.')
+    if (!['OUT_FOR_DELIVERY', 'READY_FOR_DELIVERY'].includes(order.status)) {
+      throw new BadRequestException('So da para reenviar entrega de pedido que estava em rota.')
+    }
+    const failed = await this.prisma.deliveryStop.findFirst({ where: { orderId, status: 'FAILED' } })
+    const active = await this.prisma.deliveryStop.findFirst({ where: { orderId, status: { notIn: ['FAILED', 'DELIVERED'] } } })
+    if (!failed || active) throw new BadRequestException('Este pedido nao tem entrega pendente de decisao.')
+    return this.updateOrderFulfillmentStatus(scoped, orderId, 'READY_FOR_DELIVERY', 'order.delivery_retry', { failedStopId: failed.id }, actor)
+  }
+
+  /** Acompanhamento de entregas e retiradas para o admin (29/09/2026). */
+  async getSupervision(context: Partial<FulfillmentContext> | undefined, period: 'day' | 'week' = 'day') {
+    const scoped = this.resolveContext(context)
+    const now = new Date()
+    const local = new Date(now.getTime() - 3 * 3600_000)
+    const today = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) + 3 * 3600_000)
+    const from = period === 'week' ? new Date(today.getTime() - 6 * 86400_000) : today
+    const since = (d?: Date | null) => (d ? Math.max(0, Math.round((now.getTime() - d.getTime()) / 60000)) : 0)
+    const code = (id: string) => id.slice(-8).toUpperCase()
+    const hood = (snap: unknown) => String((snap as { neighborhood?: string } | null)?.neighborhood || '')
+    const orderSelect = { id: true, erpDav: true, status: true, updatedAt: true, addressSnapshot: true, customer: { select: { name: true } } } as const
+
+    const available = await this.listAvailableDeliveries(scoped)
+    // "Pronto ha quanto tempo" = ultima mudanca do pedido (faturado no caixa).
+    const readyTimes = new Map(
+      (await this.prisma.order.findMany({ where: { id: { in: available.map((o) => o.id) } }, select: { id: true, updatedAt: true } })).map((o) => [o.id, since(o.updatedAt)]),
+    )
+    const ready = available.map((o) => ({
+      orderId: o.id,
+      code: code(o.id),
+      dav: o.erpDav,
+      customer: o.customer?.name || '',
+      neighborhood: hood(o.addressSnapshot),
+      items: o._count.items,
+      minutes: readyTimes.get(o.id) ?? 0,
+    }))
+
+    const openStops = await this.prisma.deliveryStop.findMany({
+      where: { tenantId: scoped.tenantId, storeId: scoped.storeId, status: { in: ['PENDING', 'OUT_FOR_DELIVERY', 'ARRIVED'] }, route: { status: { not: 'COMPLETED' } } },
+      select: { id: true, status: true, updatedAt: true, route: { select: { id: true, driver: { select: { name: true } } } }, order: { select: orderSelect } },
+    })
+    const onRoute = openStops
+      .filter((st) => !['CANCELLED', 'DELIVERED', 'COMPLETED'].includes(st.order.status))
+      .map((st) => ({
+        orderId: st.order.id,
+        code: code(st.order.id),
+        dav: st.order.erpDav,
+        customer: st.order.customer?.name || '',
+        neighborhood: hood(st.order.addressSnapshot),
+        driver: st.route.driver?.name || 'sem entregador',
+        stopStatus: st.status,
+        minutes: since(st.updatedAt),
+      }))
+
+    const failedStops = await this.prisma.deliveryStop.findMany({
+      where: { tenantId: scoped.tenantId, storeId: scoped.storeId, status: 'FAILED', order: { status: 'OUT_FOR_DELIVERY' } },
+      select: { updatedAt: true, route: { select: { driver: { select: { name: true } } } }, order: { select: orderSelect } },
+      orderBy: { updatedAt: 'desc' },
+    })
+    const failedIds = [...new Set(failedStops.map((f) => f.order.id))]
+    const reasons = new Map(
+      (
+        await this.prisma.orderEvent.findMany({
+          where: { orderId: { in: failedIds }, type: 'order.delivery_failed' },
+          orderBy: { createdAt: 'asc' },
+          select: { orderId: true, payload: true },
+        })
+      ).map((e) => [e.orderId, String((e.payload as { notes?: string } | null)?.notes || '')]),
+    )
+    const seenFailed = new Set<string>()
+    const failed = failedStops
+      .filter((f) => {
+        if (seenFailed.has(f.order.id)) return false
+        seenFailed.add(f.order.id)
+        return true
+      })
+      .map((f) => ({
+        orderId: f.order.id,
+        code: code(f.order.id),
+        dav: f.order.erpDav,
+        customer: f.order.customer?.name || '',
+        neighborhood: hood(f.order.addressSnapshot),
+        driver: f.route.driver?.name || '',
+        reason: reasons.get(f.order.id) || '',
+        minutes: since(f.updatedAt),
+      }))
+
+    const pickups = (
+      await this.prisma.order.findMany({
+        where: { tenantId: scoped.tenantId, storeId: scoped.storeId, fulfillmentType: 'PICKUP', status: 'READY_FOR_PICKUP' },
+        select: orderSelect,
+        orderBy: { updatedAt: 'asc' },
+      })
+    ).map((o) => ({ orderId: o.id, code: code(o.id), dav: o.erpDav, customer: o.customer?.name || '', minutes: since(o.updatedAt) }))
+
+    const deliveredToday = await this.prisma.deliveryStop.count({
+      where: { tenantId: scoped.tenantId, storeId: scoped.storeId, status: 'DELIVERED', deliveredAt: { gte: today } },
+    })
+
+    // Desempenho: saida (evento stop.out_for_delivery) ate a entrega.
+    const doneStops = await this.prisma.deliveryStop.findMany({
+      where: { tenantId: scoped.tenantId, storeId: scoped.storeId, status: { in: ['DELIVERED', 'FAILED'] }, updatedAt: { gte: from } },
+      select: { id: true, status: true, deliveredAt: true, route: { select: { driverId: true, driver: { select: { name: true } } } } },
+    })
+    const departures = new Map(
+      (
+        await this.prisma.fulfillmentEvent.findMany({
+          where: { stopId: { in: doneStops.map((d) => d.id) }, type: 'stop.out_for_delivery' },
+          select: { stopId: true, createdAt: true },
+        })
+      ).map((e) => [e.stopId, e.createdAt]),
+    )
+    const perf = new Map<string, { driver: string; delivered: number; failed: number; minutes: number; timed: number }>()
+    for (const d of doneStops) {
+      const key = d.route.driverId || 'sem'
+      const e = perf.get(key) || { driver: d.route.driver?.name || 'sem entregador', delivered: 0, failed: 0, minutes: 0, timed: 0 }
+      if (d.status === 'DELIVERED') {
+        e.delivered += 1
+        const left = departures.get(d.id)
+        if (left && d.deliveredAt) {
+          e.minutes += (d.deliveredAt.getTime() - left.getTime()) / 60000
+          e.timed += 1
+        }
+      } else {
+        e.failed += 1
+      }
+      perf.set(key, e)
+    }
+    const team = [...perf.values()]
+      .map((e) => ({ driver: e.driver, delivered: e.delivered, failed: e.failed, avgMinutes: e.timed ? Math.round(e.minutes / e.timed) : null }))
+      .sort((a, b) => b.delivered - a.delivered)
+
+    const drivers = await this.prisma.driver.findMany({
+      where: { tenantId: scoped.tenantId, storeId: scoped.storeId, status: 'ACTIVE' },
+      select: { id: true, name: true },
+    })
+
+    return { generatedAt: now.toISOString(), period, ready, onRoute, failed, pickups, deliveredToday, team, drivers }
   }
 
   async updateStopStatus(

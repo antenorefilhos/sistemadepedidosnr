@@ -101,3 +101,31 @@ describe('takeDelivery — fila compartilhada', () => {
     )
   })
 })
+
+describe('entrega nao realizada (29/09/2026)', () => {
+  it('parada que falhou nao impede outro entregador de pegar depois do "tentar de novo"', async () => {
+    const { service, tx } = build()
+    await service.takeDelivery(undefined, 'ord1', 'drv1')
+    expect(tx.deliveryStop.findFirst).toHaveBeenCalledWith({ where: { orderId: 'ord1', status: { not: 'FAILED' } } })
+  })
+
+  it('"tentar de novo" devolve o pedido para a fila (READY_FOR_DELIVERY)', async () => {
+    const prisma = {
+      order: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'ord1', status: 'OUT_FOR_DELIVERY' }),
+        update: jest.fn().mockResolvedValue({ id: 'ord1', tenantId: 't', storeId: 's', status: 'READY_FOR_DELIVERY', paymentStatus: 'UNPAID' }),
+      },
+      deliveryStop: { findFirst: jest.fn().mockResolvedValueOnce({ id: 'stop-falhou' }).mockResolvedValueOnce(null) },
+      orderEvent: { create: jest.fn().mockResolvedValue({}) },
+    }
+    const service = new DeliveryService(prisma as never, {} as never)
+    await service.retryFailedDelivery(undefined, 'ord1')
+    expect(prisma.order.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'READY_FOR_DELIVERY' } }))
+  })
+
+  it('recusa "tentar de novo" em pedido que ja foi entregue', async () => {
+    const prisma = { order: { findFirst: jest.fn().mockResolvedValue({ id: 'ord1', status: 'DELIVERED' }) } }
+    const service = new DeliveryService(prisma as never, {} as never)
+    await expect(service.retryFailedDelivery(undefined, 'ord1')).rejects.toBeInstanceOf(BadRequestException)
+  })
+})

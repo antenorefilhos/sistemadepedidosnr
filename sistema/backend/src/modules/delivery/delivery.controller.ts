@@ -212,6 +212,24 @@ export class AdminFulfillmentController {
     return this.deliveryService.listRoutes(getTenantContext(req), { status })
   }
 
+  @Get('supervision')
+  @ApiOperation({ summary: 'Acompanhamento de entregas e retiradas' })
+  supervision(@Query('period') period: string | undefined, @Req() req: TenantContextRequest) {
+    return this.deliveryService.getSupervision(getTenantContext(req), period === 'week' ? 'week' : 'day')
+  }
+
+  @Post('deliveries/:orderId/assign')
+  @ApiOperation({ summary: 'Atribuir entrega pronta a um entregador (entra no app dele)' })
+  assignDelivery(@Param('orderId') orderId: string, @Body() body: { driverId: string }, @Req() req: TenantContextRequest) {
+    return this.deliveryService.takeDelivery(getTenantContext(req), orderId, String(body?.driverId || ''), { actorType: 'ADMIN', actorId: req.user?.id })
+  }
+
+  @Post('deliveries/:orderId/retry')
+  @ApiOperation({ summary: 'Entrega nao realizada volta para a fila' })
+  retryDelivery(@Param('orderId') orderId: string, @Req() req: TenantContextRequest) {
+    return this.deliveryService.retryFailedDelivery(getTenantContext(req), orderId, { actorType: 'ADMIN', actorId: req.user?.id })
+  }
+
   @Get('drivers/performance')
   @ApiOperation({ summary: 'Desempenho de entregadores por periodo' })
   getDriverPerformance(@Req() req: TenantContextRequest, @Query('from') from?: string, @Query('to') to?: string) {

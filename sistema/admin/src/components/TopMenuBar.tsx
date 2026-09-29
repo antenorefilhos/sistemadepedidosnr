@@ -26,7 +26,7 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { key: 'orders', label: 'Pedidos', icon: ShoppingCart },
       { key: 'picking', label: 'Separação', icon: ClipboardCheck },
-      { key: 'deliveryRoutes', label: 'Entregas', icon: Truck },
+      { key: 'deliveryRoutes', label: 'Entregas e retiradas', icon: Truck },
       { key: 'staff', label: 'Equipe', icon: Users },
       { key: 'teamPerformance', label: 'Desempenho', icon: TrendingUp },
     ],

@@ -1929,3 +1929,22 @@ export interface PickingSupervision {
 export const pickingSupervisionAPI = {
   get: (period: 'day' | 'week') => api.get<PickingSupervision>('/admin/picking/supervision', { params: { period } }),
 }
+
+// Acompanhamento de entregas e retiradas (29/09/2026).
+type DeliveryRow = { orderId: string; code: string; dav?: string | null; customer: string; minutes: number }
+export interface DeliverySupervision {
+  generatedAt: string
+  period: 'day' | 'week'
+  ready: Array<DeliveryRow & { neighborhood: string; items: number }>
+  onRoute: Array<DeliveryRow & { neighborhood: string; driver: string; stopStatus: string }>
+  failed: Array<DeliveryRow & { neighborhood: string; driver: string; reason: string }>
+  pickups: DeliveryRow[]
+  deliveredToday: number
+  team: Array<{ driver: string; delivered: number; failed: number; avgMinutes: number | null }>
+  drivers: Array<{ id: string; name: string }>
+}
+export const deliverySupervisionAPI = {
+  get: (period: 'day' | 'week') => api.get<DeliverySupervision>('/admin/fulfillment/supervision', { params: { period } }),
+  assign: (orderId: string, driverId: string) => api.post(`/admin/fulfillment/deliveries/${orderId}/assign`, { driverId }),
+  retry: (orderId: string) => api.post(`/admin/fulfillment/deliveries/${orderId}/retry`),
+}
