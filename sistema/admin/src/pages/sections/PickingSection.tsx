@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { AlertCircle, ChevronRight, RefreshCw, User } from 'lucide-react'
-import { getApiErrorMessage, pickingAPI, pickingSupervisionAPI, type PickingSupervision } from '../../services/api'
+import { getApiErrorMessage, ordersAPI, pickingAPI, pickingSupervisionAPI, type PickingSupervision, type SubstitutionEvent } from '../../services/api'
 import { OrderDetail } from './OrdersSection'
 
 // Separacao (refeita em 29/09/2026 com o Jonathan): acompanhamento, nao uma
@@ -36,6 +36,13 @@ export default function PickingSection() {
   const [openOrderId, setOpenOrderId] = useState<string | null>(null)
   const [reassign, setReassign] = useState<{ taskId: string; code: string; pickerId: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  // Trocas de produto (antes na tela "Desempenho", removida em 29/09/2026).
+  const [swaps, setSwaps] = useState<SubstitutionEvent[]>([])
+
+  useEffect(() => {
+    const from = new Date(Date.now() - 30 * 86400000).toISOString()
+    ordersAPI.listSubstitutions({ from, limit: 20 }).then((r) => setSwaps(r.data)).catch(() => setSwaps([]))
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -220,6 +227,33 @@ export default function PickingSection() {
             )}
           </Panel>
         </>
+      )}
+
+      {data && (
+        <Panel title="Trocas de produto · 30 dias">
+          {swaps.length === 0 ? (
+            <p className="text-sm text-gray-400">Nenhuma troca de produto nos últimos 30 dias.</p>
+          ) : (
+            <ul className="divide-y divide-black/[0.05]">
+              {swaps.map((ev) => (
+                <li key={ev.id}>
+                  <button type="button" onClick={() => setOpenOrderId(ev.orderId)} className="group flex w-full items-center gap-3 py-2.5 text-left">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-gray-900">
+                        {String(ev.payload.sourceProductName || 'produto')} <span className="text-gray-400">→</span> {String(ev.payload.substituteProductName || 'substituto')}
+                      </span>
+                      <span className="block text-xs text-gray-500">
+                        #{ev.orderId.slice(-8).toUpperCase()} · {ev.actorName || 'separador'} · {new Date(ev.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        {ev.payload.reason ? ` · ${String(ev.payload.reason)}` : ''}
+                      </span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-gray-300 group-hover:text-gray-500" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
       )}
 
       {openOrderId && <OrderDetail orderId={openOrderId} onClose={() => setOpenOrderId(null)} onChanged={load} />}

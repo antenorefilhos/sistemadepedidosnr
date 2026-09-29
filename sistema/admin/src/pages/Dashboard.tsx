@@ -13,7 +13,6 @@ export type Section =
   | 'orders'
   | 'picking'
   | 'staff'
-  | 'teamPerformance'
   | 'businessAccounts'
   | 'customers'
   | 'layout'
@@ -101,10 +100,9 @@ const BusinessAccountsSection = lazy(() => import('./sections/BusinessAccountsSe
 const CustomersSection = lazy(() => import('./sections/CustomersSection'))
 const PaymentEventsSection = lazy(() => import('./sections/PaymentEventsSection'))
 const StaffSection = lazy(() => import('./sections/StaffSection'))
-const TeamPerformanceSection = lazy(() => import('./sections/TeamPerformanceSection'))
 
 const VALID_SECTIONS: Section[] = [
-  'dashboard', 'products', 'orders', 'picking', 'staff', 'teamPerformance',
+  'dashboard', 'products', 'orders', 'picking', 'staff',
   'businessAccounts', 'customers', 'layout', 'categories', 'deliveryZones',
   'businessHours', 'fraudAudit', 'notifications', 'coupons', 'sponsoredShelves', 'mostruario', 'recipes', 'storeBanners', 'deliveryRoutes',
   'brandIdentity', 'intelligence', 'integrations', 'payments',
@@ -115,7 +113,9 @@ export default function AdminDashboard() {
   const { logout, getAdminData } = useAuth()
   const admin = getAdminData()
   const [searchParams, setSearchParams] = useSearchParams()
-  const sectionParam = searchParams.get('section') as Section | null
+  const rawSection = searchParams.get('section')
+  // 29/09/2026: 'Desempenho' virou parte de Separacao/Entregas; link antigo cai na Separacao.
+  const sectionParam = (rawSection === 'teamPerformance' ? 'picking' : rawSection) as Section | null
   const [activeSection, setActiveSectionState] = useState<Section>(
     sectionParam && VALID_SECTIONS.includes(sectionParam) ? sectionParam : 'dashboard'
   )
@@ -292,12 +292,6 @@ export default function AdminDashboard() {
           {activeSection === 'staff' && (
             <Suspense fallback={lazySectionFallback}>
               <StaffSection />
-            </Suspense>
-          )}
-
-          {activeSection === 'teamPerformance' && (
-            <Suspense fallback={lazySectionFallback}>
-              <TeamPerformanceSection />
             </Suspense>
           )}
 
