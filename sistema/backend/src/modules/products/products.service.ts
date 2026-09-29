@@ -246,8 +246,6 @@ const V3_CATEGORY_OVERRIDES: Record<string, string> = {
   'Adega e Cervejas|Licores e Aperitivos': 'DESTILADOS_COQUETEIS',
   'Mercearia Doce|Panificação Industrial': 'PADARIA_CONFEITARIA_CAFE',
   'Mercearia Doce|Doces, Geleias e Compotas': 'DOCES_CHOCOLATES_SNACKS',
-  // Na arvore v3 ovo fica no Acougue; no site o cliente procura em Hortifruti (como ja era).
-  'Açougue e Peixaria|Ovos': 'HORTIFRUTI_ORGANICOS',
 }
 export function v3CategoryCode(classification01?: string | null, classification02?: string | null): string | undefined {
   const dept = String(classification01 || '').trim()
