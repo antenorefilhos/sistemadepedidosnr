@@ -7,6 +7,7 @@ import {
   UploadedFile,
   UseGuards,
   Param,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as fs from 'fs';
@@ -126,7 +127,7 @@ export class UploadsController {
       },
     }),
   )
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+  async uploadFile(@UploadedFile() file: Express.Multer.File, @Query('preset') preset?: string) {
     const tempPath = file.path;
     const finalName = `${uuidv4()}.webp`;
     const finalPath = join('./uploads', finalName);
@@ -145,10 +146,15 @@ export class UploadsController {
       // sharp so decodifica bytes de imagem de verdade -- HTML/SVG/JS
       // disfarcado de image/png estoura aqui, antes de virar arquivo
       // publico. limitInputPixels evita decompression bomb.
-      await sharp(tempPath, { limitInputPixels: MAX_INPUT_PIXELS })
-        .resize(MAX_CANVAS_PX, MAX_CANVAS_PX, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 90, effort: 6 })
-        .toFile(finalPath);
+      // preset=recipe (29/09/2026): foto de receita sai no formato da pagina
+      // (16:9, 1600x900, recorte pelo ponto de interesse) e leve (~130 KB em
+      // vez de ~400 KB). Sem preset, o comportamento de sempre.
+      const image = sharp(tempPath, { limitInputPixels: MAX_INPUT_PIXELS });
+      if (preset === 'recipe') {
+        await image.resize(1600, 900, { fit: 'cover', position: sharp.strategy.attention }).webp({ quality: 72, effort: 6, smartSubsample: true }).toFile(finalPath);
+      } else {
+        await image.resize(MAX_CANVAS_PX, MAX_CANVAS_PX, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 90, effort: 6 }).toFile(finalPath);
+      }
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       throw new BadRequestException('Arquivo enviado nao e uma imagem valida: ' + (error as Error).message);

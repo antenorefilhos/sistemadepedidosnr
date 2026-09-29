@@ -444,7 +444,7 @@ function RecipeEditor({
     setUploading(true)
     setError('')
     try {
-      const r = await uploadsAPI.upload(file)
+      const r = await uploadsAPI.upload(file, 'recipe')
       set({ imageUrl: r.data.url })
     } catch (err) {
       setError(getApiErrorMessage(err, 'Não foi possível enviar a foto.'))
@@ -603,7 +603,7 @@ function RecipeEditor({
             </div>
           </Section>
 
-          <Section title="Foto" hint="Horizontal, de preferência 1600 × 900. Aparece no topo da receita e no compartilhamento.">
+          <Section title="Foto" hint="Pode enviar a foto como estiver: ela é recortada em formato horizontal (16:9) e comprimida sozinha. Aparece no topo da receita e no compartilhamento.">
             <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl border border-black/[0.06] bg-gray-50">
               {f.imageUrl ? <img src={resolveApiUrl(f.imageUrl)} alt="" className="h-full w-full object-cover" /> : <ImageOff size={28} className="text-gray-300" />}
               {uploading && (

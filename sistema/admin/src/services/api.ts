@@ -1434,10 +1434,12 @@ export const cmsAPI = {
 }
 
 export const uploadsAPI = {
-  upload: (file: File) => {
+  /** preset 'recipe': o servidor devolve 1600x900 (16:9) leve, no formato da pagina da receita. */
+  upload: (file: File, preset?: 'recipe') => {
     const formData = new FormData()
     formData.append('file', file)
     return api.post('/uploads', formData, {
+      params: preset ? { preset } : undefined,
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
