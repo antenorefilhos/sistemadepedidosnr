@@ -281,16 +281,16 @@ export class OfferPushService {
   async overview() {
     const settings = await this.getSettings()
     const stats = await this.prisma.$queryRaw<Array<{ source: string; sent: bigint; opened: bigint; orders: bigint; revenue: number | null }>>`
-      WITH n AS (SELECT * FROM notifications WHERE type <> 'ORDER_UPDATE' AND "createdAt" > now() - interval '30 days'),
+      WITH n AS (SELECT *, COALESCE(source, 'MANUAL') AS src FROM notifications WHERE type <> 'ORDER_UPDATE' AND "createdAt" > now() - interval '30 days'),
       o AS (
-        SELECT DISTINCT COALESCE(n.source, 'MANUAL') AS source, ord.id, ord.total FROM n
+        SELECT DISTINCT n.src, ord.id, ord.total FROM n
         JOIN orders ord ON ord."customerId" = n."customerId" AND ord."createdAt" > n."createdAt" AND ord."createdAt" <= n."createdAt" + interval '48 hours'
           AND ord.status NOT IN ('CANCELLED','REFUNDED')
-      )
-      SELECT COALESCE(n.source, 'MANUAL') AS source, COUNT(*) AS sent, COUNT(*) FILTER (WHERE n."clickedAt" IS NOT NULL) AS opened,
-        (SELECT COUNT(*) FROM o WHERE o.source = COALESCE(n.source, 'MANUAL')) AS orders,
-        (SELECT COALESCE(SUM(o.total), 0) FROM o WHERE o.source = COALESCE(n.source, 'MANUAL'))::float AS revenue
-      FROM n GROUP BY 1`
+      ),
+      s AS (SELECT src, COUNT(*) AS sent, COUNT(*) FILTER (WHERE "clickedAt" IS NOT NULL) AS opened FROM n GROUP BY src),
+      r AS (SELECT src, COUNT(*) AS orders, COALESCE(SUM(total), 0)::float AS revenue FROM o GROUP BY src)
+      SELECT s.src AS source, s.sent, s.opened, COALESCE(r.orders, 0) AS orders, COALESCE(r.revenue, 0) AS revenue
+      FROM s LEFT JOIN r ON r.src = s.src`
     const learned = await this.learnWeights()
     const subscribers = await this.prisma.pushSubscription.findMany({ where: { customerId: { not: null } }, select: { customerId: true }, distinct: ['customerId'] })
     return {

@@ -49,12 +49,12 @@ export class IntelligenceService {
 
     // Busca: o que procuram e o que nao acham (busca geral, sem filtro de categoria).
     const searches = await this.prisma.$queryRaw<Array<{ term: string; total: bigint; empty: bigint; last: Date }>>`
-      SELECT lower(trim(COALESCE(metadata->>'normalizedQuery', metadata->>'query'))) AS term,
+      SELECT lower(trim(COALESCE(metadata::jsonb->>'normalizedQuery', metadata::jsonb->>'query'))) AS term,
         COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE (metadata->>'resultCount')::int = 0 AND COALESCE(metadata->>'category', '') = '') AS empty,
+        COUNT(*) FILTER (WHERE (metadata::jsonb->>'resultCount')::int = 0 AND COALESCE(metadata::jsonb->>'category', '') = '') AS empty,
         MAX("createdAt") AS last
       FROM analytics_events
-      WHERE type = 'SEARCH' AND "createdAt" >= ${from} AND COALESCE(metadata->>'query', '') <> ''
+      WHERE type = 'SEARCH' AND "createdAt" >= ${from} AND metadata LIKE '{%' AND COALESCE(metadata::jsonb->>'query', '') <> ''
       GROUP BY 1`
     const topSearches = searches
       .map((s) => ({ term: s.term, total: Number(s.total), empty: Number(s.empty), last: s.last }))
