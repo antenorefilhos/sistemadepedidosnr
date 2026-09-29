@@ -213,6 +213,47 @@ export const BEVERAGE_CATEGORIA_TO_CATEGORY: Record<string, string> = {
 }
 
 /**
+ * Categoria do site a partir da arvore v3 do ERP (Classificacao01/02),
+ * desenhada a mao e gravada em 28/09/2026 (ORD-025). Substitui o
+ * departamento e-commerce como fonte: ele colocava talharim em Acougue,
+ * ervilha seca em Hortifruti e "Cha" bovino em Chas (reclamacao do
+ * Jonathan, 29/09). Departamento fora da tabela (ou arvore antiga "04 - ...")
+ * devolve undefined e o sync cai no caminho anterior.
+ */
+const V3_DEPARTMENT_TO_CATEGORY: Record<string, string> = {
+  'Açougue e Peixaria': 'ACOUGUE_CHURRASCO',
+  'Mercearia Salgada': 'MERCEARIA_DESPENSA',
+  'Mercearia Doce': 'MERCEARIA_DESPENSA',
+  'Matinais': 'PADARIA_CONFEITARIA_CAFE',
+  'Padaria e Confeitaria Própria': 'PADARIA_CONFEITARIA_CAFE',
+  'Biscoitos, Snacks e Bomboniere': 'DOCES_CHOCOLATES_SNACKS',
+  'Bebidas': 'SUCOS_REFRIGERANTES',
+  'Hortifrúti': 'HORTIFRUTI_ORGANICOS',
+  'Laticínios e Frios': 'QUEIJOS_FRIOS_LATICINIOS',
+  'Congelados': 'CONGELADOS_PRATICOS',
+  'Higiene e Beleza': 'HIGIENE_PERFUMARIA',
+  'Limpeza': 'LIMPEZA_CUIDADOS_DA_CASA',
+  'Bazar e Utilidades': 'BAZAR_UTILIDADES',
+  'Bebê e Infantil': 'BEBE_INFANTIL',
+  'Pet': 'PET_SHOP',
+  'Tabacaria': 'TABACARIA',
+}
+// Onde o departamento v3 cobre mais de uma categoria do site.
+const V3_CATEGORY_OVERRIDES: Record<string, string> = {
+  'Adega e Cervejas|Cervejas': 'CERVEJAS_CHOPP',
+  'Adega e Cervejas|Vinhos': 'ADEGA_VINHOS_ESPUMANTES',
+  'Adega e Cervejas|Destilados': 'DESTILADOS_COQUETEIS',
+  'Adega e Cervejas|Licores e Aperitivos': 'DESTILADOS_COQUETEIS',
+  'Mercearia Doce|Panificação Industrial': 'PADARIA_CONFEITARIA_CAFE',
+  'Mercearia Doce|Doces, Geleias e Compotas': 'DOCES_CHOCOLATES_SNACKS',
+}
+export function v3CategoryCode(classification01?: string | null, classification02?: string | null): string | undefined {
+  const dept = String(classification01 || '').trim()
+  const sub = String(classification02 || '').trim()
+  return V3_CATEGORY_OVERRIDES[`${dept}|${sub}`] || V3_DEPARTMENT_TO_CATEGORY[dept]
+}
+
+/**
  * Categorias do site cobertas por um departamento e-commerce da AntenorApi
  * (null se o nome nao e um departamento). "Bebidas & Adega" cobre 4 categorias
  * nossas. Usado pelo "Ver tudo"/preenchimento das vitrines da home, que antes
@@ -1781,7 +1822,9 @@ export class ProductsService {
               ? BEVERAGE_CATEGORIA_TO_CATEGORY[item.ecommerceCategory]
               : undefined)
           : undefined
-        const ecommerceCategoryCode = !mappedCategoryCode && !departmentCategoryCode
+        // Arvore v3 do ERP vence o departamento e-commerce (ver v3CategoryCode).
+        const siteCategoryCode = v3CategoryCode(item.classification01, item.classification02) || departmentCategoryCode
+        const ecommerceCategoryCode = !mappedCategoryCode && !siteCategoryCode
           ? this.inferCategoryFromMercadologicalPath(item.ecommerceDepartment, item.ecommerceCategory, undefined, undefined, item.name)
           : undefined
         // 25/09/2026: inverte o JON-192 -- departamento da AntenorApi vence o
@@ -1789,7 +1832,7 @@ export class ProductsService {
         // Doces). O mapping so decide quando o ERP nao manda departamento
         // (Solidcom).
         const categoryCode =
-          departmentCategoryCode ||
+          siteCategoryCode ||
           mappedCategoryCode ||
           (ecommerceCategoryCode !== 'NAO_CLASSIFICADO' ? ecommerceCategoryCode : undefined) ||
           'NAO_CLASSIFICADO'
@@ -1889,7 +1932,7 @@ export class ProductsService {
 
         await this.ensureProductMasterFromLegacyProduct(product)
 
-        const departmentCategoryId = departmentCategoryCode ? cmsCategoryIdByCode.get(departmentCategoryCode) : undefined
+        const departmentCategoryId = siteCategoryCode ? cmsCategoryIdByCode.get(siteCategoryCode) : undefined
         if (departmentCategoryId) {
           if (mappingByEan.get(mainEan)?.categoryId !== departmentCategoryId) {
             await this.prisma.productCategoryMapping.upsert({

@@ -153,7 +153,7 @@ describe('HomeVitrinesService', () => {
         },
       ],
     };
-    const resolvidosOriginais = [1, 2, 3, 4, 5].map((id) => produtoLocal(id));
+    const resolvidosOriginais = [1, 2, 3, 4, 5].map((id) => produtoLocal(id, { category: 'HORTIFRUTI_ORGANICOS' }));
     // reforco: mais 10 produtos vendaveis na mesma categoria, nenhum com
     // erpProductId (produto so mapeado localmente, nao veio do carrossel).
     const candidatosReforco = Array.from({ length: 25 }, (_, i) =>
@@ -195,7 +195,7 @@ describe('HomeVitrinesService', () => {
         },
       ],
     };
-    const resolvidosOriginais = [1, 2, 3, 4, 5].map((id) => produtoLocal(id));
+    const resolvidosOriginais = [1, 2, 3, 4, 5].map((id) => produtoLocal(id, { category: 'HORTIFRUTI_ORGANICOS' }));
     const candidatosReforco = Array.from({ length: 25 }, (_, i) =>
       produtoLocal(100 + i, { id: `reforco-${i}`, erpProductId: null }),
     );
@@ -280,3 +280,25 @@ describe('fitsTagShelf', () => {
     expect(fitsTagShelf('integral', 'PADARIA_CONFEITARIA_CAFE')).toBe(true);
   });
 });
+
+describe('carrossel de departamento filtra pela categoria do site (29/09/2026)', () => {
+  it('talharim com categoria de mercearia nao entra em "Carnes"', async () => {
+    const remota = {
+      carrosseis: [{ id: 'carnes', titulo: 'Carnes', tipoFiltro: 'departamento', valorFiltro: 'Açougue, Aves & Peixaria', produtos: [1, 2].map((id) => ({ id, sku: String(id) })) }],
+    }
+    const base = { active: true, syncOption: 'SEMPRE', stock: 0, erpProductId: 0 }
+    const prisma = {
+      product: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([
+            { ...base, id: 'picanha', erpProductId: 1, category: 'ACOUGUE_CHURRASCO' },
+            { ...base, id: 'talharim', erpProductId: 2, category: 'MERCEARIA_DESPENSA' },
+          ])
+          .mockResolvedValue([]),
+      },
+    }
+    const service = new HomeVitrinesService(prisma as never, { getVitrines: jest.fn().mockResolvedValue(remota) } as never)
+    const ids = (service as any).build ? (await (service as any).build({})).carrosseis.flatMap((c: any) => c.produtos.map((p: any) => p.id)) : []
+    expect(ids).not.toContain('talharim')
+  })
+})

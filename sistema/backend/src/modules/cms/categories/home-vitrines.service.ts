@@ -181,6 +181,14 @@ export class HomeVitrinesService {
         .filter((produto): produto is NonNullable<typeof produto> => !!produto)
         .filter((produto) => isAutoSurfaceable(produto))
         .filter((produto) => carrossel.tipoFiltro !== 'tag' || !carrossel.valorFiltro || fitsTagShelf(carrossel.valorFiltro, produto.category))
+        // A lista vem pronta da AntenorApi pelo departamento e-commerce, que
+        // errava (talharim em "Carnes", 29/09). Carrossel de departamento so
+        // mostra quem esta, pela nossa categoria (arvore v3), naquele departamento.
+        .filter((produto) => {
+          if (carrossel.tipoFiltro !== 'departamento') return true;
+          const permitidas = departmentCategories(carrossel.valorFiltro);
+          return !permitidas || permitidas.includes(String(produto.category));
+        })
         .filter((produto) => {
           if (jaUsados.has(produto.id)) return false;
           jaUsados.add(produto.id);

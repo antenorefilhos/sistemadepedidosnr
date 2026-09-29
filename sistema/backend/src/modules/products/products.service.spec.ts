@@ -1026,3 +1026,21 @@ describe('departmentCategories (vitrines independentes da arvore do ERP, ORD-025
     expect(departmentCategories('05 - HORTIFRUTI & FLV')).toBeNull()
   })
 })
+
+describe('v3CategoryCode (categoria do site pela arvore v3 do ERP)', () => {
+  const { v3CategoryCode } = jest.requireActual('./products.service')
+  it('casos que o departamento e-commerce errava', () => {
+    expect(v3CategoryCode('Mercearia Salgada', 'Massas')).toBe('MERCEARIA_DESPENSA') // talharim
+    expect(v3CategoryCode('Mercearia Salgada', 'Arroz, Feijão e Grãos')).toBe('MERCEARIA_DESPENSA') // ervilha seca
+    expect(v3CategoryCode('Açougue e Peixaria', 'Bovinos')).toBe('ACOUGUE_CHURRASCO') // chã
+  })
+  it('segundo nivel decide onde o departamento cobre mais de uma categoria', () => {
+    expect(v3CategoryCode('Adega e Cervejas', 'Vinhos')).toBe('ADEGA_VINHOS_ESPUMANTES')
+    expect(v3CategoryCode('Adega e Cervejas', 'Cervejas')).toBe('CERVEJAS_CHOPP')
+    expect(v3CategoryCode('Mercearia Doce', 'Panificação Industrial')).toBe('PADARIA_CONFEITARIA_CAFE')
+  })
+  it('arvore antiga ou desconhecida nao decide (cai no caminho anterior)', () => {
+    expect(v3CategoryCode('04 - CARNES, AVES & PEIXARIA', '01 - AVES')).toBeUndefined()
+    expect(v3CategoryCode(null, null)).toBeUndefined()
+  })
+})
