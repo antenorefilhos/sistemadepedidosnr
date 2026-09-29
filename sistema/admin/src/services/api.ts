@@ -1740,6 +1740,20 @@ export interface IntelligenceResponse {
   heatmap: Array<{ dow: number; hour: number; n: number }>
   customers: { buyers: number; firstTime: number; returning: number; boughtTwiceInPeriod: number }
 }
+export interface SearchCheck {
+  term: string
+  total: number
+  sample: string[]
+  diagnosis: { inCatalog: number; examples: Array<{ name: string; reason: string }> } | null
+}
+/** Saude da busca: confere termos agora e gerencia sinonimos (29/09/2026). */
+export const searchHealthAPI = {
+  check: (terms: string[]) => api.post<SearchCheck[]>('/admin/search/check', { terms }),
+  synonyms: () => api.get<Array<{ id: string; term: string; equivalents: string[] }>>('/admin/search/synonyms'),
+  addSynonym: (term: string, equivalents: string[]) => api.post('/admin/search/synonyms', { term, equivalents }),
+  removeSynonym: (id: string) => api.delete(`/admin/search/synonyms/${id}`),
+}
+
 export const intelligenceAPI = {
   get: (days: number) => api.get<IntelligenceResponse>('/admin/intelligence', { params: { days } }),
 }

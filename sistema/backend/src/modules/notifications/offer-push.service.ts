@@ -93,7 +93,7 @@ export class OfferPushService {
    */
   async learnWeights() {
     const rows = await this.prisma.$queryRaw<Array<{ category: string; sent: bigint; opened: bigint }>>`
-      SELECT p.category, COUNT(*) AS sent, COUNT(*) FILTER (WHERE n."clickedAt" IS NOT NULL) AS opened
+      SELECT p.category, COUNT(*) AS sent, COUNT(*) FILTER (WHERE n."clickedAt" IS NOT NULL OR n.read) AS opened
       FROM notifications n JOIN products p ON p.id = n."productId"
       WHERE n.source = 'AUTO' AND n."createdAt" > now() - interval '60 days'
       GROUP BY p.category`
@@ -173,7 +173,9 @@ export class OfferPushService {
         SELECT DISTINCT e."customerId", e."entityId" AS "productId", p.category FROM analytics_events e JOIN products p ON p.id = e."entityId"
         WHERE e.type = 'VIEW_PRODUCT' AND e."customerId" = ANY(${customerIds}) AND e."createdAt" > now() - interval '30 days'`,
       this.prisma.notification.findMany({
-        where: { customerId: { in: customerIds }, source: 'AUTO', createdAt: { gte: new Date(now.getTime() - 14 * DAY) } },
+        // Limites contam QUALQUER aviso de marketing (automatico, manual ou
+        // agendado): quem recebeu uma campanha hoje nao leva oferta automatica.
+        where: { customerId: { in: customerIds }, source: { in: ['AUTO', 'MANUAL', 'SCHEDULED'] }, type: { not: 'ORDER_UPDATE' }, createdAt: { gte: new Date(now.getTime() - 14 * DAY) } },
         select: { customerId: true, productId: true, createdAt: true },
       }),
     ])
@@ -196,7 +198,7 @@ export class OfferPushService {
       const mine = recent.filter((n) => n.customerId === customerId)
       if (mine.some((n) => now.getTime() - n.createdAt.getTime() < 20 * 3600_000)) continue
       if (mine.filter((n) => now.getTime() - n.createdAt.getTime() < 7 * DAY).length >= settings.maxPerWeek) continue
-      const sentProducts = new Set(mine.map((n) => n.productId))
+      const sentProducts = new Set(mine.map((n) => n.productId).filter(Boolean))
       const b = boughtBy.get(customerId)
       const v = viewedBy.get(customerId)
 
@@ -287,7 +289,7 @@ export class OfferPushService {
         JOIN orders ord ON ord."customerId" = n."customerId" AND ord."createdAt" > n."createdAt" AND ord."createdAt" <= n."createdAt" + interval '48 hours'
           AND ord.status NOT IN ('CANCELLED','REFUNDED')
       ),
-      s AS (SELECT src, COUNT(*) AS sent, COUNT(*) FILTER (WHERE "clickedAt" IS NOT NULL) AS opened FROM n GROUP BY src),
+      s AS (SELECT src, COUNT(*) AS sent, COUNT(*) FILTER (WHERE "clickedAt" IS NOT NULL OR read) AS opened FROM n GROUP BY src),
       r AS (SELECT src, COUNT(*) AS orders, COALESCE(SUM(total), 0)::float AS revenue FROM o GROUP BY src)
       SELECT s.src AS source, s.sent, s.opened, COALESCE(r.orders, 0) AS orders, COALESCE(r.revenue, 0) AS revenue
       FROM s LEFT JOIN r ON r.src = s.src`

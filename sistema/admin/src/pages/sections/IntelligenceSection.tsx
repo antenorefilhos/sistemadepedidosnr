@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowDownRight, ArrowUpRight } from 'lucide-react'
+import { NoResultSearches } from './NoResultSearches'
 import { getApiErrorMessage, intelligenceAPI, resolveApiUrl, type IntelligenceFunnel, type IntelligenceProduct, type IntelligenceResponse } from '../../services/api'
 
 // Inteligencia (refeita em 29/09/2026 com o Jonathan). So o que leva a uma
@@ -53,19 +54,8 @@ export default function IntelligenceSection() {
           <Funnel current={data.funnel.current} previous={data.funnel.previous} days={data.days} />
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="O que procuram e não acham" hint="Buscas sem nenhum resultado. Cada uma é venda perdida: falta o produto, o nome está diferente ou precisa de sinônimo.">
-              {data.search.noResult.length === 0 ? (
-                <Empty text="Nenhuma busca sem resultado no período." />
-              ) : (
-                <Rows
-                  rows={data.search.noResult.map((s) => ({
-                    key: s.term,
-                    left: s.term,
-                    right: `${s.empty}×`,
-                    sub: `última em ${new Date(s.last).toLocaleDateString('pt-BR')}`,
-                  }))}
-                />
-              )}
+            <Card title="O que procuram e não acham" hint="Buscas que voltaram vazias no período, conferidas de novo agora. Cada uma é venda perdida: resolva com um sinônimo ou cadastrando o produto.">
+              <NoResultSearches items={data.search.noResult} />
             </Card>
             <Card title="O que mais procuram" hint={`${num(data.search.total)} buscas no período.`}>
               {data.search.top.length === 0 ? (
@@ -190,22 +180,6 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
       <p className="text-xl font-semibold tabular-nums text-gray-900">{value}</p>
       {note && <p className="text-xs text-gray-400">{note}</p>}
     </div>
-  )
-}
-
-function Rows({ rows }: { rows: Array<{ key: string; left: string; right: string; sub?: string }> }) {
-  return (
-    <ul className="divide-y divide-black/[0.05]">
-      {rows.map((r) => (
-        <li key={r.key} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-          <span className="min-w-0">
-            <span className="block truncate text-gray-900">{r.left}</span>
-            {r.sub && <span className="text-xs text-gray-400">{r.sub}</span>}
-          </span>
-          <span className="shrink-0 tabular-nums text-gray-600">{r.right}</span>
-        </li>
-      ))}
-    </ul>
   )
 }
 

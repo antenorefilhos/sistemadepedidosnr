@@ -35,6 +35,8 @@ const SYNONYM_GROUPS: string[][] = [
   ['sal', 'sau'],
   ['cafe', 'café', 'cafee'],
   ['leite', 'leyte'],
+  // "carne moida" nao achava "Cha Bovino Moido" (29/09/2026).
+  ['moida', 'moido', 'moída', 'moído'],
   ['uht', 'longa vida', 'caixa', 'tetra pak', 'tetrapak'],
   ['manteiga', 'mantteiga'],
   ['margarina', 'margarna'],
@@ -166,7 +168,7 @@ export class ProductSearchService implements OnModuleInit {
         },
         disableOnWords: [],
       })
-      await index.updateSynonyms(buildSynonymsMap(SYNONYM_GROUPS))
+      await this.applySynonyms()
       await index.updateRankingRules([
         'words',
         'typo',
@@ -190,6 +192,15 @@ export class ProductSearchService implements OnModuleInit {
 
   isEnabled() {
     return this.enabled
+  }
+
+  /** Sinonimos fixos (SYNONYM_GROUPS) + os criados no admin (um sentido: termo -> equivalentes). */
+  async applySynonyms() {
+    if (!this.enabled) return
+    const map = buildSynonymsMap(SYNONYM_GROUPS)
+    const custom = await this.prisma.searchSynonym.findMany({ select: { term: true, equivalents: true } }).catch(() => [])
+    for (const row of custom) map[row.term] = [...new Set([...(map[row.term] || []), ...row.equivalents])]
+    await this.getClient().index(this.indexName).updateSynonyms(map)
   }
 
   async searchProducts(

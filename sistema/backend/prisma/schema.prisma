@@ -2482,3 +2482,14 @@ model AutoOfferSettings {
 
   @@map("auto_offer_settings")
 }
+
+// Sinonimos da busca criados pelo admin (29/09/2026): "maisena" -> ["maizena"].
+// Somam-se aos grupos fixos de product-search.service.ts.
+model SearchSynonym {
+  id          String   @id @default(cuid())
+  term        String   @unique
+  equivalents String[]
+  createdAt   DateTime @default(now())
+
+  @@map("search_synonyms")
+}

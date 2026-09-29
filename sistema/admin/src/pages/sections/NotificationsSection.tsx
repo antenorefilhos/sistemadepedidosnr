@@ -236,7 +236,7 @@ function AutoTab({ depName }: { depName: (code: string) => string }) {
       <div className="space-y-4">
         <Card>
           <h3 className="text-sm font-medium text-gray-900">Resultado · 30 dias</h3>
-          <p className="mt-0.5 text-xs text-gray-400">"Pedidos" = o cliente comprou em até 48 h depois do aviso. O clique é medido desde 29/09/2026.</p>
+          <p className="mt-0.5 text-xs text-gray-400">"Abriram": tocou no aviso ou leu no sino do site. "Pedidos": comprou em até 48 h depois do aviso.</p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -249,7 +249,7 @@ function AutoTab({ depName }: { depName: (code: string) => string }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/[0.05] tabular-nums">
-                {['AUTO', 'MANUAL', 'CART'].map((src) => {
+                {['AUTO', 'MANUAL', 'SCHEDULED', 'CART'].filter((src) => src === 'AUTO' || bySource(src).sent > 0).map((src) => {
                   const r = bySource(src)
                   return (
                     <tr key={src}>
@@ -640,7 +640,7 @@ function HistoryTab() {
         </div>
       )}
       <div className="flex items-center justify-between text-xs text-gray-500">
-        <span>"Abriram" conta cliques desde 29/09/2026. "Pedidos": o cliente comprou em até 48 h depois do aviso.</span>
+        <span>"Abriram": tocou no aviso ou leu no sino do site. "Pedidos": comprou em até 48 h depois do aviso.</span>
         <span className="flex gap-1">
           <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)} className="rounded-lg px-2 py-1 hover:bg-gray-100 disabled:opacity-30">
             Anterior

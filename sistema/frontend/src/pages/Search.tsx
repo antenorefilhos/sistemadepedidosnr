@@ -47,12 +47,16 @@ const FALLBACK_CATEGORIES = [
   { key: '', label: 'Todos' },
 ]
 
-const QUICK_SEARCHES = [
-  'ofertas da semana',
-  'frescos para hoje',
-  'frango para churrasco',
-  'carne moida',
-  'pão francês',
+// 29/09/2026: 4 dos 5 atalhos antigos ("ofertas da semana", "frescos para
+// hoje", "frango para churrasco", "carne moida") buscavam texto que nao casa
+// com nenhum produto e davam tela vazia. Atalho de intencao agora e LINK
+// (promocoes, categoria); os de busca sao termos conferidos contra o catalogo.
+const QUICK_LINKS: Array<{ label: string; to?: string; query?: string }> = [
+  { label: 'Ofertas da semana', to: '/promocoes' },
+  { label: 'Hortifruti', to: '/mercado?cat=hortifruti-organicos' },
+  { label: 'Açougue', to: '/mercado?cat=acougue-churrasco' },
+  { label: 'Pão francês', query: 'pão francês' },
+  { label: 'Leite', query: 'leite' },
 ]
 
 const PRICE_FILTERS = [
@@ -822,17 +826,17 @@ export default function MercadoPage() {
         {/* Sugestões rápidas — só quando sem filtro ativo */}
         {!hasActiveFilters && !isLoading && (
           <div className="flex flex-wrap gap-2 mb-5">
-            {QUICK_SEARCHES.map((item) => (
+            {QUICK_LINKS.map((item) => (
               <Button
-                key={item}
+                key={item.label}
                 type="button"
-                onClick={() => chooseSuggestion(item)}
+                onClick={() => (item.to ? navigate(item.to) : chooseSuggestion(item.query!))}
                 variant="subtle"
                 size="sm"
                 // JON-168 (Auditoria 360): altura 28 ficava abaixo do alvo minimo de 44.
                 className="h-auto min-h-11 px-3 py-1.5 text-xs"
               >
-                {item}
+                {item.label}
               </Button>
             ))}
           </div>
@@ -852,7 +856,7 @@ export default function MercadoPage() {
             <p className="text-sm mt-1">Tente outra palavra, escolha uma categoria ou ajuste o preço</p>
             <Button
               type="button"
-              onClick={() => chooseSuggestion('ofertas da semana')}
+              onClick={() => navigate('/promocoes')}
               className="mt-4"
             >
               Ver ofertas da semana

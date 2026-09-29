@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, Loader2, RefreshCw, Search } from 'lucide-react'
-import { getApiErrorMessage, mostruarioAdminAPI, type MostruarioMetricas, type MostruarioProduto } from '../../services/api'
+import { getApiErrorMessage, mostruarioAdminAPI, productsAPI, type MostruarioMetricas, type MostruarioProduto } from '../../services/api'
 
 // Mostruario (refeita em 29/09/2026). O motor da AntenorApi decide o que fica
 // no site pelo que VENDE no caixa, nao so pelo estoque do ERP (que erra muito
@@ -20,6 +20,14 @@ export default function MostruarioSection() {
   const [busy, setBusy] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
+  // Quantos estao de fato no nosso site (mesma conta da tela Produtos).
+  const [siteCount, setSiteCount] = useState<number | null>(null)
+  useEffect(() => {
+    productsAPI
+      .catalog({ tab: 'site', limit: 1 })
+      .then((r) => setSiteCount(r.data.counts.site))
+      .catch(() => setSiteCount(null))
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -94,14 +102,18 @@ export default function MostruarioSection() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Mantidos por vender no caixa" value={num(metrics.impactoOperacional.produtosSalvosDoEstoqueNegativo)} note="estoque do ERP zerado ou negativo" />
+            <Stat label="Mantidos por vender no caixa" value={num(saved ? saved.length : metrics.impactoOperacional.produtosSalvosDoEstoqueNegativo)} note="estoque do ERP zerado ou negativo" />
             <Stat label="Presença garantida" value={num(r!.tier1PresencaGarantida)} note="vende com frequência" />
             <Stat label="Cauda longa" value={num(r!.tier2CaudaLongaAtiva)} note="vende pouco, fica se tiver estoque" />
             <Stat label="Em quarentena" value={num(r!.emQuarentenaPicking)} note="2+ faltas na separação em 48 h" />
             <Stat label="Ocultos por precaução" value={num(r!.tier3OcultosPreventivos)} note="sem venda recente" />
             <Stat label="Tirados do mix" value={num(r!.tier3MortosExpurgados)} note="sem venda há muito tempo" />
             <Stat label="Mix curado" value={num(r!.totalMixCurado)} note="produtos avaliados" />
-            <Stat label="No site (pela AntenorApi)" value={num(r!.totalAtivosNoSite)} note="o site aplica ainda ocultos e categoria" />
+            <Stat
+              label="No site"
+              value={siteCount != null ? num(siteCount) : num(r!.totalAtivosNoSite)}
+              note={siteCount != null ? `a AntenorApi libera ${num(r!.totalAtivosNoSite)}; o site ainda tira ocultos e sem categoria` : 'pela AntenorApi'}
+            />
           </div>
 
           <section className="rounded-2xl border border-black/[0.06] bg-white p-4 sm:p-5">

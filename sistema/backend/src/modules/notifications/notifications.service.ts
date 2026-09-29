@@ -238,7 +238,7 @@ export class NotificationsService {
       d AS (
         SELECT k, MIN(title) AS title, MIN(body) AS body, MIN(type) AS type, MIN("productId") AS "productId",
           MIN("imageUrl") AS "imageUrl", MIN("createdAt") AS "sentAt", MIN(source) AS source,
-          COUNT(*) AS recipients, COUNT(*) FILTER (WHERE read) AS reads, COUNT(*) FILTER (WHERE "clickedAt" IS NOT NULL) AS opened
+          COUNT(*) AS recipients, COUNT(*) FILTER (WHERE read) AS reads, COUNT(*) FILTER (WHERE "clickedAt" IS NOT NULL OR read) AS opened
         FROM n GROUP BY k
         ORDER BY MIN("createdAt") DESC
         LIMIT ${limitSeguro + 1} OFFSET ${Math.max(offset, 0)}
@@ -476,6 +476,7 @@ export class NotificationsService {
           imageUrl: item.imageUrl ?? undefined,
           productId: item.productId ?? undefined,
           bannerId: item.bannerId ?? undefined,
+          source: 'SCHEDULED',
         })
         sent++
       } catch (error) {

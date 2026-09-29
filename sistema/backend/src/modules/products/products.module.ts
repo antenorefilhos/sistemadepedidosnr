@@ -4,6 +4,8 @@ import { ProductsController } from './products.controller'
 import { AdminProductsController } from './admin-products.controller'
 import { IntegrationsModule } from '../../modules/integrations/integrations.module'
 import { ProductSearchService } from './product-search.service'
+import { SearchHealthService } from './search-health.service'
+import { SearchHealthController } from './search-health.controller'
 import { ProductsSyncScheduler } from './products-sync.scheduler'
 import { MissingProductsMonitor } from './missing-products.monitor'
 import { CategoriesModule } from '../categories/categories.module'
@@ -18,8 +20,8 @@ import { PermissionGuard } from '../../common/guards/permission.guard'
   // Integrations (pra AntenorApiService/SolidcomERPService). Sem forwardRef
   // isso e dependencia circular na cara.
   imports: [forwardRef(() => IntegrationsModule), CategoriesModule, NotificationsModule],
-  controllers: [ProductsController, AdminProductsController],
-  providers: [ProductsService, ProductSearchService, ProductsSyncScheduler, MissingProductsMonitor, TenantAccessGuard, PermissionGuard],
+  controllers: [ProductsController, AdminProductsController, SearchHealthController],
+  providers: [ProductsService, ProductSearchService, SearchHealthService, ProductsSyncScheduler, MissingProductsMonitor, TenantAccessGuard, PermissionGuard],
   exports: [ProductsService, ProductSearchService],
 })
 export class ProductsModule {}
