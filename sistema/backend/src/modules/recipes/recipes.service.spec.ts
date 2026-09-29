@@ -45,8 +45,16 @@ describe('RecipesService', () => {
       const result = await service.listCategories();
       expect(result).toEqual(categories);
       expect(mockPrisma.recipeCategory.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ orderBy: { order: 'asc' } }),
+        expect.objectContaining({ orderBy: [{ order: 'asc' }, { name: 'asc' }] }),
       );
+    });
+
+    it('site so recebe categoria ativa com receita publicada', async () => {
+      mockPrisma.recipeCategory.findMany.mockResolvedValue([]);
+      await service.listCategories();
+      const arg = mockPrisma.recipeCategory.findMany.mock.calls.at(-1)[0];
+      expect(arg.where.active).toBe(true);
+      expect(arg.where.recipes.some.active).toBe(true);
     });
   });
 
@@ -64,9 +72,10 @@ describe('RecipesService', () => {
       mockPrisma.recipe.count.mockResolvedValue(0);
 
       await service.list(true, 'carnes');
-      expect(mockPrisma.recipe.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { active: true, category: { slug: 'carnes' } } }),
-      );
+      const where = mockPrisma.recipe.findMany.mock.calls.at(-1)[0].where;
+      // Site: ativa, publicada (data vazia ou ja passada) e da categoria.
+      expect(where).toMatchObject({ active: true, category: { slug: 'carnes' } });
+      expect(where.OR).toEqual([{ publishedAt: null }, { publishedAt: { lte: expect.any(Date) } }]);
     });
 
     it('deve calcular hasNextPage corretamente', async () => {
@@ -80,11 +89,25 @@ describe('RecipesService', () => {
 
   describe('findBySlug', () => {
     it('deve retornar receita existente', async () => {
-      const recipe = { id: '1', title: 'Frango Grelhado', slug: 'frango-grelhado', active: true };
+      const available = { id: 'p1', active: true, syncOption: 'SEMPRE', stock: 0, name: 'Frango', titleMask: 'Frango kg' };
+      const missing = { id: 'p2', active: true, syncOption: 'ESTOQUE', stock: 0, name: 'Limao' };
+      const recipe = {
+        id: '1', title: 'Frango Grelhado', slug: 'frango-grelhado', active: true, publishedAt: null,
+        products: [{ productId: 'p1', product: available }, { productId: 'p2', product: missing }],
+        relatedTo: [{ relatedRecipe: { active: false, publishedAt: null } }],
+      };
       mockPrisma.recipe.findUnique.mockResolvedValue(recipe);
 
       const result = await service.findBySlug('frango-grelhado');
-      expect(result).toEqual(recipe);
+      // So o que da para comprar, com o nome do site; relacionada nao publicada some.
+      expect(result.products).toHaveLength(1);
+      expect(result.products[0].product.name).toBe('Frango kg');
+      expect(result.relatedTo).toHaveLength(0);
+    });
+
+    it('receita agendada para o futuro nao aparece no site', async () => {
+      mockPrisma.recipe.findUnique.mockResolvedValue({ id: '1', slug: 'x', active: true, publishedAt: new Date(Date.now() + 3600_000), products: [], relatedTo: [] });
+      await expect(service.findBySlug('x')).rejects.toThrow(NotFoundException);
     });
 
     it('deve lançar NotFoundException para slug inexistente', async () => {
@@ -101,10 +124,10 @@ describe('RecipesService', () => {
     });
 
     it('receita desativada aparece pra admin (allowInactive=true)', async () => {
-      const recipe = { id: '1', slug: 'desativada', active: false };
+      const recipe = { id: '1', slug: 'desativada', active: false, products: [], relatedTo: [] };
       mockPrisma.recipe.findUnique.mockResolvedValue(recipe);
       const result = await service.findBySlug('desativada', true);
-      expect(result).toEqual(recipe);
+      expect(result).toMatchObject({ id: '1', slug: 'desativada' });
     });
   });
 

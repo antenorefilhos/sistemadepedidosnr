@@ -88,7 +88,7 @@ const NotificationsBroadcast = lazy(() => import('./NotificationsBroadcast'))
 const Coupons = lazy(() => import('./Coupons'))
 const SponsoredShelves = lazy(() => import('./SponsoredShelves'))
 const Mostruario = lazy(() => import('./Mostruario'))
-const Recipes = lazy(() => import('./Recipes'))
+const RecipesSection = lazy(() => import('./sections/RecipesSection'))
 const StoreBannersManager = lazy(() => import('./StoreBannersManager'))
 const BrandIdentity = lazy(() => import('./BrandIdentity'))
 const DashboardSection = lazy(() => import('./sections/DashboardSection').then((module) => ({ default: module.DashboardSection })))
@@ -305,7 +305,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'recipes' && (
             <Suspense fallback={lazySectionFallback}>
-              <Recipes />
+              <RecipesSection />
             </Suspense>
           )}
 

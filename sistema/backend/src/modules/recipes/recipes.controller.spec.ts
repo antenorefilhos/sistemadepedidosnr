@@ -23,8 +23,10 @@ describe('RecipesController security metadata', () => {
     },
   )
 
-  it('keeps listCategories public read endpoint without guards', () => {
-    expect(guardTypes('listCategories')).toHaveLength(0)
+  // Publico, mas com token de admin opcional (admin ve todas as categorias).
+  it('keeps listCategories public read endpoint (optional auth only)', () => {
+    expect(guardTypes('listCategories')).toEqual([OptionalJwtAuthGuard])
+    expect(rolesFor('listCategories') ?? []).toEqual([])
   })
 
   // JON-156 (Auditoria 360, Low): list/findBySlug continuam alcancaveis sem

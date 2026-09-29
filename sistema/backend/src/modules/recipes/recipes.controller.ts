@@ -30,8 +30,9 @@ export class RecipesController {
   // ---- Categories ----
 
   @Get('categories')
-  listCategories() {
-    return this.service.listCategories()
+  @UseGuards(OptionalJwtAuthGuard)
+  listCategories(@Req() req: { user?: { role?: string } }) {
+    return this.service.listCategories(req.user?.role === 'admin')
   }
 
   @Post('categories')
@@ -74,7 +75,7 @@ export class RecipesController {
   ) {
     const isAdmin = req.user?.role === 'admin'
     const activeFilter = isAdmin ? (active === undefined ? undefined : active !== 'false') : true
-    return this.service.list(activeFilter, category, page, limit)
+    return this.service.list(activeFilter, category, page, limit, isAdmin)
   }
 
   @Get(':slug')

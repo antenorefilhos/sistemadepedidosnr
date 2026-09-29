@@ -156,7 +156,11 @@ export class SeoService {
       select: { id: true, name: true, erpProductId: true, updatedAt: true, category: true },
     })
     const categories = [...new Set(products.map((p) => p.category).filter(Boolean))]
-    const recipes = await this.prisma.recipe.findMany({ where: { active: true }, select: { slug: true, updatedAt: true } })
+    // So receita publicada (agendada ainda nao); sem nenhuma, /receitas fica fora.
+    const recipes = await this.prisma.recipe.findMany({
+      where: { active: true, OR: [{ publishedAt: null }, { publishedAt: { lte: new Date() } }] },
+      select: { slug: true, updatedAt: true },
+    })
 
     const entry = (loc: string, opts: { lastmod?: Date; changefreq?: string; priority?: string } = {}) =>
       `  <url><loc>${escapeHtml(loc)}</loc>${opts.lastmod ? `<lastmod>${opts.lastmod.toISOString().slice(0, 10)}</lastmod>` : ''}${opts.changefreq ? `<changefreq>${opts.changefreq}</changefreq>` : ''}${opts.priority ? `<priority>${opts.priority}</priority>` : ''}</url>`
@@ -167,7 +171,7 @@ export class SeoService {
       entry(`${s}/mercado`, { changefreq: 'daily', priority: '0.9' }),
       entry(`${s}/adega`, { changefreq: 'weekly', priority: '0.8' }),
       entry(`${s}/promocoes`, { changefreq: 'daily', priority: '0.8' }),
-      entry(`${s}/receitas`, { changefreq: 'weekly', priority: '0.6' }),
+      ...(recipes.length ? [entry(`${s}/receitas`, { changefreq: 'weekly', priority: '0.6' })] : []),
       ...categories.map((c) => entry(`${s}/mercado?cat=${String(c).toLowerCase().replace(/_/g, '-')}`, { changefreq: 'daily', priority: '0.8' })),
       ...products.map((p) => entry(`${s}${productPath(p)}`, { lastmod: p.updatedAt, changefreq: 'weekly', priority: '0.7' })),
       ...recipes.map((r) => entry(`${s}/receitas/${r.slug}`, { lastmod: r.updatedAt, changefreq: 'monthly', priority: '0.5' })),
