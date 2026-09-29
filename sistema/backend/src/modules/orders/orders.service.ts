@@ -45,7 +45,17 @@ type AdminOrderFilters = {
   paymentStatus?: string
   customerId?: string
   limit?: number
+  /** 'summary': so os campos da lista do admin (a lista completa trazia o produto inteiro de cada item: 336 KB para 33 pedidos). */
+  view?: string
 }
+
+// Status que existem no fluxo. Qualquer outro texto e recusado (antes o
+// admin gravava qualquer string).
+export const ORDER_STATUSES = new Set([
+  'PENDING', 'PAYMENT_PENDING', 'CONFIRMED', 'PICKING_PENDING', 'PICKING', 'WAITING_CUSTOMER_SUBSTITUTION',
+  'CONFERENCE_PENDING', 'PACKING', 'READY_FOR_CHECKOUT', 'READY_FOR_PICKUP', 'READY_FOR_DELIVERY',
+  'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'PARTIALLY_CANCELLED', 'CANCELLED', 'REFUNDED', 'FAILED_SYNC',
+])
 
 @Injectable()
 export class OrdersService {
@@ -782,6 +792,15 @@ export class OrdersService {
     if (!previousOrder) {
       throw new NotFoundException('Pedido nao encontrado.')
     }
+    if (!ORDER_STATUSES.has(status)) {
+      throw new BadRequestException(`Status desconhecido: ${status}.`)
+    }
+    // 29/09/2026: pedido cancelado ja foi cancelado no ERP e liberou estoque e
+    // vaga -- "reabrir" pelo seletor do admin deixava o pedido vivo aqui e
+    // morto la. So segue para estorno.
+    if (['CANCELLED', 'REFUNDED'].includes(previousOrder.status) && status !== previousOrder.status && !(previousOrder.status === 'CANCELLED' && status === 'REFUNDED')) {
+      throw new BadRequestException('Pedido cancelado não pode voltar ao fluxo. Se foi engano, faça um novo pedido.')
+    }
 
     if (status === 'CONFIRMED') {
       if (this.requiresOnlinePaymentAuthorization(previousOrder)) {
@@ -875,12 +894,37 @@ export class OrdersService {
   }
 
   async findAdminOrders(context: Partial<OrderTenantContext>, filters: AdminOrderFilters = {}) {
-    const limit = Math.min(Math.max(Number(filters.limit || 50), 1), 200)
+    const summary = filters.view === 'summary'
+    const limit = Math.min(Math.max(Number(filters.limit || 50), 1), summary ? 1000 : 200)
     const where: Prisma.OrderWhereInput = {
       ...tenantStoreWhere(context),
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.paymentStatus ? { paymentStatus: filters.paymentStatus } : {}),
       ...(filters.customerId ? { customerId: filters.customerId } : {}),
+    }
+
+    if (summary) {
+      return this.prisma.order.findMany({
+        where,
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          scheduledFor: true,
+          erpDav: true,
+          total: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          notes: true,
+          fulfillmentType: true,
+          addressSnapshot: true,
+          customer: { select: { id: true, name: true, whatsapp: true } },
+          _count: { select: { items: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      })
     }
 
     return this.prisma.order.findMany({
@@ -912,6 +956,13 @@ export class OrdersService {
   ) {
     const current = await this.findOrderForOms(id, context)
     const data: Prisma.OrderUpdateInput = {}
+    if (dto.status && dto.status !== current.status) {
+      // Mesma trava do updateStatus: evento nao pode ser atalho para status invalido ou reabrir cancelado.
+      if (!ORDER_STATUSES.has(dto.status)) throw new BadRequestException(`Status desconhecido: ${dto.status}.`)
+      if (['CANCELLED', 'REFUNDED'].includes(current.status) && !(current.status === 'CANCELLED' && dto.status === 'REFUNDED')) {
+        throw new BadRequestException('Pedido cancelado não pode voltar ao fluxo. Se foi engano, faça um novo pedido.')
+      }
+    }
     if (dto.status && dto.status !== current.status) data.status = dto.status
     if (dto.paymentStatus && dto.paymentStatus !== current.paymentStatus) data.paymentStatus = dto.paymentStatus
 

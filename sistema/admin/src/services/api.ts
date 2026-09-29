@@ -779,6 +779,23 @@ export interface AdminOrderItem {
   pickerNotes?: string | null
 }
 
+export interface AdminOrderSummary {
+  id: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  scheduledFor?: string | null
+  erpDav?: string | null
+  total: number
+  paymentMethod?: string | null
+  paymentStatus?: string | null
+  notes?: string | null
+  fulfillmentType?: string | null
+  addressSnapshot?: { neighborhood?: string; street?: string; number?: string } | null
+  customer?: { id: string; name: string; whatsapp?: string | null } | null
+  _count?: { items: number }
+}
+
 export interface AdminOrderEvent {
   id: string
   orderId: string
@@ -792,6 +809,10 @@ export interface AdminOrderEvent {
 export interface AdminOrder {
   id: string
   customerId: string
+  erpDav?: string | null
+  scheduledFor?: string | null
+  updatedAt?: string
+  deliveryInstructions?: string | null
   customer?: { id: string; name: string; whatsapp: string; email?: string }
   businessAccountId?: string | null
   businessAccount?: { id: string; name: string; document: string } | null
@@ -1154,11 +1175,11 @@ export const ordersAPI = {
   updateStatus: (id: string, status: string, reason?: string) =>
     status === 'CANCELLED'
       ? api.post<AdminOrder>(`/admin/orders/${id}/cancel`, { ...(reason && { reason }) })
-      : api.post<{ order: AdminOrder; event: AdminOrderEvent }>(`/admin/orders/${id}/events`, {
-          type: orderEventTypeForStatus(status),
-          status,
-          payload: { ...(reason && { reason }) },
-        }),
+      // Passa pela regra do servidor (status valido, cancelado nao reabre,
+      // aviso ao cliente) e registra quem mudou. Antes gravava direto como evento.
+      : api.post<AdminOrder>(`/admin/orders/${id}/status`, { status, ...(reason && { reason }) }),
+  /** Lista enxuta para a tela de pedidos (so o que as linhas mostram). */
+  listSummary: () => api.get<AdminOrderSummary[]>('/admin/orders', { params: { view: 'summary', limit: 1000 } }),
   update: (id: string, data: { paymentStatus?: string; paymentMethod?: string }) => api.put(`/orders/${id}`, data),
   cancelItem: (orderId: string, itemId: string, data?: { reason?: string; pickerNotes?: string }) =>
     api.post(`/admin/orders/${orderId}/items/${itemId}/cancel`, data ?? {}),
@@ -1175,27 +1196,6 @@ export const ordersAPI = {
     api.get<SubstitutionEvent[]>('/admin/orders/audit/substitutions', { params }),
 }
 
-function orderEventTypeForStatus(status: string) {
-  const eventByStatus: Record<string, string> = {
-    CREATED: 'order.created',
-    PAYMENT_PENDING: 'order.payment_pending',
-    CONFIRMED: 'order.confirmed',
-    PICKING_PENDING: 'order.picking_pending',
-    PICKING: 'order.picking_started',
-    WAITING_CUSTOMER_SUBSTITUTION: 'order.waiting_customer_substitution',
-    CONFERENCE_PENDING: 'order.conference_pending',
-    PACKING: 'order.packed',
-    READY_FOR_PICKUP: 'order.ready_for_pickup',
-    READY_FOR_DELIVERY: 'order.ready_for_delivery',
-    OUT_FOR_DELIVERY: 'order.out_for_delivery',
-    DELIVERED: 'order.delivered',
-    COMPLETED: 'order.completed',
-    PARTIALLY_CANCELLED: 'order.partially_cancelled',
-    REFUNDED: 'order.refunded',
-    FAILED_SYNC: 'order.failed_sync',
-  }
-  return eventByStatus[status] || 'order.status_updated'
-}
 
 export const pickingAPI = {
   getEligibleOrders: (limit = 50) => api.get<AdminOrder[]>('/admin/picking/eligible-orders', { params: { limit } }),

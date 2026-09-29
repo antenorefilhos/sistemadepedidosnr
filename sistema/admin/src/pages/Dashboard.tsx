@@ -2,8 +2,6 @@ import { Suspense, lazy, useCallback, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useProductsAdmin, formatClassificationOptionLabel, formatClassificationPath } from '../hooks/useProductsAdmin'
-import type { AdminOrder } from '../services/api'
-import { useOrdersAdmin, ORDER_STATUS_OPTIONS, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, getPaymentStatusClassName } from '../hooks/useOrdersAdmin'
 import { useCustomersAdmin } from '../hooks/useCustomersAdmin'
 import { MessageCircle, Sparkles } from 'lucide-react'
 import { TopMenuBar, SECTION_LABELS } from '@/components/TopMenuBar'
@@ -134,7 +132,8 @@ export default function AdminDashboard() {
 
   // O painel inicial busca os proprios dados (overviewAPI); nada a atualizar aqui.
   const p = useProductsAdmin(activeSection, () => {})
-  const o = useOrdersAdmin(activeSection)
+  // Pedido a abrir quando se chega em Pedidos por um alerta da Visao geral.
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
   const c = useCustomersAdmin(activeSection)
 
   const lazySectionFallback = (
@@ -178,8 +177,8 @@ export default function AdminDashboard() {
               <DashboardSection
                 onNavigate={setActiveSection}
                 onOpenOrder={(orderId) => {
+                  setPendingOrderId(orderId)
                   setActiveSection('orders')
-                  o.openOrderDetails({ id: orderId } as AdminOrder)
                 }}
               />
             </Suspense>
@@ -280,39 +279,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'orders' && (
             <Suspense fallback={lazySectionFallback}>
-              <OrdersSection
-                ordersSearch={o.ordersSearch}
-                onOrdersSearchChange={o.setOrdersSearch}
-                ordersStatusFilter={o.ordersStatusFilter}
-                onOrdersStatusFilterChange={o.setOrdersStatusFilter}
-                ordersDateFilter={o.ordersDateFilter}
-                onOrdersDateFilterChange={o.setOrdersDateFilter}
-                ordersPaymentFilter={o.ordersPaymentFilter}
-                onOrdersPaymentFilterChange={o.setOrdersPaymentFilter}
-                ordersChangeFilter={o.ordersChangeFilter}
-                onOrdersChangeFilterChange={o.setOrdersChangeFilter}
-                ordersViewMode={o.ordersViewMode}
-                onOrdersViewModeChange={o.setOrdersViewMode}
-                onReloadOrders={o.loadOrders}
-                autoRefresh={o.ordersAutoRefresh}
-                onAutoRefreshChange={o.setOrdersAutoRefresh}
-                ordersLoading={o.ordersLoading}
-                filteredOrders={o.filteredOrders}
-                orderStatusOptions={ORDER_STATUS_OPTIONS}
-                orderStatusLabels={ORDER_STATUS_LABELS}
-                updatingOrderStatus={o.updatingOrderStatus}
-                onUpdateOrderStatus={o.handleUpdateOrderStatus}
-                onUpdateOrder={o.handleUpdateOrder}
-                orderFeedback={o.orderFeedback}
-                onDismissOrderFeedback={() => o.setOrderFeedback(null)}
-                onSelectOrder={o.openOrderDetails}
-                draggingOrderId={o.draggingOrderId}
-                onDraggingOrderIdChange={o.setDraggingOrderId}
-                selectedOrder={o.selectedOrder}
-                paymentStatusLabels={PAYMENT_STATUS_LABELS}
-                getPaymentStatusClassName={getPaymentStatusClassName}
-                renderWhatsAppBadge={(phone, compact) => <WhatsAppBadge phone={phone} compact={compact} />}
-              />
+              <OrdersSection openOrderId={pendingOrderId} onOpenOrderConsumed={() => setPendingOrderId(null)} />
             </Suspense>
           )}
 

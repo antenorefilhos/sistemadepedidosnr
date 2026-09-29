@@ -806,6 +806,18 @@ describe('OrdersService', () => {
   });
 
   describe('updateStatus', () => {
+    it('recusa status desconhecido', async () => {
+      mockPrismaService.order.findUnique.mockResolvedValue({ id: 'order-123', status: 'PENDING', items: [] });
+      await expect(service.updateStatus('order-123', 'SHIPPED')).rejects.toThrow('Status desconhecido');
+      expect(mockPrismaService.order.update).not.toHaveBeenCalled();
+    });
+
+    it('pedido cancelado nao volta ao fluxo (so vai para estorno)', async () => {
+      mockPrismaService.order.findUnique.mockResolvedValue({ id: 'order-123', status: 'CANCELLED', items: [] });
+      await expect(service.updateStatus('order-123', 'COMPLETED')).rejects.toThrow('não pode voltar ao fluxo');
+      expect(mockPrismaService.order.update).not.toHaveBeenCalled();
+    });
+
     it('should update order status to CONFIRMED', async () => {
       const mockOrder = {
         id: 'order-123',

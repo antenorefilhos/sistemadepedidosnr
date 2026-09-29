@@ -399,12 +399,14 @@ export class AdminOrdersController {
     @Query('paymentStatus') paymentStatus?: string,
     @Query('customerId') customerId?: string,
     @Query('limit') limit?: string,
+    @Query('view') view?: string,
   ) {
     return this.ordersService.findAdminOrders(getTenantContext(req), {
       status,
       paymentStatus,
       customerId,
       limit: limit ? parseInt(limit, 10) : undefined,
+      view,
     })
   }
 
@@ -437,6 +439,16 @@ export class AdminOrdersController {
     @Req() req: TenantContextRequest,
   ) {
     return this.ordersService.addOrderEvent(id, dto, getTenantContext(req), this.actorFromRequest(req))
+  }
+
+  @Post(':id/status')
+  @ApiOperation({ summary: 'Mudar status pelo admin', description: 'Mesma regra do fluxo (status valido, cancelado nao reabre), registrando quem mudou.' })
+  async setStatus(
+    @Param('id') id: string,
+    @Body() dto: { status: string; reason?: string },
+    @Req() req: TenantContextRequest,
+  ) {
+    return this.ordersService.updateStatus(id, String(dto?.status || ''), dto?.reason, this.actorFromRequest(req))
   }
 
   @Post(':id/cancel')
