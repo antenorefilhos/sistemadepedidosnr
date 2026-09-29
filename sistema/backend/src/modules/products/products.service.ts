@@ -1510,12 +1510,31 @@ export class ProductsService {
     }
     const where: Prisma.ProductWhereInput = { AND: and }
 
+    // Com busca: relevancia (codigo exato > nome comecando com o termo > no site > nome).
+    let pageIds: string[] | null = null
+    if (tokens.length) {
+      const fold = (v: string) => v.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+      const term = fold(q.search!.trim())
+      const onSiteSet = new Set(ids.site)
+      const cands = await this.prisma.product.findMany({ where, take: 2000, select: { id: true, name: true, titleMask: true, ean: true, erpProductId: true, secondaryEans: true } })
+      const score = (c: (typeof cands)[number]) => {
+        const name = fold(c.titleMask || c.name)
+        if (String(c.erpProductId) === term || c.ean === term || c.secondaryEans.includes(term)) return 0
+        if (name.startsWith(term)) return onSiteSet.has(c.id) ? 1 : 2
+        return onSiteSet.has(c.id) ? 3 : 4
+      }
+      pageIds = cands
+        .map((c) => ({ id: c.id, s: score(c), n: fold(c.titleMask || c.name) }))
+        .sort((x, y) => x.s - y.s || x.n.localeCompare(y.n))
+        .slice((page - 1) * limit, page * limit)
+        .map((c) => c.id)
+    }
+
     const [rows, total, counts, lastFull] = await Promise.all([
       this.prisma.product.findMany({
-        where,
+        where: pageIds ? { id: { in: pageIds } } : where,
         orderBy: [{ name: 'asc' }],
-        skip: (page - 1) * limit,
-        take: limit,
+        ...(pageIds ? {} : { skip: (page - 1) * limit, take: limit }),
         select: {
           id: true, ean: true, erpProductId: true, secondaryEans: true, name: true, titleMask: true, erpDescription: true, pdvDescription: true,
           price: true, promotionalPrice: true, promotionalPriceValidUntil: true, stock: true, unit: true,
@@ -1529,6 +1548,10 @@ export class ProductsService {
       this.prisma.auditLog.findFirst({ where: { action: 'SYNC_PRODUCTS' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true, changes: true } }),
     ])
 
+    if (pageIds) {
+      const order = new Map(pageIds.map((id, i) => [id, i]))
+      rows.sort((x, y) => (order.get(x.id) ?? 0) - (order.get(y.id) ?? 0))
+    }
     const uncategorizedSet = new Set(uncategorized)
     const data = rows.map((p) => {
       const categoryId = categoryByEan.get(p.ean) || null
