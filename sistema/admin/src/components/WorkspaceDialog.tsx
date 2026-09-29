@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronLeft, X } from 'lucide-react'
 
 /**
@@ -42,7 +43,9 @@ export function WorkspaceDialog({
   // clique no fundo e fechava o editor, perdendo o que foi digitado.
   const downOnBackdrop = useRef(false)
 
-  return (
+  // Portal na raiz: dentro da pagina, um ancestral com transform deslocava a
+  // janela (16 px no celular, a faixa escura aparecia no topo).
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex bg-black/30 sm:items-center sm:justify-center sm:p-6"
       onMouseDown={(e) => (downOnBackdrop.current = e.target === e.currentTarget)}
@@ -70,6 +73,7 @@ export function WorkspaceDialog({
         <div className="flex-1 overflow-y-auto">{children}</div>
         {footer && <footer className="border-t border-black/[0.06] bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertCircle, Check, ChevronRight, Copy, ExternalLink, MessageCircle, Printer, RefreshCw, Search } from 'lucide-react'
 import { escapeHtml } from '@/lib/utils'
 import { WorkspaceDialog } from '../../components/WorkspaceDialog'
@@ -644,7 +645,7 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
         </div>
       </WorkspaceDialog>
 
-      {cancelOpen && order && (
+      {cancelOpen && order && createPortal(
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4">
           <div className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl">
             <h3 className="text-base font-semibold text-gray-900">Cancelar pedido #{code(order.id)}?</h3>
@@ -682,7 +683,8 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )

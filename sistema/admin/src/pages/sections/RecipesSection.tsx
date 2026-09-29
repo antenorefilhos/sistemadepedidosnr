@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertCircle, ArrowDown, ArrowUp, ChefHat, ExternalLink, ImageOff, Loader2, Plus, Search, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
 import { WorkspaceDialog } from '../../components/WorkspaceDialog'
 import { AutoTextarea } from '../../components/AutoTextarea'
@@ -909,7 +910,7 @@ function RecipeEditor({
       </div>
     </WorkspaceDialog>
 
-      {pasting && (
+      {pasting && createPortal(
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && setPasting(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg rounded-t-2xl bg-white p-5 sm:rounded-2xl">
             <h3 className="text-base font-semibold text-gray-900">{pasting === 'ingredients' ? 'Colar ingredientes' : 'Colar modo de preparo'}</h3>
@@ -926,7 +927,8 @@ function RecipeEditor({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
