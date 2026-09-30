@@ -26,6 +26,7 @@ type Data = {
   banners: Array<{ id: string; slot: string; title?: string | null; name?: string | null; pages?: string | null }>
   sponsored: Array<{ id: string; title: string; products: unknown[] }>
   recipes: number
+  offers: number
   campaigns: Array<{ id: string; name: string; highlightInHome: boolean; items: unknown[]; endDate: string }>
 }
 
@@ -38,13 +39,14 @@ export default function HomeLayoutSection({ onNavigate }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const [brand, vitrines, banners, sponsored, recipes, campaigns] = await Promise.all([
+      const [brand, vitrines, banners, sponsored, recipes, campaigns, offers] = await Promise.all([
         brandAPI.get(),
         homeLayoutAPI.vitrines().catch(() => ({ data: null })),
         homeLayoutAPI.banners(),
         homeLayoutAPI.sponsored(),
         homeLayoutAPI.recipes(),
         homeLayoutAPI.campaigns(),
+        homeLayoutAPI.offers().catch(() => ({ data: [] })),
       ])
       let hidden: string[] = []
       try {
@@ -59,6 +61,7 @@ export default function HomeLayoutSection({ onNavigate }: Props) {
         banners: banners.data.filter(isHomeBanner),
         sponsored: sponsored.data.filter((s) => s.products.length > 0),
         recipes: recipes.data.total ?? recipes.data.data.length,
+        offers: offers.data.filter((p) => typeof p.promotionalPrice === 'number' && p.promotionalPrice > 0 && p.promotionalPrice < p.price).length,
         campaigns: campaigns.data.filter((c) => c.active && new Date(c.startDate).getTime() <= now && new Date(c.endDate).getTime() >= now),
       })
       setError('')
@@ -216,6 +219,28 @@ export default function HomeLayoutSection({ onNavigate }: Props) {
           <GoTo onClick={() => onNavigate('sponsoredShelves')}>Editar em Vitrines Patrocinadas</GoTo>
         </Block>
         {data.sponsored.map((s) => r(`patrocinada:${s.id}`) && <Sub key={s.id} title={s.title} detail="" result={r(`patrocinada:${s.id}`)} />)}
+
+        <Block
+          n={n()}
+          title="Compre de novo"
+          detail="Só para cliente que já comprou: os produtos que ele costuma levar. Quem nunca comprou não vê esta vitrine."
+          source="Automática: histórico de cada cliente"
+          result={r('vitrine:rebuy')}
+          off={!shown('vitrine:rebuy')}
+        >
+          <Switch on={shown('vitrine:rebuy')} disabled={busy === 'vitrine:rebuy'} onClick={() => toggle('vitrine:rebuy')} label="Compre de novo" />
+        </Block>
+
+        <Block
+          n={n()}
+          title="Ofertas de hoje"
+          detail={data.offers ? `${data.offers} produto(s) com preço de oferta agora.` : 'Nenhum produto em oferta agora: a vitrine some sozinha e volta quando entrar um encarte.'}
+          source="Automática: preço de oferta dos encartes do ERP"
+          result={r('vitrine:offers')}
+          off={!shown('vitrine:offers')}
+        >
+          <Switch on={shown('vitrine:offers')} disabled={busy === 'vitrine:offers'} onClick={() => toggle('vitrine:offers')} label="Ofertas de hoje" />
+        </Block>
 
         <Block
           n={n()}

@@ -140,6 +140,13 @@ services:
       ERP_SYNC_CRON: ${ERP_SYNC_CRON:-0 4 * * *}
       ERP_SYNC_INCREMENTAL_CRON: ${ERP_SYNC_INCREMENTAL_CRON:-0 * * * *}
       ERP_SYNC_INCREMENTAL_HOURS: ${ERP_SYNC_INCREMENTAL_HOURS:-2}
+      # Encartes do ERP (30/09/2026): em 28/08 a variavel entrou so no
+      # docker-compose.yml de desenvolvimento; a producao usa ESTE arquivo e
+      # nunca recebeu -- os encartes de 23 a 29/09 nao chegaram ao site.
+      # Ligado por padrao, como o sync de produtos.
+      PROMOTIONS_SYNC_CRON_ENABLED: ${PROMOTIONS_SYNC_CRON_ENABLED:-true}
+      PROMOTIONS_SYNC_CRON: ${PROMOTIONS_SYNC_CRON:-*/30 * * * *}
+      PROMOTIONS_EXPIRE_CRON: ${PROMOTIONS_EXPIRE_CRON:-*/15 * * * *}
       TZ: ${TZ:-America/Sao_Paulo}
     depends_on:
       - db

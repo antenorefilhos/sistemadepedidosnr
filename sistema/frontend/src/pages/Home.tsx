@@ -323,8 +323,27 @@ export default function Home() {
   // skeleton (abaixo) em vez de renderizar o fallback e trocar depois; so
   // cai no fallback de fato se a chamada terminar sem dado (endpoint fora
   // do ar), nunca so por ainda estar carregando.
+  // 30/09/2026: com as vitrines da AntenorApi a Home perdeu as duas que so a
+  // loja sabe montar -- o historico de quem ja comprou e a oferta de verdade
+  // (preco promocional vigente, vindo do encarte). Voltam antes das vitrines
+  // do dia, cada uma so quando tem fonte honesta: sem historico ou sem oferta,
+  // nao aparece (nada de completar com mais vendidos).
+  const leadShelves = useMemo(() => {
+    const offers = promotionalProducts.filter(
+      (p) => typeof p.promotionalPrice === 'number' && p.promotionalPrice > 0 && p.promotionalPrice < p.price,
+    )
+    const list: Array<{ key: string; eyebrow: string; title: string; icon: typeof ShoppingCart; products: Product[]; to: string }> = []
+    if (user && rebuyProducts.length > 0) {
+      list.push({ key: 'rebuy', eyebrow: 'Do seu histórico', title: 'Compre de novo', icon: ShoppingCart, products: rebuyProducts.slice(0, 12), to: '/account' })
+    }
+    if (offers.length > 0) {
+      list.push({ key: 'offers', eyebrow: 'Preço de oferta', title: 'Ofertas de hoje', icon: Sparkles, products: offers.slice(0, 12), to: '/promocoes' })
+    }
+    return list.filter((shelf) => !homeHidden?.has(`vitrine:${shelf.key}`))
+  }, [user, rebuyProducts, promotionalProducts, homeHidden])
+
   const showVitrinesSkeleton = vitrinesLoading && !vitrinesData
-  const homeSections = vitrinesSections ?? homeSectionsFallback
+  const homeSections = vitrinesSections ? [...leadShelves, ...vitrinesSections] : homeSectionsFallback
 
   // Tarja/popup fechados ficam fechados so pela sessao (sessionStorage) --
   // reaparecem na proxima visita, diferente de um "nunca mais mostrar" perene.

@@ -231,6 +231,21 @@ Antes de dar por configurada qualquer variavel nova, rode
 servico `api`, **so o que esta listado em `environment:` chega no container** —
 documentar no `.env.example` e preencher o `.env` nao basta.
 
+## Armadilha: a VPS usa `docker-compose.prod.yml`, nao o `docker-compose.yml`
+
+Achada em 30/09/2026: os encartes do ERP de 23 a 29/09 ("Encarte Semana",
+"Final de Semana", "Segunda da Carne", "Terca Hortifruti") nunca chegaram ao
+site. O sync (`PromotionsScheduler`) so liga com
+`PROMOTIONS_SYNC_CRON_ENABLED=true`, e o conserto de 28/08 repassou a variavel
+no `docker-compose.yml` -- que e o de **desenvolvimento**. Producao sobe com
+`docker-compose.prod.yml`, que nunca recebeu a linha. Efeito em cascata: sem
+encarte nao ha `promotionalPrice`, a vitrine "Ofertas" e a pagina
+`/promocoes` ficavam vazias enquanto o banner e a tarja anunciavam oferta.
+
+Regra: variavel nova que a producao precisa entra no
+`docker-compose.prod.yml` (e no `.env.production.example`). Para conferir
+o que chegou de fato: `docker exec antenor_api printenv NOME`.
+
 ## Armadilha: `migrate deploy` nao detecta schema fora de sincronia
 
 `prisma migrate deploy` compara **quais migrations ja foram aplicadas**, nunca o

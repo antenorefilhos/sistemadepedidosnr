@@ -1444,6 +1444,7 @@ export const homeLayoutAPI = {
   banners: () => api.get<Array<{ id: string; slot: string; title?: string | null; name?: string | null; pages?: string | null }>>('/cms/store-banners'),
   sponsored: () => api.get<Array<{ id: string; title: string; products: unknown[] }>>('/cms/sponsored-shelves'),
   recipes: () => api.get<{ data: unknown[]; total?: number; meta?: { total?: number } }>('/recipes', { params: { page: 1, limit: 8 } }),
+  offers: () => api.get<Array<{ id: string; price: number; promotionalPrice?: number | null }>>('/products/promotions'),
   campaigns: () => api.get<Array<{ id: string; name: string; active: boolean; startDate: string; endDate: string; highlightInHome: boolean; items: unknown[] }>>('/promotions/campaigns'),
   setCampaignHighlight: (id: string, highlightInHome: boolean) => api.patch(`/promotions/campaigns/${id}`, { highlightInHome }),
   results: (days: number) => api.get<{ days: number; trackingSince: string | null; shelves: HomeShelfResult[] }>('/admin/intelligence/home-shelves', { params: { days } }),
