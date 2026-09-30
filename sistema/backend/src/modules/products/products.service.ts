@@ -267,6 +267,12 @@ export function departmentCategories(department?: string | null): string[] | nul
   if (!name) return null
   if (DEPARTMENT_TO_CATEGORY[name]) return [DEPARTMENT_TO_CATEGORY[name]]
   if (name === 'Bebidas & Adega') return [...new Set(Object.values(BEVERAGE_CATEGORIA_TO_CATEGORY))]
+  // 30/09/2026: departamento da arvore v3 (ex.: "Adega e Cervejas" = vinho,
+  // espumante, destilado e cerveja, SEM suco -- a vitrine "Adega & Bebidas"
+  // pelo departamento antigo mostrava suco). Soma a categoria base com as
+  // que os overrides do departamento apontam.
+  const v3 = [V3_DEPARTMENT_TO_CATEGORY[name], ...Object.entries(V3_CATEGORY_OVERRIDES).filter(([key]) => key.startsWith(`${name}|`)).map(([, code]) => code)].filter(Boolean)
+  if (v3.length) return [...new Set(v3)] as string[]
   return null
 }
 
