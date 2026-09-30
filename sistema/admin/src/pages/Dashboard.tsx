@@ -49,7 +49,7 @@ const ProductsSection = lazy(() => import('./sections/ProductsSection'))
 const OrdersSection = lazy(() => import('./sections/OrdersSection'))
 const PickingSection = lazy(() => import('./sections/PickingSection'))
 const CustomersSection = lazy(() => import('./sections/CustomersSection'))
-const PaymentEventsSection = lazy(() => import('./sections/PaymentEventsSection'))
+const PaymentsSection = lazy(() => import('./sections/PaymentsSection'))
 const StaffSection = lazy(() => import('./sections/StaffSection'))
 
 const VALID_SECTIONS: Section[] = [
@@ -259,7 +259,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'payments' && (
             <Suspense fallback={lazySectionFallback}>
-              <PaymentEventsSection />
+              <PaymentsSection />
             </Suspense>
           )}
       </main>

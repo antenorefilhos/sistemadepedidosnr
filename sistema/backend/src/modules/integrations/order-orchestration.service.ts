@@ -969,6 +969,10 @@ export class OrderOrchestrationService {
 
     const externalOrderNumber = await this.resolveExternalOrderNumber(orderId)
     const faturados = await this.antenorApi.getInvoicedItems(externalOrderNumber)
+    // Como o caixa recebeu (forma, valor do cupom, nota). Opcional: sem isso a
+    // conferencia dos itens continua valendo.
+    const statusPdv = faturados ? await this.antenorApi.getOrderStatus(externalOrderNumber).catch(() => null) : null
+    const fat = statusPdv?.faturamento
 
     if (!faturados) {
       // Sem cupom ainda: nao e erro. O pedido pode nem ter passado no caixa.
@@ -1004,6 +1008,16 @@ export class OrderOrchestrationService {
           totalFaturado: reconciliacao.totalFaturado,
           diferenca: reconciliacao.diferenca,
           itens: reconciliacao.itens,
+          pagamento: fat
+            ? {
+                valorCupom: fat.valorCupom ?? null,
+                valorTroco: fat.valorTroco ?? null,
+                numeroCupom: fat.numeroCupom ?? null,
+                caixaPDV: fat.caixaPDV ?? null,
+                chaveNFCe: fat.chaveNFCe ?? null,
+                meios: (fat.meiosDePagamento || []).map((m) => ({ descricao: m.descricaoModalidade || '', valor: m.valor ?? 0, troco: m.troco ?? 0 })),
+              }
+            : null,
         },
         actorType: 'SYSTEM',
       },
@@ -1078,6 +1092,11 @@ export class OrderOrchestrationService {
     if (proximo === 'READY_FOR_DELIVERY') {
       this.notificationsService.notifyDeliveryTeamOrderReady(orderId).catch(() => {})
     }
+
+    // Guarda o que o caixa cobrou (itens, forma, cupom) para a tela
+    // Pagamentos. Ate 30/09/2026 isto existia e ninguem chamava. Se a
+    // AntenorApi ainda nao tiver o cupom, o PdvPaymentScheduler tenta de novo.
+    this.reconcileInvoicedOrder(context, orderId).catch(() => {})
 
     return { orderId, status: proximo, jaEstava: false }
   }

@@ -37,7 +37,7 @@ const STATUS_ACTION_LABEL: Record<string, string> = {
   OUT_FOR_DELIVERY: 'Saindo',
   ARRIVED: 'Cheguei',
   DELIVERED: 'Entregue',
-  FAILED: 'Nao Entregue',
+  FAILED: 'Não entregue',
 }
 
 const STATUS_ACTION_COLOR: Record<string, string> = {
@@ -213,8 +213,11 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
         {route.stops.map((stop) => {
           const addr = stop.order?.addressSnapshot
           const customer = stop.order?.customer
-          const nextStatuses = NEXT_STATUSES[stop.status] || []
           const isFinal = ['DELIVERED', 'FAILED'].includes(stop.status)
+          // Cancelado no admin ou no caixa com o pedido ja na rota: nao entrega,
+          // so fecha a parada como "nao entregue" e devolve a mercadoria.
+          const orderCancelled = stop.order?.status === 'CANCELLED'
+          const nextStatuses = orderCancelled ? (isFinal ? [] : ['FAILED']) : NEXT_STATUSES[stop.status] || []
 
           return (
             <div key={stop.id} className={`rounded-xl border p-4 ${STOP_STATUS_COLOR[stop.status] || 'border-gray-200 bg-white'}`}>
@@ -239,6 +242,12 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                   {STOP_STATUS_LABEL[stop.status]}
                 </span>
               </div>
+
+              {orderCancelled && !isFinal && (
+                <p className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
+                  Pedido cancelado. Não entregue: marque "Não entregue" e devolva a mercadoria à loja.
+                </p>
+              )}
 
               {addr && (
                 <p className="text-sm text-gray-600 mb-1">
@@ -293,7 +302,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                 {!isFinished && nextStatuses.map((ns) => (
                   <button
                     key={ns}
-                    onClick={() => (ns === 'FAILED' || ns === 'DELIVERED') ? setFailModal({ stopId: stop.id, status: ns, notes: '' }) : handleUpdateStop(stop.id, ns)}
+                    onClick={() => (ns === 'FAILED' || ns === 'DELIVERED') ? setFailModal({ stopId: stop.id, status: ns, notes: orderCancelled ? 'Pedido cancelado, mercadoria devolvida à loja' : '' }) : handleUpdateStop(stop.id, ns)}
                     disabled={actionLoading}
                     className={`h-11 px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 active:scale-[0.98] disabled:opacity-60 ${STATUS_ACTION_COLOR[ns] || 'bg-gray-600'}`}
                   >

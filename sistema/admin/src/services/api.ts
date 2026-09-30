@@ -244,21 +244,6 @@ export interface SolidcomOrderContractHistoryResponse {
   items: SolidcomOrderContractHistoryItem[]
 }
 
-export interface PaymentsHealthResponse {
-  integration: 'payments'
-  status: 'ready' | 'partial' | 'not_configured'
-  configured: boolean
-  provider: string
-  checks: {
-    providerName: boolean
-    providerUrl: boolean
-    webhookSecret: boolean
-    pixKey: boolean
-    manualPixFallback: boolean
-  }
-  notes: string
-}
-
 export interface SolidcomRemoteOrderResponse {
   found: boolean
   orderId: string
@@ -468,11 +453,6 @@ export interface PaymentTransactionLedgerItem {
   refunds?: RefundLedgerItem[]
 }
 
-export interface PaymentTransactionsResponse {
-  total: number
-  items: PaymentTransactionLedgerItem[]
-}
-
 export interface PaymentReconciliationResponse {
   run: Record<string, unknown>
   summary: {
@@ -578,23 +558,6 @@ export interface IntegrationOperationsPanel {
   jobs: Record<string, number>
   deadLetters: number
   recentAttempts: Array<Record<string, unknown>>
-}
-
-export interface WebhookEvent {
-  id: string
-  chargeId: string
-  event?: string
-  orderId?: string
-  status?: string
-  mappedStatus?: string
-  amount?: number
-  paidAt?: string
-  createdAt: string
-}
-
-export interface WebhookEventsResponse {
-  total: number
-  items: WebhookEvent[]
 }
 
 export interface FiscalDocumentHistoryResponse {
@@ -1283,9 +1246,6 @@ export const integrationsAPI = {
     api.get<SolidcomReconcileResponse>('/integrations/solidcom/orders/period', { params: { from, to } }),
   retryOrderSync: (orderId: string) => api.post(`/integrations/solidcom/orders/${orderId}/retry`),
 
-  getPaymentsHealth: () => api.get<PaymentsHealthResponse>('/integrations/payments/health'),
-  listPaymentTransactions: (params?: { orderId?: string; status?: string; provider?: string; limit?: number }) =>
-    api.get<PaymentTransactionsResponse>('/integrations/payments/transactions', { params }),
   getCrmHealth: () => api.get<CrmHealthResponse>('/integrations/crm/health'),
   getFiscalHealth: () => api.get<FiscalHealthResponse>('/integrations/fiscal/health'),
   getCrmContactPreview: (customerId: string) =>
@@ -1332,8 +1292,50 @@ export const integrationsAPI = {
   }) => api.post<PaymentReconciliationResponse>('/integrations/payments/reconciliation', data),
   replayCharge: (snapshotId: string) =>
     api.post<ChargeResult>(`/integrations/payments/charge-replay/${snapshotId}`),
-  listWebhookEvents: (limit = 30) =>
-    api.get<WebhookEventsResponse>(`/integrations/payments/webhook/events`, { params: { limit } }),
+}
+
+export interface PaymentsOverviewOrder {
+  id: string
+  dav: string | null
+  customer: string | null
+  createdAt: string
+  status: string
+  pickup: boolean
+  siteMethod: string
+  changeFor: string | null
+  total: number
+  delivery: number
+  discount: number
+  invoicedAt: string | null
+  cancelledInErp: boolean
+  charged: number | null
+  approvedItems: number | null
+  difference: number | null
+  divergentItems: Array<{ situacao: string; nome: string; qtdPedida: number | null; qtdFaturada: number | null; diferenca: number }>
+  pdv: { cupom: number | null; caixa: number | null; nfce: string | null; meios: Array<{ descricao: string; valor: number; troco: number }>; formas: string[] } | null
+  flags: string[]
+}
+
+export interface PaymentsOverview {
+  days: number
+  summary: {
+    orders: number
+    approved: number
+    delivery: number
+    invoiced: number
+    withPdvData: number
+    charged: number
+    approvedReconciled: number
+    difference: number
+    awaitingCashier: number
+    cancelled: number
+  }
+  byMethod: Array<{ method: string; siteOrders: number; siteValue: number; pdvValue: number }>
+  orders: PaymentsOverviewOrder[]
+}
+
+export const paymentsAdminAPI = {
+  overview: (days: number) => api.get<PaymentsOverview>('/admin/payments', { params: { days } }),
 }
 
 export const cmsAPI = {

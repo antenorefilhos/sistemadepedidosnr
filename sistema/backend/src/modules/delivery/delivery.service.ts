@@ -1090,7 +1090,17 @@ export class DeliveryService {
       OUT_FOR_DELIVERY: ['ARRIVED'],
       ARRIVED: ['DELIVERED', 'FAILED'],
     }
-    if (stop.status !== status && !(allowedNext[stop.status] || []).includes(status)) {
+    // Pedido cancelado com a parada ainda aberta (30/09/2026, DAV 102120: o
+    // cupom foi cancelado no PDV com o pedido ja na rota, e o app o levou de
+    // volta a "saiu para entrega"). A unica saida e "Nao entregue", que fecha
+    // a parada e manda a mercadoria de volta para a loja.
+    const order = await this.prisma.order.findFirst({ where: { id: stop.orderId }, select: { status: true } })
+    const cancelled = ['CANCELLED', 'REFUNDED'].includes(order?.status || '')
+    if (cancelled && status !== 'FAILED') {
+      throw new BadRequestException('Pedido cancelado: não entregue. Marque "Não entregue" e devolva a mercadoria à loja.')
+    }
+    const allowed = cancelled ? (['DELIVERED', 'FAILED'].includes(stop.status) ? [] : ['FAILED']) : allowedNext[stop.status] || []
+    if (stop.status !== status && !allowed.includes(status)) {
       throw new BadRequestException(`Transicao de status invalida: ${stop.status} -> ${status}`)
     }
     // Sem foto/assinatura no app hoje (feature maior, fora deste lote) --
@@ -1118,7 +1128,7 @@ export class DeliveryService {
       }
     } else if (status === 'FAILED') {
       await this.recordOrderEvent(scoped, stop.orderId, 'order.delivery_failed', { routeId, stopId, notes: dto.notes || null }, actor)
-      this.notificationsService.notifyOrderStatusChange(stop.orderId, 'FAILED_DELIVERY').catch(() => {})
+      if (!cancelled) this.notificationsService.notifyOrderStatusChange(stop.orderId, 'FAILED_DELIVERY').catch(() => {})
     }
 
     await this.syncRouteStatusFromStops(routeId, scoped, actor)
@@ -1428,11 +1438,19 @@ export class DeliveryService {
     payload: Record<string, unknown>,
     actor?: { actorType?: string; actorId?: string },
   ) {
-    const order = await this.prisma.order.update({
-      where: { id: orderId },
-      data: { status },
-      select: { id: true, tenantId: true, storeId: true, status: true, paymentStatus: true },
-    })
+    // Pedido cancelado nao volta a andar pela rota (iniciar rota com ele
+    // dentro, ou parada avancando): sem isto o status regredia de CANCELLED.
+    const order = await this.prisma.order
+      .update({
+        where: { id: orderId, status: { notIn: ['CANCELLED', 'REFUNDED'] } },
+        data: { status },
+        select: { id: true, tenantId: true, storeId: true, status: true, paymentStatus: true },
+      })
+      .catch((error) => {
+        if (error?.code === 'P2025') return null
+        throw error
+      })
+    if (!order) return null
     await this.recordOrderEvent(context, order.id, eventType, { ...payload, status }, actor)
     return order
   }

@@ -78,6 +78,8 @@ export type AntenorApiOrderStatus = {
     chaveNFCe?: string
     valorCupom?: number
     valorTroco?: number
+    /** Como o caixa registrou o recebimento (pode diferir do que o cliente escolheu no site). */
+    meiosDePagamento?: Array<{ codigoModalidade?: number; descricaoModalidade?: string; valor?: number; troco?: number }>
   }
   cancelamento?: {
     canceladoEm: string

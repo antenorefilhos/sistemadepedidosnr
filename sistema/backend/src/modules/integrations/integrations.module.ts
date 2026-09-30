@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common'
 import { SolidcomERPService } from './solidcom-erp.service'
 import { AntenorApiService } from './antenor-api.service'
 import { PdvCancellationScheduler } from './pdv-cancellation.scheduler'
+import { PdvPaymentScheduler } from './pdv-payment.scheduler'
 import { IntegrationsService } from './integrations.service'
 import { IntegrationsController } from './integrations.controller'
 import { HealthController } from './health.controller'
@@ -29,6 +30,7 @@ import { ProductsModule } from '../products/products.module'
     SolidcomERPService,
     AntenorApiService,
     PdvCancellationScheduler,
+    PdvPaymentScheduler,
     IntegrationsService,
     HubSpotService,
     NfeService,

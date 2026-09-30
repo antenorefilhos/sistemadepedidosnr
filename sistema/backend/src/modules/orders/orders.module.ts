@@ -8,11 +8,13 @@ import { InventoryModule } from '../inventory/inventory.module'
 import { PricingModule } from '../pricing/pricing.module'
 import { PublicApiModule } from '../public-api/public-api.module'
 import { BrandModule } from '../brand/brand.module'
+import { PaymentsOverviewController } from './payments-overview.controller'
+import { PaymentsOverviewService } from './payments-overview.service'
 
 @Module({
   imports: [NotificationsModule, IntegrationsModule, InventoryModule, PricingModule, PublicApiModule, BrandModule],
-  controllers: [OrdersController, AdminOrdersController],
-  providers: [OrdersService, TenantAccessGuard],
+  controllers: [OrdersController, AdminOrdersController, PaymentsOverviewController],
+  providers: [OrdersService, TenantAccessGuard, PaymentsOverviewService],
   exports: [OrdersService],
 })
 export class OrdersModule {}
