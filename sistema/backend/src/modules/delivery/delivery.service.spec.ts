@@ -1,7 +1,17 @@
 import { DeliveryService } from './delivery.service'
 import { PrismaService } from '../../common/prisma.service'
+import pointsFixture from './delivery-points.fixture.json'
+
+// Tabela de frete por localidade (delivery_points) com os mesmos dados que a
+// migracao 20260930030000 grava -- a planilha de balcao consolidada.
+const pointsByCep = (where: { cep?: string; active?: boolean }) =>
+  Promise.resolve((pointsFixture as Array<{ cep: string | null; active: boolean; fee: number }>).filter((p) => p.cep === where.cep && p.active).sort((a, b) => a.fee - b.fee))
 
 const mockPrisma = {
+  deliveryPoint: {
+    findMany: jest.fn(({ where }: { where: { cep?: string; active?: boolean } }) => pointsByCep(where)),
+    findFirst: jest.fn(),
+  },
   deliveryZone: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -145,7 +155,23 @@ describe('DeliveryService', () => {
     )
   })
 
-  describe('planilha de taxas de balcao (sistema hibrido de localidades)', () => {
+  describe('tabela de frete por localidade (sistema hibrido de localidades)', () => {
+    it('localidade com gratis acima de X zera o frete quando o subtotal alcanca', async () => {
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([])
+      mockPrisma.deliveryPoint.findMany.mockResolvedValueOnce([
+        { code: '4205', locality: 'Ribeirão', fee: 36, freeAbove: 150, minutes: 11, km: 9, reference: null },
+      ])
+      const result = await service.calculate({ cep: '25720-170', subtotal: 160 })
+      expect(result).toEqual(expect.objectContaining({ fee: 0, rawFee: 36, freeAbove: 150, isFree: true, zoneId: 'balcao:4205' }))
+    })
+
+    it('localidade sem regra propria devolve freeAbove undefined (o global de Marca decide)', async () => {
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([])
+      const result = await service.calculate({ cep: '25720-170', subtotal: 500 })
+      expect(result.freeAbove).toBeUndefined()
+      expect(result.fee).toBe(36)
+    })
+
     it('CEP com multiplos pontos sem locality informada retorna availableLocalities pra escolha do cliente', async () => {
       mockPrisma.deliveryZone.findMany.mockResolvedValue([])
 

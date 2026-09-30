@@ -144,6 +144,49 @@ export class DeliveryController {
     return this.deliveryService.checkZoneOverlap(body)
   }
 
+  // ── Admin: tabela de frete por localidade (30/09/2026) ─────────────
+  @Get('points')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  listPoints() {
+    return this.deliveryService.listPoints()
+  }
+
+  @Post('points')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  createPoint(@Body() body: Record<string, unknown>) {
+    return this.deliveryService.createPoint(undefined, body)
+  }
+
+  @Post('points/apply-suggestions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Aplica todas as taxas digitadas em 24/09 que ficaram pendentes' })
+  applyAllSuggestions() {
+    return this.deliveryService.applyAllSuggestions()
+  }
+
+  @Patch('points/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  updatePoint(@Param('id') id: string, @Body() body: Record<string, unknown>) {
+    return this.deliveryService.updatePoint(id, body)
+  }
+
+  @Delete('points/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deletePoint(@Param('id') id: string) {
+    return this.deliveryService.deletePoint(id)
+  }
+
   @Post('zones/bulk-import')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')

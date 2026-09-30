@@ -1547,6 +1547,39 @@ export const deliveryAPI = {
     api.post<{ overlaps: Array<{ id: string; name: string; reason: string }> }>('/delivery/zones/overlap-check', data),
   bulkImportZones: (zones: DeliveryZonePayload[]) =>
     api.post<{ created: number; errors: Array<{ index: number; name?: string; error: string }> }>('/delivery/zones/bulk-import', { zones }),
+  // Tabela de frete por localidade (30/09/2026): o que o cliente paga ao digitar o CEP.
+  listPoints: () => api.get<DeliveryPoint[]>('/delivery/points'),
+  createPoint: (data: DeliveryPointPayload) => api.post<DeliveryPoint>('/delivery/points', data),
+  updatePoint: (id: string, data: Partial<DeliveryPointPayload> & { applySuggestion?: boolean; dismissSuggestion?: boolean }) =>
+    api.patch<DeliveryPoint>(`/delivery/points/${id}`, data),
+  deletePoint: (id: string) => api.delete(`/delivery/points/${id}`),
+  applyAllSuggestions: () => api.post<{ applied: number }>('/delivery/points/apply-suggestions'),
+}
+
+export interface DeliveryPoint {
+  id: string
+  code: string
+  locality: string
+  cep: string | null
+  fee: number
+  freeAbove: number | null
+  /** Taxa digitada na tela antiga em 24/09/2026 e nunca aplicada. */
+  suggestedFee: number | null
+  direction: string | null
+  minutes: number | null
+  km: number | null
+  reference: string | null
+  active: boolean
+}
+
+export type DeliveryPointPayload = {
+  locality: string
+  cep: string | null
+  fee: number
+  freeAbove: number | null
+  minutes: number | null
+  reference: string | null
+  active: boolean
 }
 
 export const fulfillmentAPI = {

@@ -23,9 +23,11 @@ import {
   REFERENCE_COLORS, SLOTS_PER_PAGE, ESRI_ATTRIBUTION,
 } from '../utils/deliveryZonesHelpers'
 
+import { DeliveryPointsTab } from '../components/DeliveryPointsTab'
+
 export default function DeliveryZones() {
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('zones')
+  const [tab, setTab] = useState<Tab>('points')
   const [editing, setEditing] = useState<string | null>(null)
   const [showSlotForm, setShowSlotForm] = useState(false)
   const [slotForm, setSlotForm] = useState(EMPTY_SLOT_FORM)
@@ -85,8 +87,10 @@ export default function DeliveryZones() {
    * o texto daqui dizia "o cliente nao consegue concluir o pedido", que ficou
    * desatualizado e assustava o lojista a toa. Rebaixado pra aviso.
    */
+  const { data: points = [] } = useQuery({ queryKey: ['delivery-points'], queryFn: () => deliveryAPI.listPoints().then((r) => r.data) })
   const readiness = useMemo(() => {
     const activeZones = zones.filter((zone) => zone.active)
+    const activePoints = points.filter((p) => p.active && p.cep)
     const now = Date.now()
     const upcomingSlots = slots.filter((slot) => {
       const starts = new Date(slot.startsAt).getTime()
@@ -95,7 +99,7 @@ export default function DeliveryZones() {
     })
 
     const blockers: string[] = []
-    if (!activeZones.length) blockers.push('Nenhuma zona ativa: nenhum endereco sera aceito no checkout.')
+    if (!activeZones.length && !activePoints.length) blockers.push('Nenhuma localidade nem area ativa: nenhum endereco sera aceito no checkout.')
 
     const warnings: string[] = []
     if (!upcomingSlots.length) {
@@ -110,8 +114,8 @@ export default function DeliveryZones() {
       )
     }
 
-    return { blockers, warnings, activeZones: activeZones.length, upcomingSlots: upcomingSlots.length }
-  }, [zones, slots])
+    return { blockers, warnings, activeZones: activeZones.length, activePoints: activePoints.length, upcomingSlots: upcomingSlots.length }
+  }, [zones, slots, points])
 
   const createMut = useMutation({
     mutationFn: (data: DeliveryZonePayload) => deliveryAPI.createZone(data),
@@ -728,7 +732,7 @@ export default function DeliveryZones() {
   return (
     // Desenhando poligono a tela usa toda a largura: mapa estreito obriga a
     // arrastar o tempo todo e atrapalha o tracado.
-    <div className={`p-4 sm:p-6 ${drawingPolygon ? 'max-w-none' : 'max-w-5xl'}`}>
+    <div className={`p-4 sm:p-6 ${drawingPolygon ? 'max-w-none' : 'mx-auto max-w-7xl'}`}>
       {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
 
       <div className="flex items-center gap-3 mb-4">
@@ -786,7 +790,7 @@ export default function DeliveryZones() {
               ))}
 
               <p className="text-xs text-gray-600 mt-2">
-                {readiness.activeZones} zona(s) ativa(s) · {readiness.upcomingSlots} janela(s) futura(s) com vaga
+                {readiness.activePoints} localidade(s) na tabela de frete · {readiness.activeZones} area(s) no mapa · {readiness.upcomingSlots} janela(s) futura(s) com vaga
               </p>
             </div>
           </div>
@@ -796,7 +800,8 @@ export default function DeliveryZones() {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6">
         {[
-          { key: 'zones' as Tab, label: 'Zonas', icon: MapPin },
+          { key: 'points' as Tab, label: 'Tabela de frete', icon: Truck },
+          { key: 'zones' as Tab, label: 'Áreas no mapa', icon: MapPin },
           { key: 'slots' as Tab, label: 'Janelas', icon: CalendarClock },
           { key: 'rules' as Tab, label: 'Regras globais', icon: CheckCircle2 },
         ].map(({ key, label, icon: Icon }) => (
@@ -814,6 +819,8 @@ export default function DeliveryZones() {
           </button>
         ))}
       </div>
+
+      {tab === 'points' && <DeliveryPointsTab />}
 
       {/* ============ ZONES TAB ============ */}
       {tab === 'zones' && (

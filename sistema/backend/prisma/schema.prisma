@@ -2079,6 +2079,37 @@ model DeliveryZone {
   @@map("delivery_zones")
 }
 
+/// Tabela de frete por localidade (30/09/2026): o que o cliente paga quando
+/// digita o CEP. Ate aqui vivia num JSON fixo no codigo (planilha de balcao),
+/// e a tela Taxas de Entrega editava zonas que nunca valiam.
+model DeliveryPoint {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("tenant_default")
+  storeId      String   @default("store_default")
+  /// Vira o deliveryAreaId do pedido: `balcao:<code>`.
+  code         String
+  locality     String
+  /// 8 digitos. Sem CEP a localidade nao entra no calculo.
+  cep          String?
+  fee          Decimal  @db.Decimal(10, 2)
+  /// Frete gratis a partir deste subtotal (vence o global, como a zona).
+  freeAbove    Decimal? @db.Decimal(10, 2)
+  /// Taxa digitada na tela antiga em 24/09/2026, nunca aplicada -- o lojista
+  /// aplica ou descarta.
+  suggestedFee Decimal? @db.Decimal(10, 2)
+  direction    String?
+  minutes      Int?
+  km           Decimal? @db.Decimal(6, 2)
+  reference    String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId, storeId, cep, active])
+  @@map("delivery_points")
+}
+
 model FulfillmentSlot {
   id             String   @id @default(cuid())
   tenantId       String   @default("tenant_default")

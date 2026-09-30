@@ -1,9 +1,7 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon'
 import { point, polygon } from '@turf/helpers'
-import * as fs from 'fs'
-import * as path from 'path'
 import { PrismaService } from '../../common/prisma.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
@@ -65,19 +63,28 @@ type DeliveryLookup = {
   deliveryPointCode?: string
 }
 
-interface BalcaoRateEntry {
-  sentido: string
-  codigo: string
-  localidade: string
-  taxa: number
-  minutos: number | null
-  km: number | null
-  cep: string | null
-  cepFormatado: string | null
-  referencia: string | null
+/** Linha da tabela de frete por localidade (DeliveryPoint). */
+type PointRow = {
+  code: string
+  locality: string
+  fee: Prisma.Decimal | number
+  freeAbove: Prisma.Decimal | number | null
+  minutes: number | null
+  km: Prisma.Decimal | number | null
+  reference: string | null
 }
 
 type FulfillmentContext = Pick<TenantContext, 'tenantId' | 'storeId'>
+
+type PointInput = {
+  locality?: string
+  cep?: string | null
+  fee?: number
+  freeAbove?: number | null
+  minutes?: number | null
+  reference?: string | null
+  active?: boolean
+}
 
 type SlotValidationOptions = {
   reservedOrdersOffset?: number
@@ -86,29 +93,11 @@ type SlotValidationOptions = {
 
 @Injectable()
 export class DeliveryService {
-  private readonly logger = new Logger(DeliveryService.name)
-  private balcaoRatesCache: BalcaoRateEntry[] | null = null
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
   ) {}
-
-  /** Le e cacheia a planilha de taxas de balcao (mesma fonte do
-   * scripts/seed-delivery-zones.ts) -- process.cwd() em vez de __dirname
-   * porque o build compilado (dist/) nao preserva a estrutura de src/. */
-  private getBalcaoRates(): BalcaoRateEntry[] {
-    if (this.balcaoRatesCache) return this.balcaoRatesCache
-    try {
-      const dataPath = path.join(process.cwd(), 'src/modules/delivery/data/delivery-rates-balcao.json')
-      const raw = fs.readFileSync(dataPath, 'utf-8')
-      this.balcaoRatesCache = JSON.parse(raw) as BalcaoRateEntry[]
-    } catch (err) {
-      this.logger.warn(`Nao foi possivel carregar delivery-rates-balcao.json: ${err instanceof Error ? err.message : err}`)
-      this.balcaoRatesCache = []
-    }
-    return this.balcaoRatesCache
-  }
 
   async listZones() {
     return this.prisma.deliveryZone.findMany({
@@ -283,85 +272,172 @@ export class DeliveryService {
     await this.prisma.deliveryZone.delete({ where: { id } })
   }
 
-  /** Resolve o fee pela planilha de taxas de balcao (ponto exato por CEP,
-   * com selecao de localidade quando o CEP tem mais de um ponto mapeado).
-   * Retorna null quando o CEP nao tem nenhum ponto na planilha -- nesse
-   * caso quem chama cai pro fallback de DeliveryZone (zona base regional). */
-  private resolveBalcaoLocality(
+  /** Resolve o fee pela tabela de frete por localidade (ponto exato por CEP,
+   * com selecao de localidade quando o CEP tem mais de um ponto).
+   * Retorna null quando o CEP nao tem nenhum ponto -- nesse caso quem chama
+   * cai pro fallback de DeliveryZone (zona base regional). */
+  private async resolveBalcaoLocality(
     cep: string,
     locality: string | undefined,
     deliveryPointCode: string | undefined,
-  ): DeliveryCalculation | null {
+    subtotal: number | undefined,
+    scoped: FulfillmentContext,
+  ): Promise<DeliveryCalculation | null> {
     const cepDigits = this.cleanCep(cep)
-    const rawPoints = this.getBalcaoRates().filter((entry) => this.cleanCep(entry.cep) === cepDigits && cepDigits.length === 8)
+    if (cepDigits.length !== 8) return null
+    const rawPoints: PointRow[] = await this.prisma.deliveryPoint.findMany({
+      where: { tenantId: scoped.tenantId, storeId: scoped.storeId, cep: cepDigits, active: true },
+      orderBy: { fee: 'asc' },
+    })
     if (!rawPoints.length) return null
 
-    // A planilha repete a mesma localidade (ex.: CHAFARIZ) uma vez por
-    // sentido (Itaipava/Posse) -- dedup por nome, ficando com a menor taxa
-    // quando o mesmo nome aparecer com valores diferentes.
-    const byLocality = new Map<string, BalcaoRateEntry>()
+    // Mesma localidade repetida (ex.: um ponto por sentido): fica a menor taxa.
+    const byLocality = new Map<string, PointRow>()
     for (const entry of rawPoints) {
-      const key = entry.localidade.trim().toUpperCase()
+      const key = entry.locality.trim().toUpperCase()
       const existing = byLocality.get(key)
-      if (!existing || Number(entry.taxa) < Number(existing.taxa)) byLocality.set(key, entry)
+      if (!existing || Number(entry.fee) < Number(existing.fee)) byLocality.set(key, entry)
     }
     const points = [...byLocality.values()]
 
-    const toOption = (p: BalcaoRateEntry): DeliveryLocalityOption => ({
-      code: p.codigo,
-      name: p.localidade,
-      fee: Number(p.taxa),
-      minutes: p.minutos,
-      km: p.km,
-      reference: p.referencia,
+    const toOption = (p: PointRow): DeliveryLocalityOption => ({
+      code: p.code,
+      name: p.locality,
+      fee: Number(p.fee),
+      minutes: p.minutes,
+      km: p.km == null ? null : Number(p.km),
+      reference: p.reference,
     })
 
     if (points.length === 1) {
-      return this.toBalcaoCalculation(points[0], { availableLocalities: [] })
+      return this.toBalcaoCalculation(points[0], { availableLocalities: [], subtotal })
     }
 
     const availableLocalities = points.map(toOption)
     const selected = points.find(
       (p) =>
-        (deliveryPointCode && p.codigo === deliveryPointCode) ||
-        (locality && p.localidade.toUpperCase() === locality.toUpperCase()),
+        (deliveryPointCode && p.code === deliveryPointCode) ||
+        (locality && p.locality.toUpperCase() === locality.toUpperCase()),
     )
 
     if (selected) {
-      return this.toBalcaoCalculation(selected, { availableLocalities })
+      return this.toBalcaoCalculation(selected, { availableLocalities, subtotal })
     }
 
     // Nenhuma localidade escolhida ainda -- devolve a lista pro cliente
     // selecionar no modal de endereco/checkout. fee fica com a menor taxa
     // do grupo so como estimativa visual, nunca e o valor cobrado de fato
     // (confirmSession/create bloqueiam sem locality/deliveryPointCode).
-    const lowestFee = Math.min(...points.map((p) => Number(p.taxa)))
-    return this.toBalcaoCalculation(null, { availableLocalities, fallbackFee: lowestFee })
+    const lowestFee = Math.min(...points.map((p) => Number(p.fee)))
+    return this.toBalcaoCalculation(null, { availableLocalities, fallbackFee: lowestFee, subtotal })
   }
 
   /** Monta o DeliveryCalculation comum aos 3 desfechos de resolveBalcaoLocality
-   * (ponto unico, localidade escolhida, ou pendente de escolha) -- so muda o
-   * ponto resolvido (ou null, se ainda pendente) e a lista de opcoes. */
+   * (ponto unico, localidade escolhida, ou pendente de escolha). */
   private toBalcaoCalculation(
-    point: BalcaoRateEntry | null,
-    options: { availableLocalities: DeliveryLocalityOption[]; fallbackFee?: number },
+    point: PointRow | null,
+    options: { availableLocalities: DeliveryLocalityOption[]; fallbackFee?: number; subtotal?: number },
   ): DeliveryCalculation {
-    const fee = point ? Number(point.taxa) : (options.fallbackFee ?? 0)
+    const rawFee = point ? Number(point.fee) : (options.fallbackFee ?? 0)
+    // Sem regra propria: undefined (o global de Marca decide), como antes.
+    const freeAbove = point?.freeAbove == null ? undefined : Number(point.freeAbove)
+    const isFree = freeAbove != null && options.subtotal != null && options.subtotal >= freeAbove
     return {
-      fee,
-      rawFee: fee,
-      freeAbove: undefined,
+      fee: isFree ? 0 : rawFee,
+      rawFee,
+      freeAbove,
       minimumOrder: null,
       minimumOrderMet: true,
-      zoneName: point?.localidade ?? 'Selecione sua localidade',
-      zoneId: point ? `balcao:${point.codigo}` : null,
-      isFree: false,
+      zoneName: point?.locality ?? 'Selecione sua localidade',
+      zoneId: point ? `balcao:${point.code}` : null,
+      isFree,
       outOfArea: false,
       requiresLocalitySelection: !point,
       availableLocalities: options.availableLocalities,
-      selectedLocality: point?.localidade ?? null,
-      selectedLocalityCode: point?.codigo ?? null,
+      selectedLocality: point?.locality ?? null,
+      selectedLocalityCode: point?.code ?? null,
     }
+  }
+
+  // ── Tabela de frete por localidade (admin) ──────────────────────────
+  async listPoints(context?: Partial<FulfillmentContext>) {
+    const scoped = this.resolveContext(context)
+    const rows = await this.prisma.deliveryPoint.findMany({
+      where: { tenantId: scoped.tenantId, storeId: scoped.storeId },
+      orderBy: [{ cep: 'asc' }, { fee: 'asc' }, { locality: 'asc' }],
+    })
+    return rows.map((r) => ({
+      ...r,
+      fee: Number(r.fee),
+      freeAbove: r.freeAbove == null ? null : Number(r.freeAbove),
+      suggestedFee: r.suggestedFee == null ? null : Number(r.suggestedFee),
+      km: r.km == null ? null : Number(r.km),
+    }))
+  }
+
+  async createPoint(context: Partial<FulfillmentContext> | undefined, body: PointInput) {
+    const scoped = this.resolveContext(context)
+    const data = this.validatePoint(body, true)
+    const codes = await this.prisma.deliveryPoint.findMany({ where: { tenantId: scoped.tenantId }, select: { code: true } })
+    const next = Math.max(5000, ...codes.map((c) => Number.parseInt(c.code, 10)).filter(Number.isFinite)) + 1
+    return this.prisma.deliveryPoint.create({ data: { ...data, code: String(next), tenantId: scoped.tenantId, storeId: scoped.storeId } as Prisma.DeliveryPointUncheckedCreateInput })
+  }
+
+  async updatePoint(id: string, body: PointInput & { applySuggestion?: boolean; dismissSuggestion?: boolean }) {
+    const point = await this.prisma.deliveryPoint.findUnique({ where: { id } })
+    if (!point) throw new NotFoundException('Localidade nao encontrada.')
+    if (body.applySuggestion) {
+      if (point.suggestedFee == null) throw new BadRequestException('Essa localidade nao tem valor sugerido.')
+      return this.prisma.deliveryPoint.update({ where: { id }, data: { fee: point.suggestedFee, suggestedFee: null } })
+    }
+    if (body.dismissSuggestion) return this.prisma.deliveryPoint.update({ where: { id }, data: { suggestedFee: null } })
+    return this.prisma.deliveryPoint.update({ where: { id }, data: this.validatePoint(body, false) })
+  }
+
+  /** Aplica de uma vez todas as taxas digitadas em 24/09 que ainda estao pendentes. */
+  async applyAllSuggestions(context?: Partial<FulfillmentContext>) {
+    const scoped = this.resolveContext(context)
+    const pending = await this.prisma.deliveryPoint.findMany({
+      where: { tenantId: scoped.tenantId, storeId: scoped.storeId, suggestedFee: { not: null } },
+    })
+    await this.prisma.$transaction(
+      pending.map((p) => this.prisma.deliveryPoint.update({ where: { id: p.id }, data: { fee: p.suggestedFee as Prisma.Decimal, suggestedFee: null } })),
+    )
+    return { applied: pending.length }
+  }
+
+  async deletePoint(id: string) {
+    await this.prisma.deliveryPoint.delete({ where: { id } }).catch(() => {
+      throw new NotFoundException('Localidade nao encontrada.')
+    })
+  }
+
+  private validatePoint(body: PointInput, isCreate: boolean) {
+    const data: Record<string, unknown> = {}
+    if (isCreate || body.locality !== undefined) {
+      const locality = String(body.locality || '').trim()
+      if (!locality) throw new BadRequestException('Informe o nome da localidade.')
+      data.locality = locality
+    }
+    if (isCreate || body.cep !== undefined) {
+      const cep = body.cep ? this.cleanCep(body.cep) : ''
+      if (cep && cep.length !== 8) throw new BadRequestException('CEP precisa ter 8 digitos.')
+      data.cep = cep || null
+    }
+    if (isCreate || body.fee !== undefined) {
+      const fee = Number(body.fee)
+      if (!Number.isFinite(fee) || fee < 0 || fee > 500) throw new BadRequestException('Taxa invalida.')
+      data.fee = fee
+    }
+    if (body.freeAbove !== undefined) {
+      const v = body.freeAbove == null || body.freeAbove === ('' as unknown) ? null : Number(body.freeAbove)
+      if (v != null && (!Number.isFinite(v) || v <= 0)) throw new BadRequestException('Valor de frete gratis invalido.')
+      data.freeAbove = v
+    }
+    if (body.minutes !== undefined) data.minutes = body.minutes == null ? null : Math.max(0, Math.round(Number(body.minutes)))
+    if (body.reference !== undefined) data.reference = String(body.reference || '').trim() || null
+    if (body.active !== undefined) data.active = Boolean(body.active)
+    return data
   }
 
   async listSlots(
@@ -1216,7 +1292,7 @@ export class DeliveryService {
     // CEP digitado a mao: a planilha de balcao tem o ponto exato (e as
     // varias localidades que dividem o mesmo CEP em bairros como Pedro do
     // Rio) -- so cai pra zona generica do banco se o CEP nao estiver nela.
-    const balcaoResult = this.resolveBalcaoLocality(cep, locality, deliveryPointCode)
+    const balcaoResult = await this.resolveBalcaoLocality(cep, locality, deliveryPointCode, subtotal, scoped)
     if (balcaoResult) return balcaoResult
 
     const matched = zones.find((zone) => {

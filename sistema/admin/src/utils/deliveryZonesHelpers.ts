@@ -53,7 +53,7 @@ export function fixLeafletDrawReadableArea() {
   geometryUtil.__readableAreaFixed = true
 }
 
-export type Tab = 'zones' | 'slots' | 'rules'
+export type Tab = 'points' | 'zones' | 'slots' | 'rules'
 
 export const EMPTY_FORM: DeliveryZonePayload = {
   name: '',

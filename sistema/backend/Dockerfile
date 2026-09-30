@@ -47,11 +47,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
-# JSON de dados lido por scripts/seed-delivery-zones.ts em runtime (nao e
-# TS compilado, "dist" nao carrega ele sozinho)
-COPY --from=builder --chown=nestjs:nodejs /app/src/modules/delivery/data ./src/modules/delivery/data
-# Fotos-fonte lidas por scripts/seed-banner-templates.js em runtime (mesmo
-# motivo do delivery/data acima -- nao faz parte do "dist" compilado)
+# Fotos-fonte lidas por scripts/seed-banner-templates.js em runtime (nao
+# fazem parte do "dist" compilado). A planilha de frete que vinha junto virou
+# a tabela delivery_points em 30/09/2026.
 COPY --from=builder --chown=nestjs:nodejs /app/assets ./assets
 
 # Cria pasta de uploads e define permissões

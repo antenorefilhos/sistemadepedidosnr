@@ -512,6 +512,25 @@ Licao geral: tela completa no backend sem nenhum consumidor no frontend nao e
 codigo inofensivo esperando uso — e uma checagem morta na frente do caminho que
 funciona, e o proximo dev vai escrever a query contra o model errado.
 
+## Frete: quem decide e a tabela `delivery_points` (30/09/2026)
+
+Ordem do calculo (`DeliveryService.calculate`): (1) GPS dentro de area
+desenhada no mapa (`DeliveryZone` GEO_POLYGON); (2) CEP na **tabela de frete
+por localidade** (`DeliveryPoint`, tela Taxas de Entrega > Tabela de frete);
+(3) faixa de CEP de reserva (`DeliveryZone` CEP_RANGE).
+
+Ate 30/09 o passo 2 era um JSON fixo no codigo (`delivery-rates-balcao.json`),
+e as 32 zonas de CEP da tela duplicavam os mesmos CEPs -- entao **nenhuma taxa
+da tela valia**. Em 24/09 foram digitadas 31 taxas novas que nunca chegaram
+ao cliente. A migration `20260930030000_delivery_points` levou o JSON pra
+tabela (uma linha por localidade e CEP, com a taxa cobrada) e guardou o
+valor de 24/09 em `suggestedFee`, pro lojista aplicar ou descartar.
+
+`orders."deliveryAreaId"` = `balcao:<code>` aponta pra `DeliveryPoint.code`
+(o codigo da planilha; repetidos ganharam sufixo `-2`, `-3`, e Chafariz
+manteve o 4207). `freeAbove` por localidade vence o global, igual a zona, e
+vale nos dois lugares: `calculate` e `OrdersService.isFreeShippingEarnedByZone`.
+
 ## Armadilha: nem todo endpoint do Solidcom traz `tipoIntegracao`
 
 `tipoIntegracao` (a coluna **"Internet"** no cadastro do produto no Solidcom,

@@ -1526,6 +1526,16 @@ export class OrdersService {
       if (zone.freeAbove != null) return subtotal >= Number(zone.freeAbove)
     }
 
+    // Localidade da tabela de frete (deliveryAreaId `balcao:<code>`, 30/09/2026).
+    if (deliveryAreaId?.startsWith('balcao:')) {
+      const pointRow = await this.prisma.deliveryPoint.findFirst({
+        where: { code: deliveryAreaId.slice('balcao:'.length), ...tenantStoreWhere(context) },
+        select: { fee: true, freeAbove: true },
+      })
+      if (pointRow && Number(pointRow.fee) === 0) return true
+      if (pointRow?.freeAbove != null) return subtotal >= Number(pointRow.freeAbove)
+    }
+
     // Zona sem freeAbove proprio (ou pedido sem zona, ex.: retirada) cai no
     // valor minimo global configurado em Admin > Marca.
     const brand = await this.brandService.get()
