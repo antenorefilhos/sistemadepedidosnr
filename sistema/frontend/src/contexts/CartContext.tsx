@@ -2,6 +2,7 @@ import { createContext, useState, useCallback, useEffect, ReactNode, useContext 
 import type { Product } from '../types'
 import { getProductLineTotal, hasConfiguredFractionStep } from '../utils/productPricing'
 import { couponsAPI } from '../services/api'
+import { CouponNoticeDialog, type CouponNotice } from '../components/CouponNoticeDialog'
 
 export interface CartItem {
   productId: string
@@ -22,6 +23,8 @@ export interface CartContextData {
   clear: () => void
   applyCoupon: (code: string) => Promise<{ valid: boolean; message: string }>
   removeCoupon: () => void
+  /** Aviso de cupom no meio da tela (aplicado, recusado ou retirado). */
+  showCouponNotice: (notice: CouponNotice) => void
   total: number
   count: number
 }
@@ -38,6 +41,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return stored ? String(stored) : null
   })
   const [discount, setDiscount] = useState<number>(0)
+  const [couponNotice, setCouponNotice] = useState<CouponNotice | null>(null)
+  const closeCouponNotice = useCallback(() => setCouponNotice(null), [])
 
   // Sincroniza localStorage sempre que cart mudar
   useEffect(() => {
@@ -115,11 +120,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (!result.valid) {
       setDiscount(0)
       setCouponCode(null)
+      setCouponNotice({ tone: 'error', title: `O cupom ${normalizedCode} não foi aplicado`, message: result.message })
       return { valid: false, message: result.message }
     }
 
     setCouponCode(result.code)
     setDiscount(result.discountAmount)
+    setCouponNotice({
+      tone: 'success',
+      title: `Cupom ${result.code} aplicado`,
+      message: result.discountAmount > 0 ? `Desconto de ${result.discountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} no seu pedido.` : result.message,
+    })
     return { valid: true, message: result.message }
   }, [subtotal])
 
@@ -144,6 +155,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         const result = response.data
         if (!result.valid) {
+          // Tirava o cupom calado: o cliente seguia achando que tinha o
+          // desconto (DAV 102120, cupom vencido no meio da compra).
+          setCouponNotice({ tone: 'error', title: `O cupom ${couponCode} saiu do seu carrinho`, message: result.message })
           setCouponCode(null)
           setDiscount(0)
           localStorage.removeItem('cartCouponCode')
@@ -181,11 +195,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         clear,
         applyCoupon,
         removeCoupon,
+        showCouponNotice: setCouponNotice,
         total,
         count,
       }}
     >
       {children}
+      {couponNotice && <CouponNoticeDialog notice={couponNotice} onClose={closeCouponNotice} />}
     </CartContext.Provider>
   )
 }

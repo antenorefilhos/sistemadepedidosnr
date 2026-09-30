@@ -70,7 +70,8 @@ export default function Checkout() {
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null)
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { cart, total, subtotal, clear, couponCode, discount } = useCart()
+  const { cart, total, subtotal, clear, couponCode, discount, applyCoupon, removeCoupon, showCouponNotice } = useCart()
+  const [couponInput, setCouponInput] = useState('')
   const guestCheckoutEnabled = (import.meta.env.VITE_GUEST_CHECKOUT_ENABLED ?? 'true') !== 'false'
   const createAddress = useCreateAddress()
   const createBackendCart = useCreateBackendCart()
@@ -476,9 +477,26 @@ export default function Checkout() {
     user?.id,
   ])
 
+  // Cupom aplicado/retirado aqui no checkout: recalcula na hora. Se o
+  // servidor recusar (ex.: ja usado por este cliente), tira o cupom e avisa
+  // no meio da tela -- senao o "Finalizar" falharia sem o cliente entender.
+  const lastQuotedCouponRef = useRef(couponCode)
+  useEffect(() => {
+    if (lastQuotedCouponRef.current === couponCode) return
+    lastQuotedCouponRef.current = couponCode
+    if (step !== 'payment' || !checkoutSessionIdRef.current) return
+    ensureCheckoutSession({ customerId: user?.id }).catch((error) => {
+      if (!couponCode) return
+      showCouponNotice({ tone: 'error', title: `O cupom ${couponCode} não vale para este pedido`, message: getApiErrorMessage(error, 'Não foi possível aplicar o cupom.') })
+      removeCoupon()
+    })
+  }, [couponCode, step, ensureCheckoutSession, user?.id, showCouponNotice, removeCoupon])
+
   const payableTotal = checkoutQuote?.price.total ?? total
   const quotedDiscount = checkoutQuote?.price.discountAmount ?? discount
-  const quotedDeliveryFee = checkoutQuote?.delivery.fee ?? deliveryCalc?.fee ?? null
+  // price.deliveryAmount ja vem com cupom de frete gratis; delivery.fee e a
+  // taxa cheia da zona (mostrava R$ 16 com o total ja sem o frete).
+  const quotedDeliveryFee = checkoutQuote ? checkoutQuote.price.deliveryAmount : deliveryCalc?.fee ?? null
   const deliveryZoneName = checkoutQuote?.delivery.zoneName ?? deliveryCalc?.zoneName ?? null
   // Zona sobrepõe o global (regra de negócio) assim que conhecida -- antes
   // disso (nenhum endereço validado ainda) usa o global como estimativa.
@@ -1305,18 +1323,8 @@ export default function Checkout() {
                       <span>Subtotal</span>
                       <span>{formatPrice(checkoutQuote?.price.subtotal ?? subtotal)}</span>
                     </div>
-                    {quotedDiscount > 0 && (
-                      <div className="flex justify-between text-sm text-emerald-700">
-                        <span>Descontos</span>
-                        <span>-{formatPrice(quotedDiscount)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between font-bold text-lg mt-2 border-t pt-2">
-                      <span>Total:</span>
-                      <span className="text-[#5D082A]">{formatPrice(payableTotal)}</span>
-                    </div>
                     {(isPickup || (checkoutQuote && !checkoutQuote.delivery.outOfArea) || (deliveryCalc && !deliveryCalc.outOfArea)) && (
-                      <div className="flex justify-between text-sm mt-1 text-gray-600">
+                      <div className="flex justify-between text-sm">
                         <span>
                           {isPickup ? 'Retirada na loja' : `Entrega${deliveryZoneName ? ` (${deliveryZoneName})` : ''}`}
                         </span>
@@ -1329,6 +1337,44 @@ export default function Checkout() {
                         </span>
                       </div>
                     )}
+                    <div className="rounded-lg border border-dashed border-[#D2BB8A] bg-[#FBFAF7] p-3">
+                      {couponCode ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-emerald-700">Cupom {couponCode} aplicado</span>
+                          <button type="button" onClick={removeCoupon} className="text-xs text-gray-600 underline">
+                            Remover
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            value={couponInput}
+                            onChange={(e) => setCouponInput(e.target.value.toUpperCase().replace(/\s/g, ''))}
+                            placeholder="Tem cupom? Digite aqui"
+                            aria-label="Cupom de desconto"
+                            className="h-11 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-base uppercase"
+                          />
+                          <button
+                            type="button"
+                            disabled={!couponInput.trim()}
+                            onClick={() => applyCoupon(couponInput).then((r) => r.valid && setCouponInput(''))}
+                            className="h-11 rounded-lg bg-[#5D082A] px-4 text-sm font-semibold text-white disabled:opacity-40"
+                          >
+                            Aplicar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {quotedDiscount > 0 && (
+                      <div className="flex justify-between text-sm text-emerald-700">
+                        <span>Descontos</span>
+                        <span>-{formatPrice(quotedDiscount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-lg mt-2 border-t pt-2">
+                      <span>Total:</span>
+                      <span className="text-[#5D082A]">{formatPrice(payableTotal)}</span>
+                    </div>
                     {checkoutQuote?.delivery.validSlot && (
                       <div className="flex justify-between text-sm mt-1 text-gray-600">
                         <span>Janela</span>
