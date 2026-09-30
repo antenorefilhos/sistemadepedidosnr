@@ -241,7 +241,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'brandIdentity' && (
             <Suspense fallback={lazySectionFallback}>
-              <BrandIdentity />
+              <BrandIdentity onNavigate={setActiveSection} />
             </Suspense>
           )}
 

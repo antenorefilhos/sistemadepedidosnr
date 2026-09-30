@@ -30,7 +30,10 @@ export interface BrandConfig {
 
 const DEFAULTS: BrandConfig = {
   storeName: 'Antenor & Filhos',
-  logoDesktopUrl: '/branding/logo-horizontal-bordo.png',
+  // Versoes brancas: o cabecalho e bordo. Ate 30/09/2026 o padrao era o logo
+  // bordo e o cabecalho ignorava o logo configurado (mostrava sempre o
+  // arquivo fixo), entao trocar o logo no admin nao tinha efeito.
+  logoDesktopUrl: '/branding/logo-horizontal-branco.png',
   logoMobileUrl: '/branding/logo-branco.png',
   primaryColor: '#5D082A',
   secondaryColor: '#D2BB8A',

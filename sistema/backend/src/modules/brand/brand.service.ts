@@ -20,6 +20,21 @@ export interface BrandConfigDto {
 
 const SINGLETON_ID = 'singleton';
 
+/**
+ * WhatsApp da loja: recebe a mensagem de cada pedido e aparece no rodape.
+ * Guarda so digitos com o 55 na frente; DDD + numero sem o 55 tambem vale.
+ */
+export function normalizeWhatsapp(raw: string): string {
+  const digits = String(raw || '').replace(/\D/g, '');
+  const full = digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
+  const local = full.slice(2);
+  // DDD nao comeca com 0; celular (11 digitos com DDD) comeca com 9.
+  if (!/^55\d{10,11}$/.test(full) || local[0] === '0' || (local.length === 11 && local[2] !== '9')) {
+    throw new BadRequestException('WhatsApp inválido: use o DDD e o número, por exemplo (24) 99218-6056.');
+  }
+  return full;
+}
+
 /** Aceita so { hidden: string[] } -- a pagina inicial le isso no primeiro carregamento. */
 export function normalizeHomeLayout(raw: string): string {
   let parsed: unknown;
@@ -99,6 +114,7 @@ export class BrandService {
 
   async upsert(dto: BrandConfigDto) {
     if (dto.homeLayout != null) dto = { ...dto, homeLayout: normalizeHomeLayout(dto.homeLayout) };
+    if (dto.contactWhatsapp != null) dto = { ...dto, contactWhatsapp: normalizeWhatsapp(dto.contactWhatsapp) };
     return this.prisma.brandConfig.upsert({
       where: { id: SINGLETON_ID },
       update: dto,

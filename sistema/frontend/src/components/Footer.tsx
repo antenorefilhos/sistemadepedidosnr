@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { Instagram, MessageCircle, MapPin, Phone, Mail, Clock, CreditCard, QrCode, Banknote, Ticket, ShieldCheck, Lock } from 'lucide-react'
 import { useBrand } from '../hooks/useBrand'
+import { useHoursConfig } from '../hooks/useDeliveryOperation'
+import { formatWeeklyDelivery } from '../utils/deliveryOperation'
 
 const PAYMENT_METHODS = [
   { label: 'Cartão de Crédito', icon: CreditCard },
@@ -26,6 +28,8 @@ function formatCnpj(raw: string) {
 /** Rodape institucional do storefront -- identidade, links, redes, pagamento e horario. */
 export function Footer() {
   const brand = useBrand()
+  const hours = useHoursConfig()
+  const deliveryHoursText = (brand.businessHours && formatWeeklyDelivery(hours.weekly)) || brand.deliveryHoursText
   const whatsappDigits = (brand.contactWhatsapp || '').replace(/\D/g, '')
   const whatsappUrl = whatsappDigits ? `https://wa.me/${whatsappDigits}` : null
   const whatsappSecondaryDigits = (brand.whatsappSecondary || '').replace(/\D/g, '')
@@ -135,7 +139,7 @@ export function Footer() {
                 </a>
               )}
             </div>
-            {(brand.storeHoursText || brand.deliveryHoursText) && (
+            {(brand.storeHoursText || deliveryHoursText) && (
               <div className="mt-4 space-y-1.5 text-sm leading-relaxed">
                 {brand.storeHoursText && (
                   <p className="flex items-start gap-2">
@@ -143,9 +147,9 @@ export function Footer() {
                     {brand.storeHoursText}
                   </p>
                 )}
-                {brand.deliveryHoursText && (
+                {deliveryHoursText && (
                   <p className="flex items-start gap-2 pl-6 text-[#8A6A3A]">
-                    {brand.deliveryHoursText}
+                    {deliveryHoursText}
                   </p>
                 )}
               </div>

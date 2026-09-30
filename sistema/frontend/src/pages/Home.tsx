@@ -695,7 +695,7 @@ export default function Home() {
             {/* Mobile: logo mobile branco ou inicial */}
             {brand.logoMobileUrl ? (
               <img
-                src="/branding/logo-branco.png"
+                src={resolveApiUrl(brand.logoMobileUrl) ?? brand.logoMobileUrl}
                 alt={brand.storeName}
                 className="h-9 w-9 object-contain sm:hidden"
               />
@@ -705,7 +705,7 @@ export default function Home() {
             {/* Desktop/tablet: logo desktop branco ou nome */}
             {brand.logoDesktopUrl ? (
               <img
-                src="/branding/logo-horizontal-branco.png"
+                src={resolveApiUrl(brand.logoDesktopUrl) ?? brand.logoDesktopUrl}
                 alt={brand.storeName}
                 className="hidden sm:block h-9 max-w-[180px] object-contain"
               />

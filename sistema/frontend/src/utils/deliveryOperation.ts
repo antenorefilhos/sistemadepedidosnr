@@ -184,6 +184,40 @@ export const getAsapWindow = (config: HoursConfig, now = new Date()): { windowSt
 }
 
 /** Horario da marca (admin) ou, sem ele, o padrao embutido. */
+const DAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const hourLabel = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number)
+  return `${h}h${m ? String(m).padStart(2, '0') : ''}`
+}
+
+/**
+ * "Entregas: Seg a Sáb 7h–14h e 14h30–20h50 · Dom 7h–13h45", a partir do
+ * horario configurado no admin (30/09/2026). O rodape mostrava um texto fixo
+ * que ja divergia da configuracao (domingo "ate 13h50" com 13h45 cadastrado).
+ */
+export const formatWeeklyDelivery = (weekly: WeeklyHours): string | null => {
+  const order = [1, 2, 3, 4, 5, 6, 0]
+  const sig = (d: number) => {
+    const day = weekly[d]
+    if (!day?.enabled || !day.windows?.length) return ''
+    return day.windows.map((w) => `${hourLabel(w.start)}–${hourLabel(w.end)}`).join(' e ')
+  }
+  const groups: Array<{ from: number; to: number; text: string }> = []
+  for (const d of order) {
+    const text = sig(d)
+    const last = groups[groups.length - 1]
+    if (last && last.text === text && order.indexOf(d) === order.indexOf(last.to) + 1) last.to = d
+    else groups.push({ from: d, to: d, text })
+  }
+  const parts = groups
+    .filter((g) => g.text)
+    .map((g) => {
+      const days = g.from === g.to ? DAY_SHORT[g.from] : `${DAY_SHORT[g.from]} a ${DAY_SHORT[g.to]}`
+      return `${days} ${g.text}`
+    })
+  return parts.length ? `Entregas: ${parts.join(' · ')}` : null
+}
+
 export const parseHoursConfig = (businessHours?: string | null, specialDates?: string | null): HoursConfig => {
   const parse = <T,>(raw: string | null | undefined, fallback: T): T => {
     if (!raw) return fallback

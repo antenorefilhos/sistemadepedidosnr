@@ -1420,6 +1420,8 @@ export const brandAPI = {
     freeShippingThreshold?: number | null
     businessHours?: string | null
     specialDates?: string | null
+    /** WhatsApp da loja: recebe a mensagem de cada pedido (servidor normaliza para 55+DDD+numero). */
+    contactWhatsapp?: string | null
     /** JSON { hidden: string[] } -- blocos da pagina inicial ocultos (Layout do Site). */
     homeLayout?: string | null
   }) => api.put('/brand', data),
