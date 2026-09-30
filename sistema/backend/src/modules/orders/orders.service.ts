@@ -835,6 +835,9 @@ export class OrdersService {
       })
       await this.inventoryService.releaseOrderReservations(order.id, reason || 'Pedido cancelado')
       await this.releaseFulfillmentSlotReservation(previousOrder, reason || 'Pedido cancelado')
+      // Pedido cancelado devolve o cupom (29/09/2026): o uso seguia contando no
+      // limite e o cliente nao conseguia usar o BEMVINDO de novo.
+      await this.prisma.promotionUsage.deleteMany({ where: { orderId: order.id } })
       await this.orderOrchestrationService.syncCancelledOrder(
         this.toOrderOrchestrationPayload(
           order,

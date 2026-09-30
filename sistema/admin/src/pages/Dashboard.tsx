@@ -39,7 +39,7 @@ const DeliveryRoutesSection = lazy(() => import('./sections/DeliveryRoutesSectio
 const BusinessHours = lazy(() => import('./BusinessHours'))
 const FraudAudit = lazy(() => import('./FraudAudit'))
 const NotificationsSection = lazy(() => import('./sections/NotificationsSection'))
-const Coupons = lazy(() => import('./Coupons'))
+const CouponsSection = lazy(() => import('./sections/CouponsSection'))
 const SponsoredShelves = lazy(() => import('./SponsoredShelves'))
 const MostruarioSection = lazy(() => import('./sections/MostruarioSection'))
 const RecipesSection = lazy(() => import('./sections/RecipesSection'))
@@ -219,7 +219,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'coupons' && (
             <Suspense fallback={lazySectionFallback}>
-              <Coupons />
+              <CouponsSection />
             </Suspense>
           )}
 

@@ -513,11 +513,20 @@ export class PricingService {
 
   async listPromotions(context?: PricingContext) {
     const tenantId = context?.tenantId || DEFAULT_TENANT_ID
-    return this.prisma.promotion.findMany({
+    const promotions = await this.prisma.promotion.findMany({
       where: { tenantId, ...(context?.storeId ? { OR: [{ storeId: context.storeId }, { storeId: null }] } : {}) },
       include: { rules: true, coupons: true, _count: { select: { usages: true } } },
       orderBy: [{ priority: 'desc' }, { startsAt: 'desc' }],
     })
+    // Resultado de cada cupom: quanto de desconto deu e em quantos pedidos.
+    const sums = await this.prisma.promotionUsage.groupBy({
+      by: ['promotionId'],
+      where: { promotionId: { in: promotions.map((p) => p.id) } },
+      _sum: { discountAmount: true },
+      _count: { _all: true },
+    })
+    const by = new Map(sums.map((s) => [s.promotionId, { uses: s._count._all, discount: Number(s._sum.discountAmount || 0) }]))
+    return promotions.map((p) => ({ ...p, stats: by.get(p.id) || { uses: 0, discount: 0 } }))
   }
 
   async createPromotion(context: PricingContext | undefined, body: any) {
@@ -856,6 +865,14 @@ export class PricingService {
     if (coupon.maxUsesPerCustomer != null && customerId) {
       const customerUses = await this.prisma.promotionUsage.count({ where: { couponId: coupon.id, customerId } })
       if (customerUses >= coupon.maxUsesPerCustomer) throw new BadRequestException('Você já usou esse cupom o máximo de vezes permitido.')
+    }
+    // "So na primeira compra" (29/09/2026): o BEMVINDO10 dizia isso no nome e
+    // nada conferia. Sem cliente identificado (carrinho antes do login) nao da
+    // para saber; o fechamento do pedido sempre tem o cliente e barra ali.
+    const condition = (coupon.promotion.rules[0]?.condition || {}) as Record<string, unknown>
+    if (condition.firstOrderOnly === true && customerId) {
+      const previous = await this.prisma.order.count({ where: { customerId, status: { notIn: ['CANCELLED', 'REFUNDED'] } } })
+      if (previous > 0) throw new BadRequestException('Esse cupom é só para a primeira compra.')
     }
   }
 

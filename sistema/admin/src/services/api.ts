@@ -1837,6 +1837,8 @@ export interface CouponPromotion {
   rules: Array<{ condition: Record<string, unknown>; effect: Record<string, unknown> }>
   coupons: Array<{ id: string; code: string; maxUses: number | null; maxUsesPerCustomer: number | null; status: string }>
   _count: { usages: number }
+  /** Pedidos validos que usaram (cancelado devolve) e desconto concedido. */
+  stats?: { uses: number; discount: number }
 }
 
 export const couponsAdminAPI = {
@@ -1846,7 +1848,7 @@ export const couponsAdminAPI = {
     couponCode: string
     /** 'PERCENT_OFF' | 'FIXED_OFF' -- vira o `effect.type` lido pelo PricingService. */
     effect: { type: 'PERCENT_OFF' | 'FIXED_OFF' | 'FREE_SHIPPING'; percent?: number; amount?: number; maxDiscount?: number }
-    condition?: { minSubtotal?: number }
+    condition?: { minSubtotal?: number; firstOrderOnly?: boolean }
     /** Ausente = vale a partir de agora. Futuro = so passa a validar no checkout dai. */
     startsAt?: string
     endsAt?: string
@@ -1858,7 +1860,7 @@ export const couponsAdminAPI = {
     name: string
     couponCode: string
     effect: { type: 'PERCENT_OFF' | 'FIXED_OFF' | 'FREE_SHIPPING'; percent?: number; amount?: number; maxDiscount?: number }
-    condition: { minSubtotal?: number }
+    condition: { minSubtotal?: number; firstOrderOnly?: boolean }
     startsAt: string
     endsAt: string
     maxUses: number | null
