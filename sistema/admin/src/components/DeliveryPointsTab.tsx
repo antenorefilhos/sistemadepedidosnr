@@ -163,7 +163,8 @@ function Row({
     if (v != null && (!Number.isFinite(v) || v <= 0)) return setFree(p.freeAbove == null ? '' : String(p.freeAbove))
     if (v !== p.freeAbove) onSave({ freeAbove: v })
   }
-  const input = 'h-9 w-24 rounded-lg border border-black/[0.08] px-2 text-right text-sm tabular-nums'
+  const input = 'h-9 w-20 rounded-lg border border-black/[0.08] px-2 text-right text-sm tabular-nums md:w-24'
+  const label = 'flex flex-col gap-0.5 text-[11px] text-gray-500 md:flex-row md:items-center md:gap-1.5 md:text-xs'
   return (
     <li className={`flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center ${p.active ? '' : 'opacity-60'}`}>
       <span className="min-w-0 flex-1">
@@ -183,15 +184,16 @@ function Row({
           </span>
         )}
       </span>
-      <span className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-1.5 text-xs text-gray-500">
+      <span className="flex w-full items-end gap-3 md:w-auto md:items-center">
+        <label className={label}>
           Taxa R$
           <input value={fee} inputMode="decimal" onChange={(e) => setFee(e.target.value)} onBlur={commitFee} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} className={input} aria-label={`Taxa de ${p.locality}`} />
         </label>
-        <label className="flex items-center gap-1.5 text-xs text-gray-500">
+        <label className={label}>
           Grátis acima de
           <input value={free} inputMode="decimal" placeholder="—" onChange={(e) => setFree(e.target.value)} onBlur={commitFree} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} className={input} aria-label={`Frete grátis acima de, em ${p.locality}`} />
         </label>
+        <span className="ml-auto flex items-center gap-1 md:ml-0">
         <button
           type="button"
           role="switch"
@@ -209,6 +211,7 @@ function Row({
         <button type="button" aria-label="Apagar" title="Apagar" onClick={onDelete} className="rounded-lg p-2 text-gray-400 hover:bg-rose-50 hover:text-rose-700">
           <Trash2 size={15} />
         </button>
+        </span>
       </span>
     </li>
   )
