@@ -283,7 +283,7 @@ function CouponEditor({ initial, onClose, onSaved }: { initial: CouponPromotion 
       title={
         <>
           <h3 className="text-base font-semibold text-gray-900">{initial ? `Cupom ${coupon?.code}` : 'Novo cupom'}</h3>
-          <p className="mt-0.5 text-xs text-gray-500">{initial ? `Criado em ${dateBR(initial.startsAt)} · usado ${initial.stats?.uses ?? 0} vez(es)` : 'O cliente digita o código no carrinho ou no checkout.'}</p>
+          <p className="mt-0.5 text-xs text-gray-500">{initial ? `Vale desde ${dateBR(initial.startsAt)} · usado ${initial.stats?.uses ?? 0} vez(es)` : 'O cliente digita o código no carrinho ou no checkout.'}</p>
         </>
       }
       footer={
@@ -321,7 +321,7 @@ function CouponEditor({ initial, onClose, onSaved }: { initial: CouponPromotion 
                 </label>
                 {kind === 'PERCENT_OFF' && (
                   <label className="block text-xs text-gray-500">
-                    Desconto máximo (R$, opcional)
+                    Máximo em R$
                     <input inputMode="decimal" value={maxDiscount} onChange={(e) => setMaxDiscount(e.target.value)} placeholder="sem teto" className={`${field} mt-1`} />
                   </label>
                 )}
