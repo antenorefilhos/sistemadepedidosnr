@@ -181,7 +181,7 @@ export default function BrandIdentity({ onNavigate }: Props) {
               Horário de entrega
             </button>
           </Item>
-          <Item label="Empresa">{[data.legalName, data.cnpj && `CNPJ ${data.cnpj}`].filter(Boolean).join(' · ') || '—'}</Item>
+          <Item label="Empresa">{[data.legalName, data.cnpj && `CNPJ ${data.cnpj.replace(/\D/g, '').replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')}`].filter(Boolean).join(' · ') || '—'}</Item>
           <Item label="Endereço">{[data.addressNumber && `nº ${data.addressNumber}`, data.addressCep && `CEP ${data.addressCep}`].filter(Boolean).join(' · ') || '—'}</Item>
         </dl>
         <p className="mt-3 text-xs text-gray-400">Dados da empresa, telefone, e-mails e horário da loja ficam fixos no sistema (mudam raramente). Para trocar, peça no desenvolvimento.</p>
