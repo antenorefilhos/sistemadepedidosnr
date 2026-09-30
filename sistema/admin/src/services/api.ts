@@ -1303,16 +1303,20 @@ export interface PaymentsOverviewOrder {
   pickup: boolean
   siteMethod: string
   changeFor: string | null
+  /** O que o cliente aprovou no checkout. */
+  approved: number
+  /** Depois da separacao (peso real, faltas, trocas). */
   total: number
   delivery: number
   discount: number
+  pickingAdjust: number
   invoicedAt: string | null
   cancelledInErp: boolean
+  /** Cupom do caixa + frete. */
   charged: number | null
-  approvedItems: number | null
-  difference: number | null
-  divergentItems: Array<{ situacao: string; nome: string; qtdPedida: number | null; qtdFaturada: number | null; diferenca: number }>
-  pdv: { cupom: number | null; caixa: number | null; nfce: string | null; meios: Array<{ descricao: string; valor: number; troco: number }>; formas: string[] } | null
+  cashierDiff: number | null
+  pdv: { cupom: number | null; valorCupom: number | null; caixa: number | null; nfce: string | null; meios: Array<{ descricao: string; valor: number; troco: number }>; formas: string[] } | null
+  methodMismatch: boolean
   flags: string[]
 }
 
@@ -1321,16 +1325,18 @@ export interface PaymentsOverview {
   summary: {
     orders: number
     approved: number
+    final: number
+    pickingAdjust: number
     delivery: number
     invoiced: number
-    withPdvData: number
+    withCupom: number
     charged: number
-    approvedReconciled: number
-    difference: number
+    cashierDiff: number
+    methodMismatch: number
     awaitingCashier: number
     cancelled: number
   }
-  byMethod: Array<{ method: string; siteOrders: number; siteValue: number; pdvValue: number }>
+  byMethod: Array<{ method: string; siteOrders: number; siteValue: number; pdvOrders: number }>
   orders: PaymentsOverviewOrder[]
 }
 

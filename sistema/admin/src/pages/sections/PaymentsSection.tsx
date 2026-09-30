@@ -5,8 +5,8 @@ import { OrderDetail, STATUS_LABEL } from './OrdersSection'
 
 // Pagamentos (refeita em 30/09/2026). O site nao cobra: o cliente escolhe a
 // forma e o caixa (PDV) cobra depois da separacao. A tela antiga mostrava o
-// livro de um gateway que nunca existiu. Esta compara o que o cliente aprovou
-// no site com o que o caixa cobrou, vindo da AntenorApi no faturamento.
+// livro de um gateway que nunca existiu. Esta segue o dinheiro em tres
+// valores: aprovado no site -> depois da separacao -> cupom do caixa.
 
 const TZ = 'America/Sao_Paulo'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -14,13 +14,12 @@ const signed = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '') + brl(Math.abs(
 const when = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const METHOD: Record<string, string> = { CASH: 'Dinheiro', PIX: 'PIX', CARD: 'Cartão', VOUCHER: 'Vale-alimentação', OTHER: 'Outra' }
 const FLAG: Record<string, string> = {
-  VALOR_DIFERENTE: 'Cobrado diferente do aprovado',
-  FORMA_DIFERENTE: 'Forma no caixa diferente da escolhida',
+  CAIXA_DIFERENTE: 'Caixa cobrou diferente do separado',
   SAIU_SEM_CUPOM: 'Saiu sem cupom no caixa',
-  CANCELADO_APOS_FATURAR: 'Cancelado depois de faturado',
+  CANCELADO_APOS_FATURAR: 'Cupom cancelado depois de faturado',
 }
-const ITEM: Record<string, string> = { QUANTIDADE_DIVERGENTE: 'peso/quantidade', NAO_FATURADO: 'não cobrado', ADICIONADO_NO_CAIXA: 'incluído no caixa' }
 const DAYS = [7, 30, 90]
+const moved = (v: number | null) => v != null && Math.abs(v) > 0.02
 
 export default function PaymentsSection() {
   const [days, setDays] = useState(30)
@@ -45,12 +44,12 @@ export default function PaymentsSection() {
   const s = data?.summary
   const flagged = data?.orders.filter((o) => o.flags.length) || []
   const list = onlyFlags ? flagged : data?.orders || []
-  const maxMethod = Math.max(1, ...(data?.byMethod || []).map((m) => Math.max(m.siteValue, m.pdvValue)))
+  const maxOrders = Math.max(1, ...(data?.byMethod || []).map((m) => Math.max(m.siteOrders, m.pdvOrders)))
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-sm text-gray-500">O site não cobra: o cliente escolhe a forma e o caixa cobra depois da separação, pelo peso real. Aqui fica o que foi aprovado e o que foi cobrado.</p>
+        <p className="max-w-2xl text-sm text-gray-500">O site não cobra: o cliente escolhe a forma e o caixa cobra depois da separação, pelo peso real. Aqui fica o caminho do dinheiro: aprovado, separado e cobrado.</p>
         <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
           {DAYS.map((d) => (
             <button key={d} type="button" onClick={() => setDays(d)} className={`rounded-lg px-3 py-1.5 text-sm ${days === d ? 'bg-gray-900 text-white' : 'text-gray-600'}`}>
@@ -71,12 +70,12 @@ export default function PaymentsSection() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Aprovado no site" value={brl(s.approved)} hint={`${s.orders} pedido(s) · ${brl(s.delivery)} de frete`} />
-            <Stat label="Cobrado no caixa" value={brl(s.charged)} hint={`${s.withPdvData} cupom(ns) conferido(s) de ${s.invoiced} faturado(s)`} />
+            <Stat label="Aprovado no site" value={brl(s.approved)} hint={`${s.orders} pedido(s), com ${brl(s.delivery)} de frete`} />
+            <Stat label="Depois da separação" value={brl(s.final)} hint={`${signed(s.pickingAdjust)} por peso real, falta e troca`} />
             <Stat
-              label="Diferença"
-              value={s.withPdvData ? signed(s.difference) : '—'}
-              hint={s.withPdvData ? `cobrado − aprovado nos ${s.withPdvData} conferidos (peso, falta, troca)` : 'aparece quando o caixa faturar'}
+              label="Cobrado no caixa"
+              value={s.withCupom ? brl(s.charged) : '—'}
+              hint={s.withCupom ? `${s.withCupom} cupom(ns); ${moved(s.cashierDiff) ? `${signed(s.cashierDiff)} contra o separado` : 'bate com o separado'}` : 'aparece quando o caixa faturar'}
             />
             <Stat label="Aguardando caixa" value={String(s.awaitingCashier)} hint={`${s.cancelled} cancelado(s) no período`} />
           </div>
@@ -92,19 +91,22 @@ export default function PaymentsSection() {
                     <li key={m.method}>
                       <div className="flex items-baseline justify-between gap-2 text-sm">
                         <span className="text-gray-900">{METHOD[m.method] || m.method}</span>
-                        <span className="text-xs tabular-nums text-gray-500">
-                          {m.siteOrders} pedido(s) · {brl(m.siteValue)}
-                        </span>
+                        <span className="text-xs tabular-nums text-gray-500">{m.siteOrders ? brl(m.siteValue) : ''}</span>
                       </div>
-                      <div className="mt-1 h-1.5 rounded-full bg-gray-100">
-                        <div className="h-1.5 rounded-full bg-[#5D082A]" style={{ width: `${(m.siteValue / maxMethod) * 100}%` }} />
-                      </div>
-                      <p className="mt-1 text-xs tabular-nums text-gray-500">Registrado no caixa: {brl(m.pdvValue)}</p>
+                      <Bar label="escolheram no site" value={m.siteOrders} max={maxOrders} tone="bg-[#5D082A]" />
+                      <Bar label="registrados no caixa" value={m.pdvOrders} max={maxOrders} tone="bg-gray-400" />
                     </li>
                   ))}
                 </ul>
               )}
-              <p className="mt-3 text-xs text-gray-400">Barra: o que os clientes escolheram no site. "Registrado no caixa" vem do cupom (sem o troco).</p>
+              {s.methodMismatch > 0 && (
+                <p className="mt-3 flex gap-2 text-xs text-gray-600">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                  <span>
+                    {s.methodMismatch} de {s.withCupom} pedido(s) foram registrados no caixa com forma diferente da escolhida no site. Se o cliente pagou por PIX ou cartão e o caixa lançou Dinheiro, o fechamento da gaveta não bate.
+                  </span>
+                </p>
+              )}
             </section>
 
             <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
@@ -123,9 +125,11 @@ export default function PaymentsSection() {
                           <span className="block truncate text-sm text-gray-900">
                             {o.dav ? `DAV ${o.dav}` : 'Sem DAV'} · {o.customer || 'Cliente'}
                           </span>
-                          <span className="block text-xs text-gray-500">{o.flags.map((f) => FLAG[f] || f).join(' · ')}</span>
+                          <span className="block text-xs text-gray-500">
+                            {o.flags.map((f) => FLAG[f] || f).join(' · ')} · {when(o.createdAt)}
+                          </span>
                         </span>
-                        {o.difference != null && Math.abs(o.difference) >= 0.01 && <span className="text-sm tabular-nums text-gray-900">{signed(o.difference)}</span>}
+                        {moved(o.cashierDiff) && <span className="text-sm tabular-nums text-gray-900">{signed(o.cashierDiff!)}</span>}
                       </button>
                     </li>
                   ))}
@@ -146,12 +150,12 @@ export default function PaymentsSection() {
                 <input type="checkbox" checked={onlyFlags} onChange={(e) => setOnlyFlags(e.target.checked)} /> Só os que precisam de atenção
               </label>
             </div>
-            <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1.3fr)_110px_110px_100px_24px] gap-3 px-4 py-2 text-[11px] uppercase tracking-wide text-gray-400 md:grid">
+            <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_105px_105px_105px_24px] gap-3 px-4 py-2 text-[11px] uppercase tracking-wide text-gray-400 md:grid">
               <span>Pedido</span>
               <span>Forma: site → caixa</span>
               <span className="text-right">Aprovado</span>
+              <span className="text-right">Separado</span>
               <span className="text-right">Cobrado</span>
-              <span className="text-right">Diferença</span>
               <span />
             </div>
             {list.length === 0 ? (
@@ -182,48 +186,70 @@ function Stat({ label, value, hint }: { label: string; value: string; hint: stri
   )
 }
 
+function Bar({ label, value, max, tone }: { label: string; value: number; max: number; tone: string }) {
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <div className="h-1.5 flex-1 rounded-full bg-gray-100">
+        <div className={`h-1.5 rounded-full ${tone}`} style={{ width: `${(value / max) * 100}%` }} />
+      </div>
+      <span className="w-40 shrink-0 text-xs tabular-nums text-gray-500">
+        {value} {label}
+      </span>
+    </div>
+  )
+}
+
 function Row({ o, open, onToggle, onOpenOrder }: { o: PaymentsOverviewOrder; open: boolean; onToggle: () => void; onOpenOrder: () => void }) {
   const cancelled = o.status === 'CANCELLED' || o.status === 'REFUNDED'
   const caixa = o.pdv?.formas.length ? o.pdv.formas.map((f) => METHOD[f] || f).join(' + ') : null
-  const pending = !o.invoicedAt ? (cancelled ? 'cancelado' : o.status === 'READY_FOR_CHECKOUT' ? 'aguardando caixa' : STATUS_LABEL[o.status]?.toLowerCase() || o.status) : null
+  const semCaixa = cancelled
+    ? 'cancelado'
+    : !o.invoicedAt
+      ? o.status === 'READY_FOR_CHECKOUT'
+        ? 'aguardando caixa'
+        : 'ainda não faturado'
+      : 'forma não informada'
   return (
     <li className={cancelled ? 'opacity-60' : ''}>
-      <button type="button" onClick={onToggle} aria-expanded={open} className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 px-4 py-3 text-left md:grid-cols-[minmax(0,1.6fr)_minmax(0,1.3fr)_110px_110px_100px_24px] md:items-center">
-        <span className="min-w-0">
-          <span className="flex items-center gap-1.5 text-sm text-gray-900">
-            {o.flags.length > 0 && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
-            <span className="truncate">
-              {o.dav ? `DAV ${o.dav}` : 'Sem DAV'} · {o.customer || 'Cliente'}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="grid w-full grid-cols-3 gap-x-3 gap-y-1 px-4 py-3 text-left md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_105px_105px_105px_24px] md:items-center"
+      >
+        <span className="col-span-3 flex min-w-0 items-start justify-between gap-2 md:col-span-1">
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5 text-sm text-gray-900">
+              {o.flags.length > 0 && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
+              <span className="truncate">
+                {o.dav ? `DAV ${o.dav}` : 'Sem DAV'} · {o.customer || 'Cliente'}
+              </span>
+            </span>
+            <span className="block text-xs text-gray-500">
+              {when(o.createdAt)} · {o.pickup ? 'retirada' : 'entrega'} · {STATUS_LABEL[o.status] || o.status}
             </span>
           </span>
-          <span className="block text-xs text-gray-500">
-            {when(o.createdAt)} · {o.pickup ? 'retirada' : 'entrega'} · {STATUS_LABEL[o.status] || o.status}
-          </span>
+          <ChevronDown size={16} className={`mt-0.5 shrink-0 text-gray-400 transition-transform md:hidden ${open ? 'rotate-180' : ''}`} />
         </span>
-        <ChevronDown size={16} className={`self-center text-gray-400 transition-transform md:order-last ${open ? 'rotate-180' : ''}`} />
-        <span className="col-span-2 text-xs text-gray-600 md:col-span-1 md:text-sm">
-          {METHOD[o.siteMethod] || o.siteMethod}
-          {o.changeFor ? ` (troco p/ R$ ${o.changeFor})` : ''} → {caixa || <span className="text-gray-400">{pending || 'sem dados do caixa'}</span>}
+        <span className="col-span-3 text-xs text-gray-600 md:col-span-1 md:text-sm">
+          {METHOD[o.siteMethod] || o.siteMethod} → {caixa ? <span className={o.methodMismatch ? 'text-amber-700' : ''}>{caixa}</span> : <span className="text-gray-400">{semCaixa}</span>}
         </span>
-        <span className="text-xs tabular-nums text-gray-600 md:text-right md:text-sm md:text-gray-900">
-          <span className="md:hidden">Aprovado </span>
-          {brl(o.total)}
-        </span>
-        <span className="text-right text-xs tabular-nums text-gray-600 md:text-sm md:text-gray-900">
-          <span className="md:hidden">Cobrado </span>
-          {o.charged != null ? brl(o.charged) : '—'}
-        </span>
-        <span className="col-span-2 text-xs tabular-nums md:col-span-1 md:text-right md:text-sm">
-          {o.difference != null ? (
-            <span className={Math.abs(o.difference) >= 0.01 ? 'text-gray-900' : 'text-gray-400'}>
-              <span className="md:hidden">Diferença </span>
-              {Math.abs(o.difference) >= 0.01 ? signed(o.difference) : 'confere'}
-            </span>
-          ) : null}
-        </span>
+        <Money label="Aprovado" value={o.approved} />
+        <Money label="Separado" value={o.total} dim={!moved(o.pickingAdjust)} />
+        <Money label="Cobrado" value={o.charged} strong={moved(o.cashierDiff)} />
+        <ChevronDown size={16} className={`hidden text-gray-400 transition-transform md:block ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && <Details o={o} onOpenOrder={onOpenOrder} />}
     </li>
+  )
+}
+
+function Money({ label, value, dim, strong }: { label: string; value: number | null; dim?: boolean; strong?: boolean }) {
+  return (
+    <span className={`text-xs tabular-nums md:text-right md:text-sm ${value == null || dim ? 'text-gray-400' : strong ? 'font-semibold text-amber-800' : 'text-gray-900'}`}>
+      <span className="block text-[11px] text-gray-400 md:hidden">{label}</span>
+      {value != null ? brl(value) : '—'}
+    </span>
   )
 }
 
@@ -233,28 +259,36 @@ function Details({ o, onOpenOrder }: { o: PaymentsOverviewOrder; onOpenOrder: ()
     <div className="grid gap-4 bg-gray-50/70 px-4 py-3 text-sm md:grid-cols-3">
       <div>
         <p className="text-xs text-gray-500">No site</p>
+        <p className="tabular-nums text-gray-900">Aprovou {brl(o.approved)}</p>
         <p className="tabular-nums text-gray-900">
-          {brl(o.total)} {o.delivery > 0 && <span className="text-xs text-gray-500">(inclui {brl(o.delivery)} de frete)</span>}
+          Depois da separação {brl(o.total)} {moved(o.pickingAdjust) && <span className="text-xs text-gray-500">({signed(o.pickingAdjust)})</span>}
         </p>
-        {o.discount > 0 && <p className="text-xs text-gray-500">Desconto de cupom: {brl(o.discount)}</p>}
         <p className="text-xs text-gray-500">
+          {o.delivery > 0 ? `Frete ${brl(o.delivery)} · ` : ''}
+          {o.discount > 0 ? `Cupom de desconto ${brl(o.discount)} · ` : ''}
           Escolheu {METHOD[o.siteMethod] || o.siteMethod}
           {o.changeFor ? `, troco para R$ ${o.changeFor}` : ''}
         </p>
-        {o.flags.length > 0 && <p className="mt-1 text-xs text-amber-700">{o.flags.map((f) => FLAG[f] || f).join(' · ')}</p>}
       </div>
       <div>
         <p className="text-xs text-gray-500">No caixa</p>
         {o.pdv ? (
           <>
+            {o.pdv.valorCupom != null && (
+              <p className="tabular-nums text-gray-900">
+                Cupom {brl(o.pdv.valorCupom)}
+                {o.delivery > 0 && <span className="text-xs text-gray-500"> + frete {brl(o.delivery)}</span>}
+              </p>
+            )}
             {o.pdv.meios.map((m, i) => (
-              <p key={i} className="tabular-nums text-gray-900">
-                {m.descricao}: {brl(m.valor)}
-                {m.troco > 0 && <span className="text-xs text-gray-500"> (troco {brl(m.troco)})</span>}
+              <p key={i} className="text-xs tabular-nums text-gray-600">
+                Lançado como {m.descricao}: {brl(m.valor)}
+                {m.troco > 0 && ` (troco ${brl(m.troco)})`}
               </p>
             ))}
+            {moved(o.cashierDiff) && <p className="text-xs text-amber-700">{signed(o.cashierDiff!)} em relação ao separado</p>}
             <p className="text-xs text-gray-500">
-              {o.pdv.cupom ? `Cupom ${o.pdv.cupom}` : ''}
+              {o.pdv.cupom ? `Cupom nº ${o.pdv.cupom}` : ''}
               {o.pdv.caixa ? ` · caixa ${o.pdv.caixa}` : ''}
               {o.invoicedAt ? ` · ${when(o.invoicedAt)}` : ''}
             </p>
@@ -269,27 +303,20 @@ function Details({ o, onOpenOrder }: { o: PaymentsOverviewOrder; onOpenOrder: ()
             )}
           </>
         ) : (
-          <p className="text-gray-500">{o.invoicedAt ? `Faturado em ${when(o.invoicedAt)}; detalhes do cupom ainda não chegaram.` : o.cancelledInErp ? 'Cancelado no caixa.' : 'Ainda não passou no caixa.'}</p>
+          <p className="text-gray-500">
+            {o.cancelledInErp ? 'Cupom cancelado no caixa.' : o.invoicedAt ? `Faturado em ${when(o.invoicedAt)}; o detalhe do cupom ainda não chegou.` : 'Ainda não passou no caixa.'}
+          </p>
         )}
       </div>
       <div>
-        <p className="text-xs text-gray-500">Diferenças por item</p>
-        {o.divergentItems.length === 0 ? (
-          <p className="text-gray-500">{o.difference != null ? 'Tudo confere.' : '—'}</p>
-        ) : (
-          <ul className="space-y-0.5">
-            {o.divergentItems.map((i, k) => (
-              <li key={k} className="flex justify-between gap-2 text-xs">
-                <span className="min-w-0 truncate text-gray-700">
-                  {i.nome} <span className="text-gray-400">({ITEM[i.situacao] || i.situacao}{i.qtdPedida != null && i.qtdFaturada != null ? `: ${i.qtdPedida} → ${i.qtdFaturada}` : ''})</span>
-                </span>
-                <span className="tabular-nums text-gray-900">{signed(i.diferenca)}</span>
-              </li>
-            ))}
-          </ul>
+        {o.flags.length > 0 && (
+          <>
+            <p className="text-xs text-gray-500">Atenção</p>
+            <p className="text-xs text-amber-700">{o.flags.map((f) => FLAG[f] || f).join(' · ')}</p>
+          </>
         )}
         <button type="button" onClick={onOpenOrder} className="mt-2 rounded-lg border border-black/[0.08] bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100">
-          Abrir pedido
+          Abrir pedido (itens e separação)
         </button>
       </div>
     </div>
