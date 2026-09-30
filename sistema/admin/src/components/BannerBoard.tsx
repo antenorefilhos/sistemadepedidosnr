@@ -48,8 +48,10 @@ export function BannerBoard({ items, ctx, busyId, onEdit, onToggle, onMove, onDe
   const status = useMemo(() => Object.fromEntries(items.map((b) => [b.id, ctx ? bannerStatus(b, ctx) : null])), [items, ctx])
   const attention = items.filter((b) => b.active && (status[b.id]?.tone === 'warn' || (status[b.id]?.live && dest[b.id]?.tone === 'warn')))
   const live = items.filter((b) => status[b.id]?.live)
-  const views = live.reduce((a, b) => a + b.impressionsCount, 0)
-  const clicks = live.reduce((a, b) => a + b.clicksCount, 0)
+  // So quem ja conta exibicao entra na taxa (tarja/pop-up contam desde 30/09).
+  const counted = live.filter((b) => b.impressionsCount > 0)
+  const views = counted.reduce((a, b) => a + b.impressionsCount, 0)
+  const clicks = counted.reduce((a, b) => a + b.clicksCount, 0)
 
   return (
     <div className="space-y-4">
