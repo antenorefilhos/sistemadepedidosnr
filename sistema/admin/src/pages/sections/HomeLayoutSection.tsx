@@ -116,8 +116,8 @@ export default function HomeLayoutSection({ onNavigate }: Props) {
     return {
       adds: all.reduce((a, s) => a + s.adds, 0),
       tracked: all.filter((s) => s.shelf).reduce((a, s) => a + s.adds, 0),
-      orders: all.filter((s) => s.shelf).reduce((a, s) => a + s.orders, 0),
-      revenue: all.filter((s) => s.shelf).reduce((a, s) => a + s.revenue, 0),
+      orders: all.reduce((a, s) => a + s.orders, 0),
+      revenue: all.reduce((a, s) => a + s.revenue, 0),
     }
   }, [results])
 
@@ -170,12 +170,16 @@ export default function HomeLayoutSection({ onNavigate }: Props) {
         <Stat
           label="Postos no carrinho pela página inicial"
           value={String(homeTotals.adds)}
-          hint={homeTotals.tracked < homeTotals.adds ? `${homeTotals.tracked} com a vitrine identificada` : `últimos ${days} dias`}
+          hint={
+            homeTotals.tracked < homeTotals.adds
+              ? `últimos ${days} dias; ${homeTotals.tracked ? `${homeTotals.tracked} com a vitrine anotada` : 'a vitrine de cada um passa a ser anotada a partir de 30/09'}`
+              : `últimos ${days} dias`
+          }
         />
         <Stat
           label="Viraram pedido"
           value={homeTotals.orders ? `${homeTotals.orders} pedido(s)` : '—'}
-          hint={homeTotals.orders ? `${brl(homeTotals.revenue)} nesses produtos` : since ? `contando desde ${since}` : 'começa a contar com o próximo clique na loja'}
+          hint={homeTotals.orders ? `${brl(homeTotals.revenue)} nesses produtos, até 24 h depois do clique` : since ? `contando desde ${since}` : 'nenhum no período'}
         />
       </div>
 
