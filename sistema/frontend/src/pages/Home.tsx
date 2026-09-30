@@ -24,6 +24,7 @@ import { useDragScroll } from '../hooks/useDragScroll'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
 import { useQuery } from '@tanstack/react-query'
 import { resolveApiUrl, productsAPI, cmsAPI } from '../services/api'
+import { useBannerImpression } from '../hooks/useBannerImpression'
 import type { Product } from '../types'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { HomeRecipeShelf } from '../components/RecipeShelf'
@@ -1082,11 +1083,15 @@ export default function Home() {
  * largura toda, um fade lateral deixaria o texto do lado direito ilegivel.
  */
 function TarjaStrip({ banner, onDismiss }: { banner: PromoBannerView; onDismiss: () => void }) {
+  // 30/09/2026: tarja e pop-up contavam clique e nunca exibicao -- a taxa de
+  // clique no admin ficava sem base (26 cliques em "0 exibicoes").
+  const stripRef = useRef<HTMLDivElement>(null)
+  useBannerImpression(banner.id, stripRef)
   const handleCtaClick = () => {
     if (banner.id) cmsAPI.storeBanners.registerClick(banner.id).catch(() => {})
   }
   return (
-    <div className="relative w-full overflow-hidden">
+    <div ref={stripRef} className="relative w-full overflow-hidden">
       <BannerImage desktopUrl={banner.image} mobileUrl={banner.mobileImage} alt="" />
       <div className="absolute inset-0" style={{ background: buildOverlaySolid(banner.overlayColor || '#231F20') }} />
       <div className="relative z-10 mx-auto flex min-h-[52px] w-full max-w-7xl items-center justify-between gap-3 px-4 py-2 md:min-h-[64px] md:px-6">
@@ -1144,13 +1149,16 @@ function PopupBanner({ banner, onDismiss }: { banner: PromoBannerView; onDismiss
     if (banner.id) cmsAPI.storeBanners.registerClick(banner.id).catch(() => {})
   }
 
+  const popupRef = useRef<HTMLDivElement>(null)
+  useBannerImpression(banner.id, popupRef)
+
   // z-[60]: precisa ficar acima do header sticky (z-50) -- projeto nao tem
   // escala de z-index formal ainda, mas isso e deliberado (1 acima do
   // header), nao um valor solto tipo o z-[100] antigo.
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onDismiss} />
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-[#F7F0E4] shadow-2xl">
+      <div ref={popupRef} className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-[#F7F0E4] shadow-2xl">
         <button
           type="button"
           onClick={onDismiss}

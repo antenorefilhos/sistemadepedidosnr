@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   Calendar,
@@ -15,7 +15,10 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { cmsAPI, getApiErrorMessage, productsAPI, resolveApiUrl, uploadsAPI } from '../services/api';
+import { cmsAPI, getApiErrorMessage, homeLayoutAPI, productsAPI, resolveApiUrl, uploadsAPI } from '../services/api';
+import { WorkspaceDialog } from '../components/WorkspaceDialog';
+import { BannerBoard } from '../components/BannerBoard';
+import type { HealthContext } from '../utils/bannerHealth';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -26,7 +29,6 @@ import { FieldHint } from '@/components/ui/field-hint';
 import { FIELD_LIMITS, resolvePagesForSlot } from '../utils/bannerRules';
 import type { BannerPages, BannerSlot } from '../utils/bannerRules';
 import { PreviewLayout } from '../components/BannerPreview';
-import { BannerListItem } from '../components/BannerListItem';
 import {
   type LinkType,
   type LinkTarget,
@@ -35,7 +37,6 @@ import {
   type FormErrors,
   type Notice,
   type BannerTemplate,
-  SLOT_TABS,
   SLOT_OPTIONS,
   ART_GUIDE,
   MAX_IMAGE_SIZE_MB,
@@ -66,11 +67,22 @@ function CharCounter({ value, max }: { value: string; max: number }) {
 
 /* ─── Main Component ─────────────────────────────────── */
 
+/** ISO (UTC) -> 'YYYY-MM-DDTHH:mm' em horario de Brasilia, para o campo datetime-local. */
+function toBrtInput(iso: string) {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+      .formatToParts(new Date(iso))
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.year}-${p.month}-${p.day}T${p.hour === '24' ? '00' : p.hour}:${p.minute}`;
+}
+
 export default function StoreBannersManager() {
   const [items, setItems] = useState<StoreBanner[]>([]);
   const [loading, setLoading] = useState(true);
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [activeTab, setActiveTab] = useState<BannerSlot | 'all'>('all');
+  const [ctx, setCtx] = useState<HealthContext | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<StoreBanner | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -98,8 +110,18 @@ export default function StoreBannersManager() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const res = await cmsAPI.storeBanners.getAll();
+      const [res, departments, campaigns, offers] = await Promise.all([
+        cmsAPI.storeBanners.getAll(),
+        cmsAPI.categories.adminOverview().catch(() => ({ data: [] })),
+        homeLayoutAPI.campaigns().catch(() => ({ data: [] })),
+        homeLayoutAPI.offers().catch(() => ({ data: [] })),
+      ]);
       setItems([...res.data].sort((a: StoreBanner, b: StoreBanner) => a.order - b.order));
+      setCtx({
+        departments: departments.data,
+        campaigns: campaigns.data as unknown as HealthContext['campaigns'],
+        offers: offers.data.filter((p) => typeof p.promotionalPrice === 'number' && p.promotionalPrice > 0 && p.promotionalPrice < p.price).length,
+      });
     } catch (err) {
       pushNotice('error', getApiErrorMessage(err, 'Erro ao carregar banners'));
     } finally {
@@ -135,16 +157,12 @@ export default function StoreBannersManager() {
     return () => window.clearTimeout(timer);
   }, [productQuery]);
 
-  const visibleItems = useMemo(
-    () => (activeTab === 'all' ? items : items.filter((item) => item.slot === activeTab)),
-    [items, activeTab],
-  );
 
   /* ── modal helpers ── */
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ ...emptyForm(), slot: activeTab === 'all' ? 'hero' : activeTab });
+    setForm({ ...emptyForm(), slot: 'hero' });
     setErrors({});
     setProductQuery('');
     setProductResults([]);
@@ -193,8 +211,10 @@ export default function StoreBannersManager() {
       desktopImageUrl: item.desktopImageUrl,
       mobileImageUrl: item.mobileImageUrl ?? '',
       pages: item.pages,
-      startDate: item.startDate ? item.startDate.slice(0, 16) : '',
-      endDate: item.endDate ? item.endDate.slice(0, 16) : '',
+      // Horario de Brasilia no campo (antes: slice do ISO em UTC -- cada
+      // salvar empurrava inicio e fim 3 h pra frente, 30/09/2026).
+      startDate: item.startDate ? toBrtInput(item.startDate) : '',
+      endDate: item.endDate ? toBrtInput(item.endDate) : '',
       campaignErpId: item.campaignErpId != null ? String(item.campaignErpId) : '',
     });
     setErrors({});
@@ -287,8 +307,8 @@ export default function StoreBannersManager() {
         desktopImageUrl: form.desktopImageUrl,
         mobileImageUrl: form.mobileImageUrl.trim() || null,
         pages: form.pages,
-        startDate: form.startDate || null,
-        endDate: form.endDate || null,
+        startDate: form.startDate ? new Date(`${form.startDate}:00-03:00`).toISOString() : null,
+        endDate: form.endDate ? new Date(`${form.endDate}:00-03:00`).toISOString() : null,
         campaignErpId: form.campaignErpId.trim() ? Number(form.campaignErpId.trim()) : null,
         order: editing?.order ?? items.length,
       };
@@ -324,21 +344,25 @@ export default function StoreBannersManager() {
 
   /* ── reorder ── */
 
-  const moveItem = async (index: number, direction: 'up' | 'down') => {
-    const next = [...visibleItems];
+  // Ordem vale dentro do mesmo lugar (topo, entre vitrines...): troca com o
+  // vizinho do mesmo tipo e renumera so esse grupo.
+  const moveItem = async (item: StoreBanner, direction: 'up' | 'down') => {
+    const group = items.filter((b) => b.slot === item.slot).sort((a, b) => a.order - b.order);
+    const index = group.findIndex((b) => b.id === item.id);
     const target = direction === 'up' ? index - 1 : index + 1;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target], next[index]];
-    const updated = next.map((b, i) => ({ ...b, order: i }));
-    setItems((prev) => {
-      const others = prev.filter((b) => !updated.some((u) => u.id === b.id));
-      return [...others, ...updated].sort((a, b) => a.order - b.order);
-    });
+    if (index < 0 || target < 0 || target >= group.length) return;
+    const base = Math.min(...group.map((b) => b.order));
+    [group[index], group[target]] = [group[target], group[index]];
+    const updated = group.map((b, i) => ({ ...b, order: base + i }));
+    setItems((prev) => prev.map((b) => updated.find((u) => u.id === b.id) || b));
     try {
+      setBusyId(item.id);
       await Promise.all(updated.map((b) => cmsAPI.storeBanners.update(b.id, { order: b.order })));
     } catch (err) {
       pushNotice('error', getApiErrorMessage(err, 'Erro ao reordenar'));
       loadData();
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -410,117 +434,95 @@ export default function StoreBannersManager() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Banners da Loja</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Espaços publicitários unificados: hero, intercalados, categoria, tarja e popup.
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-2xl text-sm text-gray-500">
+          Na ordem em que aparecem na loja. Cada banner mostra se está no ar, para onde o clique leva (conferido na loja) e quanto foi visto e clicado.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} className="rounded-xl border-black/[0.08] text-sm text-gray-700">
+            Pré-visualizar
+          </Button>
+          <Button onClick={openCreate} className="rounded-xl bg-gray-900 text-white hover:bg-gray-700">
+            <Plus size={15} />
+            Novo banner
+          </Button>
         </div>
-        <Button
-          onClick={openCreate}
-          className="rounded-lg bg-gray-900 text-white hover:bg-gray-700"
+      </div>
+
+      {loading ? (
+        <div className="h-64 animate-pulse rounded-2xl bg-white/70" />
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-gray-200 py-14 text-gray-400">
+          <ImageIcon size={28} />
+          <p className="text-sm">Nenhum banner cadastrado ainda</p>
+          <Button onClick={openCreate} variant="link" className="h-auto p-0 text-sm font-medium text-gray-700">
+            Criar primeiro banner
+          </Button>
+        </div>
+      ) : (
+        <BannerBoard
+          items={items}
+          ctx={ctx}
+          busyId={busyId}
+          onEdit={openEdit}
+          onToggle={toggleActive}
+          onMove={moveItem}
+          onDelete={setPendingDelete}
+        />
+      )}
+
+      {previewOpen && (
+        <WorkspaceDialog
+          label="Pré-visualização da loja"
+          size="lg"
+          onClose={() => setPreviewOpen(false)}
+          title={<h3 className="text-base font-semibold text-gray-900">Como os banners ficam na loja</h3>}
         >
-          <Plus size={15} />
-          Novo banner
-        </Button>
-      </div>
-
-      {/* Slot tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200 overflow-x-auto no-scrollbar">
-        {SLOT_TABS.map((tab) => {
-          const count = tab.value === 'all' ? items.length : items.filter((i) => i.slot === tab.value).length;
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => setActiveTab(tab.value)}
-              className={`shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.value
-                  ? 'border-gray-900 text-gray-900'
-                  : 'border-transparent text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              {tab.label}
-              {count > 0 && <span className="ml-1.5 text-xs text-gray-400">{count}</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Two-column layout: preview + list */}
-      <div className="grid grid-cols-1 lg:grid-cols-[440px_1fr] gap-6 items-start">
-
-        {/* Preview panel */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 sticky top-4">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Pré-visualização</p>
-          {loading ? (
-            <div className="h-64 flex items-center justify-center text-gray-300">
-              <Loader2 size={20} className="animate-spin" />
-            </div>
-          ) : (
-            <PreviewLayout banners={items} onSelectBanner={openEdit} />
-          )}
-        </div>
-
-        {/* Banner list */}
-        <div className="space-y-3">
-          {loading ? (
-            <div className="flex items-center justify-center h-40 text-gray-400">
-              <Loader2 size={20} className="animate-spin mr-2" /> Carregando...
-            </div>
-          ) : visibleItems.length === 0 ? (
-            <div className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center py-14 gap-3 text-gray-400">
-              <ImageIcon size={28} />
-              <p className="text-sm">Nenhum banner cadastrado ainda</p>
-              <Button
-                onClick={openCreate}
-                variant="link"
-                className="h-auto p-0 text-sm font-medium text-gray-700"
-              >
-                Criar primeiro banner
-              </Button>
-            </div>
-          ) : (
-            visibleItems.map((item, idx) => (
-              <BannerListItem
-                key={item.id}
-                item={item}
-                idx={idx}
-                isLast={idx === visibleItems.length - 1}
-                busyId={busyId}
-                onMoveUp={() => moveItem(idx, 'up')}
-                onMoveDown={() => moveItem(idx, 'down')}
-                onToggleActive={() => toggleActive(item)}
-                onEdit={() => openEdit(item)}
-                onDelete={() => setPendingDelete(item)}
-              />
-            ))
-          )}
-        </div>
-      </div>
+          <div className="px-4 py-5 sm:px-6">
+            <PreviewLayout
+              banners={items}
+              onSelectBanner={(b) => {
+                setPreviewOpen(false);
+                openEdit(b);
+              }}
+            />
+          </div>
+        </WorkspaceDialog>
+      )}
 
       {/* End of space-y-6 */}
       </div>
 
       {/* ── Form Modal ────────────────────────────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
-          <div className="relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-
-            {/* modal header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-              <h3 className="text-base font-semibold text-gray-900">
-                {editing ? 'Editar banner' : 'Novo banner'}
-              </h3>
-              <Button onClick={closeModal} variant="ghost" size="icon" className="h-8 w-8 rounded text-gray-400 hover:bg-gray-100">
-                <X size={16} />
+        <WorkspaceDialog
+          label={editing ? 'Editar banner' : 'Novo banner'}
+          onClose={closeModal}
+          closeOnEsc={!saving}
+          title={
+            <>
+              <h3 className="text-base font-semibold text-gray-900">{editing ? form.title || form.name || 'Editar banner' : 'Novo banner'}</h3>
+              {editing && (
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {editing.impressionsCount.toLocaleString('pt-BR')} exibições · {editing.clicksCount} cliques
+                </p>
+              )}
+            </>
+          }
+          footer={
+            <div className="flex items-center justify-end gap-3">
+              <Button onClick={closeModal} variant="outline" className="rounded-lg border-gray-200 text-sm text-gray-700 hover:bg-gray-50">
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} disabled={saving} className="rounded-lg bg-gray-900 text-sm text-white hover:bg-gray-700">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+                {editing ? 'Salvar alterações' : 'Criar banner'}
               </Button>
             </div>
-
-            {/* modal body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+          }
+        >
+            <div className="grid grid-cols-1 gap-8 px-4 py-5 sm:px-6 lg:grid-cols-2 lg:gap-10">
+            <div className="min-w-0 space-y-6">
 
               {/* ══════════ MODELOS PRONTOS (so na criacao) ══════════ */}
               {!editing && (
@@ -967,8 +969,10 @@ export default function StoreBannersManager() {
                 </div>
               </section>
 
+            </div>
+            <div className="min-w-0 space-y-6">
               {/* ══════════ SEÇÃO 3 — TEXTOS E APARÊNCIA ══════════ */}
-              <section className="space-y-4 border-t border-gray-100 pt-4">
+              <section className="space-y-4">
                 <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Textos e aparência</h4>
 
                 {/* Textos sobre a imagem */}
@@ -1229,26 +1233,8 @@ export default function StoreBannersManager() {
               </section>
             </div>
 
-            {/* modal footer */}
-            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
-              <Button
-                onClick={closeModal}
-                variant="outline"
-                className="rounded-lg border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                className="rounded-lg bg-gray-900 text-sm text-white hover:bg-gray-700"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : null}
-                {editing ? 'Salvar alterações' : 'Criar banner'}
-              </Button>
             </div>
-          </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {/* ── Delete confirm modal ───────────────────────── */}
