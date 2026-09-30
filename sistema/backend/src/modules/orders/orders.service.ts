@@ -332,8 +332,6 @@ export class OrdersService {
       fulfillmentSlotItemCount,
       deliveryAreaId,
       deliverySnapshot,
-      businessAccountId,
-      requiresApproval,
       expectedTotal,
     } = createOrderDto
     const tenantId = rawTenantId || DEFAULT_TENANT_ID
@@ -421,7 +419,6 @@ export class OrdersService {
         storeId,
         channel,
         customerId,
-        businessAccountId,
         couponCode,
         deliveryAmount,
         deliveryDate,
@@ -565,16 +562,6 @@ export class OrdersService {
       }
     }
 
-    if (quote.businessAccountId && quote.businessMinimumOrder != null && !quote.businessMinimumOrderMet) {
-      await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-      throw new BadRequestException(`Pedido B2B abaixo do minimo de R$ ${Number(quote.businessMinimumOrder).toFixed(2)}.`)
-    }
-    const businessApprovalStatus =
-      quote.businessAccountId && (requiresApproval || this.exceedsBusinessCredit(total, quote))
-        ? 'PENDING'
-        : quote.businessAccountId
-        ? 'APPROVED'
-        : 'NOT_REQUIRED'
     // Pedido sem pagamento online a esperar ja nasce CONFIRMED, pronto pra
     // separacao.
     //
@@ -585,19 +572,13 @@ export class OrdersService {
     // somente CONFIRMED/PICKING_PENDING, o pedido nunca chegava ao separador:
     // a jornada nao travava no meio, ela nunca comecava.
     //
-    // PENDING nunca foi etapa de decisao da loja -- quando o desenho quer
-    // aprovacao humana ele usa PENDING_APPROVAL, preservado na condicao
-    // abaixo. O kanban do admin continua permitindo mover o pedido a mao.
+    // PENDING nunca foi etapa de decisao da loja. O kanban do admin continua
+    // permitindo mover o pedido a mao.
     const aguardaPagamentoOnline = this.requiresOnlinePaymentAuthorization({
       paymentMethod: paymentMethod || 'CASH',
       paymentStatus: 'UNPAID',
     })
-    const orderStatus =
-      businessApprovalStatus === 'PENDING'
-        ? 'PENDING_APPROVAL'
-        : aguardaPagamentoOnline
-        ? 'PENDING'
-        : 'CONFIRMED'
+    const orderStatus = aguardaPagamentoOnline ? 'PENDING' : 'CONFIRMED'
     const itemsWithPrices = quote.items.map((item) => ({
       productId: item.productId,
       quantity: item.quantity,
@@ -684,16 +665,6 @@ export class OrdersService {
           deliveryAreaId,
         ),
         priceSnapshot: this.buildPriceSnapshot({ subtotal, deliveryAmount: quotedDeliveryAmount, discountAmount, total, couponCode, quote }),
-        businessAccountId: quote.businessAccountId || null,
-        businessApprovalStatus,
-        businessPaymentTerms: quote.businessPaymentTerms || null,
-        businessInvoiceSnapshot: quote.businessAccountId
-          ? {
-              businessAccountId: quote.businessAccountId,
-              paymentTerms: quote.businessPaymentTerms || null,
-              approvalStatus: businessApprovalStatus,
-            }
-          : Prisma.JsonNull,
         items: {
           create: itemsWithPrices.map((item) => ({
             ...item,
@@ -730,8 +701,6 @@ export class OrdersService {
       itemCount: order.items.length,
       fulfillmentSlotId: order.fulfillmentSlotId,
       deliveryAreaId: order.deliveryAreaId,
-      businessAccountId: order.businessAccountId,
-      businessApprovalStatus: order.businessApprovalStatus,
     })
 
     await this.prisma.idempotencyKey.update({
@@ -749,13 +718,11 @@ export class OrdersService {
       this.logger.error(`Falha ao registrar uso de promocao do pedido ${order.id}: ${err instanceof Error ? err.message : err}`)
     }
 
-    if (businessApprovalStatus !== 'PENDING') {
-      await this.orderOrchestrationService.syncCreatedOrder(
-        this.toOrderOrchestrationPayload(order, orchestrationItems, address),
-      )
-    }
+    await this.orderOrchestrationService.syncCreatedOrder(
+      this.toOrderOrchestrationPayload(order, orchestrationItems, address),
+    )
 
-    const whatsapp = businessApprovalStatus === 'PENDING' ? null : await this.sendWhatsAppMessage(order, changeAmount)
+    const whatsapp = await this.sendWhatsAppMessage(order, changeAmount)
 
     return {
       order,
@@ -1293,11 +1260,6 @@ export class OrdersService {
     return normalized || fallback
   }
 
-  private exceedsBusinessCredit(total: number, quote: { businessCreditLimit?: number | null }) {
-    if (quote.businessCreditLimit == null) return false
-    return Number(total || 0) > Number(quote.businessCreditLimit)
-  }
-
   private requiresOnlinePaymentAuthorization(order: Pick<OrderWithRelations, 'paymentMethod' | 'paymentStatus'>) {
     const gatewayActive = ['ENABLE_PAYMENTS_INTEGRATION', 'INTEGRATION_PAYMENTS_ENABLED'].some((key) => {
       const value = String(process.env[key] || '').trim().toLowerCase()
@@ -1568,23 +1530,6 @@ export class OrdersService {
     // valor minimo global configurado em Admin > Marca.
     const brand = await this.brandService.get()
     return brand.freeShippingThreshold != null && subtotal >= Number(brand.freeShippingThreshold)
-  }
-
-  // JON-130 (Auditoria 360, Medium): create() suprime o WhatsApp de
-  // confirmacao enquanto a aprovacao B2B esta PENDING -- aprovar precisa
-  // disparar o envio que ficou pendente. Wrapper publico porque
-  // sendWhatsAppMessage e privado e BusinessService.approveOrder precisa
-  // chamar isso de fora, sem duplicar a montagem do payload aqui.
-  async sendApprovalWhatsApp(orderId: string): Promise<WhatsAppDispatchResult | null> {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        customer: { select: CUSTOMER_SAFE_SELECT },
-        items: { include: { product: true } },
-      },
-    })
-    if (!order) return null
-    return this.sendWhatsAppMessage(order as OrderWithRelations)
   }
 
   private async sendWhatsAppMessage(order: OrderWithRelations, changeAmount?: string): Promise<WhatsAppDispatchResult | null> {

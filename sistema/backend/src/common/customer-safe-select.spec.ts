@@ -20,7 +20,6 @@ describe('CUSTOMER_SAFE_SELECT (JON-71)', () => {
       'picking/picking.service.ts',
       'delivery/driver.controller.ts',
       'public-api/public-api.service.ts',
-      'business/business.service.ts',
       'integrations/integrations.service.ts',
       'integrations/order-orchestration.service.ts',
     ]

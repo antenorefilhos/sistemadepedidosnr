@@ -51,7 +51,6 @@ const EMPTY_ADDRESS_FORM: CreateAddressPayload = {
  */
 const ORDER_STATUS_LABEL: Record<string, string> = {
   PENDING: 'Recebido',
-  PENDING_APPROVAL: 'Aguardando aprovação',
   CONFIRMED: 'Confirmado',
   PICKING_PENDING: 'Na fila de separação',
   PICKING: 'Sendo separado',
@@ -70,7 +69,6 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
 
 const ORDER_STATUS_CLASS: Record<string, string> = {
   PENDING: 'bg-yellow-100 text-yellow-800',
-  PENDING_APPROVAL: 'bg-yellow-100 text-yellow-800',
   CONFIRMED: 'bg-[#F8F0DC] text-[#5D082A]',
   PICKING_PENDING: 'bg-sky-100 text-sky-800',
   PICKING: 'bg-sky-100 text-sky-800',

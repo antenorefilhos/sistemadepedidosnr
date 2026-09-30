@@ -75,14 +75,9 @@ const EXCECOES = {
   'Product.erpProductId': 'id do Solidcom usado pra agrupar EANs no sync; o operador identifica produto por nome/EAN',
   'Product.secondaryEans': 'o backend JA resolve no scan do separador (picker.controller: secondaryEans has term) -- bipar codigo secundario funciona sem a tela saber',
   'Product.aiNotifiedAt': 'cooldown de 20h do ciclo de notificacao por IA, controle interno',
+  'Notification.clickedAt': 'aparece agregado: o historico de Notificacoes do admin mostra aberturas por envio (CTE no notifications.service), nunca a data crua',
+  'Notification.batchId': 'agrupa os destinatarios de um mesmo envio no historico do admin; chave de agrupamento, nao conteudo de tela',
   'Driver.adminId': 'vinculo perfil<->conta de acesso, preenchido por ensureDriverProfile; o app usa o perfil ja resolvido',
-  // Decisao consciente, nao esquecimento: o STATUS de aprovacao B2B aparece no
-  // admin (BusinessAccountsSection); autor e data nao. E trilha de auditoria
-  // faltando, nao fluxo quebrado -- anotado em docs/roadmap.md pra decidir se
-  // vale tela. Se for descartado de vez, apagar estas tres linhas.
-  'Order.businessApprovedBy': 'pendencia conhecida -- ver roadmap (auditoria de aprovacao B2B)',
-  'Order.businessApprovedAt': 'pendencia conhecida -- ver roadmap (auditoria de aprovacao B2B)',
-  'Order.businessInvoiceSnapshot': 'pendencia conhecida -- ver roadmap (faturamento B2B nao implementado)',
 }
 
 const schema = fs.readFileSync(path.join(base, 'backend/prisma/schema.prisma'), 'utf-8')

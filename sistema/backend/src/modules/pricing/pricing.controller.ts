@@ -25,7 +25,6 @@ export class PricingController {
       channel: body.channel,
       customerId: body.customerId,
       customerSegment: body.customerSegment,
-      businessAccountId: body.businessAccountId,
       couponCode: body.couponCode,
       deliveryAmount: body.deliveryAmount,
       items: body.items || [],

@@ -178,15 +178,16 @@ que fecha desce para o histórico com a data e o commit.
       08/09/2026. `JON-10` marcado `Done` em 11/09/2026 (mitigação de firewall
       restringindo a porta 5000 ao IP da VPS, descrita no ticket original).
 
-- [ ] **Auditoria de aprovação B2B não aparece em lugar nenhum.** O
-      `businessApprovalStatus` é exibido em `BusinessAccountsSection`, mas
-      `businessApprovedBy` e `businessApprovedAt` (quem aprovou e quando) não —
-      e `businessInvoiceSnapshot` também não, porque faturamento B2B não foi
-      implementado. Achado pelo `check-orphan-fields.js` em 02/09/2026. Não é
-      fluxo quebrado, é trilha de auditoria faltando: hoje ninguém consegue
-      dizer quem liberou um pedido de conta empresarial. Decidir se vale tela
-      ou se o campo sai do schema — enquanto não decidir, fica isento no script
-      apontando para cá.
+- [x] **Contas B2B retiradas.** (30/09/2026) Decidido: sai do sistema. O
+      marco M19 ("B2B/Atacarejo", maio) só existia no servidor e na tela
+      "Contas B2B" do admin; em quatro meses nunca teve conta, pedido ou tabela
+      de preço. O faturamento dependia de conectores de NF-e e cobrança que a
+      loja não usa (a nota sai no PDV), a recorrência era um botão manual e o
+      site nunca mostrou preço, mínimo ou aprovação ao comprador. Removidos o
+      módulo, a tela, os campos `business*` do pedido e as tabelas
+      (migration `20260930000000_drop_business_accounts`, conferida vazia antes).
+      Se um dia a loja vender faturado para empresa, o caminho é o convênio do
+      ERP, não reabrir isto.
 
 - [x] **E-mail transacional em produção.** (28/08/2026) A `RESEND_API_KEY`
       faltava no `.env` da VPS e a `RESEND_FROM_EMAIL` estava vazia, caindo no

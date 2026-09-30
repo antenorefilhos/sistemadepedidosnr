@@ -37,7 +37,6 @@ import { ObservabilityModule } from './modules/observability/observability.modul
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { DataPrivacyModule } from './modules/data-privacy/data-privacy.module';
-import { BusinessModule } from './modules/business/business.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { RelaxedThrottle } from './common/decorators/relaxed-throttle.decorator'
 
@@ -131,7 +130,6 @@ class AppController {
     MarketplaceModule,
     RecommendationsModule,
     DataPrivacyModule,
-    BusinessModule,
     PromotionsModule,
     DatabaseModule,
   ],

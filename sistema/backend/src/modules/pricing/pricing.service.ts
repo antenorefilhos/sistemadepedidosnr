@@ -17,7 +17,6 @@ type QuoteRequest = {
   channel?: string
   customerId?: string
   customerSegment?: string
-  businessAccountId?: string
   couponCode?: string
   deliveryAmount?: number
   // JON-187: data da janela de entrega/retirada escolhida -- preco
@@ -196,16 +195,6 @@ export class PricingService {
     const channel = String(request.channel || 'STOREFRONT').toUpperCase()
     const items = this.aggregateItems(request.items || [])
     const deliveryAmount = this.round2(Number(request.deliveryAmount || 0))
-    const businessAccount = await this.resolveBusinessAccount({
-      tenantId,
-      storeId,
-      customerId: request.customerId,
-      businessAccountId: request.businessAccountId,
-    })
-    if (request.businessAccountId && !businessAccount) {
-      throw new BadRequestException('Conta comercial nao encontrada ou sem acesso para cotacao.')
-    }
-
     if (items.length === 0) {
       throw new BadRequestException('Quote deve conter ao menos um item.')
     }
@@ -241,7 +230,6 @@ export class PricingService {
       channel,
       customerId: request.customerId,
       customerSegment: request.customerSegment,
-      businessAccountId: businessAccount?.id,
     })
     const priceListItems = await this.findPriceListItems(priceLists.map((list) => list.id), items.map((item) => item.productId))
     const priceByProduct = this.pickPriceListItems(priceLists, priceListItems)
@@ -320,11 +308,6 @@ export class PricingService {
       tenantId,
       storeId,
       channel,
-      businessAccountId: businessAccount?.id || null,
-      businessPaymentTerms: businessAccount?.paymentTerms || null,
-      businessCreditLimit: businessAccount?.creditLimit == null ? null : Number(businessAccount.creditLimit),
-      businessMinimumOrder: businessAccount?.minimumOrder == null ? null : Number(businessAccount.minimumOrder),
-      businessMinimumOrderMet: businessAccount?.minimumOrder == null ? true : subtotal >= Number(businessAccount.minimumOrder),
       items: quoteItems,
       subtotal,
       deliveryAmount: adjustedDelivery,
@@ -446,7 +429,6 @@ export class PricingService {
       channel: String(body.channel || 'STOREFRONT').toUpperCase(),
       customerSegment: body.customerSegment ?? null,
       customerId: body.customerId ?? null,
-      businessAccountId: body.businessAccountId ?? null,
       name: String(body.name || '').trim(),
       status: body.status || 'ACTIVE',
       startsAt: body.startsAt ? new Date(body.startsAt) : null,
@@ -684,7 +666,6 @@ export class PricingService {
     channel: string
     customerId?: string
     customerSegment?: string
-    businessAccountId?: string
   }) {
     const now = new Date()
     const lists = await this.prisma.priceList.findMany({
@@ -696,7 +677,6 @@ export class PricingService {
         AND: [
           { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
           { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
-          { OR: [{ businessAccountId: null }, { businessAccountId: params.businessAccountId || '__none__' }] },
           { OR: [{ customerId: null }, { customerId: params.customerId || '__none__' }] },
           { OR: [{ customerSegment: null }, { customerSegment: params.customerSegment || '__none__' }] },
         ],
@@ -707,7 +687,6 @@ export class PricingService {
       const score = (list: (typeof lists)[number]) => {
         let total = 0
         if (list.storeId === params.storeId) total += 32
-        if (params.businessAccountId && list.businessAccountId === params.businessAccountId) total += 16
         if (params.customerId && list.customerId === params.customerId) total += 8
         if (params.customerSegment && list.customerSegment === params.customerSegment) total += 4
         total += list.startsAt ? Math.min(3, list.startsAt.getTime() / 1_000_000_000_000) : 0
@@ -715,43 +694,6 @@ export class PricingService {
       }
       return score(b) - score(a)
     })
-  }
-
-  private async resolveBusinessAccount(params: {
-    tenantId: string
-    storeId: string
-    customerId?: string
-    businessAccountId?: string
-  }) {
-    if (params.businessAccountId) {
-      return this.prisma.businessAccount.findFirst({
-        where: {
-          id: params.businessAccountId,
-          tenantId: params.tenantId,
-          status: 'ACTIVE',
-          OR: [{ storeId: params.storeId }, { storeId: DEFAULT_STORE_ID }],
-          ...(params.customerId
-            ? { users: { some: { customerId: params.customerId, status: 'ACTIVE' } } }
-            : {}),
-        },
-      })
-    }
-
-    if (!params.customerId) return null
-    const membership = await this.prisma.businessAccountUser.findFirst({
-      where: {
-        customerId: params.customerId,
-        status: 'ACTIVE',
-        account: {
-          tenantId: params.tenantId,
-          status: 'ACTIVE',
-          OR: [{ storeId: params.storeId }, { storeId: DEFAULT_STORE_ID }],
-        },
-      },
-      include: { account: true },
-      orderBy: { createdAt: 'asc' },
-    })
-    return membership?.account || null
   }
 
   // JON-183/184: clubPrice vive em PromotionCampaignItem (so existe no

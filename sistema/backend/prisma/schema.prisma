@@ -159,7 +159,6 @@ model Customer {
   loyaltyAccount LoyaltyAccount?
   campaignDeliveries CampaignDelivery[]
   shoppingLists ShoppingList[]
-  businessAccounts BusinessAccountUser[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -208,45 +207,6 @@ model CustomerConsent {
   @@unique([tenantId, customerId, type])
   @@index([tenantId, storeId, type, status])
   @@map("customer_consents")
-}
-
-model BusinessAccount {
-  id           String   @id @default(cuid())
-  tenantId     String   @default("tenant_default")
-  storeId      String   @default("store_default")
-  name         String
-  document     String
-  status       String   @default("ACTIVE")
-  creditLimit  Decimal? @db.Decimal(12, 2)
-  minimumOrder Decimal? @db.Decimal(10, 2)
-  paymentTerms String?
-  invoiceProfile Json?
-  recurringRules Json?
-  users        BusinessAccountUser[]
-  priceLists   PriceList[]
-  orders       Order[]
-  shoppingLists ShoppingList[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([tenantId, document])
-  @@index([tenantId, storeId, status])
-  @@map("business_accounts")
-}
-
-model BusinessAccountUser {
-  accountId String
-  customerId String
-  role      String @default("BUYER")
-  status    String @default("ACTIVE")
-  account   BusinessAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@id([accountId, customerId])
-  @@index([customerId, status])
-  @@map("business_account_users")
 }
 
 model DataSubjectRequest {
@@ -396,8 +356,6 @@ model ShoppingList {
   storeId    String   @default("store_default")
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  businessAccountId String?
-  businessAccount BusinessAccount? @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
   name       String
   source     String   @default("MANUAL")
   status     String   @default("ACTIVE")
@@ -406,7 +364,6 @@ model ShoppingList {
   items      ShoppingListItem[]
 
   @@index([tenantId, storeId, customerId, status])
-  @@index([tenantId, storeId, businessAccountId, status])
   @@map("shopping_lists")
 }
 
@@ -749,13 +706,6 @@ model Order {
   addressSnapshot Json?
   deliverySnapshot Json?
   priceSnapshot Json?
-  businessAccountId String?
-  businessAccount BusinessAccount? @relation(fields: [businessAccountId], references: [id])
-  businessApprovalStatus String @default("NOT_REQUIRED")
-  businessApprovedBy String?
-  businessApprovedAt DateTime?
-  businessPaymentTerms String?
-  businessInvoiceSnapshot Json?
   deliveryStops DeliveryStop[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -765,7 +715,6 @@ model Order {
   @@index([tenantId, storeId, createdAt])
   @@index([tenantId, storeId, deliveryAreaId])
   @@index([tenantId, storeId, fulfillmentSlotId])
-  @@index([tenantId, storeId, businessAccountId, businessApprovalStatus])
   @@map("orders")
 }
 
@@ -1207,8 +1156,6 @@ model PriceList {
   channel         String
   customerSegment String?
   customerId      String?
-  businessAccountId String?
-  businessAccount BusinessAccount? @relation(fields: [businessAccountId], references: [id])
   name            String
   status          String          @default("ACTIVE")
   startsAt        DateTime?
@@ -1219,7 +1166,6 @@ model PriceList {
 
   @@index([tenantId, storeId, channel, status])
   @@index([tenantId, customerSegment, customerId])
-  @@index([tenantId, businessAccountId])
   @@map("price_lists")
 }
 

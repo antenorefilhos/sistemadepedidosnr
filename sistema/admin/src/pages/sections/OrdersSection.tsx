@@ -82,7 +82,6 @@ const EVENT_LABEL: Record<string, string> = {
   'order.delivered': 'Entregue',
   'order.delivery_failed': 'Falha na entrega',
   'order.failed_sync': 'Falha ao enviar ao ERP',
-  'order.business_approved': 'Aprovado (conta PJ)',
 }
 const ACTOR_LABEL: Record<string, string> = { SYSTEM: 'sistema', ADMIN: 'admin', PICKER: 'separador', DRIVER: 'entregador', CUSTOMER: 'cliente' }
 const ITEM_STATUS: Record<string, string> = {

@@ -101,13 +101,6 @@ export class CreateOrderDto {
   deliveryAreaId?: string
 
   @IsOptional()
-  @IsString()
-  businessAccountId?: string
-
-  @IsOptional()
-  requiresApproval?: boolean
-
-  @IsOptional()
   @IsObject()
   deliverySnapshot?: Record<string, unknown>
 

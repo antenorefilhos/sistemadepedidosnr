@@ -783,12 +783,6 @@ export interface AdminOrder {
   updatedAt?: string
   deliveryInstructions?: string | null
   customer?: { id: string; name: string; whatsapp: string; email?: string }
-  businessAccountId?: string | null
-  businessAccount?: { id: string; name: string; document: string } | null
-  businessApprovalStatus?: string
-  businessApprovedByName?: string | null
-  businessApprovedAt?: string | null
-  businessPaymentTerms?: string | null
   items: AdminOrderItem[]
   subtotal: number
   discount: number
@@ -897,83 +891,6 @@ export interface AdminCustomer {
     state: string
     zipCode: string
     isDefault: boolean
-  }>
-}
-
-export interface BusinessAccount {
-  id: string
-  tenantId: string
-  storeId: string
-  name: string
-  document: string
-  status: string
-  creditLimit?: number | string | null
-  minimumOrder?: number | string | null
-  paymentTerms?: string | null
-  invoiceProfile?: Record<string, unknown> | null
-  recurringRules?: Record<string, unknown> | null
-  createdAt: string
-  updatedAt: string
-  _count?: {
-    users: number
-    priceLists: number
-    orders: number
-    shoppingLists?: number
-  }
-}
-
-export interface BusinessFinancialSummary {
-  accountId: string
-  name: string
-  document: string
-  status: string
-  activeUsers: number
-  orderCount: number
-  usedCredit: number
-  creditLimit: number | null
-  availableCredit: number | null
-  minimumOrder?: number | null
-  paymentTerms?: string | null
-  pendingApprovals: number
-}
-
-export interface CreateBusinessAccountPayload {
-  name: string
-  document: string
-  creditLimit?: number | null
-  minimumOrder?: number | null
-  paymentTerms?: string
-  invoiceProfile?: Record<string, unknown>
-  recurringRules?: Record<string, unknown>
-}
-
-export interface BusinessShoppingList {
-  id: string
-  tenantId: string
-  storeId: string
-  customerId: string
-  businessAccountId?: string | null
-  name: string
-  source: string
-  status: string
-  createdAt: string
-  updatedAt: string
-  customer?: AdminCustomer
-  items: Array<{
-    id: string
-    productId: string
-    quantity: number | string
-    sortOrder: number
-  }>
-}
-
-export interface BusinessPriceListPayload {
-  name: string
-  channel?: string
-  items: Array<{
-    productId: string
-    price: number
-    cost?: number | null
   }>
 }
 
@@ -1314,30 +1231,6 @@ export const customersAdminAPI = {
 export const addressesAPI = {
   update: (customerId: string, addressId: string, data: Partial<Omit<AdminCustomerAddress, 'id' | 'isDefault'>>) =>
     api.put<AdminCustomerAddress>(`/addresses/${customerId}/${addressId}`, data),
-}
-
-export const businessAccountsAPI = {
-  list: () => api.get<BusinessAccount[]>('/admin/business-accounts'),
-  create: (data: CreateBusinessAccountPayload) => api.post<BusinessAccount>('/admin/business-accounts', data),
-  addUser: (accountId: string, data: { customerId: string; role?: string }) =>
-    api.post(`/admin/business-accounts/${accountId}/users`, data),
-  getFinancial: (accountId: string) =>
-    api.get<BusinessFinancialSummary>(`/admin/business-accounts/${accountId}/financial`),
-  createPriceList: (accountId: string, data: BusinessPriceListPayload) =>
-    api.post(`/admin/business-accounts/${accountId}/price-list`, data),
-  listShoppingLists: (accountId: string) =>
-    api.get<BusinessShoppingList[]>(`/admin/business-accounts/${accountId}/shopping-lists`),
-  createShoppingList: (accountId: string, data: { name: string; customerId?: string; items: Array<{ productId: string; quantity?: number }> }) =>
-    api.post<BusinessShoppingList>(`/admin/business-accounts/${accountId}/shopping-lists`, data),
-  createRecurringOrder: (accountId: string, data?: { shoppingListId?: string; requiresApproval?: boolean; force?: boolean }) =>
-    api.post(`/admin/business-accounts/${accountId}/recurring-orders`, data ?? {}),
-  runBillingForAccount: (accountId: string, data?: { limit?: number }) =>
-    api.post(`/admin/business-accounts/${accountId}/billing/run`, data ?? {}),
-  billOrder: (orderId: string) =>
-    api.post(`/admin/business-accounts/orders/${orderId}/billing`),
-  listPendingApprovals: () => api.get<AdminOrder[]>('/admin/business-accounts/approvals/pending'),
-  listApprovalHistory: () => api.get<AdminOrder[]>('/admin/business-accounts/approvals/history'),
-  approveOrder: (orderId: string) => api.post<AdminOrder>(`/admin/business-accounts/orders/${orderId}/approve`),
 }
 
 export const integrationsAPI = {

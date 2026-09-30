@@ -574,9 +574,7 @@ describe('OrdersService', () => {
      * apenas CONFIRMED/PICKING_PENDING, o pedido **nunca aparecia pro
      * separador** -- a jornada nao travava no meio, ela nunca comecava.
      *
-     * PENDING nao era etapa de decisao da loja: quando o desenho quer
-     * aprovacao humana ele usa PENDING_APPROVAL (contas B2B), preservado
-     * abaixo.
+     * PENDING nao era etapa de decisao da loja.
      */
     const criarPedido = async (over: Record<string, unknown> = {}) => {
       mockPrismaService.product.findFirst.mockResolvedValue({
@@ -607,19 +605,6 @@ describe('OrdersService', () => {
         expect(await criarPedido({ paymentMethod })).toBe('CONFIRMED');
       },
     );
-
-    // Conta empresarial aguardando liberacao continua parada -- e o unico
-    // caso em que a loja realmente decide antes de separar.
-    it('pedido B2B aguardando aprovacao continua em PENDING_APPROVAL', async () => {
-      // `businessAccountId` vem do quote do pricing, nao do cadastro do cliente.
-      const quotePadrao = mockPricingService.quote.getMockImplementation();
-      mockPricingService.quote.mockImplementation(async (request: any) => ({
-        ...(await quotePadrao(request)),
-        businessAccountId: 'ba-1',
-      }));
-
-      expect(await criarPedido({ businessAccountId: 'ba-1', requiresApproval: true })).toBe('PENDING_APPROVAL');
-    });
 
     // JON-46 (Auditoria 360): confirmSession so mandava productId/quantity --
     // a recusa de substituicao escolhida no carrinho se perdia e o pedido
