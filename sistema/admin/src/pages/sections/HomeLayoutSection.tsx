@@ -384,7 +384,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint: stri
     <div className="rounded-2xl border border-black/[0.06] bg-white p-4">
       <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular-nums text-gray-900">{value}</p>
-      <p className="mt-0.5 truncate text-xs text-gray-500">{hint}</p>
+      <p className="mt-0.5 text-xs text-gray-500">{hint}</p>
     </div>
   )
 }
