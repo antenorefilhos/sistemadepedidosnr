@@ -458,6 +458,7 @@ export const cmsAPI = {
   },
   sponsoredShelves: {
     getAll: () => api.get('/cms/sponsored-shelves'),
+    registerImpression: (id: string) => api.post(`/cms/sponsored-shelves/${id}/impression`),
   },
 }
 

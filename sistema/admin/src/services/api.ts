@@ -1803,7 +1803,11 @@ export interface SponsoredShelfProduct {
   id: string
   name: string
   ean: string
+  price?: number
+  promotionalPrice?: number | null
 }
+
+type ShelfMoney = { orders: number; units: number; revenue: number }
 
 export interface SponsoredShelfAdmin {
   id: string
@@ -1813,7 +1817,16 @@ export interface SponsoredShelfAdmin {
   priority: number
   startDate: string | null
   endDate: string | null
-  items: Array<{ product: SponsoredShelfProduct }>
+  /** hiddenReason: por que a loja nao mostra o produto (null = aparece). */
+  items: Array<{ product: SponsoredShelfProduct; hiddenReason: string | null }>
+  report: {
+    impressions: number
+    adds: number
+    orders: number
+    revenue: number
+    /** Vendas dos produtos da vitrine no periodo x periodo anterior do mesmo tamanho. */
+    sales: { from: string; to: string; current: ShelfMoney; previous: ShelfMoney } | null
+  }
 }
 
 /** JON-204: vitrine de fornecedor/parceria, sem depender de encarte (ERP). */

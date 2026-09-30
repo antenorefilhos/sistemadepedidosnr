@@ -11,7 +11,7 @@ import {
 import { useProducts, useCart, useRebuyRecommendations, useRecommendationShowcase } from '../hooks/useCart'
 import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
-import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns, useHomeVitrines, useSponsoredShelves } from '../hooks/useCMS'
+import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns, useHomeVitrines, useSponsoredShelves, type SponsoredShelfCMS } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
 import { DynamicVitrineBanner } from '../components/DynamicVitrineBanner'
 import { PromoBanner, type PromoBannerView } from '../components/PromoBanner'
@@ -24,7 +24,7 @@ import { useDragScroll } from '../hooks/useDragScroll'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
 import { useQuery } from '@tanstack/react-query'
 import { resolveApiUrl, productsAPI, cmsAPI } from '../services/api'
-import { useBannerImpression } from '../hooks/useBannerImpression'
+import { useBannerImpression, useSponsoredShelfImpression } from '../hooks/useBannerImpression'
 import type { Product } from '../types'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { HomeRecipeShelf } from '../components/RecipeShelf'
@@ -898,16 +898,7 @@ export default function Home() {
 
       {/* JON-204: vitrine de fornecedor/parceria, cadastrada no admin (Loja > Vitrines Patrocinadas). */}
       {(sponsoredShelves || []).map((shelf) => (
-        <ProductShelf
-          key={shelf.id}
-          className="md:hidden px-4 pt-5 pb-2"
-          title={shelf.title}
-          eyebrow={shelf.sponsorName ? `Parceria ${shelf.sponsorName}` : 'Vitrine patrocinada'}
-          icon={Megaphone}
-          products={shelf.products}
-          to="/mercado"
-          shelf={`patrocinada:${shelf.id}`}
-        />
+        <SponsoredShelfBlock key={shelf.id} shelf={shelf} className="md:hidden px-4 pt-5 pb-2" />
       ))}
 
       {/* JON-173: mesmo `homeSections` do desktop, so muda a topologia
@@ -998,16 +989,7 @@ export default function Home() {
         ))}
 
         {(sponsoredShelves || []).map((shelf) => (
-          <ProductShelf
-            key={shelf.id}
-            layout="carousel"
-            eyebrow={shelf.sponsorName ? `Parceria ${shelf.sponsorName}` : 'Vitrine patrocinada'}
-            title={shelf.title}
-            icon={Megaphone}
-            products={shelf.products}
-            to="/mercado"
-            shelf={`patrocinada:${shelf.id}`}
-          />
+          <SponsoredShelfBlock key={shelf.id} shelf={shelf} layout="carousel" />
         ))}
 
         {/* JON-173: schema unico com o mobile (homeSections) -- antes daqui
@@ -1082,6 +1064,26 @@ export default function Home() {
  * do gradiente diagonal do PromoBanner: o conteudo aqui se espalha pela
  * largura toda, um fade lateral deixaria o texto do lado direito ilegivel.
  */
+/** Vitrine patrocinada + contagem de "foi vista" pro relatorio do fornecedor. */
+function SponsoredShelfBlock({ shelf, className, layout }: { shelf: SponsoredShelfCMS; className?: string; layout?: 'carousel' }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useSponsoredShelfImpression(shelf.products.length ? shelf.id : undefined, ref)
+  return (
+    <div ref={ref}>
+      <ProductShelf
+        className={className}
+        layout={layout}
+        eyebrow={shelf.sponsorName ? `Parceria ${shelf.sponsorName}` : 'Vitrine patrocinada'}
+        title={shelf.title}
+        icon={Megaphone}
+        products={shelf.products}
+        to="/mercado"
+        shelf={`patrocinada:${shelf.id}`}
+      />
+    </div>
+  )
+}
+
 function TarjaStrip({ banner, onDismiss }: { banner: PromoBannerView; onDismiss: () => void }) {
   // 30/09/2026: tarja e pop-up contavam clique e nunca exibicao -- a taxa de
   // clique no admin ficava sem base (26 cliques em "0 exibicoes").

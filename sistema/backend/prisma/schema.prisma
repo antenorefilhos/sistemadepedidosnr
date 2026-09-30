@@ -1368,6 +1368,7 @@ model SponsoredShelf {
   priority   Int      @default(0) // Ordem entre vitrines patrocinadas quando ha mais de uma
   startDate  DateTime? // Vigencia opcional -- null = sem inicio definido
   endDate    DateTime? // Vigencia opcional -- null = sem fim definido
+  impressionsCount Int @default(0) // Vezes que a vitrine apareceu na tela (desde 30/09/2026)
   items      SponsoredShelfItem[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

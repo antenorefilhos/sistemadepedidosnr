@@ -15,17 +15,28 @@ import { cmsAPI } from '../services/api'
  * engolida de proposito -- metrica nao pode quebrar a vitrine.
  */
 export function useBannerImpression(bannerId: string | undefined, ref: RefObject<HTMLElement | null>) {
+  useSeenOnce(bannerId, ref, (id) => cmsAPI.storeBanners.registerImpression(id))
+}
+
+/** Mesma regra, para a vitrine patrocinada (relatorio pro fornecedor, 30/09/2026). */
+export function useSponsoredShelfImpression(shelfId: string | undefined, ref: RefObject<HTMLElement | null>) {
+  useSeenOnce(shelfId, ref, (id) => cmsAPI.sponsoredShelves.registerImpression(id))
+}
+
+function useSeenOnce(id: string | undefined, ref: RefObject<HTMLElement | null>, register: (id: string) => Promise<unknown>) {
   const jaContou = useRef(false)
+  const registerRef = useRef(register)
+  registerRef.current = register
 
   useEffect(() => {
     const el = ref.current
-    if (!bannerId || !el || jaContou.current) return
+    if (!id || !el || jaContou.current) return
 
     // Navegador sem IntersectionObserver (ou ambiente de teste): conta no
     // mount em vez de nao contar nada.
     if (typeof IntersectionObserver === 'undefined') {
       jaContou.current = true
-      cmsAPI.storeBanners.registerImpression(bannerId).catch(() => {})
+      registerRef.current(id).catch(() => {})
       return
     }
 
@@ -34,16 +45,15 @@ export function useBannerImpression(bannerId: string | undefined, ref: RefObject
         for (const entry of entries) {
           if (!entry.isIntersecting || jaContou.current) continue
           jaContou.current = true
-          cmsAPI.storeBanners.registerImpression(bannerId).catch(() => {})
+          registerRef.current(id).catch(() => {})
           observer.disconnect()
         }
       },
-      // Metade do banner visivel -- um sliver aparecendo na borda da tela
-      // durante o scroll rapido nao e' impressao.
+      // Metade visivel -- um sliver aparecendo na borda da tela durante o
+      // scroll rapido nao e' impressao.
       { threshold: 0.5 },
     )
-
     observer.observe(el)
     return () => observer.disconnect()
-  }, [bannerId, ref])
+  }, [id, ref])
 }

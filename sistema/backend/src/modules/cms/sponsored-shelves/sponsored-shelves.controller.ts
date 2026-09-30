@@ -16,6 +16,13 @@ export class SponsoredShelvesController {
   async listPublic(@Req() req?: TenantContextRequest) {
     return this.service.listPublic(req ? getTenantContext(req) : undefined);
   }
+
+  /** Publico: a vitrine entrou na tela (mesmo padrao do banner). */
+  @Post(':id/impression')
+  async registerImpression(@Param('id') id: string) {
+    await this.service.registerImpression(id);
+    return { success: true };
+  }
 }
 
 @RelaxedThrottle()
