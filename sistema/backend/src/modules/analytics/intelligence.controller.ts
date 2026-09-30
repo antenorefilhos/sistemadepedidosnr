@@ -20,4 +20,10 @@ export class IntelligenceController {
   get(@Query('days') days?: string) {
     return this.intelligence.overview(Number(days) || 30)
   }
+
+  @Get('home-shelves')
+  @ApiOperation({ summary: 'Por vitrine da pagina inicial: produtos postos no carrinho e quantos viraram pedido' })
+  homeShelves(@Query('days') days?: string) {
+    return this.intelligence.homeShelves(Math.min(90, Math.max(1, Number(days) || 30)))
+  }
 }

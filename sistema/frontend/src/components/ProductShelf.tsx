@@ -31,6 +31,8 @@ type ProductShelfProps = {
    * se movem sozinhas (evita varios carrosseis animando ao mesmo tempo).
    */
   autoScroll?: boolean
+  /** Nome da vitrine no ADD_TO_CART -- a tela Layout do Site mostra o que cada uma vende. */
+  shelf?: string
 }
 
 /**
@@ -47,6 +49,7 @@ export function ProductShelf({
   layout = 'carousel',
   className,
   autoScroll = false,
+  shelf,
 }: ProductShelfProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   useAutoScroll(scrollRef, autoScroll && layout === 'carousel')
@@ -93,7 +96,7 @@ export function ProductShelf({
             {...dragScroll.dragProps}
           >
             {products.map((product) => (
-              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" />
+              <StoreProductCard key={product.id} product={product} source="HOME" variant="carousel" analyticsMeta={shelf ? { shelf } : undefined} />
             ))}
           </div>
 
@@ -125,7 +128,7 @@ export function ProductShelf({
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {products.map((product) => (
-            <StoreProductCard key={product.id} product={product} source="HOME" variant="grid" />
+            <StoreProductCard key={product.id} product={product} source="HOME" variant="grid" analyticsMeta={shelf ? { shelf } : undefined} />
           ))}
         </div>
       )}

@@ -29,7 +29,7 @@ export type Section =
   | 'integrations'
   | 'payments'
 
-const LayoutManager = lazy(() => import('../components/LayoutManager'))
+const HomeLayoutSection = lazy(() => import('./sections/HomeLayoutSection'))
 const IntelligenceSection = lazy(() => import('./sections/IntelligenceSection'))
 const Integrations = lazy(() => import('./Integrations'))
 const DepartmentsSection = lazy(() => import('./sections/DepartmentsSection'))
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'layout' && (
             <Suspense fallback={lazySectionFallback}>
-              <LayoutManager />
+              <HomeLayoutSection onNavigate={setActiveSection} />
             </Suspense>
           )}
 

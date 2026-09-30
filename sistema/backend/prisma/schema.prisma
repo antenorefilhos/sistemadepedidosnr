@@ -1705,6 +1705,7 @@ model BrandConfig {
   openMessage           String?
   closedMessage         String?
   countdownLabel        String?
+  homeLayout            String?  // JSON: { hidden: string[] } -- blocos da pagina inicial ocultos (tela Layout do Site)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

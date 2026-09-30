@@ -49,6 +49,42 @@ export class IntelligenceService {
     }
   }
 
+  /**
+   * Resultado de cada vitrine da pagina inicial (tela Layout do Site,
+   * 30/09/2026). A loja grava `shelf` no ADD_TO_CART vindo de uma vitrine;
+   * "virou pedido" = o mesmo aparelho fechou pedido com aquele produto em ate
+   * 24h. Antes de 30/09 o clique nao dizia a vitrine: fica sem `shelf`.
+   */
+  async homeShelves(days: number) {
+    const from = new Date(Date.now() - days * 86_400_000)
+    const rows = await this.prisma.$queryRaw<Array<{ shelf: string | null; adds: number; orders: number; revenue: number }>>`
+      WITH adds AS (
+        SELECT metadata::jsonb->>'shelf' AS shelf, "deviceId", "entityId" AS product, "createdAt"
+        FROM analytics_events
+        WHERE type = 'ADD_TO_CART' AND "createdAt" >= ${from} AND metadata LIKE '{%' AND metadata::jsonb->>'source' = 'HOME'
+      ),
+      conv AS (
+        SELECT DISTINCT a.shelf, o.id AS order_id, i."productId", i.subtotal
+        FROM adds a
+        JOIN orders o ON o."deviceId" = a."deviceId" AND o."createdAt" BETWEEN a."createdAt" AND a."createdAt" + interval '1 day'
+          AND o.status NOT IN ('CANCELLED', 'REFUNDED')
+        JOIN order_items i ON i."orderId" = o.id AND i."productId" = a.product
+      ),
+      por_adds AS (SELECT shelf, COUNT(*)::int AS adds FROM adds GROUP BY shelf),
+      por_conv AS (SELECT shelf, COUNT(DISTINCT order_id)::int AS orders, COALESCE(SUM(subtotal), 0)::float AS revenue FROM conv GROUP BY shelf)
+      SELECT a.shelf, a.adds, COALESCE(c.orders, 0)::int AS orders, COALESCE(c.revenue, 0)::float AS revenue
+      FROM por_adds a LEFT JOIN por_conv c ON c.shelf IS NOT DISTINCT FROM a.shelf
+      ORDER BY a.adds DESC`
+    const [first] = await this.prisma.$queryRaw<Array<{ at: Date | null }>>`
+      SELECT MIN("createdAt") AS at FROM analytics_events
+      WHERE type = 'ADD_TO_CART' AND metadata LIKE '{%' AND metadata::jsonb ? 'shelf'`
+    return {
+      days,
+      trackingSince: first?.at || null,
+      shelves: rows.map((r) => ({ shelf: r.shelf, adds: Number(r.adds), orders: Number(r.orders), revenue: Math.round(Number(r.revenue) * 100) / 100 })),
+    }
+  }
+
   async overview(days = 30) {
     const d = Math.min(90, Math.max(7, days))
     const to = new Date()

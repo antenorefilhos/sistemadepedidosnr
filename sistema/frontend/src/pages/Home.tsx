@@ -85,6 +85,11 @@ export default function Home() {
   const { user } = useAuth()
   const { deliveryAddressLabel } = useDeliveryAddress()
   const brand = useBrand()
+  // Blocos ocultos no admin (Layout do Site). Enquanto a config nao chega,
+  // faixa/receitas/"Tudo do Mercado" esperam -- sem piscar algo que o
+  // lojista escondeu. Vitrines aparecem ja (sao o conteudo principal).
+  const homeHidden = brand.homeHidden
+  const showsBlock = (key: string) => homeHidden !== null && !homeHidden.has(key)
   const { openModal: openDeliveryVerificationModal } = useDeliveryVerificationModal()
   const { data: rebuyProducts = [] } = useRebuyRecommendations(user?.id, 10)
   const { data: marginShowcase = [] } = useRecommendationShowcase(undefined, 12)
@@ -191,6 +196,7 @@ export default function Home() {
   const vitrinesSections = useMemo(() => {
     if (!vitrinesData) return null
     return vitrinesData.carrosseis
+      .filter((carrossel) => !homeHidden?.has(`vitrine:${carrossel.id}`))
       .map((carrossel) => ({
         key: carrossel.id,
         eyebrow: stripEmoji(vitrinesData.personalidadeAtiva.titulo),
@@ -206,7 +212,7 @@ export default function Home() {
         to: carrossel.linkVerTudo || '/mercado',
       }))
       .filter((shelf) => shelf.products.length > 0)
-  }, [vitrinesData])
+  }, [vitrinesData, homeHidden])
 
   const homeSectionsFallback = useMemo(() => ([
     {
@@ -305,9 +311,9 @@ export default function Home() {
       products: bestSellers,
       to: '/mercado',
     },
-  ]).filter((shelf) => shelf.products.length > 0), [
+  ]).filter((shelf) => shelf.products.length > 0 && !homeHidden?.has(`vitrine:${shelf.key}`)), [
     user, rebuyShelf, offersShelf, freshShelf, churrascoOccasionShelf, fairShelf, recurringShelf,
-    categorized, bestSellers,
+    categorized, bestSellers, homeHidden,
   ])
 
   // 22/09/2026: antes caia direto no fallback local enquanto a AntenorApi
@@ -774,7 +780,7 @@ export default function Home() {
       {/* JON-192 (AEF-037): faixa dinamica por dia da semana/sazonalidade --
           nunca substitui o Hero manual acima, sempre aparece junto (decisao
           do Jonathan, 18/09/2026). */}
-      {vitrinesData?.personalidadeAtiva?.bannerPrincipal && (
+      {showsBlock('faixa') && vitrinesData?.personalidadeAtiva?.bannerPrincipal && (
         <DynamicVitrineBanner
           headline={vitrinesData.personalidadeAtiva.bannerPrincipal.headline}
           subheadline={vitrinesData.personalidadeAtiva.bannerPrincipal.subheadline}
@@ -866,6 +872,7 @@ export default function Home() {
           products={campaign.items}
           to="/promocoes"
           linkLabel="Ver encarte"
+          shelf={`encarte:${campaign.id}`}
         />
       ))}
 
@@ -879,6 +886,7 @@ export default function Home() {
           icon={Megaphone}
           products={shelf.products}
           to="/mercado"
+          shelf={`patrocinada:${shelf.id}`}
         />
       ))}
 
@@ -896,8 +904,9 @@ export default function Home() {
             products={shelf.products}
             to={shelf.to}
             linkLabel="Ver mais"
+            shelf={`vitrine:${shelf.key}`}
           />
-          {index === 1 && <HomeRecipeShelf className="md:hidden px-4 pt-5 pb-2" />}
+          {index === 1 && showsBlock('receitas') && <HomeRecipeShelf className="md:hidden px-4 pt-5 pb-2" />}
           {/* 1o par so entra se ja existe conteudo real acima (hasMobileLeadContent)
               -- sem isso ele ficava colado direto no Hero quando rebuy/ofertas
               vinham vazios. Os pares seguintes (indices 5 e 8) nao tem essa
@@ -910,16 +919,19 @@ export default function Home() {
         </Fragment>
       ))}
 
-      {homeSections.length < 2 && <HomeRecipeShelf className="md:hidden px-4 pt-5 pb-2" />}
-      <ProductShelf
-        className="md:hidden px-4 pb-2"
-        title="Tudo do Mercado"
-        eyebrow="Catálogo completo"
-        icon={ShoppingBag}
-        products={[...categorized.outros, ...categorized.bebidas].slice(0, 12)}
-        to="/mercado"
-        linkLabel="Ver todos"
-      />
+      {homeSections.length < 2 && showsBlock('receitas') && <HomeRecipeShelf className="md:hidden px-4 pt-5 pb-2" />}
+      {showsBlock('tudo') && (
+        <ProductShelf
+          className="md:hidden px-4 pb-2"
+          title="Tudo do Mercado"
+          eyebrow="Catálogo completo"
+          icon={ShoppingBag}
+          products={[...categorized.outros, ...categorized.bebidas].slice(0, 12)}
+          to="/mercado"
+          linkLabel="Ver todos"
+          shelf="tudo"
+        />
+      )}
       </>
       )}
 
@@ -961,6 +973,7 @@ export default function Home() {
             products={campaign.items}
             to="/promocoes"
             linkLabel="Ver encarte"
+            shelf={`encarte:${campaign.id}`}
           />
         ))}
 
@@ -973,6 +986,7 @@ export default function Home() {
             icon={Megaphone}
             products={shelf.products}
             to="/mercado"
+            shelf={`patrocinada:${shelf.id}`}
           />
         ))}
 
@@ -983,32 +997,34 @@ export default function Home() {
             ~4 vitrines, nos mesmos indices relativos usados no mobile. */}
         {homeSections.map((shelf, index) => (
           <Fragment key={shelf.key}>
-            <ProductShelf layout="carousel" eyebrow={shelf.eyebrow} title={shelf.title} icon={shelf.icon} products={shelf.products} to={shelf.to} />
-            {index === 1 && <HomeRecipeShelf />}
+            <ProductShelf layout="carousel" eyebrow={shelf.eyebrow} title={shelf.title} icon={shelf.icon} products={shelf.products} to={shelf.to} shelf={`vitrine:${shelf.key}`} />
+            {index === 1 && showsBlock('receitas') && <HomeRecipeShelf />}
             {(promoInsertionMap.get(index) || []).map((pairIndex) => (
               <PromoBannerPair key={pairIndex} banners={promoPairs[pairIndex]} />
             ))}
           </Fragment>
         ))}
 
-        {homeSections.length < 2 && <HomeRecipeShelf />}
+        {homeSections.length < 2 && showsBlock('receitas') && <HomeRecipeShelf />}
 
           {/* General Grid -- catalogo completo, sem curadoria comercial:
               fica de fora do schema das vitrines de proposito, sempre por
               ultimo (a posicao "editorial"/diretorio do pedido do ticket). */}
+          {showsBlock('tudo') && (
           <section className="pt-8">
              <h3 className="text-xl font-bold text-[#5d4f33] flex items-center gap-2 mb-8 border-b pb-4">
                <ShoppingBag size={20} className="text-[#5D082A]" /> Tudo do Mercado
              </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
                {categorized.outros.map(product => (
-                 <StoreProductCard key={product.id} product={product} source="HOME" variant="grid" />
+                 <StoreProductCard key={product.id} product={product} source="HOME" variant="grid" analyticsMeta={{ shelf: 'tudo' }} />
                ))}
                {categorized.bebidas.map(product => (
-                 <StoreProductCard key={product.id} product={product} source="HOME" variant="grid" />
+                 <StoreProductCard key={product.id} product={product} source="HOME" variant="grid" analyticsMeta={{ shelf: 'tudo' }} />
                ))}
             </div>
          </section>
+          )}
       </main>
       )}
 

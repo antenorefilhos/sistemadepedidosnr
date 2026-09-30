@@ -24,6 +24,8 @@ export interface BrandConfig {
   traditionText: string | null
   storeHoursText: string | null
   deliveryHoursText: string | null
+  /** JSON { hidden: string[] }: blocos da pagina inicial ocultos no admin (Layout do Site). */
+  homeLayout?: string | null
 }
 
 const DEFAULTS: BrandConfig = {
@@ -51,7 +53,7 @@ const DEFAULTS: BrandConfig = {
 }
 
 export function useBrand() {
-  const { data } = useQuery({
+  const { data, isFetched } = useQuery({
     queryKey: ['brand-config'],
     queryFn: async () => {
       const res = await brandAPI.get()
@@ -82,5 +84,16 @@ export function useBrand() {
     traditionText: data?.traditionText ?? null,
     storeHoursText: data?.storeHoursText ?? null,
     deliveryHoursText: data?.deliveryHoursText ?? null,
+    /** null enquanto a config nao chegou -- a Home segura os blocos ocultaveis. */
+    homeHidden: isFetched ? parseHomeHidden(data?.homeLayout) : null,
+  }
+}
+
+function parseHomeHidden(raw?: string | null): Set<string> {
+  try {
+    const hidden = raw ? (JSON.parse(raw) as { hidden?: unknown }).hidden : []
+    return new Set(Array.isArray(hidden) ? hidden.filter((h): h is string => typeof h === 'string') : [])
+  } catch {
+    return new Set()
   }
 }

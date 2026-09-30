@@ -1420,7 +1420,33 @@ export const brandAPI = {
     freeShippingThreshold?: number | null
     businessHours?: string | null
     specialDates?: string | null
+    /** JSON { hidden: string[] } -- blocos da pagina inicial ocultos (Layout do Site). */
+    homeLayout?: string | null
   }) => api.put('/brand', data),
+}
+
+export interface HomeVitrinesSnapshot {
+  contexto?: { perfil?: string; momento?: string; estacaoComercial?: string }
+  personalidadeAtiva?: { titulo: string; subtitulo: string; bannerPrincipal?: { headline: string; subheadline: string; ctaTexto: string } }
+  carrosseis: Array<{ id: string; titulo: string; subtitulo?: string; linkVerTudo?: string; produtos: unknown[] }>
+}
+
+export interface HomeShelfResult {
+  shelf: string | null
+  adds: number
+  orders: number
+  revenue: number
+}
+
+/** Tudo que a tela Layout do Site le -- as mesmas rotas publicas que a pagina inicial usa. */
+export const homeLayoutAPI = {
+  vitrines: () => api.get<HomeVitrinesSnapshot>('/cms/categories/home-vitrines'),
+  banners: () => api.get<Array<{ id: string; slot: string; title?: string | null; name?: string | null; pages?: string | null }>>('/cms/store-banners'),
+  sponsored: () => api.get<Array<{ id: string; title: string; products: unknown[] }>>('/cms/sponsored-shelves'),
+  recipes: () => api.get<{ data: unknown[]; total?: number; meta?: { total?: number } }>('/recipes', { params: { page: 1, limit: 8 } }),
+  campaigns: () => api.get<Array<{ id: string; name: string; active: boolean; startDate: string; endDate: string; highlightInHome: boolean; items: unknown[] }>>('/promotions/campaigns'),
+  setCampaignHighlight: (id: string, highlightInHome: boolean) => api.patch(`/promotions/campaigns/${id}`, { highlightInHome }),
+  results: (days: number) => api.get<{ days: number; trackingSince: string | null; shelves: HomeShelfResult[] }>('/admin/intelligence/home-shelves', { params: { days } }),
 }
 
 export interface DeliveryZone {

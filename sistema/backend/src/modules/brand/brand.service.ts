@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 
 export interface BrandConfigDto {
@@ -14,9 +14,24 @@ export interface BrandConfigDto {
   openMessage?: string | null;
   closedMessage?: string | null;
   countdownLabel?: string | null;
+  /** JSON { hidden: string[] }: blocos da pagina inicial ocultos na tela Layout do Site. */
+  homeLayout?: string | null;
 }
 
 const SINGLETON_ID = 'singleton';
+
+/** Aceita so { hidden: string[] } -- a pagina inicial le isso no primeiro carregamento. */
+export function normalizeHomeLayout(raw: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new BadRequestException('Configuração da página inicial inválida.');
+  }
+  const hidden = Array.isArray((parsed as { hidden?: unknown })?.hidden) ? (parsed as { hidden: unknown[] }).hidden : [];
+  const clean = [...new Set(hidden.filter((h): h is string => typeof h === 'string' && /^[\w:.-]{1,80}$/.test(h)))].slice(0, 100);
+  return JSON.stringify({ hidden: clean });
+}
 
 // Dados oficiais de cadastro da empresa -- fixos, nao mudam com frequencia e
 // nao tem tela de admin dedicada (ver TASK_DEV_FOOTER_LEGAL_PAGES_REFINED.md).
@@ -67,6 +82,7 @@ const DEFAULTS: BrandConfigDto = {
   openMessage: null,
   closedMessage: null,
   countdownLabel: null,
+  homeLayout: null,
 };
 
 @Injectable()
@@ -82,6 +98,7 @@ export class BrandService {
   }
 
   async upsert(dto: BrandConfigDto) {
+    if (dto.homeLayout != null) dto = { ...dto, homeLayout: normalizeHomeLayout(dto.homeLayout) };
     return this.prisma.brandConfig.upsert({
       where: { id: SINGLETON_ID },
       update: dto,
