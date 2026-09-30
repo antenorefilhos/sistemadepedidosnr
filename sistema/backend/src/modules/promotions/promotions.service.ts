@@ -4,6 +4,25 @@ import { AntenorApiService } from '../integrations/antenor-api.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { parseErpBusinessDate, parseErpBusinessDateEnd, isWithinBusinessWindow } from '../../common/business-window'
 
+const LOWER_WORDS = new Set(['da', 'de', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os', 'com', 'para', 'na', 'no'])
+
+/**
+ * Nome do encarte como o cliente le (30/09/2026). O ERP manda "TERÇA
+ * HORTIFRUTI NR" -- caixa alta e o codigo da filial no fim. Vira "Terça
+ * Hortifruti" no push e na vitrine; o admin continua vendo o nome do ERP.
+ */
+export function customerCampaignName(raw: string): string {
+  const words = String(raw || '')
+    .replace(/\s+(NR|NV)\s*$/i, '')
+    .trim()
+    .toLocaleLowerCase('pt-BR')
+    .split(/\s+/)
+    .filter(Boolean)
+  return words
+    .map((w, i) => (i > 0 && LOWER_WORDS.has(w) ? w : w.charAt(0).toLocaleUpperCase('pt-BR') + w.slice(1)))
+    .join(' ')
+}
+
 function slugify(value: string): string {
   return value
     .normalize('NFD')
@@ -260,7 +279,7 @@ export class PromotionsService {
         const customerIds = await this.notificationsService.getAllCustomerIds()
         await this.notificationsService.broadcastToCustomers(customerIds, {
           type: 'CAMPAIGN',
-          title: `🛍️ Chegou o encarte ${campaign.name}!`,
+          title: `🛍️ Chegou o encarte ${customerCampaignName(campaign.name)}!`,
           body: 'Confira as ofertas antes que acabem.',
           url: '/promocoes',
         })
@@ -290,7 +309,7 @@ export class PromotionsService {
         const customerIds = await this.notificationsService.getAllCustomerIds()
         await this.notificationsService.broadcastToCustomers(customerIds, {
           type: 'CAMPAIGN',
-          title: `⏰ Ultimas horas do encarte ${campaign.name}!`,
+          title: `⏰ Últimas horas do encarte ${customerCampaignName(campaign.name)}!`,
           body: 'As ofertas terminam em breve, aproveite agora.',
           url: '/promocoes',
         })
@@ -384,7 +403,7 @@ export class PromotionsService {
   }) {
     return {
       id: campaign.id,
-      name: campaign.name,
+      name: customerCampaignName(campaign.name),
       slug: campaign.slug,
       type: campaign.type,
       bannerUrl: campaign.bannerUrl,
