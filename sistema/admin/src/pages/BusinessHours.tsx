@@ -373,7 +373,7 @@ export default function BusinessHours() {
                     {totalOrders === 0
                       ? 'Nenhum pedido no período.'
                       : outside > 0
-                        ? `${outside} de ${totalOrders} pedido(s) chegaram em hora sem entrega na semana atual. Se acontecer com frequência, vale abrir esse horário.`
+                        ? `${outside} de ${totalOrders} pedido(s) foram feitos em hora sem entrega pelo horário atual (contorno âmbar). Se forem pedidos reais e se repetirem, vale abrir esse horário.`
                         : `${totalOrders} pedido(s), todos dentro do horário de entrega.`}
                   </p>
                   <div className="mt-3 overflow-x-auto">
