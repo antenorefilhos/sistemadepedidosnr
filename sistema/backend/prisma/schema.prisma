@@ -1703,9 +1703,6 @@ model BrandConfig {
   freeShippingThreshold Decimal? @db.Decimal(10, 2)
   businessHours         String?  // JSON: { [weekday: number]: { enabled: boolean, windows: [{start,end}][] } }
   specialDates          String?  // JSON: [{ date: 'YYYY-MM-DD', closed?, windows?, note? }] -- feriado/horario reduzido, vence a semana
-  openMessage           String?
-  closedMessage         String?
-  countdownLabel        String?
   homeLayout            String?  // JSON: { hidden: string[] } -- blocos da pagina inicial ocultos (tela Layout do Site)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt

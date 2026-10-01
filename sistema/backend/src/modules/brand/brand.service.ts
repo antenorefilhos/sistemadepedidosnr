@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
+import { normalizeBusinessHours, normalizeSpecialDates } from '../../common/delivery-hours';
 
 export interface BrandConfigDto {
   storeName?: string;
@@ -11,9 +12,6 @@ export interface BrandConfigDto {
   freeShippingThreshold?: number | null;
   businessHours?: string | null;
   specialDates?: string | null;
-  openMessage?: string | null;
-  closedMessage?: string | null;
-  countdownLabel?: string | null;
   /** JSON { hidden: string[] }: blocos da pagina inicial ocultos na tela Layout do Site. */
   homeLayout?: string | null;
 }
@@ -94,9 +92,6 @@ const DEFAULTS: BrandConfigDto = {
   freeShippingThreshold: null,
   businessHours: null,
   specialDates: null,
-  openMessage: null,
-  closedMessage: null,
-  countdownLabel: null,
   homeLayout: null,
 };
 
@@ -115,6 +110,8 @@ export class BrandService {
   async upsert(dto: BrandConfigDto) {
     if (dto.homeLayout != null) dto = { ...dto, homeLayout: normalizeHomeLayout(dto.homeLayout) };
     if (dto.contactWhatsapp != null) dto = { ...dto, contactWhatsapp: normalizeWhatsapp(dto.contactWhatsapp) };
+    if (dto.businessHours != null) dto = { ...dto, businessHours: normalizeBusinessHours(dto.businessHours) };
+    if (dto.specialDates != null) dto = { ...dto, specialDates: normalizeSpecialDates(dto.specialDates) };
     return this.prisma.brandConfig.upsert({
       where: { id: SINGLETON_ID },
       update: dto,
