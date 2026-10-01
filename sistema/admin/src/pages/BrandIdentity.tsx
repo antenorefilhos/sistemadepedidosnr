@@ -169,7 +169,7 @@ export default function BrandIdentity({ onNavigate }: Props) {
 
       <section className="rounded-2xl border border-black/[0.06] bg-white p-4 sm:p-6">
         <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">O que o rodapé mostra</h3>
-        <dl className="mt-3 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+        <dl className="mt-3 grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
           <Item label="WhatsApp">{whatsOk ? formatPhone(whatsFull) : '—'}</Item>
           <Item label="WhatsApp secundário">{data.whatsappSecondary ? formatPhone(data.whatsappSecondary) : '—'}</Item>
           <Item label="Telefone">{data.phoneFixed || '—'}</Item>

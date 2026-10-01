@@ -53,7 +53,7 @@ export default function IntelligenceSection() {
         <>
           <Funnel current={data.funnel.current} previous={data.funnel.previous} days={data.days} />
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card title="O que procuram e não acham" hint="Buscas que voltaram vazias no período, conferidas de novo agora. Cada uma é venda perdida: resolva com um sinônimo ou cadastrando o produto.">
               <NoResultSearches items={data.search.noResult} />
             </Card>
@@ -66,7 +66,7 @@ export default function IntelligenceSection() {
             </Card>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card title="Mais vendidos" hint="Pedidos com o produto no período.">
               <ProductRows items={data.products.topSold} value={(p) => `${p.sold} ped.`} empty="Sem vendas no período." />
             </Card>
@@ -78,7 +78,7 @@ export default function IntelligenceSection() {
             </Card>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <Card title="Quando os pedidos chegam" hint="Pedidos por dia da semana e hora (Brasília). Ajuda a planejar equipe e horário de promoção.">
               <Heatmap points={data.heatmap} />
             </Card>
