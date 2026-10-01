@@ -116,6 +116,13 @@ export function useNotifications() {
     },
   })
 
+  const refreshBell = () => {
+    refetch()
+    queryClient.invalidateQueries({ queryKey: ['notifications-unread'] })
+  }
+  const markAllAsReadMut = useMutation({ mutationFn: () => notificationsAPI.markAllAsRead(), onSuccess: refreshBell })
+  const clearMut = useMutation({ mutationFn: () => notificationsAPI.clear(), onSuccess: refreshBell })
+
   const subscribeToPushMut = useMutation({
     mutationFn: async (subscription: PushSubscriptionJSON) =>
       notificationsAPI.subscribeToPush(subscription as any),
@@ -191,6 +198,9 @@ export function useNotifications() {
     pushStatus,
     isSubscribingToPush: subscribeToPushMut.isLoading,
     markAsRead: (id: string) => markAsReadMut.mutate(id),
+    markAllAsRead: () => markAllAsReadMut.mutate(),
+    clearAll: () => clearMut.mutate(),
+    isClearing: markAllAsReadMut.isLoading || clearMut.isLoading,
     subscribeToPush: (sub: PushSubscriptionJSON) => subscribeToPushMut.mutate(sub),
     requestPushPermission,
   }

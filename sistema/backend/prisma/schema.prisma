@@ -2233,6 +2233,8 @@ model Notification {
   clickedAt  DateTime?
   batchId    String?
   source     String?  // MANUAL | AUTO | SCHEDULED | ORDER
+  // "Limpar" do cliente: some do sininho, continua no historico do admin.
+  hiddenAt   DateTime?
   createdAt  DateTime @default(now())
 
   @@index([batchId])

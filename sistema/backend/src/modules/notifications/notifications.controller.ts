@@ -44,6 +44,26 @@ export class NotificationsController {
     return this.notificationsService.markOpened(String(id).slice(0, 64))
   }
 
+  @Patch('read-all')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Marcar todas as notificações do cliente como lidas' })
+  async markAllAsRead(@Req() req: { user?: { id?: string } }) {
+    const customerId = String(req.user?.id || '')
+    if (!customerId) throw new UnauthorizedException('Nao autenticado')
+    return this.notificationsService.markAllAsReadForCustomer(customerId)
+  }
+
+  @Delete()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Limpar o sininho do cliente (some da lista, fica no histórico do admin)' })
+  async clear(@Req() req: { user?: { id?: string } }) {
+    const customerId = String(req.user?.id || '')
+    if (!customerId) throw new UnauthorizedException('Nao autenticado')
+    return this.notificationsService.clearForCustomer(customerId)
+  }
+
   @Patch(':id/read')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

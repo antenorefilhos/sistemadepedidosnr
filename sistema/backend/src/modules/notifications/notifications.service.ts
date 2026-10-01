@@ -290,7 +290,7 @@ export class NotificationsService {
 
   async findByCustomer(customerId: string, limit = 50) {
     return this.prisma.notification.findMany({
-      where: { customerId },
+      where: { customerId, hiddenAt: null },
       orderBy: { createdAt: 'desc' },
       take: Math.min(limit, 200),
     })
@@ -318,8 +318,23 @@ export class NotificationsService {
 
   async countUnread(customerId: string) {
     return this.prisma.notification.count({
-      where: { customerId, read: false },
+      where: { customerId, read: false, hiddenAt: null },
     })
+  }
+
+  // 01/10/2026: o sininho lista as 50 mais recentes e o numero contava TODAS as
+  // nao lidas -- quem tinha mais de 50 nunca conseguia zerar.
+  async markAllAsReadForCustomer(customerId: string) {
+    const { count } = await this.prisma.notification.updateMany({ where: { customerId, read: false }, data: { read: true } })
+    return { updated: count }
+  }
+
+  async clearForCustomer(customerId: string) {
+    const { count } = await this.prisma.notification.updateMany({
+      where: { customerId, hiddenAt: null },
+      data: { hiddenAt: new Date(), read: true },
+    })
+    return { cleared: count }
   }
 
   async savePushSubscription(

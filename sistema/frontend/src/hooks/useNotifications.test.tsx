@@ -3,12 +3,15 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useNotifications } from './useNotifications'
+import { notificationsAPI } from '../services/api'
 
 vi.mock('../services/api', () => ({
   notificationsAPI: {
     list: vi.fn().mockResolvedValue({ data: [] }),
     unreadCount: vi.fn().mockResolvedValue({ data: 0 }),
     markAsRead: vi.fn(),
+    markAllAsRead: vi.fn().mockResolvedValue({ data: { updated: 3 } }),
+    clear: vi.fn().mockResolvedValue({ data: { cleared: 3 } }),
     subscribeToPush: vi.fn(),
     unsubscribeFromPush: vi.fn(),
   },
@@ -86,5 +89,30 @@ describe('useNotifications — pushStatus reflete subscription existente', () =>
 
     await new Promise((r) => setTimeout(r, 0))
     expect(getSubscription).not.toHaveBeenCalled()
+  })
+})
+
+// 01/10/2026: o numero do sininho nao zerava -- a lista mostra 50 e o contador
+// contava todas as nao lidas. "Marcar todas" e "Limpar" tem que reler o contador.
+describe('useNotifications — marcar todas e limpar', () => {
+  const wrapper = ({ children }: { children: ReactNode }) => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  }
+
+  it('reconsulta o contador depois de marcar todas e de limpar', async () => {
+    const unread = vi.mocked(notificationsAPI.unreadCount)
+    const { result } = renderHook(() => useNotifications(), { wrapper })
+    await waitFor(() => expect(unread).toHaveBeenCalled())
+
+    const before = unread.mock.calls.length
+    result.current.markAllAsRead()
+    await waitFor(() => expect(notificationsAPI.markAllAsRead).toHaveBeenCalled())
+    await waitFor(() => expect(unread.mock.calls.length).toBeGreaterThan(before))
+
+    const mid = unread.mock.calls.length
+    result.current.clearAll()
+    await waitFor(() => expect(notificationsAPI.clear).toHaveBeenCalled())
+    await waitFor(() => expect(unread.mock.calls.length).toBeGreaterThan(mid))
   })
 })
