@@ -436,6 +436,26 @@ describe('ProductsService', () => {
     });
   });
 
+  describe('syncFromERP - EAN que o ERP passou para outro produto (30/09/2026)', () => {
+    it('libera o EAN do produto que saiu do feed antes de gravar o novo dono', async () => {
+      mockSolidcomERPService.syncProducts.mockResolvedValue({
+        status: 'success',
+        data: [{ ean: '1500', name: 'File Salmao', price: 10, erpProductId: 24446 }],
+      });
+      mockPrismaService.product.findFirst.mockResolvedValue({ id: 'novo-dono', erpProductId: 24446, ean: '5633' });
+      mockPrismaService.product.findMany.mockImplementation((args: { where?: { ean?: unknown } }) =>
+        Promise.resolve(args?.where?.ean ? [{ id: 'antigo', ean: '1500', erpProductId: 5036 }] : []),
+      );
+
+      const result = await service.syncFromERP();
+
+      expect(mockPrismaService.product.update).toHaveBeenCalledWith({ where: { id: 'antigo' }, data: { ean: '1500#5036', active: false } });
+      expect(mockPrismaService.product.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'novo-dono' }, data: expect.objectContaining({ ean: '1500' }) }));
+      expect((result as any).errors).toBe(0);
+      mockPrismaService.product.findMany.mockReset().mockResolvedValue([]);
+    });
+  });
+
   describe('syncFromERP - desativacao de produto sumido do feed (22/09/2026)', () => {
     beforeEach(() => {
       mockPrismaService.product.findFirst.mockResolvedValue(null);

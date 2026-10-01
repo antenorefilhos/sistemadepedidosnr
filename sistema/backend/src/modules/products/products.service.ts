@@ -1708,7 +1708,7 @@ export class ProductsService {
       source === 'antenorapi'
         ? await this.antenorApiService.syncProducts()
         : await this.solidcomERPService.syncProducts()
-    const { synced, errors, errorItems, indexedIds } = await this.applyErpProducts(syncResult.data)
+    const { synced, errors, errorItems, indexedIds } = await this.applyErpProducts(syncResult.data, { releaseReassignedEans: true })
 
     // O catalogo em massa do Solidcom nao carrega promocao viva; sem esta
     // passada, promocao que saiu do ar no PDV ficaria eterna na vitrine. A
@@ -1956,7 +1956,7 @@ export class ProductsService {
     return Array.from(groups.values())
   }
 
-  private async applyErpProducts(items: ERPProduct[], options: { clearMissingPromotion?: boolean } = {}) {
+  private async applyErpProducts(items: ERPProduct[], options: { clearMissingPromotion?: boolean; releaseReassignedEans?: boolean } = {}) {
     const groups = this.groupErpItemsByProduct(items)
 
     // Uma linha "representante" por grupo com o ean principal escolhido e os
@@ -2000,6 +2000,20 @@ export class ProductsService {
       (await this.prisma.category.findMany({ where: { parentId: null }, select: { id: true, name: true } }))
         .map((c) => [c.id, this.normalizeCategory(c.name)]),
     )
+
+    // 30/09/2026: o ERP passou o EAN 1500 do salmao 5036 (fora do feed) para o
+    // 24446, e o sync quebrava todo dia no unique de `ean` ao gravar o 24446.
+    // So o sync completo libera: ele ve o feed inteiro, entao quem segura o EAN
+    // e nao esta nele saiu do ERP. O incremental ve uma janela e nao pode concluir isso.
+    const feedErpIds = new Set(resolved.map((r) => r.erpProductId).filter((id) => id != null))
+    const eanHolders = options.releaseReassignedEans
+      ? new Map(
+          (await this.prisma.product.findMany({
+            where: { tenantId: DEFAULT_TENANT_ID, ean: { in: resolved.map((r) => r.mainEan) } },
+            select: { id: true, ean: true, erpProductId: true },
+          })).map((p) => [p.ean, p]),
+        )
+      : new Map<string, { id: string; ean: string; erpProductId: number | null }>()
 
     let synced = 0
     let errors = 0
@@ -2119,6 +2133,11 @@ export class ProductsService {
           existing?.siteVisibility,
         )
         const overrideCategoryCode = existing?.categoryOverrideId ? cmsCodeById.get(existing.categoryOverrideId) : undefined
+        const holder = eanHolders.get(mainEan)
+        if (holder && holder.id !== existing?.id && holder.erpProductId != null && holder.erpProductId !== erpProductId && !feedErpIds.has(holder.erpProductId)) {
+          // EAN "1500#5036": unico, inativo, e diz de onde veio.
+          await this.prisma.product.update({ where: { id: holder.id }, data: { ean: `${mainEan}#${holder.erpProductId}`, active: false } })
+        }
         const product = existing
           ? await this.prisma.product.update({
               where: { id: existing.id },
