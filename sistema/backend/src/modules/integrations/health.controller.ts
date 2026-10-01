@@ -11,6 +11,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { IntegrationModulesService } from './integration-modules.service'
+import { AntenorApiService } from './antenor-api.service'
 
 interface ServiceStatus {
   status: 'ok' | 'degraded' | 'down'
@@ -52,6 +53,7 @@ export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly integrationModules: IntegrationModulesService,
+    private readonly antenorApi: AntenorApiService,
   ) {}
 
   @Get()
@@ -178,18 +180,11 @@ export class HealthController {
     return this.checkSolidcomLegacy(start)
   }
 
+  // 01/10/2026: com axios puro o certificado proprio da AntenorApi era recusado
+  // e o ERP aparecia "down" funcionando. O ping usa o cliente com o certificado.
   private async checkAntenorApi(start: number): Promise<ServiceStatus> {
-    const url = requireEnv('ANTENOR_API_URL')
-    try {
-      await axios.get(`${url}/health`, { timeout: 5000 })
-      return { status: 'ok', latencyMs: Date.now() - start }
-    } catch (err) {
-      const latencyMs = Date.now() - start
-      if (axios.isAxiosError(err) && err.response) {
-        return { status: 'degraded', latencyMs, detail: `HTTP ${err.response.status}` }
-      }
-      return { status: 'down', latencyMs, detail: 'AntenorApi unreachable' }
-    }
+    const r = await this.antenorApi.ping()
+    return { status: r.status, latencyMs: Date.now() - start, ...(r.detail ? { detail: r.detail } : {}) }
   }
 
   private async checkSolidcomLegacy(start: number): Promise<ServiceStatus> {

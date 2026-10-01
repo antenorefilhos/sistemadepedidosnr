@@ -473,6 +473,24 @@ export class AntenorApiService {
    * conectores, o que mantem cancelamento/webhook funcionando sem trocar de
    * chave no meio da migracao.
    */
+  /**
+   * Saude do ERP pelo cliente com o certificado fixado (01/10/2026). O
+   * /health/detail e a tela Integracoes chamavam com axios puro, que recusa o
+   * certificado proprio deles (DEPTH_ZERO_SELF_SIGNED_CERT) -- e marcavam o
+   * ERP "fora do ar" com ele funcionando.
+   */
+  async ping(): Promise<{ status: 'ok' | 'degraded' | 'down'; latencyMs: number; detail: string | null }> {
+    const start = Date.now()
+    try {
+      await this.cliente.get('/health', { timeout: 5000 })
+      return { status: 'ok', latencyMs: Date.now() - start, detail: null }
+    } catch (err) {
+      const latencyMs = Date.now() - start
+      if (axios.isAxiosError(err) && err.response) return { status: 'degraded', latencyMs, detail: `HTTP ${err.response.status}` }
+      return { status: 'down', latencyMs, detail: axios.isAxiosError(err) ? err.code || 'sem resposta' : 'sem resposta' }
+    }
+  }
+
   async createOrder(payload: CreateAntenorApiOrderPayload): Promise<AntenorApiOrderCreatedResult> {
     const { data } = await this.cliente.post<AntenorApiOrderCreatedResult>('/api/integracao/pedidos', {
       filialId: this.loja,

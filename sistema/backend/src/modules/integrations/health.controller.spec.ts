@@ -1,5 +1,8 @@
 import { HealthController } from './health.controller'
 
+// AntenorApi responde pelo cliente com o certificado fixado (ping).
+const antenorApiPing = { ping: jest.fn().mockResolvedValue({ status: 'ok', latencyMs: 5, detail: null }) }
+
 // JON-111 (Auditoria 360): sem cache, cada chamada disparava uma consulta
 // pesada real ao Solidcom (GetProdutos) -- chamadas concorrentes dentro da
 // janela devem reaproveitar a mesma checagem em voo, e chamadas subsequentes
@@ -16,7 +19,7 @@ describe('HealthController (JON-111)', () => {
   })
 
   it('chamadas concorrentes compartilham a mesma checagem em voo (single-flight)', async () => {
-    const controller = new HealthController(buildPrisma() as never, buildIntegrationModules() as never)
+    const controller = new HealthController(buildPrisma() as never, buildIntegrationModules() as never, antenorApiPing as never)
     const spy = jest.spyOn(controller as never, 'runChecks' as never)
 
     const [a, b, c] = await Promise.all([controller.check(), controller.check(), controller.check()])
@@ -27,7 +30,7 @@ describe('HealthController (JON-111)', () => {
   }, 20000)
 
   it('chamada seguinte dentro do TTL serve do cache, sem rodar de novo', async () => {
-    const controller = new HealthController(buildPrisma() as never, buildIntegrationModules() as never)
+    const controller = new HealthController(buildPrisma() as never, buildIntegrationModules() as never, antenorApiPing as never)
     const spy = jest.spyOn(controller as never, 'runChecks' as never)
 
     const first = await controller.check()
@@ -50,7 +53,7 @@ describe('HealthController — provedor de ERP ativo (JON-110)', () => {
 
   it('sem nenhum conector habilitado, nao faz nenhuma chamada de rede ao ERP', async () => {
     const integrationModules = { isEnabled: jest.fn().mockResolvedValue(false) }
-    const controller = new HealthController(buildPrisma() as never, integrationModules as never)
+    const controller = new HealthController(buildPrisma() as never, integrationModules as never, antenorApiPing as never)
 
     const result = await (controller as any).checkSolidcom()
 
@@ -60,7 +63,7 @@ describe('HealthController — provedor de ERP ativo (JON-110)', () => {
 
   it('com antenorapi habilitada, consulta o adaptador AntenorApi, nao o Solidcom legado', async () => {
     const integrationModules = { isEnabled: jest.fn((key: string) => Promise.resolve(key === 'antenorapi')) }
-    const controller = new HealthController(buildPrisma() as never, integrationModules as never)
+    const controller = new HealthController(buildPrisma() as never, integrationModules as never, antenorApiPing as never)
     const antenorSpy = jest.spyOn(controller as any, 'checkAntenorApi').mockResolvedValue({ status: 'ok' })
     const solidcomSpy = jest.spyOn(controller as any, 'checkSolidcomLegacy')
 
@@ -68,6 +71,16 @@ describe('HealthController — provedor de ERP ativo (JON-110)', () => {
 
     expect(antenorSpy).toHaveBeenCalled()
     expect(solidcomSpy).not.toHaveBeenCalled()
+    expect(result.status).toBe('ok')
+  })
+})
+
+describe('HealthController — AntenorApi pelo cliente com certificado (01/10/2026)', () => {
+  it('usa o ping da AntenorApi (axios puro recusava o certificado proprio e marcava down)', async () => {
+    const ping = { ping: jest.fn().mockResolvedValue({ status: 'ok', latencyMs: 12, detail: null }) }
+    const controller = new HealthController({} as never, { isEnabled: jest.fn((k: string) => Promise.resolve(k === 'antenorapi')) } as never, ping as never)
+    const result = await (controller as any).checkSolidcom()
+    expect(ping.ping).toHaveBeenCalled()
     expect(result.status).toBe('ok')
   })
 })

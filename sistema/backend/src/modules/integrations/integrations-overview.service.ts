@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import axios from 'axios'
 import { PrismaService } from '../../common/prisma.service'
 import { IntegrationModulesService } from './integration-modules.service'
 import { IntegrationsService } from './integrations.service'
+import { AntenorApiService } from './antenor-api.service'
 import { MAX_AUTO_SYNC_FAILURES } from './order-sync-retry.scheduler'
 
 const parse = (raw: string | null) => {
@@ -25,6 +25,7 @@ export class IntegrationsOverviewService {
     private readonly prisma: PrismaService,
     private readonly modules: IntegrationModulesService,
     private readonly integrations: IntegrationsService,
+    private readonly antenorApi: AntenorApiService,
   ) {}
 
   async overview(days = 30) {
@@ -123,18 +124,7 @@ export class IntegrationsOverviewService {
     }
   }
 
-  /** Mesma checagem do /health/detail: GET <ANTENOR_API_URL>/health com 5 s. */
-  private async erpHealth() {
-    const url = process.env.ANTENOR_API_URL
-    if (!url) return { status: 'down' as const, latencyMs: null, detail: 'ANTENOR_API_URL nao configurada' }
-    const start = Date.now()
-    try {
-      await axios.get(`${url}/health`, { timeout: 5000 })
-      return { status: 'ok' as const, latencyMs: Date.now() - start, detail: null }
-    } catch (err) {
-      const latencyMs = Date.now() - start
-      if (axios.isAxiosError(err) && err.response) return { status: 'degraded' as const, latencyMs, detail: `HTTP ${err.response.status}` }
-      return { status: 'down' as const, latencyMs, detail: 'sem resposta' }
-    }
+  private erpHealth() {
+    return this.antenorApi.ping()
   }
 }
