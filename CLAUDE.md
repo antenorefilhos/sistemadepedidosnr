@@ -424,6 +424,20 @@ pra este arquivo nem pro repo — desde 18/09/2026 vive em
 `CLOUDFLARE_TUNNEL_TOKEN`, que é outra credencial, do túnel). **Cheque lá
 antes de pedir de novo ao Jonathan** — já foi passado mais de uma vez.
 
+### Regra de cache das fotos de produto (01/10/2026)
+
+A zona tem **Browser Cache TTL = 4 h** (mínimo que o Cloudflare impõe ao
+navegador por cima do `Cache-Control` da origem). Com isso, e com a origem
+mandando 7 dias, quem já tinha visto uma foto continuava com a antiga depois da
+troca no admin ("a foto volta"). Corrigido sem mexer na zona inteira: Cache
+Rule `Fotos de produto` (ruleset `07d0b6fb3769413e93a159fbfa57690e`, fase
+`http_request_cache_settings`) só para `mercado` + `/uploads/products/` e
+`/thumbs/products/`, com `browser_ttl` e `edge_ttl` em `respect_origin`. A
+origem manda `max-age=300` (navegador reconfere a cada 5 min, 304 com ETag) e
+`s-maxage` longo para a borda, que o upload purga (`uploads.controller.ts`).
+O header nasce na API (`app.module.ts`, `ServeStaticModule.setHeaders`), não no
+nginx; os dois juntos mandavam dois `Cache-Control`. URLs das fotos em `?v=3`.
+
 ### Otimizações aplicadas na zona Cloudflare (17-18/09/2026)
 
 Auditoria completa via API (`GET /zones/:id/settings/*`) pedida pelo
