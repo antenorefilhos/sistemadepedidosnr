@@ -689,6 +689,14 @@ model Order {
   deliveryInstructions String?
   deviceId  String?
   clientIp  String?
+  // Antifraude (01/10/2026): nota de risco calculada na criacao, com motivos legiveis.
+  riskScore          Int?
+  riskLevel          String?   // LOW | MEDIUM | HIGH
+  riskReasons        Json?
+  riskReviewedAt     DateTime?
+  riskReviewedBy     String?
+  deviceFingerprint  String?
+  clientCountry      String?
   /// ATENCAO: guarda o id de uma DeliveryZone, nao de "area". O model
   /// DeliveryArea foi removido em 28/08/2026 (nunca teve tela, zero linhas);
   /// esta coluna continua porque o checkout grava `quote.delivery.zoneId` aqui
@@ -2046,6 +2054,39 @@ model FraudLog {
   @@index([vector, value])
   @@index([createdAt])
   @@map("fraud_logs")
+}
+
+/// Sinal de identidade visto para um cliente (01/10/2026): o grafo que liga
+/// contas da mesma pessoa. Gravado no cadastro, login e pedido.
+model IdentitySignal {
+  id         String   @id @default(cuid())
+  tenantId   String   @default("tenant_default")
+  customerId String
+  kind       String   // DEVICE | FINGERPRINT | DEVICE_KEY | IP | ADDRESS | EMAIL
+  value      String
+  firstSeen  DateTime @default(now())
+  lastSeen   DateTime @default(now())
+  hits       Int      @default(1)
+
+  @@unique([tenantId, customerId, kind, value])
+  @@index([tenantId, kind, value])
+  @@map("identity_signals")
+}
+
+/// Identificador bloqueado (01/10/2026): bloquear um cliente bloqueia o CPF,
+/// o WhatsApp, o e-mail e os aparelhos dele -- conta nova nao passa.
+model FraudBlock {
+  id         String   @id @default(cuid())
+  tenantId   String   @default("tenant_default")
+  kind       String   // CPF | WHATSAPP | EMAIL | DEVICE | DEVICE_KEY
+  value      String
+  reason     String?
+  customerId String?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+
+  @@unique([tenantId, kind, value])
+  @@map("fraud_blocks")
 }
 
 // Delivery Zones

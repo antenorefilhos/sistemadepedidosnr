@@ -1,3 +1,5 @@
+import { getDeviceId } from '../utils/device'
+import { getFingerprint, isAutomated } from '../utils/fingerprint'
 import axios from 'axios'
 import type { Order } from '../types'
 
@@ -181,6 +183,15 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  // Antifraude (01/10/2026): aparelho, impressao digital e sinal de robo nas
+  // escritas (cadastro, login, carrinho, fechamento). Nas leituras (GET) nao:
+  // cabecalho proprio faria o navegador consultar o CORS antes de cada listagem.
+  if (config.method && !['get', 'head'].includes(config.method.toLowerCase())) {
+    config.headers['X-Device-Id'] = getDeviceId()
+    const fp = getFingerprint()
+    if (fp) config.headers['X-Device-Fp'] = fp
+    if (isAutomated()) config.headers['X-Device-Bot'] = '1'
   }
   return config
 })

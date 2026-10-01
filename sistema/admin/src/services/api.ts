@@ -756,6 +756,11 @@ export interface AdminOrder {
   paymentMethod?: string
   notes?: string | null
   cancellationReason?: string | null
+  /** Antifraude (01/10/2026). */
+  riskScore?: number | null
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | null
+  riskReasons?: string[] | null
+  riskReviewedAt?: string | null
   channel?: string
   fulfillmentType?: string
   addressSnapshot?: {
@@ -1624,18 +1629,36 @@ export interface SubstitutionEvent {
   }
 }
 
-export interface FraudLog {
-  id: string
-  vector: 'WHATSAPP' | 'DEVICE' | 'IP'
-  value: string
-  orderId: string | null
-  customerId: string | null
-  createdAt: string
+/** Tela Antifraude (01/10/2026). */
+export interface FraudOverview {
+  days: number
+  summary: { assessed: number; high: number; medium: number; pendingReview: number; denied: number; linkedAccounts: number; blocked: number }
+  riskOrders: Array<{
+    id: string
+    erpDav: string | null
+    total: number
+    status: string
+    createdAt: string
+    riskScore: number | null
+    riskLevel: 'HIGH' | 'MEDIUM' | 'LOW' | null
+    riskReasons: string[] | null
+    riskReviewedAt: string | null
+    customer: { id: string; name: string; blocked: boolean } | null
+  }>
+  clusters: Array<{
+    via: string[]
+    coupons: number
+    accounts: Array<{ customerId: string; name: string; cpf: string; whatsapp: string; blocked: boolean; createdAt: string | null; orders: number; coupons: number }>
+  }>
+  events: Array<{ id: string; kind: string; label: string; customerId: string | null; customer: string | null; orderId: string | null; at: string }>
+  blocked: Array<{ customerId: string; name: string; reason: string | null; at: string; identifiers: number }>
 }
 
 export const fraudAPI = {
-  listLogs: (params?: { limit?: number; vector?: string }) =>
-    api.get<FraudLog[]>('/orders/admin/fraud-logs', { params }),
+  overview: (days = 30) => api.get<FraudOverview>('/admin/fraud', { params: { days } }),
+  review: (orderId: string) => api.post(`/admin/fraud/orders/${orderId}/review`),
+  block: (customerId: string, reason?: string) => api.post(`/admin/fraud/customers/${customerId}/block`, { reason }),
+  unblock: (customerId: string) => api.delete(`/admin/fraud/customers/${customerId}/block`),
 }
 
 export interface AdminNotification {

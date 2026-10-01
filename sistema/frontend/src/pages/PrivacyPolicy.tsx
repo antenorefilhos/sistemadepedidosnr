@@ -86,6 +86,13 @@ export default function PrivacyPolicy() {
           como especificações, configurações, versões de sistema operacional, tipo de conexão à internet e
           afins.
         </p>
+        <p className="mt-3">
+          Para proteger sua conta e evitar fraudes (como o uso indevido de benefícios de primeira compra), registramos
+          um identificador do aparelho, uma assinatura técnica do navegador (gerada a partir de características como
+          tela, sistema e navegador, sem acesso a fotos, contatos ou arquivos) e o endereço IP de acesso. Esses dados
+          são usados só para segurança e prevenção de fraudes, com base no legítimo interesse e na prevenção à fraude
+          (LGPD, art. 7º, IX, e art. 11, II, g).
+        </p>
 
         <h2 id="finalidades" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">3. Finalidades do tratamento</h2>
         <p>Os dados poderão ser utilizados para:</p>

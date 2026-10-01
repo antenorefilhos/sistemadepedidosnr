@@ -13,23 +13,44 @@ export const isMobileDevice = (): boolean => {
   return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
 }
 
-const DEVICE_ID_KEY = 'antenor_device_id';
+const DEVICE_ID_KEY = 'antenor_device_id'
+const DEVICE_COOKIE = 'aef_did'
 
-export const getDeviceId = (): string => {
-  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-
-  if (!deviceId) {
-    // Check if crypto.randomUUID is available
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      deviceId = crypto.randomUUID();
-    } else {
-      // Fallback manual generator
-      const screenInfo = `${window.screen.width}x${window.screen.height}`;
-      const randomPart = Math.random().toString(36).substring(2, 10);
-      deviceId = `dev_${screenInfo}_${Date.now()}_${randomPart}`;
-    }
-    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+const readCookie = (name: string) => {
+  try {
+    return document.cookie.split('; ').find((c) => c.startsWith(`${name}=`))?.slice(name.length + 1) || null
+  } catch {
+    return null
   }
+}
 
-  return deviceId;
-};
+/**
+ * Identificador do aparelho (antifraude, 01/10/2026). Fica no localStorage e
+ * num cookie de espelho: limpar so um dos dois nao gera aparelho "novo". Quem
+ * limpa tudo continua reconhecivel pela impressao digital + rede, no servidor.
+ */
+export const getDeviceId = (): string => {
+  let deviceId: string | null = null
+  try {
+    deviceId = localStorage.getItem(DEVICE_ID_KEY)
+  } catch {
+    /* modo privado sem storage */
+  }
+  deviceId = deviceId || readCookie(DEVICE_COOKIE)
+  if (!deviceId || !/^[\w.:-]{8,80}$/.test(deviceId)) {
+    deviceId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`
+  }
+  try {
+    localStorage.setItem(DEVICE_ID_KEY, deviceId)
+  } catch {
+    /* idem */
+  }
+  try {
+    document.cookie = `${DEVICE_COOKIE}=${deviceId}; Max-Age=34560000; Path=/; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`
+  } catch {
+    /* idem */
+  }
+  return deviceId
+}

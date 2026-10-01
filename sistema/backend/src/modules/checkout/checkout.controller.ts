@@ -1,3 +1,4 @@
+import { deviceContextFrom } from '../fraud/fraud.util'
 import { Body, Controller, Param, Post, Req, UseGuards } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
@@ -50,9 +51,15 @@ export class CheckoutSessionsController {
     // entradas mais a esquerda que o cliente pode forjar; usar o header direto
     // deixava qualquer chamador escolher o IP que alimenta o antifraude.
     const clientIp = req?.ip || undefined
+    // Antifraude (01/10/2026): aparelho, impressao digital, robo e pais do IP.
+    const device = deviceContextFrom(req as never, dto.deviceId)
     return this.checkoutService.confirmSession(req ? getTenantContext(req) : undefined, id, {
       ...withVerifiedCustomerId(dto, req),
       clientIp,
+      deviceId: device.deviceId || dto.deviceId,
+      deviceFingerprint: device.fingerprint || undefined,
+      deviceAutomation: device.automation,
+      clientCountry: device.country || undefined,
     })
   }
 

@@ -1,4 +1,7 @@
-import { Injectable, BadRequestException, UnauthorizedException, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common'
+import { isValidCpf } from '../../common/cpf'
+import { FraudService } from '../fraud/fraud.service'
+import type { DeviceContext } from '../fraud/fraud.util'
+import { Injectable, Optional, BadRequestException, UnauthorizedException, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { createHash, randomBytes } from 'crypto'
 import { PrismaService } from '../../common/prisma.service'
@@ -47,7 +50,25 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private emailService: EmailService,
+    @Optional() private fraud?: FraudService,
   ) {}
+
+  /**
+   * Antifraude no cadastro/login (01/10/2026): identificador bloqueado (CPF,
+   * WhatsApp, e-mail, aparelho) nao entra nem com conta nova. Mensagem
+   * generica de proposito: nao conta a quem tenta qual dado esta bloqueado.
+   */
+  private async assertIdentityAllowed(ids: { cpf?: string | null; whatsapp?: string | null; email?: string | null }, ctx?: DeviceContext, customerId?: string) {
+    const reason = await this.fraud?.blockedReason(DEFAULT_TENANT_ID, ids, ctx)
+    if (!reason) return
+    await this.prisma.fraudLog.create({ data: { tenantId: DEFAULT_TENANT_ID, vector: 'BLOCKED', value: 'cadastro/login', customerId: customerId || null } }).catch(() => null)
+    throw new ForbiddenException({ statusCode: 403, message: 'Não foi possível continuar. Fale com a loja pelo WhatsApp.', error: 'Conta suspensa' })
+  }
+
+  /** Registra aparelho, rede e e-mail no grafo de identidade (nunca derruba o login). */
+  private rememberIdentity(customer: { id: string; email: string | null }, ctx?: DeviceContext) {
+    if (ctx) this.fraud?.recordSignals(DEFAULT_TENANT_ID, customer.id, ctx, customer.email).catch(() => null)
+  }
 
   /**
    * Sempre responde generico (nunca revela se o e-mail existe) pra nao virar
@@ -221,7 +242,7 @@ export class AuthService {
     return { access_token, admin: { id: admin.id, email: admin.email, name: admin.name, role, moduleAccess, tenantId, storeId } }
   }
 
-  async customerLogin(loginDto: CustomerLoginDto) {
+  async customerLogin(loginDto: CustomerLoginDto, ctx?: DeviceContext) {
     const identifier = (loginDto.identifier ?? loginDto.email ?? '').trim()
     const customer = await this.findCustomerByLoginIdentifier(identifier)
 
@@ -241,6 +262,8 @@ export class AuthService {
       })
     }
 
+    await this.assertIdentityAllowed(customer, ctx, customer.id)
+    this.rememberIdentity(customer, ctx)
     return this.buildCustomerTokenResponse(customer)
   }
 
@@ -410,18 +433,24 @@ export class AuthService {
     })
   }
 
-  async customerRegister(dto: CreateCustomerRegisterDto) {
+  async customerRegister(dto: CreateCustomerRegisterDto, ctx?: DeviceContext) {
+    const cpf = String(dto.cpf || '').replace(/\D/g, '')
+    if (!isValidCpf(cpf)) {
+      throw new BadRequestException({ statusCode: 400, message: 'CPF inválido. Confira os números.', error: 'Dados invalidos' })
+    }
+    dto = { ...dto, cpf }
     const existing = await this.prisma.customer.findFirst({
-      where: { OR: [{ email: dto.email }, { cpf: dto.cpf }] },
+      where: { OR: [{ email: dto.email }, { cpf }, { whatsapp: dto.whatsapp }] },
     })
     if (existing) {
       throw new ConflictException({
         statusCode: 409,
-        message: 'Email ou CPF ja cadastrado',
+        message: 'Email, CPF ou WhatsApp ja cadastrado',
         error: 'Conflito',
       })
     }
 
+    await this.assertIdentityAllowed({ cpf, whatsapp: dto.whatsapp, email: dto.email }, ctx)
     const hashedPassword = await bcrypt.hash(dto.password, 10)
     const customer = await this.prisma.customer.create({
       data: {
@@ -433,6 +462,7 @@ export class AuthService {
         ...(dto.origin && { origin: dto.origin }),
       },
     })
+    this.rememberIdentity(customer, ctx)
 
     const tenantId = customer.tenantId || DEFAULT_TENANT_ID
     const storeId = DEFAULT_STORE_ID
@@ -468,7 +498,7 @@ export class AuthService {
     return { access_token, user: { id: customer.id, email: customer.email, name: customer.name, cpf: customer.cpf, whatsapp: customer.whatsapp, role: 'customer', tenantId, storeId } }
   }
 
-  async guestCheckout(dto: CreateGuestCheckoutDto) {
+  async guestCheckout(dto: CreateGuestCheckoutDto, ctx?: DeviceContext) {
     const allowGuestCheckout = (process.env.ALLOW_GUEST_CHECKOUT || 'true').toLowerCase() !== 'false'
     if (!allowGuestCheckout) {
       throw new UnauthorizedException({
@@ -495,14 +525,15 @@ export class AuthService {
     // antifraude de frete gratis e a deduplicacao de cliente por CPF
     // (linha OR abaixo) nunca tinham um identificador de verdade pra
     // cruzar contra outro pedido.
-    if (cpfInput.length !== 11) {
+    if (!isValidCpf(cpfInput)) {
       throw new BadRequestException({
         statusCode: 400,
-        message: 'Informe um CPF válido para finalizar o pedido',
+        message: 'CPF inválido. Confira os números para finalizar o pedido.',
         error: 'Dados invalidos',
       })
     }
     const cpf = cpfInput
+    await this.assertIdentityAllowed({ cpf, whatsapp, email: emailInput || null }, ctx)
 
     const existing = await this.prisma.customer.findFirst({
       where: {
@@ -536,9 +567,31 @@ export class AuthService {
         existing.whatsapp !== whatsapp &&
         whatsapp.length > existing.whatsapp.length &&
         whatsapp.endsWith(existing.whatsapp)
+      // 01/10/2026: reconhecia por QUALQUER um dos dados -- so o CPF (ou o
+      // e-mail) de outra pessoa que comprou sem senha ja devolvia o token dela,
+      // com enderecos e pedidos. Agora o cliente que volta precisa repetir CPF
+      // E WhatsApp do cadastro; um so batendo e outra pessoa (ou dado errado).
+      // Cadastro antigo com CPF invalido (digitado errado antes da validacao):
+      // mesmo WhatsApp e CPF novo valido e livre -> corrige em vez de barrar.
+      if (existing.whatsapp === whatsapp && existing.cpf !== cpf && !isValidCpf(existing.cpf)) {
+        const owner = await this.prisma.customer.findFirst({ where: { cpf, id: { not: existing.id } }, select: { id: true } })
+        if (!owner) {
+          const fixed = await this.prisma.customer.update({ where: { id: existing.id }, data: { cpf } })
+          this.rememberIdentity(fixed, ctx)
+          return this.buildCustomerTokenResponse(fixed)
+        }
+      }
+      if (existing.cpf !== cpf || (existing.whatsapp !== whatsapp && !isDddFix)) {
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Esse CPF ou WhatsApp já está em outro cadastro. Use o mesmo CPF e WhatsApp da sua primeira compra, ou fale com a loja.',
+          error: 'Dados de outro cadastro',
+        })
+      }
       const updated = isDddFix
         ? await this.prisma.customer.update({ where: { id: existing.id }, data: { whatsapp } })
         : existing
+      this.rememberIdentity(updated, ctx)
       return this.buildCustomerTokenResponse(updated)
     }
 
@@ -552,6 +605,7 @@ export class AuthService {
       },
     })
 
+    this.rememberIdentity(customer, ctx)
     return this.buildCustomerTokenResponse(customer)
   }
 

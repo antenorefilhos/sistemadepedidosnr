@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { FraudService } from '../fraud/fraud.service'
+import { Optional, BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
@@ -187,6 +188,7 @@ export class PricingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly promotionEngine: PromotionEngineService,
+    @Optional() private readonly fraud?: FraudService,
   ) {}
 
   async quote(request: QuoteRequest) {
@@ -804,17 +806,30 @@ export class PricingService {
       const globalUses = await this.prisma.promotionUsage.count({ where: { couponId: coupon.id } })
       if (globalUses >= coupon.maxUses) throw new BadRequestException('Esse cupom já esgotou. Todas as vagas já foram usadas.')
     }
+    const tenantId = (coupon as { tenantId?: string | null }).tenantId || DEFAULT_TENANT_ID
+    // Limite por cliente conta a PESSOA (01/10/2026): contas ligadas pelo mesmo
+    // aparelho ou e-mail somam os usos (ver FraudService.linkedCustomers).
     if (coupon.maxUsesPerCustomer != null && customerId) {
-      const customerUses = await this.prisma.promotionUsage.count({ where: { couponId: coupon.id, customerId } })
-      if (customerUses >= coupon.maxUsesPerCustomer) throw new BadRequestException('Você já usou esse cupom o máximo de vezes permitido.')
+      const linked = this.fraud ? (await this.fraud.linkedCustomers(tenantId, customerId)).map((l) => l.customerId) : []
+      const customerUses = await this.prisma.promotionUsage.count({ where: { couponId: coupon.id, customerId: { in: [customerId, ...linked] } } })
+      if (customerUses >= coupon.maxUsesPerCustomer) {
+        if (linked.length) await this.fraud?.logEvent(tenantId, 'COUPON', coupon.code, customerId)
+        throw new BadRequestException('Você já usou esse cupom o máximo de vezes permitido.')
+      }
     }
-    // "So na primeira compra" (29/09/2026): o BEMVINDO10 dizia isso no nome e
-    // nada conferia. Sem cliente identificado (carrinho antes do login) nao da
+    // "So na primeira compra" (29/09/2026), agora por PESSOA (01/10/2026):
+    // conta nova no mesmo aparelho, e-mail ou endereco de quem ja comprou nao
+    // ganha de novo. Sem cliente identificado (carrinho antes do login) nao da
     // para saber; o fechamento do pedido sempre tem o cliente e barra ali.
     const condition = (coupon.promotion.rules[0]?.condition || {}) as Record<string, unknown>
     if (condition.firstOrderOnly === true && customerId) {
-      const previous = await this.prisma.order.count({ where: { customerId, status: { notIn: ['CANCELLED', 'REFUNDED'] } } })
-      if (previous > 0) throw new BadRequestException('Esse cupom é só para a primeira compra.')
+      const check = this.fraud
+        ? await this.fraud.firstPurchase(tenantId, customerId)
+        : { eligible: !(await this.prisma.order.count({ where: { customerId, status: { notIn: ['CANCELLED', 'REFUNDED'] } } })), reason: 'Esse cupom é só para a primeira compra.' }
+      if (!check.eligible) {
+        await this.fraud?.logEvent(tenantId, 'FIRST_PURCHASE', coupon.code, customerId)
+        throw new BadRequestException(check.reason || 'Esse cupom é só para a primeira compra.')
+      }
     }
   }
 

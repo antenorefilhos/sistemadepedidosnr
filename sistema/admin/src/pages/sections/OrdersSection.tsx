@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AlertCircle, Check, ChevronRight, Copy, ExternalLink, MessageCircle, Printer, RefreshCw, Search } from 'lucide-react'
 import { escapeHtml } from '@/lib/utils'
 import { WorkspaceDialog } from '../../components/WorkspaceDialog'
-import { getApiErrorMessage, ordersAPI, type AdminOrder, type AdminOrderSummary } from '../../services/api'
+import { fraudAPI, getApiErrorMessage, ordersAPI, type AdminOrder, type AdminOrderSummary } from '../../services/api'
 
 // Pedidos (refeito em 29/09/2026 com o Jonathan). Sobrio: lista por abas,
 // detalhe com o que a loja usa (DAV, agendamento, preferencia de troca) e
@@ -500,6 +500,21 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
 
           {order && (
             <>
+              {(order.riskLevel === 'HIGH' || order.riskLevel === 'MEDIUM') && !order.riskReviewedAt && !CANCELLED.includes(order.status) && (
+                <div role="alert" className={`flex flex-col gap-2 rounded-xl border p-3 text-sm sm:flex-row sm:items-center ${order.riskLevel === 'HIGH' ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                  <span className="min-w-0 flex-1">
+                    <strong>{order.riskLevel === 'HIGH' ? 'Risco alto: ligue para o cliente antes de separar.' : 'Pedido com sinal de atenção.'}</strong>
+                    {order.riskReasons?.length ? <span className="block text-xs">{order.riskReasons.join(' · ')}</span> : null}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => fraudAPI.review(order.id).then(reload).catch(() => null)}
+                    className="shrink-0 rounded-xl bg-white px-3 py-1.5 text-xs text-gray-900 ring-1 ring-black/10"
+                  >
+                    Conferido
+                  </button>
+                </div>
+              )}
               {order.cancellationReason && CANCELLED.includes(order.status) && (
                 <p className="rounded-xl border border-black/[0.06] bg-white p-3 text-sm text-gray-700"><span className="text-gray-500">Motivo do cancelamento:</span> {order.cancellationReason}</p>
               )}

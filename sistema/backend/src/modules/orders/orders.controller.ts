@@ -364,22 +364,6 @@ export class OrdersController {
   async remove(@Param('id') id: string) {
     return this.ordersService.remove(id)
   }
-
-  @RelaxedThrottle()
-  @Get('admin/fraud-logs')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Listar logs de tentativas de fraude em frete grátis' })
-  async listFraudLogs(
-    @Query('limit') limit?: string,
-    @Query('vector') vector?: string,
-  ) {
-    return this.ordersService.listFraudLogs({
-      limit: limit ? parseInt(limit, 10) : 100,
-      vector,
-    })
-  }
 }
 
 @ApiTags('Admin Orders')

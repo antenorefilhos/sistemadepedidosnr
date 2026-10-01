@@ -154,7 +154,7 @@ export class CheckoutService {
     }
   }
 
-  async confirmSession(context: CheckoutContext | undefined, id: string, dto: ConfirmCheckoutSessionDto & { clientIp?: string }) {
+  async confirmSession(context: CheckoutContext | undefined, id: string, dto: ConfirmCheckoutSessionDto & { clientIp?: string; deviceFingerprint?: string; deviceAutomation?: boolean; clientCountry?: string }) {
     const { tenantId, storeId } = this.resolveContext(context)
     const session = await this.findSessionOrThrow(id, { tenantId, storeId })
 
@@ -242,6 +242,9 @@ export class CheckoutService {
         deliveryAreaId: quote.delivery.zoneId || undefined,
         deliverySnapshot: quote.delivery,
         clientIp: dto.clientIp,
+        deviceFingerprint: dto.deviceFingerprint,
+        deviceAutomation: dto.deviceAutomation,
+        clientCountry: dto.clientCountry,
         tenantId,
         storeId,
       })

@@ -67,6 +67,18 @@ export class CreateOrderDto {
   @IsString()
   clientIp?: string
 
+  /** Antifraude (01/10/2026): impressao digital do navegador, sinal de robo e pais do IP. */
+  @IsOptional()
+  @IsString()
+  deviceFingerprint?: string
+
+  @IsOptional()
+  deviceAutomation?: boolean
+
+  @IsOptional()
+  @IsString()
+  clientCountry?: string
+
   @IsOptional()
   @IsString()
   tenantId?: string

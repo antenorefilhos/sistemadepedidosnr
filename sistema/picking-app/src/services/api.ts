@@ -59,6 +59,10 @@ export interface Order {
   /** DAV do Solidcom -- e o numero que se digita no PDV pra puxar o pedido. */
   erpDav?: string | null
   customer?: { id: string; name: string; cpf: string; whatsapp: string }
+  /** Antifraude (01/10/2026): HIGH ainda nao conferido = ligar antes de separar. */
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | null
+  riskReasons?: string[] | null
+  riskReviewedAt?: string | null
   items: OrderItem[]
   pickingTask?: PickingTask | null
 }

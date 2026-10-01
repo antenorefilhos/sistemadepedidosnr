@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { FraudService } from '../fraud/fraud.service'
+import { isPrivateIp } from '../../common/real-client-ip'
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common'
 import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
 import { createHash, randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
@@ -73,6 +75,7 @@ export class OrdersService {
     private publicApiService: PublicApiService,
     private brandService: BrandService,
     private antenorApi: AntenorApiService,
+    @Optional() private fraud?: FraudService,
   ) {}
 
   // JON-184: mesma logica de CheckoutService.resolveClubMembership -- precisa
@@ -331,6 +334,9 @@ export class OrdersService {
       deliveryAreaId,
       deliverySnapshot,
       expectedTotal,
+      deviceFingerprint,
+      deviceAutomation,
+      clientCountry,
     } = createOrderDto
     const tenantId = rawTenantId || DEFAULT_TENANT_ID
     const storeId = rawStoreId || DEFAULT_STORE_ID
@@ -371,27 +377,6 @@ export class OrdersService {
     }
 
 
-    // ── Anti-fraude: velocidade de pedidos (so log, nao bloqueia) ──────
-    // Muitos pedidos em pouco tempo do mesmo cliente ou IP e sinal de bot/teste
-    // de cartao -- fica visivel na Auditoria de Anti-fraude pro admin decidir.
-    {
-      const since = new Date(Date.now() - 10 * 60 * 1000)
-      const recentByCustomer = await this.prisma.order.count({
-        where: { tenantId, storeId, customerId, createdAt: { gte: since }, status: { not: 'CANCELLED' } },
-      })
-      if (recentByCustomer >= 3) {
-        await this.prisma.fraudLog.create({ data: { tenantId, storeId, vector: 'VELOCITY', value: `customer:${customerId}`, customerId } }).catch(() => null)
-      } else if (clientIp) {
-        const recentByIp = await this.prisma.order.count({
-          where: { tenantId, storeId, clientIp, createdAt: { gte: since }, status: { not: 'CANCELLED' } },
-        })
-        if (recentByIp >= 5) {
-          await this.prisma.fraudLog.create({ data: { tenantId, storeId, vector: 'VELOCITY', value: `ip:${clientIp}`, customerId } }).catch(() => null)
-        }
-      }
-    }
-    // ─────────────────────────────────────────────────────────────────
-
     const deliveryAmount = typeof delivery === 'number' ? delivery : 0
     if (!Number.isFinite(deliveryAmount) || deliveryAmount < 0) {
       await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
@@ -428,36 +413,6 @@ export class OrdersService {
       throw error
     }
 
-    // ── Anti-fraude: cupom reaproveitado em outra conta ─────────────────
-    // maxUsesPerCustomer ja e checado por customerId no PricingService; aqui
-    // fecha a brecha de burlar isso criando uma conta nova com o mesmo
-    // WhatsApp/aparelho que ja resgatou o mesmo cupom antes.
-    const usedCouponId = quote.appliedPromotions?.find((p: { couponId?: string }) => p.couponId)?.couponId
-    if (usedCouponId) {
-      const priorUsages = await this.prisma.promotionUsage.findMany({
-        where: { tenantId, couponId: usedCouponId, customerId: { not: customerId }, orderId: { not: null } },
-        select: { orderId: true },
-      })
-      if (priorUsages.length) {
-        const customerForCoupon = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId } })
-        const reusedOrder = await this.prisma.order.findFirst({
-          where: {
-            id: { in: priorUsages.map(u => u.orderId as string) },
-            OR: [
-              ...(deviceId ? [{ deviceId }] : []),
-              ...(customerForCoupon ? [{ customer: { whatsapp: customerForCoupon.whatsapp } }] : []),
-            ],
-          },
-        })
-        if (reusedOrder) {
-          await this.prisma.fraudLog.create({ data: { tenantId, storeId, vector: 'COUPON', value: usedCouponId, customerId } }).catch(() => null)
-          await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-          throw new BadRequestException('Este cupom ja foi utilizado nesta conta ou dispositivo.')
-        }
-      }
-    }
-    // ─────────────────────────────────────────────────────────────────
-
     const subtotal = quote.subtotal
     const discountAmount = quote.discountAmount
     const quotedDeliveryAmount = quote.deliveryAmount
@@ -491,74 +446,41 @@ export class OrdersService {
 
     if (!freeShippingEarned) {
       if (fulfillmentType === 'DELIVERY' && (delivery === 0 || delivery == null)) {
-        const customer = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId } })
-        if (customer) {
-          const log = (vector: string, value: string) =>
-            this.prisma.fraudLog.create({ data: { tenantId, storeId, vector, value, customerId } }).catch(() => null)
-
-          // Verificação por WhatsApp
-          const prevByWhatsapp = await this.prisma.order.findFirst({
-            where: { tenantId, storeId, customer: { whatsapp: customer.whatsapp }, status: { not: 'CANCELLED' } },
-          })
-          if (prevByWhatsapp) {
-            await log('WHATSAPP', customer.whatsapp)
-            await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-            throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
-          }
-
-          // Verificação por DeviceID
-          if (deviceId) {
-            const prevByDevice = await this.prisma.order.findFirst({
-              where: { tenantId, storeId, deviceId, status: { not: 'CANCELLED' } },
-            })
-            if (prevByDevice) {
-              await log('DEVICE', deviceId)
-              await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-              throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
-            }
-          }
-
-          // Verificação por IP (janela de 24h)
-          if (clientIp) {
-            const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
-            const prevByIp = await this.prisma.order.findFirst({
-              where: {
-                clientIp,
-                tenantId,
-                storeId,
-                delivery: 0,
-                status: { not: 'CANCELLED' },
-                createdAt: { gte: since },
-              },
-            })
-            if (prevByIp) {
-              await log('IP', clientIp)
-              await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-              throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
-            }
-          }
-
-          // Verificação por endereço (mesmo endereco usado por outra conta que ja pediu antes --
-          // nao bloqueia o pedido, so tira o frete gratis, entao familia/inquilino real so paga entrega)
-          if (address) {
-            const sameAddressCustomers = await this.prisma.address.findMany({
-              where: { tenantId, street: address.street, number: address.number, zipCode: address.zipCode, customerId: { not: customerId } },
-              select: { customerId: true },
-            })
-            if (sameAddressCustomers.length) {
-              const prevByAddress = await this.prisma.order.findFirst({
-                where: { tenantId, storeId, customerId: { in: sameAddressCustomers.map(a => a.customerId) }, status: { not: 'CANCELLED' } },
-              })
-              if (prevByAddress) {
-                await log('ADDRESS', `${address.street}, ${address.number}`)
-                await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
-                throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
-              }
-            }
-          }
+        // Primeira compra por PESSOA (01/10/2026): mesmo aparelho, e-mail ou
+        // endereco de quem ja comprou nao ganha de novo (FraudService.firstPurchase).
+        const check = this.fraud
+          ? await this.fraud.firstPurchase(tenantId, customerId, deliveryAddressId || address?.id || null)
+          : { eligible: true }
+        if (!check.eligible) {
+          await this.fraud?.logEvent(tenantId, 'FIRST_PURCHASE', 'frete gratis', customerId)
+          await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+          throw new BadRequestException('Frete grátis disponível apenas no primeiro pedido.')
         }
       }
     }
+
+    // ── Antifraude (01/10/2026) ──────────────────────────────────────
+    // Identificador bloqueado (CPF, WhatsApp, e-mail, aparelho) nao fecha
+    // pedido nem com conta nova; os demais ganham nota de risco com motivos --
+    // HIGH vira "ligar antes de separar" na separacao e no admin.
+    const fraudCtx = {
+      deviceId: deviceId || null,
+      fingerprint: deviceFingerprint || null,
+      automation: Boolean(deviceAutomation),
+      ip: clientIp && !isPrivateIp(clientIp) ? clientIp : null,
+      country: clientCountry || null,
+    }
+    if (this.fraud) {
+      const blockedReason = await this.fraud.blockedReason(tenantId, customer, fraudCtx)
+      if (blockedReason) {
+        await this.fraud.logEvent(tenantId, 'BLOCKED', 'pedido', customerId)
+        await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+        throw new ForbiddenException('Não foi possível concluir o pedido. Fale com a loja pelo WhatsApp.')
+      }
+    }
+    const risk = this.fraud
+      ? await this.fraud.assessOrder({ tenantId, customerId, ctx: fraudCtx, total: quote.total }).catch(() => null)
+      : null
 
     // Pedido sem pagamento online a esperar ja nasce CONFIRMED, pronto pra
     // separacao.
@@ -640,6 +562,9 @@ export class OrdersService {
         notes: finalNotes || null,
         deviceId,
         clientIp,
+        deviceFingerprint: deviceFingerprint || null,
+        clientCountry: clientCountry || null,
+        ...(risk ? { riskScore: risk.score, riskLevel: risk.level, riskReasons: risk.reasons } : {}),
         customerSnapshot: this.buildCustomerSnapshot(customer),
         addressSnapshot: address ? this.buildAddressSnapshot(address) : Prisma.JsonNull,
         // 25/09/2026: motivo do frete gratis vai no snapshot pro PDV mostrar
@@ -711,6 +636,8 @@ export class OrdersService {
     } catch (err) {
       this.logger.error(`Falha ao registrar uso de promocao do pedido ${order.id}: ${err instanceof Error ? err.message : err}`)
     }
+
+    this.fraud?.recordSignals(tenantId, customerId, fraudCtx, customer.email).catch(() => null)
 
     await this.orderOrchestrationService.syncCreatedOrder(
       this.toOrderOrchestrationPayload(order, orchestrationItems, address),
@@ -1580,14 +1507,6 @@ export class OrdersService {
       }),
     }
   }
-  async listFraudLogs({ limit = 100, vector }: { limit?: number; vector?: string }) {
-    return this.prisma.fraudLog.findMany({
-      where: vector ? { vector } : undefined,
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(limit, 500),
-    })
-  }
-
   async listSubstitutionEvents(context: Partial<OrderTenantContext> | undefined, filters: { from?: string; to?: string; limit?: number } = {}) {
     const scoped = tenantStoreWhere(context)
     const { from, to } = resolveDateRange(filters, 30)

@@ -216,6 +216,9 @@ function OrderCard({ order, onTap }: { order: Order; onTap: () => void }) {
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-gray-900 truncate">{order.customer?.name || 'Cliente'}</p>
+          {order.riskLevel === 'HIGH' && !order.riskReviewedAt && (
+            <p className="text-xs font-semibold text-red-700">Ligar antes de separar</p>
+          )}
           <p className="text-xs font-mono">
             {hasPdvCode(order) ? (
               <span className="text-gray-900 font-semibold">DAV {getOrderPdvCode(order)}</span>

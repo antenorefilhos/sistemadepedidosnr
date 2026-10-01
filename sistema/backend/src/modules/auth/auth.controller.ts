@@ -1,3 +1,5 @@
+import type { Request } from 'express'
+import { deviceContextFrom } from '../fraud/fraud.util'
 import { Controller, Post, Body, Get, Patch, Param, HttpCode, HttpStatus, UseGuards, Req, UnauthorizedException } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
@@ -83,8 +85,8 @@ export class AuthController {
     status: 401,
     description: 'Credenciais inválidas',
   })
-  customerLogin(@Body() dto: CustomerLoginDto) {
-    return this.authService.customerLogin(dto)
+  customerLogin(@Body() dto: CustomerLoginDto, @Req() req?: Request) {
+    return this.authService.customerLogin(dto, deviceContextFrom(req as never))
   }
 
   @Post('forgot-password')
@@ -170,8 +172,8 @@ export class AuthController {
     status: 400,
     description: 'Dados inválidos ou cliente já existe',
   })
-  customerRegister(@Body() dto: CreateCustomerRegisterDto) {
-    return this.authService.customerRegister(dto)
+  customerRegister(@Body() dto: CreateCustomerRegisterDto, @Req() req?: Request) {
+    return this.authService.customerRegister(dto, deviceContextFrom(req as never))
   }
 
   @Post('customer/guest-checkout')
@@ -189,8 +191,8 @@ export class AuthController {
     status: 200,
     description: 'Checkout convidado autorizado com sucesso',
   })
-  guestCheckout(@Body() dto: CreateGuestCheckoutDto) {
-    return this.authService.guestCheckout(dto)
+  guestCheckout(@Body() dto: CreateGuestCheckoutDto, @Req() req?: Request) {
+    return this.authService.guestCheckout(dto, deviceContextFrom(req as never))
   }
 
   @Post('register')

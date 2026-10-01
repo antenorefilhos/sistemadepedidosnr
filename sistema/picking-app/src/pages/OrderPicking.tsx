@@ -523,6 +523,15 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
           <span><strong>Pagamento:</strong> {paymentLabel(order.paymentMethod)}</span>
           <span className="text-red-600 font-semibold">{deliveryLabel(order)}</span>
         </div>
+        {order.riskLevel === 'HIGH' && !order.riskReviewedAt && (
+          <div role="alert" className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
+            <strong>Ligue para o cliente antes de separar.</strong>
+            {order.customer?.whatsapp && (
+              <a href={`tel:+55${order.customer.whatsapp.replace(/\D/g, '').replace(/^55/, '')}`} className="ml-2 underline">ligar</a>
+            )}
+            {order.riskReasons?.length ? <span className="block text-xs mt-1">{order.riskReasons.join(' · ')}</span> : null}
+          </div>
+        )}
         {order.notes && (
           <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 text-sm text-amber-800">
             <strong>Obs:</strong> {order.notes}

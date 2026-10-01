@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common'
 import { createHash, randomBytes } from 'crypto'
+import { FraudService } from '../fraud/fraud.service'
 import { PrismaService } from '../../common/prisma.service'
 import { CreateCustomerDto } from './dto/create-customer.dto'
 import { IntegrationsService } from '../integrations/integrations.service'
@@ -32,6 +33,7 @@ export class CustomersService {
   constructor(
     private prisma: PrismaService,
     private integrations: IntegrationsService,
+    @Optional() private fraud?: FraudService,
   ) {}
 
   // JON-44 (Auditoria 360, Medium): sem take/skip, o payload e o groupBy de
@@ -164,15 +166,15 @@ export class CustomersService {
     return { id }
   }
 
+  /** Bloquear tambem bloqueia CPF, WhatsApp, e-mail e aparelhos (FraudService, 01/10/2026). */
   async setBlocked(id: string, blocked: boolean, scope: TenantScope, reason?: string) {
-    const customer = await this.prisma.customer.findFirst({ where: { id, tenantId: scope.tenantId } })
-    if (!customer) throw new NotFoundException('Cliente nao encontrado')
-
-    return this.prisma.customer.update({
-      where: { id },
-      data: { blocked, blockedReason: blocked ? (reason?.trim() || null) : null },
-      select: { id: true, name: true, blocked: true, blockedReason: true },
-    })
+    const updated = this.fraud
+      ? await this.fraud.setCustomerBlocked(scope.tenantId, id, blocked, reason)
+      : (await this.prisma.customer.findFirst({ where: { id, tenantId: scope.tenantId } }))
+        ? await this.prisma.customer.update({ where: { id }, data: { blocked, blockedReason: blocked ? reason?.trim() || null : null }, select: { id: true, name: true, blocked: true, blockedReason: true } })
+        : null
+    if (!updated) throw new NotFoundException('Cliente nao encontrado')
+    return updated
   }
 
   /**

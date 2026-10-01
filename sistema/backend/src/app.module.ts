@@ -13,6 +13,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { DatabaseModule } from './common/database.module'
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { FraudModule } from './modules/fraud/fraud.module';
 import { join } from 'path';
 import { CmsModule } from './modules/cms/cms.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
@@ -75,6 +76,7 @@ class AppController {
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
+    FraudModule,
     ThrottlerModule.forRoot([
       {
         name: 'default',

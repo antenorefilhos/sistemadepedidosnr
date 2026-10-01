@@ -1,10 +1,17 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { computeFingerprint } from './utils/fingerprint'
 import { BrowserRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import { CartProvider } from './contexts/CartContext'
 import App from './App'
 import './index.css'
+
+// Impressao digital do aparelho (antifraude) fora do caminho critico.
+const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback || ((cb: () => void) => setTimeout(cb, 1500))
+idle(() => {
+  computeFingerprint().catch(() => null)
+})
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

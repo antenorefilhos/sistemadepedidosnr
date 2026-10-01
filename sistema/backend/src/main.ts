@@ -4,6 +4,7 @@ import { ValidationPipe, BadRequestException } from '@nestjs/common'
 import helmet from 'helmet'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { AppModule } from './app.module'
+import { realClientIp } from './common/real-client-ip'
 import { winstonLogger } from './common/logger'
 import { NestWinstonLogger } from './common/nest-winston-logger'
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor'
@@ -62,6 +63,8 @@ async function bootstrap() {
   // entrada, a porta da api nao e publicada (so o proxy alcanca a rede
   // interna), entao nao da pra falsificar X-Forwarded-For pulando o Caddy.
   app.getHttpAdapter().getInstance().set('trust proxy', 1)
+  // IP real atras do tunel Cloudflare (ver common/real-client-ip.ts).
+  app.use(realClientIp)
 
   app.useGlobalInterceptors(new HttpLoggingInterceptor())
 
