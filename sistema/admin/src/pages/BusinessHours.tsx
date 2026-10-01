@@ -228,7 +228,7 @@ export default function BusinessHours() {
         </p>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
             <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Semana</h3>
@@ -239,7 +239,7 @@ export default function BusinessHours() {
                 return (
                   <li key={d} className="py-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="flex w-36 shrink-0 items-center gap-3">
+                      <label className="flex w-32 shrink-0 items-center gap-3">
                         <Switch checked={day.enabled} onChange={(on) => toggleDay(d, on)} aria-label={`Entrega na ${DAY_LOWER[d]}`} />
                         <span className={`text-sm ${day.enabled ? 'text-gray-900' : 'text-gray-400'}`}>
                           {DAY[d]}
@@ -258,15 +258,15 @@ export default function BusinessHours() {
                               </button>
                             </span>
                           ))}
-                          <button type="button" onClick={() => addWindow(d)} className="inline-flex items-center gap-1 rounded-xl px-2 py-1.5 text-xs text-gray-600 ring-1 ring-black/[0.08] hover:text-gray-900">
-                            <Plus size={13} /> intervalo
+                          <button type="button" onClick={() => addWindow(d)} title="Adicionar intervalo" aria-label={`Adicionar intervalo na ${DAY_LOWER[d]}`} className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-gray-500 ring-1 ring-black/[0.08] hover:text-gray-900">
+                            <Plus size={14} />
                           </button>
                         </div>
                       ) : (
                         <span className="text-sm text-gray-400">Sem entrega</span>
                       )}
                     </div>
-                    {err && <p className="mt-1.5 text-xs text-rose-700 sm:pl-[9.5rem]">{err}</p>}
+                    {err && <p className="mt-1.5 text-xs text-rose-700 sm:pl-[8.5rem]">{err}</p>}
                   </li>
                 )
               })}
