@@ -332,7 +332,7 @@ function WineCard({ product }: { product: Product }) {
 
   const imageBaseUrl = `/uploads/products/${product.ean}`
   const imageCandidates = [`/thumbs/products/${product.ean}.webp`, `${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`]
-    .map((url) => `${url}?v=2`)
+    .map((url) => `${url}?v=3`)
   const imageUrl = imageCandidates[imageIndex]
 
   const handleDecrease = () => {

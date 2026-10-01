@@ -217,7 +217,7 @@ export default function Cart() {
               {cart.map((item) => {
                 const pricePresentation = item.product ? getProductPricePresentation(item.product) : null
                 const subtotal = item.product ? getProductLineTotal(item.product, item.quantity) : 0
-                const imageUrl = item.product?.ean ? `/thumbs/products/${item.product.ean}.webp?v=2` : ''
+                const imageUrl = item.product?.ean ? `/thumbs/products/${item.product.ean}.webp?v=3` : ''
                 const availability = getAvailabilityLabel(item.product)
 
                 return (

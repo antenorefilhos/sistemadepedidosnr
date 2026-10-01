@@ -39,7 +39,8 @@ export function StoreProductCard({
   const cartItem = cart.find((item) => item.productId === product.id)
   const quantity = cartItem?.quantity || 0
   const imageBaseUrl = `/uploads/products/${product.ean}`
-  const imageVersion = '2'
+  // 3 (01/10/2026): URL nova na borda, com o cache de 5 min no navegador.
+  const imageVersion = '3'
   const imageCandidates = [`/thumbs/products/${product.ean}.webp`, `${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`]
     .map((url) => `${url}?v=${imageVersion}`)
   const imageUrl = imageCandidates[imageIndex]

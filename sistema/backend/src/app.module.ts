@@ -108,6 +108,14 @@ class AppController {
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
+      serveStaticOptions: {
+        // Foto de produto (01/10/2026): navegador reconfere a cada 5 min (304
+        // com ETag) e a borda do Cloudflare guarda 7 dias -- a troca no admin
+        // purga a borda. O resto de /uploads segue o padrao (max-age=0).
+        setHeaders: (res, path) => {
+          if (/[\/]products[\/]/.test(path)) res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=604800')
+        },
+      },
     }),
     CmsModule,
     AuditLogModule,

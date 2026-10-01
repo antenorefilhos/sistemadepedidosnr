@@ -76,7 +76,8 @@ export default function ProductDetail() {
   const { user } = useAuth()
   const [imageIndex, setImageIndex] = useState(0)
   const [imgError, setImgError] = useState(false)
-  const imageVersion = '2'
+  // 3 (01/10/2026): URL nova na borda, com o cache de 5 min no navegador.
+  const imageVersion = '3'
 
   // VIEW_PRODUCT existia no tipo e nunca disparava: sem ele nao ha funil
   // "viu -> adicionou". Um evento por produto aberto.
