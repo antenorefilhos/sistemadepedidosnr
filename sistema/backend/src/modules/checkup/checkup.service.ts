@@ -1,9 +1,8 @@
-import { existsSync } from 'fs'
-import { join } from 'path'
 import { Injectable } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../common/prisma.service'
 import { isProductSellable } from '../../common/product-availability'
+import { eansWithPhoto } from '../../common/product-photos'
 import { winstonLogger } from '../../common/logger'
 import { AntenorApiService } from '../integrations/antenor-api.service'
 
@@ -16,6 +15,7 @@ import { AntenorApiService } from '../integrations/antenor-api.service'
 export type CheckResult = { name: string; ok: boolean; detail: string }
 
 const SAMPLE = 5
+const PHOTO_CHECK = 'Produto à venda sem foto'
 const sample = (items: string[]) => items.slice(0, SAMPLE).join('; ') + (items.length > SAMPLE ? ` (+${items.length - SAMPLE})` : '')
 
 // Palavra toda em maiuscula com 4+ letras (siglas conhecidas de fora):
@@ -157,21 +157,35 @@ export class CheckupService {
     })
 
     // 8) Foto: produto a venda sem nenhuma imagem (mostra "sem foto").
-    await run('Produto à venda sem foto', async () => {
-      const dir = join(process.cwd(), 'uploads', 'products')
-      const noPhoto = active.filter((p) => !['webp', 'jpg', 'jpeg', 'png'].some((ext) => existsSync(join(dir, `${p.ean}.${ext}`))))
-      // Informativo: sem foto nao quebra a venda, entao nao marca falha.
-      return { ok: true, detail: noPhoto.length ? `${noPhoto.length} de ${active.length} (ex.: ${sample(noPhoto.map((p) => p.name))})` : 'todos com foto' }
-    })
+    await run(PHOTO_CHECK, () => this.photoCheck())
 
     this.last = { at: new Date().toISOString(), results }
     return results
   }
 
-  /** Ultimo check-up; sem nenhum desde o boot, roda agora (sem Telegram). */
+  /**
+   * Ultimo check-up; sem nenhum desde o boot, roda agora (sem Telegram). A linha
+   * de fotos e recalculada na hora: o check-up roda as 6h30 e quem sobe foto
+   * durante o dia via o numero da manha (216 na Visao geral x 195 em Produtos).
+   */
   async getLast() {
     if (!this.last) await this.runChecks()
-    return this.last
+    const photo = await this.photoCheck().catch(() => null)
+    if (!this.last || !photo) return this.last
+    return { ...this.last, results: this.last.results.map((r) => (r.name === PHOTO_CHECK ? { name: PHOTO_CHECK, ...photo } : r)) }
+  }
+
+  /** Mesmo universo da tela Produtos: vendavel e com departamento (no site). Informativo, nao marca falha. */
+  private async photoCheck() {
+    const [products, mapped] = await Promise.all([
+      this.prisma.product.findMany({ where: { active: true, syncOption: { not: 'NUNCA' } }, select: { ean: true, name: true, active: true, syncOption: true, stock: true } }),
+      this.prisma.productCategoryMapping.findMany({ select: { ean: true } }),
+    ])
+    const categorized = new Set(mapped.map((m) => m.ean))
+    const onSite = products.filter((p) => isProductSellable(p) && categorized.has(p.ean))
+    const withPhoto = eansWithPhoto()
+    const noPhoto = onSite.filter((p) => !withPhoto.has(p.ean))
+    return { ok: true, detail: noPhoto.length ? `${noPhoto.length} de ${onSite.length} no site (ex.: ${sample(noPhoto.map((p) => p.name))})` : 'todos com foto' }
   }
 
   format(results: CheckResult[]) {

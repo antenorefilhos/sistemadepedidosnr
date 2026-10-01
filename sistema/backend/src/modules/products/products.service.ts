@@ -15,8 +15,8 @@ import { IntegrationModulesService } from '../../modules/integrations/integratio
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import { productIdsMatchingText } from '../../common/unaccent-search'
 import { applySiteVisibility, isProductSellable } from '../../common/product-availability'
+import { eansWithPhoto } from '../../common/product-photos'
 import { notOfferedCategoryCodes } from '../../common/not-offered-categories'
-import { readdirSync } from 'fs'
 import { resolveEffectiveFractional, type FractionalSource } from '../../common/fractional.util'
 
 // Categorias que combinam com cada categoria no "compre junto" (ordem = prioridade).
@@ -1448,14 +1448,7 @@ export class ProductsService {
   async catalogAdmin(q: { tab?: string; search?: string; category?: string; page?: number; limit?: number }) {
     const limit = Math.max(1, Math.min(20000, q.limit || 50))
     const page = Math.max(1, q.page || 1)
-    const dir = join(process.cwd(), 'uploads', 'products')
-    let files: string[] = []
-    try {
-      files = readdirSync(dir)
-    } catch {
-      files = []
-    }
-    const withPhoto = new Set(files.map((f) => f.replace(/\.(webp|jpe?g|png)$/i, '')).filter((f, i) => f !== files[i]))
+    const withPhoto = eansWithPhoto()
 
     const [mappings, categories] = await Promise.all([
       this.prisma.productCategoryMapping.findMany({ select: { ean: true, categoryId: true } }),

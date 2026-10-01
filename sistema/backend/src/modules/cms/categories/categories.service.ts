@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { readdirSync } from 'fs';
-import { join } from 'path';
 import { isProductSellable } from '../../../common/product-availability';
+import { eansWithPhoto } from '../../../common/product-photos';
 import { PrismaService } from '../../../common/prisma.service';
 
 const COMMERCIAL_CATEGORY_PRIORITY = [
@@ -479,13 +478,7 @@ export class CategoriesService {
    * a mesma que a navegacao do site usa.
    */
   async adminOverview() {
-    let files: string[] = [];
-    try {
-      files = readdirSync(join(process.cwd(), 'uploads', 'products'));
-    } catch {
-      files = [];
-    }
-    const withPhoto = new Set(files.filter((f) => /\.(webp|jpe?g|png)$/i.test(f)).map((f) => f.replace(/\.[^.]+$/, '')));
+    const withPhoto = eansWithPhoto();
 
     const [categories, mappings, products, sales] = await Promise.all([
       this.prisma.category.findMany({ where: { parentId: null }, select: { id: true, name: true, shortName: true, active: true, priority: true } }),
