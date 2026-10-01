@@ -23,13 +23,13 @@ export class IntegrationModulesService {
   private readonly moduleDefaults: Record<IntegrationModuleKey, Omit<IntegrationModuleDescriptor, 'enabled'>> = {
     solidcom: {
       key: 'solidcom',
-      name: 'Solidcon ERP (legado)',
+      name: 'Solidcom (ERP antigo)',
       removable: true,
       notes: 'ERP legado, substituido pela AntenorApi em 10/09/2026 (JON-17). Mantido desligado como fallback.',
     },
     antenorapi: {
       key: 'antenorapi',
-      name: 'AntenorApi (ERP proprio)',
+      name: 'AntenorApi (ERP da loja)',
       removable: true,
       notes: 'API propria que le o banco da loja: catalogo, pedidos (DAV), cancelamento, faturamento e status no PDV.',
     },
@@ -41,13 +41,13 @@ export class IntegrationModulesService {
     },
     nfe: {
       key: 'nfe',
-      name: 'Conector Fiscal NF-e',
+      name: 'NF-e pelo site',
       removable: true,
       notes: 'Emissao fiscal desacoplada do dominio.',
     },
     payments: {
       key: 'payments',
-      name: 'Conector de Pagamentos',
+      name: 'Pagamento online',
       removable: true,
       notes: 'Gateway de pagamento opcional (pagamento operacional pode continuar por fora).',
     },
