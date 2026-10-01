@@ -1030,3 +1030,37 @@ O storefront é SPA. Google e preview de link (WhatsApp/Facebook) não rodam o J
 Quem resolve o produto é o **`erpProductId` no fim do slug** (estável); o nome é só leitura/SEO. `GET /products/:id` aceita id só com dígitos como `erpProductId` (o cuid sempre começa com letra). Se a API cair, o nginx cai para a SPA normal (`error_page 502 503 504 = /index.html`).
 
 **Search Console**: propriedade `https://mercado.antenorefilhos.com.br/` (prefixo de URL, separada do institucional `antenorefilhos.com.br` da filial 2), verificada pela meta tag `google-site-verification` no `frontend/index.html`. **Não remova essa tag**: sem ela a propriedade perde a verificação. Sitemap enviado em 28/09/2026.
+
+## Antifraude (refeito em 01/10/2026)
+
+Pagamento e na entrega/retirada, entao o risco real nao e cartao: e a mesma
+pessoa abrir contas para repetir beneficio de primeira compra, e o pedido de
+trote que gasta separacao e viagem. Tudo vive em `modules/fraud/`.
+
+**Armadilha que mascarava tudo: o IP era sempre o do `cloudflared`.** Com o
+tunel, a cadeia e cliente → Cloudflare → cloudflared → Caddy → api, e
+`trust proxy 1` devolvia `172.18.0.12` para todo mundo -- regra de IP, rate
+limit e antifraude olhavam o mesmo endereco. `common/real-client-ip.ts` troca
+pelo `CF-Connecting-IP` **so quando o par e privado** (o Caddy tambem e publico
+em 80/443; aceitar o cabecalho de qualquer um deixaria forjar o IP).
+
+- **Sinais** (`identity_signals`, um por conta e tipo): `DEVICE` (id no
+  localStorage + cookie `aef_did`), `DEVICE_KEY` (impressao digital + rede /24
+  ou /48), `EMAIL` normalizado, `FINGERPRINT`, `IP`. So os tres primeiros ligam
+  contas: impressao digital sozinha colide em aparelhos iguais (iPhones).
+- **Primeira compra e limite de cupom por cliente valem por PESSOA**
+  (`FraudService.firstPurchase` / `linkedCustomers`), incluindo outro cadastro
+  no mesmo endereco normalizado. Endereco so pesa para beneficio, nunca liga
+  contas (familia mora junta).
+- **Bloqueio** (`fraud_blocks`) e por identificador: bloquear o cliente bloqueia
+  CPF, WhatsApp, e-mail e aparelhos dele -- conta nova nao contorna. Vale no
+  login, cadastro, convidado e pedido.
+- **Nota de risco** em todo pedido (`orders.riskScore/riskLevel/riskReasons`),
+  pesos em `FraudService.assessOrder` e na propria tela. Ela **nao bloqueia**:
+  HIGH vira "ligar antes de separar" na separacao e no detalhe do pedido.
+  Cancelamento nao conta como sinal (`actorType` nao distingue cliente de loja);
+  entrega frustrada (`delivery_stops.FAILED`) conta.
+- Os cabecalhos `X-Device-Id/Fp/Bot` vao so nas escritas: em GET forcariam
+  preflight de CORS em cada listagem do catalogo.
+- Politica de privacidade cita aparelho, assinatura do navegador e IP (LGPD,
+  art. 7, IX). Mexeu no que e coletado, atualiza la.
