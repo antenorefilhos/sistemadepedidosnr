@@ -408,6 +408,7 @@ function Photo({ ean, slot, name }: { ean: string; slot: '1' | '2'; name: string
   const [missing, setMissing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [done, setDone] = useState('')
   const file = slot === '2' ? `${ean}_2` : ean
 
   const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -416,10 +417,13 @@ function Photo({ ean, slot, name }: { ean: string; slot: '1' | '2'; name: string
     if (!f) return
     setBusy(true)
     setErr('')
+    setDone('')
     try {
       await productsAPI.uploadImage(ean, f, slot)
       setMissing(false)
       setVersion(Date.now())
+      // A foto grava na hora; o Salvar do editor e so para os outros campos.
+      setDone('Foto salva. Já vale no site.')
     } catch (error) {
       setErr(getApiErrorMessage(error, 'Não foi possível enviar a foto.'))
     } finally {
@@ -434,6 +438,7 @@ function Photo({ ean, slot, name }: { ean: string; slot: '1' | '2'; name: string
     try {
       await productsAPI.deleteImage(ean, slot)
       setMissing(true)
+      setDone('Foto apagada.')
     } catch (error) {
       setErr(getApiErrorMessage(error, 'Não foi possível apagar a foto.'))
     } finally {
@@ -469,7 +474,7 @@ function Photo({ ean, slot, name }: { ean: string; slot: '1' | '2'; name: string
           )}
         </span>
       </div>
-      {err && <p className="mt-1 text-xs text-rose-700">{err}</p>}
+      {err ? <p className="mt-1 text-xs text-rose-700">{err}</p> : done && <p className="mt-1 text-xs text-emerald-700">{done}</p>}
     </div>
   )
 }

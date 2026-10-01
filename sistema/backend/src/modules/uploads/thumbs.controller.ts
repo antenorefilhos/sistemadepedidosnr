@@ -31,8 +31,10 @@ export class ThumbsController {
       mkdirSync(THUMBS, { recursive: true })
       await sharp(original).resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 72 }).toFile(target)
     }
-    // 1 dia: foto trocada chega ao cliente no maximo em 24 h mesmo sem purge.
-    res.set('Cache-Control', 'public, max-age=86400')
+    // Navegador reconfere a cada 5 min (304 com ETag); a borda guarda 1 dia e
+    // e purgada na troca de foto (uploads.controller). Antes o navegador
+    // guardava 1 dia e mostrava a foto antiga depois da troca.
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=86400')
     return res.sendFile(target)
   }
 }
