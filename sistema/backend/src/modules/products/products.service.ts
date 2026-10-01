@@ -1390,6 +1390,11 @@ export class ProductsService {
 
   private lastRecentSync: { at: string; received: number } | null = null
 
+  /** Ultima conferencia de alteracoes (sync de hora em hora); some no restart. */
+  getLastRecentSync() {
+    return this.lastRecentSync
+  }
+
   /**
    * Ajustes do site feitos no admin (29/09/2026): ocultar / sempre a venda,
    * categoria e nome no site. Tudo o que vem do ERP (preco, estoque, cadastro)

@@ -216,8 +216,9 @@ export class IntegrationsController {
   @Get('overview')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tela Integracoes: saude do ERP, catalogo, pedidos sem DAV, cancelamentos e status do caixa' })
-  overview(@Query('days') days?: string) {
-    return this.overviewService.overview(Math.min(90, Math.max(1, Number(days) || 30)))
+  async overview(@Query('days') days?: string) {
+    const data = await this.overviewService.overview(Math.min(90, Math.max(1, Number(days) || 30)))
+    return { ...data, catalogRecent: this.productsService.getLastRecentSync() }
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

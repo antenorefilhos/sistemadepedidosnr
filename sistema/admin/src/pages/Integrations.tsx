@@ -134,9 +134,12 @@ export default function Integrations() {
             />
             <Stat
               label="Catálogo"
-              value={d.catalog ? `Sincronizado ${ago(d.catalog.at)}` : 'Nunca sincronizado'}
+              value={d.catalog ? `Completo ${ago(d.catalog.at)}` : 'Nunca sincronizado'}
               tone={d.catalog && d.catalog.errors === 0 ? 'ok' : 'warn'}
-              hint={d.catalog ? `${(d.catalog.synced ?? 0).toLocaleString('pt-BR')} produtos${d.catalog.errors ? `, ${d.catalog.errors} com erro` : ', sem erro'}` : undefined}
+              hint={[
+                d.catalog && `${(d.catalog.synced ?? 0).toLocaleString('pt-BR')} produtos${d.catalog.errors ? `, ${d.catalog.errors} com erro` : ', sem erro'}`,
+                d.catalogRecent && `alterações conferidas ${ago(d.catalogRecent.at)}`,
+              ].filter(Boolean).join(' · ') || undefined}
             />
             <Stat
               label="Pedidos no caixa · 30 dias"

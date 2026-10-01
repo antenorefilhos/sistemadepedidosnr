@@ -1201,6 +1201,8 @@ export interface IntegrationsOverview {
   days: number
   erp: { status: 'ok' | 'degraded' | 'down'; latencyMs: number | null; detail: string | null }
   catalog: { at: string; products: number | null; synced: number | null; errors: number } | null
+  /** Ultima conferencia de alteracoes (de hora em hora). */
+  catalogRecent: { at: string; received: number } | null
   orders: {
     total: number
     withDav: number
