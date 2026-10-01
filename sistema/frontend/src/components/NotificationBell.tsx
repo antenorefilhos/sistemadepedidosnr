@@ -19,6 +19,20 @@ export default function NotificationBell() {
     isSubscribingToPush,
   } = useNotifications()
   const [open, setOpen] = useState(false)
+  // O sino nao fica sempre no canto (na conta, o "Sair" vem depois dele):
+  // alinhar o painel a direita do sino cortava a esquerda no celular. Mede ao
+  // abrir e posiciona o painel dentro da tela, com 12px de margem.
+  const [panelBox, setPanelBox] = useState<{ left: number; width: number } | null>(null)
+  const toggle = () => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!open && rect) {
+      const vw = document.documentElement.clientWidth
+      const width = Math.min(320, vw - 24)
+      const left = Math.min(Math.max(12, rect.right - width), vw - width - 12)
+      setPanelBox({ left: left - rect.left, width })
+    }
+    setOpen(!open)
+  }
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,7 +86,7 @@ export default function NotificationBell() {
           vive num painel branco: dava texto branco em fundo branco no hover --
           o botao sumia e continuava clicavel. Ver Home/Promocoes/WinePage. */}
       <Button
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         variant="ghost"
         size="icon"
         className="relative"
@@ -88,7 +102,10 @@ export default function NotificationBell() {
       </Button>
 
       {open && (
-        <div className={surfaceClasses({ className: 'absolute right-0 top-12 z-50 w-80 max-h-96 overflow-hidden shadow-lg' })}>
+        <div
+          className={surfaceClasses({ className: 'absolute top-12 z-50 flex max-h-[min(28rem,calc(100dvh-5rem))] flex-col overflow-hidden shadow-lg' })}
+          style={panelBox ?? { right: 0, width: 320 }}
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
             <h3 className="font-semibold text-gray-800">Notificações</h3>
             <Button
@@ -150,7 +167,7 @@ export default function NotificationBell() {
             </div>
           )}
 
-          <div className="overflow-y-auto max-h-80">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="px-4 py-8 text-center text-gray-400 text-sm">
                 Nenhuma notificação
