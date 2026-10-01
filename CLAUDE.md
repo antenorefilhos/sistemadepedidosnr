@@ -995,6 +995,30 @@ fiscal tratada: pedido ja faturado no PDV (`hrRegistro` preenchido) responde
 `CANCEL_ORDER_REFUSED_ALREADY_INVOICED`, sem retentativa (repetir amanha
 continuaria dando 409, o estorno tem que ser manual no caixa).
 
+## Pedido sem DAV: reenvio de verdade (01/10/2026)
+
+Até 01/10 um pedido recusado pela AntenorApi ficava **sem DAV para sempre, calado**:
+a falha ia para a fila de outbox (`integration-outbox.service.ts`), cujo
+`dispatchEvent` é um esqueleto que **nunca envia nada** ("Conector sem
+implementação real de envio"), e o `retryOrderSync` só tentava pelo Solidcom,
+desligado desde o cutover. Hoje:
+
+- `retryOrderSync` reenvia pela **AntenorApi**, idempotente por `cdEcomPedido`
+  (devolve o mesmo DAV). O Solidcom só entra se estiver ligado e a AntenorApi falhar.
+- `OrderSyncRetryScheduler` reenvia sozinho a cada 10 min, por até 12 falhas
+  (~2 h), pedido válido sem DAV das últimas 48 h.
+- Tela Integrações lista pedido sem DAV (botão Reenviar), cancelamento que não
+  chegou ao ERP (Tentar de novo, `retryCancelSync`) e faturado que precisa de
+  estorno no PDV.
+- **Não volte a enfileirar falha de pedido no outbox.** A fila, os jobs e as
+  dead letters continuam no código só porque três painéis contam as linhas;
+  nada os processa. Remoção pendente.
+
+Saúde do ERP: a AntenorApi usa certificado próprio. Chamar com `axios` puro
+dá `DEPTH_ZERO_SELF_SIGNED_CERT` e o ERP aparece "fora do ar" funcionando (o
+`/health/detail` mostrou isso até 01/10). Use `AntenorApiService.ping()`, que
+usa o cliente com o certificado fixado.
+
 ## SEO do storefront: URL limpa e HTML do produto gerado no servidor (27-28/09/2026)
 
 O storefront é SPA. Google e preview de link (WhatsApp/Facebook) não rodam o JS, então **o nginx do storefront manda três rotas para a API antes da SPA** (`frontend/nginx.conf`, nos dois `server{}`):
