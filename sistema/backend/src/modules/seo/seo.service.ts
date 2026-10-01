@@ -100,7 +100,10 @@ export class SeoService {
         description,
         image,
         sku: String(product.erpProductId ?? product.ean),
-        gtin: product.ean,
+        // GTIN so quando e codigo de barras de verdade (8 a 14 digitos). Peso e
+        // producao propria usam codigo interno curto (ex.: 1909), que o Google
+        // acusa como GTIN invalido.
+        gtin: /^\d{8,14}$/.test(product.ean || '') ? product.ean : undefined,
         category: category || undefined,
         offers: {
           '@type': 'Offer',

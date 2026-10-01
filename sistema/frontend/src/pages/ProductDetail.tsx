@@ -199,8 +199,9 @@ export default function ProductDetail() {
     name: formatProductTitle(product.name),
     description: product.alternativeDescription || product.name,
     image: typeof window !== 'undefined' ? `${window.location.origin}${imageUrl}` : imageUrl,
-    sku: product.ean,
-    gtin: product.ean,
+    sku: String(product.erpProductId ?? product.ean),
+    // GTIN so com codigo de barras de verdade; peso e producao propria usam codigo interno curto.
+    gtin: /^\d{8,14}$/.test(product.ean || '') ? product.ean : undefined,
     offers: {
       '@type': 'Offer',
       priceCurrency: 'BRL',
