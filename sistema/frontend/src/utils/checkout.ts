@@ -32,7 +32,6 @@ export function createFallbackDeliverySlot(hours?: HoursConfig) {
   const windowStart = clamped?.windowStart ?? new Date(Date.now() + 45 * 60 * 1000)
   const windowEnd = clamped?.windowEnd ?? new Date(Date.now() + 3 * 60 * 60 * 1000)
   return {
-    slotId: 'ASAP',
     windowStart: windowStart.toISOString(),
     windowEnd: windowEnd.toISOString(),
   }
@@ -74,6 +73,5 @@ export function getCheckoutBlockerMessage(
     return `Revise o carrinho para continuar: ${detalhe}.`
   }
   if (quote.delivery.outOfArea) return 'Endereco fora da zona de entrega cadastrada.'
-  if (!quote.delivery.validSlot) return 'Selecione uma janela de entrega valida para continuar.'
   return quote.blockers.join('; ') || 'Nao foi possivel confirmar o checkout agora.'
 }

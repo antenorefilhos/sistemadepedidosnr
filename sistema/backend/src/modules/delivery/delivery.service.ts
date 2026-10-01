@@ -12,9 +12,7 @@ import {
   AddDeliveryStopDto,
   CreateDeliveryRouteDto,
   CreateDriverDto,
-  CreateFulfillmentSlotDto,
   UpdateDeliveryStopStatusDto,
-  UpdateFulfillmentSlotDto,
 } from './dto/fulfillment.dto'
 
 export interface DeliveryLocalityOption {
@@ -29,9 +27,8 @@ export interface DeliveryLocalityOption {
 export interface DeliveryCalculation {
   fee: number | null
   rawFee?: number | null
-  /** null = zona conhecida SEM regra por valor (decisao deliberada, ver
-   * DeliveryZone.freeAbove). undefined = fonte de dado nao tem esse conceito
-   * (ex.: planilha de balcao) -- useFreeShipping cai pro global nesse caso. */
+  /** Valor a partir do qual o frete sai gratis: o da area/localidade e, sem
+   * ele, o global de Marca (01/10/2026). null/undefined = sem regra por valor. */
   freeAbove: number | null | undefined
   minimumOrder?: number | null
   minimumOrderMet?: boolean
@@ -86,11 +83,6 @@ type PointInput = {
   active?: boolean
 }
 
-type SlotValidationOptions = {
-  reservedOrdersOffset?: number
-  reservedItemsOffset?: number
-}
-
 @Injectable()
 export class DeliveryService {
 
@@ -99,10 +91,29 @@ export class DeliveryService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
+  /** Zonas com o que cada uma vendeu em 90 dias (pedido grava o id da zona em deliveryAreaId). */
   async listZones() {
-    return this.prisma.deliveryZone.findMany({
+    const zones = await this.prisma.deliveryZone.findMany({
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     })
+    const sales = zones.length
+      ? await this.prisma.order.groupBy({
+          by: ['deliveryAreaId'],
+          where: {
+            deliveryAreaId: { in: zones.map((z) => z.id) },
+            status: { notIn: ['CANCELLED', 'REFUNDED'] },
+            createdAt: { gte: new Date(Date.now() - 90 * 86_400_000) },
+          },
+          _count: { _all: true },
+          _sum: { total: true },
+        })
+      : []
+    const byZone = new Map(sales.map((s) => [s.deliveryAreaId, s]))
+    return zones.map((zone) => ({
+      ...zone,
+      orders90d: byZone.get(zone.id)?._count._all ?? 0,
+      revenue90d: Number(byZone.get(zone.id)?._sum.total ?? 0),
+    }))
   }
 
   async createZone(dto: CreateDeliveryZoneDto) {
@@ -200,39 +211,6 @@ export class DeliveryService {
       }
     }
     return { overlaps }
-  }
-
-  async bulkImportZones(zones: Array<CreateDeliveryZoneDto>) {
-    if (!Array.isArray(zones) || zones.length === 0) {
-      throw new BadRequestException('Lista de zonas vazia.')
-    }
-    if (zones.length > 500) {
-      throw new BadRequestException('Limite de 500 zonas por importacao.')
-    }
-    const created: unknown[] = []
-    const errors: Array<{ index: number; error: string; name?: string }> = []
-    for (let i = 0; i < zones.length; i++) {
-      try {
-        this.validateZonePayload(zones[i])
-        const zone = await this.prisma.deliveryZone.create({
-          data: {
-            name: zones[i].name,
-            type: zones[i].type ?? 'CEP_RANGE',
-            cepStart: zones[i].cepStart ?? null,
-            cepEnd: zones[i].cepEnd ?? null,
-            polygonGeoJSON: zones[i].polygonGeoJSON ?? null,
-            fee: zones[i].fee,
-            freeAbove: zones[i].freeAbove ?? null,
-            active: zones[i].active ?? true,
-            priority: zones[i].priority ?? 0,
-          },
-        })
-        created.push(zone)
-      } catch (e) {
-        errors.push({ index: i, name: zones[i]?.name, error: e instanceof Error ? e.message : 'Erro desconhecido' })
-      }
-    }
-    return { created: created.length, errors }
   }
 
   private validateZonePayload(dto: { type?: string; cepStart?: string | null; cepEnd?: string | null; polygonGeoJSON?: string | null; fee?: number; freeAbove?: number | null }) {
@@ -438,236 +416,6 @@ export class DeliveryService {
     if (body.reference !== undefined) data.reference = String(body.reference || '').trim() || null
     if (body.active !== undefined) data.active = Boolean(body.active)
     return data
-  }
-
-  async listSlots(
-    context: Partial<FulfillmentContext> | undefined,
-    filters: { type?: string; from?: string; to?: string; status?: string } = {},
-  ) {
-    const scoped = this.resolveContext(context)
-    const from = filters.from ? new Date(filters.from) : undefined
-    const to = filters.to ? new Date(filters.to) : undefined
-
-    return this.prisma.fulfillmentSlot.findMany({
-      where: {
-        tenantId: scoped.tenantId,
-        storeId: scoped.storeId,
-        ...(filters.type ? { type: filters.type.toUpperCase() } : {}),
-        ...(filters.status ? { status: filters.status.toUpperCase() } : { status: 'ACTIVE' }),
-        ...(from || to
-          ? {
-              startsAt: {
-                ...(from ? { gte: from } : {}),
-                ...(to ? { lte: to } : {}),
-              },
-            }
-          : {}),
-      },
-      orderBy: [{ startsAt: 'asc' }],
-    })
-  }
-
-  async listSlotOccupancy(
-    context: Partial<FulfillmentContext> | undefined,
-    filters: { type?: string; from?: string; to?: string; status?: string } = {},
-  ) {
-    const slots = await this.listSlots(context, filters)
-    return slots.map((slot) => this.slotOccupancy(slot))
-  }
-
-  async createSlot(context: Partial<FulfillmentContext> | undefined, dto: CreateFulfillmentSlotDto) {
-    const scoped = this.resolveContext(context)
-    const startsAt = new Date(dto.startsAt)
-    const endsAt = new Date(dto.endsAt)
-    this.assertValidWindow(startsAt, endsAt)
-
-    return this.prisma.fulfillmentSlot.create({
-      data: {
-        tenantId: scoped.tenantId,
-        storeId: scoped.storeId,
-        type: dto.type.toUpperCase(),
-        startsAt,
-        endsAt,
-        capacityOrders: dto.capacityOrders,
-        capacityItems: dto.capacityItems ?? null,
-        cutoffMinutes: dto.cutoffMinutes ?? 0,
-        status: dto.status || 'ACTIVE',
-      },
-    })
-  }
-
-  async updateSlot(id: string, context: Partial<FulfillmentContext> | undefined, dto: UpdateFulfillmentSlotDto) {
-    const current = await this.findSlotOrThrow(id, context)
-    const startsAt = dto.startsAt ? new Date(dto.startsAt) : current.startsAt
-    const endsAt = dto.endsAt ? new Date(dto.endsAt) : current.endsAt
-    this.assertValidWindow(startsAt, endsAt)
-
-    return this.prisma.fulfillmentSlot.update({
-      where: { id },
-      data: {
-        ...(dto.type !== undefined ? { type: dto.type.toUpperCase() } : {}),
-        ...(dto.startsAt !== undefined ? { startsAt } : {}),
-        ...(dto.endsAt !== undefined ? { endsAt } : {}),
-        ...(dto.capacityOrders !== undefined ? { capacityOrders: dto.capacityOrders } : {}),
-        ...(dto.capacityItems !== undefined ? { capacityItems: dto.capacityItems ?? null } : {}),
-        ...(dto.cutoffMinutes !== undefined ? { cutoffMinutes: dto.cutoffMinutes } : {}),
-        ...(dto.status !== undefined ? { status: dto.status } : {}),
-      },
-    })
-  }
-
-  async deleteSlot(id: string, context?: Partial<FulfillmentContext>) {
-    const slot = await this.findSlotOrThrow(id, context)
-    if (slot.reservedOrders > 0) {
-      throw new BadRequestException('Janela possui reservas e nao pode ser removida.')
-    }
-    await this.prisma.fulfillmentSlot.delete({ where: { id } })
-  }
-
-  async validateSlotCapacity(
-    context: Partial<FulfillmentContext> | undefined,
-    slotId: string | null | undefined,
-    type: string,
-    itemCount = 0,
-    options: SlotValidationOptions = {},
-  ) {
-    if (!slotId) {
-      return { valid: false, reason: 'SLOT_REQUIRED', slot: null, occupancy: null }
-    }
-
-    const scoped = this.resolveContext(context)
-    const slot = await this.prisma.fulfillmentSlot.findFirst({
-      where: { id: slotId, tenantId: scoped.tenantId, storeId: scoped.storeId },
-    })
-    if (!slot) {
-      // 'ASAP' e o marcador que o storefront manda quando NENHUMA janela
-      // utilizavel existe -- ele escolhe sozinho quando ha uma (nao existe
-      // seletor manual), entao ASAP significa "nao havia o que escolher".
-      // Ver createFallbackDeliverySlot e o useMemo de Checkout.tsx.
-      //
-      // A checagem era `anyConfigured === 0`, e isso era um penhasco: bastava a
-      // loja cadastrar janelas uma vez e deixar vencer (corte passado, lotadas,
-      // ou simplesmente esquecer de criar as de amanha) que o storefront
-      // voltava a mandar ASAP, o backend recusava com SLOT_NOT_FOUND, e a loja
-      // parava de vender exibindo "janela de entrega/retirada invalida" -- sem
-      // ninguem ter errado nada e sem o cliente ter como agir.
-      //
-      // Agora o que vale e haver janela UTILIZAVEL, nao janela cadastrada.
-      // Perder a venda porque o calendario de janelas caducou e pior do que
-      // aceitar um pedido sem janela definida.
-      if (slotId === 'ASAP') {
-        const normalizedType = type.toUpperCase() === 'RETIRADA' ? 'PICKUP' : type.toUpperCase()
-        const candidatas = await this.prisma.fulfillmentSlot.findMany({
-          where: {
-            tenantId: scoped.tenantId,
-            storeId: scoped.storeId,
-            type: normalizedType,
-            status: 'ACTIVE',
-            startsAt: { gt: new Date() },
-          },
-        })
-        const utilizaveis = candidatas.filter((candidata) => {
-          const ocupacao = this.slotOccupancy(candidata)
-          return !ocupacao.cutoffExpired && ocupacao.availableOrders >= 1
-        })
-        if (utilizaveis.length === 0) {
-          return { valid: true, reason: null, slot: null, occupancy: null }
-        }
-        // Ha janela boa e o cliente nao veio com nenhuma: a resposta honesta e
-        // "escolha uma", nao "a janela nao existe".
-        return { valid: false, reason: 'SLOT_REQUIRED', slot: null, occupancy: null }
-      }
-      return { valid: false, reason: 'SLOT_NOT_FOUND', slot: null, occupancy: null }
-    }
-
-    const normalizedType = type.toUpperCase() === 'RETIRADA' ? 'PICKUP' : type.toUpperCase()
-    const occupancy = this.slotOccupancy(slot, options)
-    if (slot.status !== 'ACTIVE') return { valid: false, reason: 'SLOT_INACTIVE', slot, occupancy }
-    if (slot.type !== normalizedType) return { valid: false, reason: 'SLOT_TYPE_MISMATCH', slot, occupancy }
-    if (occupancy.cutoffExpired) return { valid: false, reason: 'SLOT_CUTOFF_EXPIRED', slot, occupancy }
-    if (occupancy.availableOrders < 1) return { valid: false, reason: 'SLOT_FULL_ORDERS', slot, occupancy }
-    if (slot.capacityItems != null && occupancy.availableItems != null && occupancy.availableItems < itemCount) {
-      return { valid: false, reason: 'SLOT_FULL_ITEMS', slot, occupancy }
-    }
-
-    return { valid: true, reason: null, slot, occupancy }
-  }
-
-  async reserveSlotForCheckout(
-    context: Partial<FulfillmentContext> | undefined,
-    slotId: string,
-    type: string,
-    itemCount: number,
-    actor?: { actorType?: string; actorId?: string },
-  ) {
-    const scoped = this.resolveContext(context)
-    const validation = await this.validateSlotCapacity(scoped, slotId, type, itemCount)
-    if (!validation.valid) {
-      throw new BadRequestException(`Janela indisponivel: ${validation.reason}`)
-    }
-
-    // Validou como valido mas nao ha registro real (caso 'ASAP' sem nenhum
-    // FulfillmentSlot cadastrado, ver validateSlotCapacity) -- nao ha o que
-    // reservar/decrementar, so confirmar sem tocar no banco.
-    if (!validation.slot) {
-      return null
-    }
-
-    const slot = await this.prisma.fulfillmentSlot.update({
-      where: { id: slotId },
-      data: {
-        reservedOrders: { increment: 1 },
-        reservedItems: { increment: Math.max(0, Math.ceil(itemCount || 0)) },
-      },
-    })
-
-    await this.recordFulfillmentEvent({
-      tenantId: scoped.tenantId,
-      storeId: scoped.storeId,
-      type: 'slot.reserved',
-      payload: { slotId, itemCount, fulfillmentType: type },
-      actor,
-    })
-
-    return slot
-  }
-
-  async releaseSlotReservation(
-    context: Partial<FulfillmentContext> | undefined,
-    slotId: string | null | undefined,
-    itemCount: number,
-    reason = 'Reserva liberada',
-    actor?: { actorType?: string; actorId?: string },
-  ) {
-    if (!slotId) return null
-    const scoped = this.resolveContext(context)
-    const slot = await this.prisma.fulfillmentSlot.findFirst({
-      where: { id: slotId, tenantId: scoped.tenantId, storeId: scoped.storeId },
-    })
-    if (!slot) return null
-
-    const releasedItems = Math.max(0, Math.ceil(itemCount || 0))
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.fulfillmentSlot.findUnique({ where: { id: slot.id } })
-      if (!current) return null
-      const nextOrders = Math.max(0, current.reservedOrders - 1)
-      const nextItems = Math.max(0, current.reservedItems - releasedItems)
-      return tx.fulfillmentSlot.update({
-        where: { id: slot.id },
-        data: { reservedOrders: nextOrders, reservedItems: nextItems },
-      })
-    })
-    if (!updated) return null
-
-    await this.recordFulfillmentEvent({
-      tenantId: scoped.tenantId,
-      storeId: scoped.storeId,
-      type: 'slot.released',
-      payload: { slotId: slot.id, itemCount: releasedItems, reason },
-      actor,
-    })
-
-    return updated
   }
 
   async listDrivers(context?: Partial<FulfillmentContext>) {
@@ -1247,7 +995,23 @@ export class DeliveryService {
    * na frente ja tinha causado um bug (query no model errado, sempre vazia,
    * sem erro nenhum). Ver CLAUDE.md.
    */
-  async calculate({
+  /**
+   * Frete do endereco. Regra de negocio (19/08/2026): o "gratis acima de" da
+   * area/localidade vence; sem ele, vale o global (Marca). Ate 01/10/2026 so o
+   * aceite do pedido (OrdersService.isFreeShippingEarnedByZone) sabia do
+   * global -- o checkout cobrava o frete mesmo com o site anunciando gratis.
+   */
+  async calculate(lookup: DeliveryLookup): Promise<DeliveryCalculation> {
+    const calc = await this.matchDelivery(lookup)
+    if (calc.outOfArea || calc.freeAbove != null) return calc
+    const brand = await this.prisma.brandConfig.findUnique({ where: { id: 'singleton' }, select: { freeShippingThreshold: true } })
+    if (brand?.freeShippingThreshold == null) return calc
+    const freeAbove = Number(brand.freeShippingThreshold)
+    const isFree = lookup.subtotal != null && lookup.subtotal >= freeAbove
+    return { ...calc, freeAbove, isFree, fee: isFree ? 0 : calc.fee }
+  }
+
+  private async matchDelivery({
     tenantId,
     storeId,
     cep,
@@ -1339,53 +1103,10 @@ export class DeliveryService {
     }
   }
 
-  private slotOccupancy(
-    slot: {
-      id: string
-      type: string
-      startsAt: Date
-      endsAt: Date
-      capacityOrders: number
-      capacityItems: number | null
-      reservedOrders: number
-      reservedItems: number
-      cutoffMinutes: number
-      status: string
-    },
-    options: SlotValidationOptions = {},
-  ) {
-    const reservedOrders = Math.max(0, slot.reservedOrders - (options.reservedOrdersOffset || 0))
-    const reservedItems = Math.max(0, slot.reservedItems - (options.reservedItemsOffset || 0))
-    const availableOrders = Math.max(0, slot.capacityOrders - reservedOrders)
-    const availableItems = slot.capacityItems == null ? null : Math.max(0, slot.capacityItems - reservedItems)
-    const cutoffAt = new Date(slot.startsAt.getTime() - Math.max(0, slot.cutoffMinutes || 0) * 60 * 1000)
-
-    return {
-      ...slot,
-      reservedOrders,
-      reservedItems,
-      availableOrders,
-      availableItems,
-      isFull: availableOrders <= 0 || (availableItems != null && availableItems <= 0),
-      cutoffAt: cutoffAt.toISOString(),
-      cutoffExpired: Date.now() > cutoffAt.getTime(),
-      occupancyPercent: slot.capacityOrders > 0 ? Math.round((reservedOrders / slot.capacityOrders) * 100) : 0,
-    }
-  }
-
   private async findZoneOrThrow(id: string) {
     const zone = await this.prisma.deliveryZone.findUnique({ where: { id } })
     if (!zone) throw new NotFoundException('Zona de entrega nao encontrada')
     return zone
-  }
-
-  private async findSlotOrThrow(id: string, context?: Partial<FulfillmentContext>) {
-    const scoped = this.resolveContext(context)
-    const slot = await this.prisma.fulfillmentSlot.findFirst({
-      where: { id, tenantId: scoped.tenantId, storeId: scoped.storeId },
-    })
-    if (!slot) throw new NotFoundException('Janela de entrega/retirada nao encontrada.')
-    return slot
   }
 
   private async findDriverOrThrow(id: string, context: FulfillmentContext) {
@@ -1574,15 +1295,6 @@ export class DeliveryService {
         actorId: data.actor?.actorId || null,
       },
     })
-  }
-
-  private assertValidWindow(startsAt: Date, endsAt: Date) {
-    if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime())) {
-      throw new BadRequestException('Datas da janela sao invalidas.')
-    }
-    if (endsAt <= startsAt) {
-      throw new BadRequestException('Fim da janela deve ser posterior ao inicio.')
-    }
   }
 
   private parsePolygonFeature(raw: unknown) {

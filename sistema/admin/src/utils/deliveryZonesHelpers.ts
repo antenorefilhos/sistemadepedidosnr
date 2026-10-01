@@ -1,4 +1,4 @@
-import type { DeliveryZonePayload, FulfillmentSlotOccupancy } from '../services/api'
+import type { DeliveryZonePayload } from '../services/api'
 import L from 'leaflet'
 
 const AREA_PRECISION: Record<string, number> = { km: 2, ha: 2, m: 0, mi: 2, ac: 2, yd: 0, ft: 0, nm: 2 }
@@ -53,7 +53,7 @@ export function fixLeafletDrawReadableArea() {
   geometryUtil.__readableAreaFixed = true
 }
 
-export type Tab = 'points' | 'zones' | 'slots' | 'rules'
+export type Tab = 'points' | 'zones' | 'rules'
 
 export const EMPTY_FORM: DeliveryZonePayload = {
   name: '',
@@ -65,15 +65,6 @@ export const EMPTY_FORM: DeliveryZonePayload = {
   freeAbove: null,
   active: true,
   priority: 0,
-}
-
-export const EMPTY_SLOT_FORM = {
-  type: 'DELIVERY' as 'DELIVERY' | 'PICKUP',
-  startsAt: '',
-  endsAt: '',
-  capacityOrders: 10,
-  capacityItems: '',
-  cutoffMinutes: 30,
 }
 
 export const DEFAULT_CENTER: [number, number] = [-22.313628, -43.130604]
@@ -159,8 +150,6 @@ export function circleToPolygonLatLngs(center: L.LatLng, radiusMeters: number, s
   return points
 }
 
-export const SLOTS_PER_PAGE = 10
-
 export function maskCep(value: string) {
   const d = value.replace(/\D/g, '').slice(0, 8)
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d
@@ -178,29 +167,6 @@ export function formatFee(value: number | string | null | undefined) {
   return amount === 0
     ? 'Gratis'
     : amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-export function formatWindow(value: string) {
-  return new Date(value).toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-export function slotLabel(slot: FulfillmentSlotOccupancy) {
-  return slot.type === 'PICKUP' ? 'Retirada' : 'Entrega'
-}
-
-export function localToIso(local: string): string {
-  return new Date(local).toISOString()
-}
-
-export function isoToLocal(iso: string): string {
-  const d = new Date(iso)
-  const tz = d.getTimezoneOffset() * 60000
-  return new Date(d.getTime() - tz).toISOString().slice(0, 16)
 }
 
 export function parsePolygonGeoJSON(raw: string | null | undefined): Array<[number, number]> {

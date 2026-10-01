@@ -39,6 +39,8 @@ export class CheckoutDeliveryDto {
   @IsString()
   deliveryPointCode?: string
 
+  /** Sem uso desde 01/10/2026 (janelas com capacidade removidas). Aceito para
+   *  o site em cache, que ainda manda 'ASAP', nao levar 400. */
   @IsOptional()
   @IsString()
   slotId?: string

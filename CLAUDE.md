@@ -647,6 +647,25 @@ Essa precedência precisa ser respeitada em dois lugares independentes, e até
   aceita o valor da zona (via `checkoutQuote?.delivery.freeAbove ??
   deliveryCalc?.freeAbove`) e sobrepõe o global; a barra some em `isPickup`.
 
+**Terceiro lugar, achado em 01/10/2026:** o checkout (`CheckoutService.applyFreeAbove`)
+só via o `freeAbove` da zona/localidade — com o global preenchido, o site
+anunciava "faltam R$ X para frete grátis" e o checkout cobrava o frete. Agora a
+regra mora em `DeliveryService.calculate`: sem valor próprio da
+área/localidade, devolve o global como `freeAbove`. Checkout, simulador e
+prévia da loja leem dali. O primeiro pedido grátis é o cupom BEMVINDO (tela
+Cupons), não um interruptor desta tela.
+
+## Janelas de entrega com capacidade: removidas (01/10/2026)
+
+`FulfillmentSlot` (janela avulsa com data/hora e capacidade) nunca teve uma
+linha em produção e, se tivesse, o checkout jogava o pedido na primeira janela
+livre sem o cliente escolher, por cima do horário de entrega. Removido de
+ponta a ponta com o aval do Jonathan (migration `20261001010000_drop_fulfillment_slots`).
+Horário e agendamento vêm só de `brand.businessHours`/`specialDates` (tela
+Horário de entrega). `deliverySnapshot.slot` continua existindo, mas é só a
+janela prometida ao cliente (início/fim), sem capacidade. O DTO do checkout
+ainda aceita `slotId` e o ignora, para o site em cache não levar 400.
+
 ## Armadilha: preview de frete na etapa de endereço nunca sabia se era grátis
 
 `deliveryAPI.calculate()` (usado no preview da etapa de endereço, antes da

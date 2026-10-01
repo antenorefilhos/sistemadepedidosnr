@@ -27,9 +27,7 @@ import {
   AddDeliveryStopDto,
   CreateDeliveryRouteDto,
   CreateDriverDto,
-  CreateFulfillmentSlotDto,
   UpdateDeliveryStopStatusDto,
-  UpdateFulfillmentSlotDto,
 } from './dto/fulfillment.dto'
 
 @ApiTags('delivery')
@@ -80,16 +78,6 @@ export class DeliveryController {
       locality,
       deliveryPointCode,
     })
-  }
-
-  @Get('slots')
-  @ApiOperation({ summary: 'Listar janelas publicas de entrega ou retirada' })
-  listPublicSlots(
-    @Query('type') type?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
-    return this.deliveryService.listSlotOccupancy(undefined, { type, from, to, status: 'ACTIVE' })
   }
 
   // ── Admin: CRUD de zonas ─────────────────────────────────────────────
@@ -186,15 +174,6 @@ export class DeliveryController {
   deletePoint(@Param('id') id: string) {
     return this.deliveryService.deletePoint(id)
   }
-
-  @Post('zones/bulk-import')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Importar zonas em lote (array de CEP ranges)' })
-  bulkImportZones(@Body() body: { zones: Array<CreateDeliveryZoneDto> }) {
-    return this.deliveryService.bulkImportZones(body?.zones || [])
-  }
 }
 
 @ApiTags('Admin Fulfillment')
@@ -205,37 +184,6 @@ export class DeliveryController {
 @Controller('admin/fulfillment')
 export class AdminFulfillmentController {
   constructor(private readonly deliveryService: DeliveryService) {}
-
-  @Get('slots')
-  @ApiOperation({ summary: 'Listar janelas e ocupacao' })
-  listSlots(
-    @Req() req: TenantContextRequest,
-    @Query('type') type?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-    @Query('status') status?: string,
-  ) {
-    return this.deliveryService.listSlotOccupancy(getTenantContext(req), { type, from, to, status })
-  }
-
-  @Post('slots')
-  @ApiOperation({ summary: 'Criar janela de entrega ou retirada' })
-  createSlot(@Req() req: TenantContextRequest, @Body() dto: CreateFulfillmentSlotDto) {
-    return this.deliveryService.createSlot(getTenantContext(req), dto)
-  }
-
-  @Patch('slots/:id')
-  @ApiOperation({ summary: 'Atualizar janela de entrega ou retirada' })
-  updateSlot(@Param('id') id: string, @Req() req: TenantContextRequest, @Body() dto: UpdateFulfillmentSlotDto) {
-    return this.deliveryService.updateSlot(id, getTenantContext(req), dto)
-  }
-
-  @Delete('slots/:id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remover janela sem reservas' })
-  deleteSlot(@Param('id') id: string, @Req() req: TenantContextRequest) {
-    return this.deliveryService.deleteSlot(id, getTenantContext(req))
-  }
 
   @Get('drivers')
   @ApiOperation({ summary: 'Listar motoristas' })

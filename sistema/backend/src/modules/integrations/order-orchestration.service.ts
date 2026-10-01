@@ -318,7 +318,6 @@ export class OrderOrchestrationService {
       orderId: order.id,
       customerId: order.customerId,
       fulfillmentType: order.fulfillmentType,
-      fulfillmentSlotId: order.fulfillmentSlotId,
       deliveryAreaId: order.deliveryAreaId,
       status: order.status,
       paymentStatus: order.paymentStatus,

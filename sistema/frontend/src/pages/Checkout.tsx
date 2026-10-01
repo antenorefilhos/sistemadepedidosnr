@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useCart } from '../hooks/useCart'
@@ -13,7 +12,7 @@ import {
 } from '../hooks/useCheckout'
 import { formatPrice } from '../utils/format'
 import { getApiErrorMessage } from '../utils/apiError'
-import { authAPI, deliveryAPI, type CheckoutQuoteResponse, type FulfillmentSlot, type WhatsAppDispatch } from '../services/api'
+import { authAPI, deliveryAPI, type CheckoutQuoteResponse, type WhatsAppDispatch } from '../services/api'
 import { Loader2, User, Banknote, QrCode, CreditCard, Ticket, AlertTriangle, CheckCircle2, MapPin, ArrowLeft, ShoppingBag } from 'lucide-react'
 import { LoadingButton } from '../components/LoadingButton'
 import { getDeviceId } from '../utils/device'
@@ -89,33 +88,6 @@ export default function Checkout() {
   const resolvedCoordsRef = useRef<{ lat: number | null; lng: number | null }>({ lat: null, lng: null })
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [checkoutQuote, setCheckoutQuote] = useState<CheckoutQuoteResponse | null>(null)
-  const { data: deliverySlots = [] } = useQuery({
-    queryKey: ['delivery-slots', 'DELIVERY'],
-    queryFn: async () => {
-      const response = await deliveryAPI.slots('DELIVERY')
-      return response.data
-    },
-    staleTime: 60_000,
-  })
-
-  const selectedDeliverySlot = useMemo(() => {
-    const minCutoffBufferMs = 2 * 60 * 1000
-    const usableSlot = (slot: FulfillmentSlot) => {
-      const startsAtMs = new Date(slot.startsAt).getTime()
-
-      return (
-        slot.status === 'ACTIVE' &&
-        !slot.cutoffExpired &&
-        !slot.isFull &&
-        Number(slot.availableOrders ?? 0) > 0 &&
-        Number.isFinite(startsAtMs) &&
-        startsAtMs > Date.now() + minCutoffBufferMs
-      )
-    }
-
-    return deliverySlots.find(usableSlot) || null
-  }, [deliverySlots])
-
   useEffect(() => {
     trackEvent('INITIATE_CHECKOUT', 'ORDER', undefined, { total })
   }, [])
@@ -361,31 +333,12 @@ export default function Checkout() {
     if (isPickup) {
       // Retirada nao tem endereco nem zona: o backend devolve frete 0 e
       // pula a validacao de area (checkout.service -> buildDeliverySnapshot).
-      // Precisa vir antes do check de selectedDeliverySlot -- esse hook busca
-      // sempre janelas do tipo DELIVERY, entao existir uma janela de entrega
-      // ativa nao pode fazer o modo PICKUP escolhido pelo cliente virar
-      // DELIVERY (e o backend rejeitar por "fora da zona" sem CEP nenhum).
       if (!deliverySlotRef.current) {
         deliverySlotRef.current = createFallbackDeliverySlot(hoursConfig)
       }
       return {
         mode: 'PICKUP',
         ...deliverySlotRef.current,
-      }
-    }
-
-    if (selectedDeliverySlot) {
-      return {
-        mode: 'DELIVERY',
-        zipCode: formData.zipCode,
-        lat,
-        lng,
-        addressId: deliveryAddressId,
-        locality: formData.locality || undefined,
-        deliveryPointCode: formData.deliveryPointCode || undefined,
-        slotId: selectedDeliverySlot.id,
-        windowStart: selectedDeliverySlot.startsAt,
-        windowEnd: selectedDeliverySlot.endsAt,
       }
     }
 
@@ -403,7 +356,7 @@ export default function Checkout() {
       deliveryPointCode: formData.deliveryPointCode || undefined,
       ...deliverySlotRef.current,
     }
-  }, [formData.lat, formData.lng, formData.zipCode, formData.locality, formData.deliveryPointCode, selectedDeliverySlot, isPickup, hoursConfig])
+  }, [formData.lat, formData.lng, formData.zipCode, formData.locality, formData.deliveryPointCode, isPickup, hoursConfig])
 
   const ensureCheckoutSession = useCallback(async ({
     customerId,
@@ -1375,7 +1328,7 @@ export default function Checkout() {
                       <span>Total:</span>
                       <span className="text-[#5D082A]">{formatPrice(payableTotal)}</span>
                     </div>
-                    {checkoutQuote?.delivery.validSlot && (
+                    {checkoutQuote?.delivery.slot?.windowStart && (
                       <div className="flex justify-between text-sm mt-1 text-gray-600">
                         <span>Janela</span>
                         <span>{formatDeliveryWindow(checkoutQuote)}</span>

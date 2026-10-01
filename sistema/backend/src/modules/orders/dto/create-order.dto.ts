@@ -83,18 +83,10 @@ export class CreateOrderDto {
   @IsString()
   fulfillmentType?: string
 
-  @IsOptional()
-  @IsString()
-  fulfillmentSlotId?: string
-
   /** ISO do horario escolhido pelo cliente. Ausente = "o quanto antes". */
   @IsOptional()
   @IsISO8601()
   scheduledFor?: string
-
-  @IsOptional()
-  @IsNumber()
-  fulfillmentSlotItemCount?: number
 
   @IsOptional()
   @IsString()

@@ -43,17 +43,17 @@ type DeliverySnapshot = {
   zoneId: string | null
   isFree: boolean
   outOfArea: boolean
-  validSlot: boolean
   addressId: string | null
   zipCode: string | null
+  /**
+   * Janela prometida ao cliente: "o quanto antes" ou o horario agendado. O
+   * nome `slot` ficou do sistema de janelas com capacidade, removido em
+   * 01/10/2026 (nunca usado; o horario de entrega da marca e quem decide).
+   */
   slot: {
-    id: string | null
     windowStart: string | null
     windowEnd: string | null
     type: string | null
-    availableOrders: number | null
-    availableItems: number | null
-    reason: string | null
   }
 }
 
@@ -239,8 +239,6 @@ export class CheckoutService {
         couponCode: dto.couponCode,
         deliveryAddressId: quote.delivery.addressId || dto.deliveryAddressId,
         fulfillmentType: quote.delivery.mode,
-        fulfillmentSlotId: quote.delivery.slot.id || undefined,
-        fulfillmentSlotItemCount: quote.delivery.slot.id ? this.cartItemCount(quote.cart) : undefined,
         deliveryAreaId: quote.delivery.zoneId || undefined,
         deliverySnapshot: quote.delivery,
         clientIp: dto.clientIp,
@@ -255,7 +253,6 @@ export class CheckoutService {
           customerId,
           orderId: result.order.id,
           paymentSnapshot: { ...paymentSnapshot, orderId: result.order.id },
-          fulfillmentSlotReserved: false,
         },
       })
       await this.cartService.markConverted(quote.cart.id, { tenantId, storeId })
@@ -305,7 +302,6 @@ export class CheckoutService {
         data: { status: 'FAILED', paymentSnapshot: { ...paymentSnapshot, failure: this.errorMessage(error) } },
       }).catch(() => null)
       await this.inventoryService.releaseReservationsByCart(quote.cart.id, 'Checkout falhou antes da conclusao').catch(() => null)
-      await this.releaseSessionSlotReservation(quote.session, { tenantId, storeId }, 'Checkout falhou antes da conclusao').catch(() => null)
       await this.recordEvent({
         tenantId,
         storeId,
@@ -330,15 +326,9 @@ export class CheckoutService {
       this.inventoryService.releaseReservationsByCart(session.id, reason).catch(() => ({ count: 0 })),
       this.inventoryService.releaseReservationsByCart(session.cartId, reason).catch(() => ({ count: 0 })),
     ])
-    await this.releaseSessionSlotReservation(session, { tenantId, storeId }, reason).catch(() => null)
     const updated = await this.prisma.checkoutSession.update({
       where: { id: session.id },
-      data: {
-        status: 'FAILED',
-        fulfillmentSlotReserved: false,
-        fulfillmentSlotId: null,
-        fulfillmentSlotItemCount: 0,
-      },
+      data: { status: 'FAILED' },
     })
 
     await this.recordEvent({
@@ -370,13 +360,10 @@ export class CheckoutService {
     if (cart.status !== 'ACTIVE') throw new BadRequestException('Carrinho nao esta ativo para checkout.')
     if (cart.items.length === 0) throw new BadRequestException('Carrinho deve conter ao menos um item.')
 
-    const itemCount = this.cartItemCount(cart)
     const stock = await this.buildStockSnapshot({ tenantId, storeId }, cart)
     const deliveryBase = await this.resolveDelivery(
       { tenantId, storeId },
       dto,
-      itemCount,
-      session,
       session.customerId || cart.customerId || dto.customerId,
     )
     // JON-187: a mesma data alimenta as duas chamadas de quote() abaixo E o
@@ -420,35 +407,7 @@ export class CheckoutService {
     }
 
     const blockers = this.getBlockers(stock, delivery)
-    let canConfirm = blockers.length === 0
-    let slotState = {
-      slotId: session.fulfillmentSlotId || null,
-      reserved: Boolean(session.fulfillmentSlotReserved),
-      itemCount: Number(session.fulfillmentSlotItemCount || 0),
-    }
-
-    if (options.persist) {
-      try {
-        slotState = await this.syncFulfillmentSlotReservation({
-          session,
-          context: { tenantId, storeId },
-          delivery,
-          itemCount,
-          canConfirm,
-        })
-      } catch (error) {
-        delivery = {
-          ...delivery,
-          validSlot: false,
-          slot: {
-            ...delivery.slot,
-            reason: this.errorMessage(error),
-          },
-        }
-        blockers.push('janela de entrega/retirada sem capacidade')
-        canConfirm = false
-      }
-    }
+    const canConfirm = blockers.length === 0
 
     const priceSnapshot = this.priceSnapshot(price)
     const updated = options.persist
@@ -460,9 +419,6 @@ export class CheckoutService {
             priceSnapshot,
             deliverySnapshot: delivery,
             stockSnapshot: stock,
-            fulfillmentSlotId: slotState.slotId,
-            fulfillmentSlotReserved: slotState.reserved,
-            fulfillmentSlotItemCount: slotState.itemCount,
           },
         })
       : session
@@ -537,39 +493,15 @@ export class CheckoutService {
   private async resolveDelivery(
     context: { tenantId: string; storeId: string },
     dto: QuoteCheckoutSessionDto,
-    itemCount: number,
-    session: SessionRecord,
     customerId?: string | null,
   ): Promise<DeliverySnapshot> {
     const delivery = dto.delivery || {}
     const mode = String(delivery.mode || 'DELIVERY').toUpperCase()
     const fulfillmentType = mode === 'RETIRADA' ? 'PICKUP' : mode
     const slot = {
-      id: this.optionalString(delivery.slotId),
       windowStart: this.optionalString(delivery.windowStart),
       windowEnd: this.optionalString(delivery.windowEnd),
       type: fulfillmentType,
-      availableOrders: null as number | null,
-      availableItems: null as number | null,
-      reason: null as string | null,
-    }
-    const slotValidation = await this.deliveryService.validateSlotCapacity(
-      context,
-      slot.id,
-      fulfillmentType,
-      itemCount,
-      {
-        reservedOrdersOffset: session.fulfillmentSlotReserved && session.fulfillmentSlotId === slot.id ? 1 : 0,
-        reservedItemsOffset: session.fulfillmentSlotReserved && session.fulfillmentSlotId === slot.id
-          ? Number(session.fulfillmentSlotItemCount || 0)
-          : 0,
-      },
-    )
-    const validatedSlot = {
-      ...slot,
-      availableOrders: slotValidation.occupancy?.availableOrders ?? null,
-      availableItems: slotValidation.occupancy?.availableItems ?? null,
-      reason: slotValidation.reason || null,
     }
 
     if (fulfillmentType === 'PICKUP') {
@@ -584,10 +516,9 @@ export class CheckoutService {
         zoneId: null,
         isFree: true,
         outOfArea: false,
-        validSlot: slotValidation.valid,
         addressId: null,
         zipCode: null,
-        slot: validatedSlot,
+        slot,
       }
     }
 
@@ -642,10 +573,9 @@ export class CheckoutService {
       zoneId: calculation.zoneId,
       isFree: calculation.isFree,
       outOfArea: calculation.outOfArea,
-      validSlot: slotValidation.valid,
       addressId,
       zipCode: cep,
-      slot: validatedSlot,
+      slot,
     }
   }
 
@@ -672,55 +602,7 @@ export class CheckoutService {
     if (!stock.allAvailable) blockers.push('itens indisponiveis em estoque')
     if (delivery.outOfArea) blockers.push('endereco fora da area de entrega')
     if (!delivery.minimumOrderMet) blockers.push('pedido abaixo do minimo da area de entrega')
-    if (!delivery.validSlot) blockers.push('janela de entrega/retirada invalida')
     return blockers
-  }
-
-  private async syncFulfillmentSlotReservation({
-    session,
-    context,
-    delivery,
-    itemCount,
-    canConfirm,
-  }: {
-    session: SessionRecord
-    context: { tenantId: string; storeId: string }
-    delivery: DeliverySnapshot
-    itemCount: number
-    canConfirm: boolean
-  }) {
-    const currentSlotId = session.fulfillmentSlotId || null
-    const currentReserved = Boolean(session.fulfillmentSlotReserved)
-    const currentItemCount = Number(session.fulfillmentSlotItemCount || 0)
-    const nextSlotId = delivery.slot.id || null
-
-    if (!canConfirm || !nextSlotId) {
-      if (currentReserved && currentSlotId) {
-        await this.deliveryService.releaseSlotReservation(context, currentSlotId, currentItemCount, 'Checkout sem confirmacao')
-      }
-      return { slotId: null, reserved: false, itemCount: 0 }
-    }
-
-    if (currentReserved && currentSlotId === nextSlotId) {
-      return { slotId: currentSlotId, reserved: true, itemCount: currentItemCount || itemCount }
-    }
-
-    if (currentReserved && currentSlotId) {
-      await this.deliveryService.releaseSlotReservation(context, currentSlotId, currentItemCount, 'Troca de janela no checkout')
-    }
-
-    await this.deliveryService.reserveSlotForCheckout(context, nextSlotId, delivery.mode, itemCount)
-    return { slotId: nextSlotId, reserved: true, itemCount }
-  }
-
-  private async releaseSessionSlotReservation(session: SessionRecord, context: { tenantId: string; storeId: string }, reason: string) {
-    if (!session.fulfillmentSlotReserved || !session.fulfillmentSlotId) return null
-    return this.deliveryService.releaseSlotReservation(
-      context,
-      session.fulfillmentSlotId,
-      Number(session.fulfillmentSlotItemCount || 0),
-      reason,
-    )
   }
 
   private async findSessionOrThrow(id: string, context: { tenantId: string; storeId: string }, options?: { allowFailed?: boolean }) {
@@ -898,10 +780,6 @@ export class CheckoutService {
     } catch {
       return false
     }
-  }
-
-  private cartItemCount(cart: CartPayload) {
-    return cart.items.reduce((sum, item) => sum + Math.ceil(Number(item.quantity || 0)), 0)
   }
 
   private optionalString(value?: string | null) {

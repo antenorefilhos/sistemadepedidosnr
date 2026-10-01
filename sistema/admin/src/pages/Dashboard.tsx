@@ -187,7 +187,7 @@ export default function AdminDashboard() {
 
           {activeSection === 'deliveryZones' && (
             <Suspense fallback={lazySectionFallback}>
-              <DeliveryZones />
+              <DeliveryZones onNavigate={setActiveSection} />
             </Suspense>
           )}
 

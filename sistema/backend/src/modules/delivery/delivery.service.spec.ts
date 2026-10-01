@@ -8,6 +8,7 @@ const pointsByCep = (where: { cep?: string; active?: boolean }) =>
   Promise.resolve((pointsFixture as Array<{ cep: string | null; active: boolean; fee: number }>).filter((p) => p.cep === where.cep && p.active).sort((a, b) => a.fee - b.fee))
 
 const mockPrisma = {
+  brandConfig: { findUnique: jest.fn().mockResolvedValue(null) },
   deliveryPoint: {
     findMany: jest.fn(({ where }: { where: { cep?: string; active?: boolean } }) => pointsByCep(where)),
     findFirst: jest.fn(),
@@ -18,15 +19,6 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
-  },
-  fulfillmentSlot: {
-    findMany: jest.fn(),
-    findFirst: jest.fn(),
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    count: jest.fn(),
   },
   fulfillmentEvent: {
     create: jest.fn(),
@@ -165,11 +157,27 @@ describe('DeliveryService', () => {
       expect(result).toEqual(expect.objectContaining({ fee: 0, rawFee: 36, freeAbove: 150, isFree: true, zoneId: 'balcao:4205' }))
     })
 
-    it('localidade sem regra propria devolve freeAbove undefined (o global de Marca decide)', async () => {
+    it('localidade sem regra propria e sem global: cobra o frete', async () => {
       mockPrisma.deliveryZone.findMany.mockResolvedValue([])
       const result = await service.calculate({ cep: '25720-170', subtotal: 500 })
       expect(result.freeAbove).toBeUndefined()
       expect(result.fee).toBe(36)
+    })
+
+    it('localidade sem regra propria usa o gratis acima de global (Marca)', async () => {
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([])
+      mockPrisma.brandConfig.findUnique.mockResolvedValueOnce({ freeShippingThreshold: 200 }).mockResolvedValueOnce({ freeShippingThreshold: 200 })
+      expect(await service.calculate({ cep: '25720-170', subtotal: 150 })).toEqual(expect.objectContaining({ fee: 36, freeAbove: 200, isFree: false }))
+      expect(await service.calculate({ cep: '25720-170', subtotal: 250 })).toEqual(expect.objectContaining({ fee: 0, rawFee: 36, freeAbove: 200, isFree: true }))
+    })
+
+    it('regra da localidade vence o global', async () => {
+      mockPrisma.deliveryZone.findMany.mockResolvedValue([])
+      mockPrisma.brandConfig.findUnique.mockResolvedValueOnce({ freeShippingThreshold: 50 })
+      mockPrisma.deliveryPoint.findMany.mockResolvedValueOnce([
+        { code: '4205', locality: 'Ribeirão', fee: 36, freeAbove: 150, minutes: 11, km: 9, reference: null },
+      ])
+      expect(await service.calculate({ cep: '25720-170', subtotal: 100 })).toEqual(expect.objectContaining({ fee: 36, freeAbove: 150, isFree: false }))
     })
 
     it('CEP com multiplos pontos sem locality informada retorna availableLocalities pra escolha do cliente', async () => {
@@ -291,80 +299,6 @@ describe('DeliveryService', () => {
     })
   })
 
-
-  it('blocks a full fulfillment slot', async () => {
-    mockPrisma.fulfillmentSlot.findFirst.mockResolvedValue({
-      id: 'slot-1',
-      tenantId: 'tenant_default',
-      storeId: 'store_default',
-      type: 'DELIVERY',
-      startsAt: new Date(Date.now() + 60 * 60 * 1000),
-      endsAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
-      capacityOrders: 2,
-      capacityItems: null,
-      reservedOrders: 2,
-      reservedItems: 0,
-      cutoffMinutes: 0,
-      status: 'ACTIVE',
-    })
-
-    await expect(service.validateSlotCapacity(undefined, 'slot-1', 'DELIVERY', 1)).resolves.toEqual(
-      expect.objectContaining({
-        valid: false,
-        reason: 'SLOT_FULL_ORDERS',
-      }),
-    )
-  })
-
-  it('reserves and releases slot capacity', async () => {
-    const slot = {
-      id: 'slot-1',
-      tenantId: 'tenant_default',
-      storeId: 'store_default',
-      type: 'PICKUP',
-      startsAt: new Date(Date.now() + 60 * 60 * 1000),
-      endsAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
-      capacityOrders: 3,
-      capacityItems: 10,
-      reservedOrders: 1,
-      reservedItems: 2,
-      cutoffMinutes: 0,
-      status: 'ACTIVE',
-    }
-    mockPrisma.fulfillmentSlot.findFirst.mockResolvedValueOnce(slot)
-    mockPrisma.fulfillmentSlot.update.mockResolvedValueOnce({ ...slot, reservedOrders: 2, reservedItems: 5 })
-    mockPrisma.fulfillmentEvent.create.mockResolvedValue({ id: 'event-1' })
-
-    await service.reserveSlotForCheckout(undefined, 'slot-1', 'PICKUP', 3)
-
-    expect(mockPrisma.fulfillmentSlot.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'slot-1' },
-        data: expect.objectContaining({
-          reservedOrders: { increment: 1 },
-          reservedItems: { increment: 3 },
-        }),
-      }),
-    )
-
-    mockPrisma.fulfillmentSlot.findFirst.mockResolvedValueOnce({ ...slot, reservedOrders: 2, reservedItems: 5 })
-    // A liberacao roda dentro de $transaction e le o estado atual com
-    // findUnique antes de descontar.
-    mockPrisma.fulfillmentSlot.findUnique.mockResolvedValueOnce({ ...slot, reservedOrders: 2, reservedItems: 5 })
-    mockPrisma.fulfillmentSlot.update.mockResolvedValueOnce({ ...slot, reservedOrders: 1, reservedItems: 2 })
-
-    await service.releaseSlotReservation(undefined, 'slot-1', 3, 'teste')
-
-    expect(mockPrisma.fulfillmentSlot.update).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        where: { id: 'slot-1' },
-        data: expect.objectContaining({
-          reservedOrders: 1,
-          reservedItems: 2,
-        }),
-      }),
-    )
-  })
 
   describe('getDriverPerformance', () => {
     function route(overrides: Partial<Record<string, any>> = {}) {

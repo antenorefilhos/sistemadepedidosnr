@@ -14,9 +14,6 @@ describe('CheckoutService', () => {
     stockSnapshot: null,
     paymentSnapshot: null,
     orderId: null,
-    fulfillmentSlotId: null,
-    fulfillmentSlotReserved: false,
-    fulfillmentSlotItemCount: 0,
     expiresAt: new Date(Date.now() + 30 * 60 * 1000),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -92,9 +89,6 @@ describe('CheckoutService', () => {
 
   const mockDeliveryService = {
     calculate: jest.fn(),
-    validateSlotCapacity: jest.fn(),
-    reserveSlotForCheckout: jest.fn(),
-    releaseSlotReservation: jest.fn(),
   }
 
   const mockOrdersService = {
@@ -149,14 +143,6 @@ describe('CheckoutService', () => {
       isFree: false,
       outOfArea: false,
     })
-    mockDeliveryService.validateSlotCapacity.mockImplementation(async (_context: any, slotId?: string | null) => ({
-      valid: Boolean(slotId),
-      reason: slotId ? null : 'SLOT_REQUIRED',
-      slot: slotId ? { id: slotId } : null,
-      occupancy: slotId ? { availableOrders: 8, availableItems: null } : null,
-    }))
-    mockDeliveryService.reserveSlotForCheckout.mockResolvedValue({ id: 'slot-1' })
-    mockDeliveryService.releaseSlotReservation.mockResolvedValue({ id: 'slot-1' })
     mockPricingService.quote.mockResolvedValue({
       tenantId: 'tenant_default',
       storeId: 'store_default',
@@ -270,18 +256,6 @@ describe('CheckoutService', () => {
     )
   })
 
-  it('blocks confirmation when delivery has no valid slot', async () => {
-    await expect(
-      service.confirmSession(undefined, 'session-1', {
-        customerId: 'customer-1',
-        paymentMethod: 'PIX',
-        delivery: { cep: '01001000' },
-      }),
-    ).rejects.toThrow('janela de entrega')
-
-    expect(mockOrdersService.create).not.toHaveBeenCalled()
-  })
-
   it('creates the order with backend price, delivery and checkout idempotency', async () => {
     const result = await service.confirmSession(undefined, 'session-1', {
       customerId: 'customer-1',
@@ -296,8 +270,6 @@ describe('CheckoutService', () => {
         delivery: 7,
         couponCode: 'SAVE10',
         fulfillmentType: 'DELIVERY',
-        fulfillmentSlotId: 'slot-1',
-        fulfillmentSlotItemCount: 2,
         deliveryAreaId: 'zone-1',
         // JON-46/JON-47: substitutionPolicy e expectedTotal agora vao
         // sempre pro OrdersService.create -- ver comentario em

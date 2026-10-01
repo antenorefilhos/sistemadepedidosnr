@@ -53,25 +53,8 @@ export interface CheckoutDeliveryPayload {
   cep?: string
   zipCode?: string
   addressId?: string
-  slotId?: string
   windowStart?: string
   windowEnd?: string
-}
-
-export interface FulfillmentSlot {
-  id: string
-  type: string
-  startsAt: string
-  endsAt: string
-  capacityOrders: number
-  capacityItems?: number | null
-  reservedOrders: number
-  reservedItems: number
-  availableOrders: number
-  availableItems?: number | null
-  status: string
-  isFull: boolean
-  cutoffExpired: boolean
 }
 
 export interface CheckoutQuoteResponse {
@@ -95,8 +78,7 @@ export interface CheckoutQuoteResponse {
     freeAbove: number | null
     zoneName: string | null
     outOfArea: boolean
-    validSlot: boolean
-    slot: { id: string | null; windowStart: string | null; windowEnd: string | null }
+    slot: { windowStart: string | null; windowEnd: string | null }
   }
   stock: {
     allAvailable: boolean
@@ -421,8 +403,6 @@ export const deliveryAPI = {
         },
       },
     ),
-  slots: (type = 'DELIVERY') =>
-    api.get<FulfillmentSlot[]>('/delivery/slots', { params: { type } }),
   // Base local do IBGE (CNEFE 2022, 158 mil enderecos de Petropolis com GPS
   // porta a porta) -- geocodificacao reversa instantanea e gratuita, cobre
   // servidoes/estradas vicinais que o CEP dos Correios agrupa num so CEP.

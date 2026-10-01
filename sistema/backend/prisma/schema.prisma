@@ -695,8 +695,6 @@ model Order {
   /// e pedidos antigos dependem dela. Nao tem FK. Renomear exige migrar dado
   /// e mexer no contrato do ERP (`order-contract.dto.ts`).
   deliveryAreaId String?
-  fulfillmentSlotId String?
-  fulfillmentSlotItemCount Int?
   /// Horario escolhido pelo cliente pra receber/retirar. Null = "o quanto
   /// antes". Vira hrCombinada no Solidcom.
   scheduledFor DateTime?
@@ -714,7 +712,6 @@ model Order {
   @@index([tenantId, customerId])
   @@index([tenantId, storeId, createdAt])
   @@index([tenantId, storeId, deliveryAreaId])
-  @@index([tenantId, storeId, fulfillmentSlotId])
   @@map("orders")
 }
 
@@ -932,9 +929,6 @@ model CheckoutSession {
   stockSnapshot    Json?
   paymentSnapshot  Json?
   orderId          String?
-  fulfillmentSlotId String?
-  fulfillmentSlotReserved Boolean @default(false)
-  fulfillmentSlotItemCount Int @default(0)
   expiresAt        DateTime
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -942,7 +936,6 @@ model CheckoutSession {
   @@unique([tenantId, storeId, idempotencyKey])
   @@index([tenantId, storeId, status, expiresAt])
   @@index([tenantId, storeId, cartId])
-  @@index([tenantId, storeId, fulfillmentSlotId])
   @@index([orderId])
   @@map("checkout_sessions")
 }
@@ -2105,27 +2098,6 @@ model DeliveryPoint {
   @@unique([tenantId, code])
   @@index([tenantId, storeId, cep, active])
   @@map("delivery_points")
-}
-
-model FulfillmentSlot {
-  id             String   @id @default(cuid())
-  tenantId       String   @default("tenant_default")
-  storeId        String   @default("store_default")
-  type           String
-  startsAt       DateTime
-  endsAt         DateTime
-  capacityOrders Int
-  capacityItems  Int?
-  reservedOrders Int      @default(0)
-  reservedItems  Int      @default(0)
-  cutoffMinutes  Int      @default(0)
-  status         String   @default("ACTIVE")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@index([tenantId, storeId, type, startsAt])
-  @@index([tenantId, storeId, status, startsAt])
-  @@map("fulfillment_slots")
 }
 
 model Driver {

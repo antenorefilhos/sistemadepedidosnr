@@ -328,8 +328,6 @@ export class OrdersService {
       storeId: rawStoreId,
       channel: rawChannel,
       fulfillmentType: rawFulfillmentType,
-      fulfillmentSlotId,
-      fulfillmentSlotItemCount,
       deliveryAreaId,
       deliverySnapshot,
       expectedTotal,
@@ -635,8 +633,6 @@ export class OrdersService {
         total,
         channel,
         fulfillmentType,
-        fulfillmentSlotId: fulfillmentSlotId || null,
-        fulfillmentSlotItemCount: fulfillmentSlotId ? Math.max(0, Math.ceil(Number(fulfillmentSlotItemCount || itemsWithPrices.length))) : null,
         scheduledFor: createOrderDto.scheduledFor ? new Date(createOrderDto.scheduledFor) : null,
         deliveryAreaId: deliveryAreaId || null,
         status: orderStatus,
@@ -661,7 +657,6 @@ export class OrdersService {
                 : null,
           },
           fulfillmentType,
-          fulfillmentSlotId,
           deliveryAreaId,
         ),
         priceSnapshot: this.buildPriceSnapshot({ subtotal, deliveryAmount: quotedDeliveryAmount, discountAmount, total, couponCode, quote }),
@@ -699,7 +694,6 @@ export class OrdersService {
       discount: discountAmount,
       total,
       itemCount: order.items.length,
-      fulfillmentSlotId: order.fulfillmentSlotId,
       deliveryAreaId: order.deliveryAreaId,
     })
 
@@ -801,7 +795,6 @@ export class OrdersService {
         data: { status: 'CANCELLED' },
       })
       await this.inventoryService.releaseOrderReservations(order.id, reason || 'Pedido cancelado')
-      await this.releaseFulfillmentSlotReservation(previousOrder, reason || 'Pedido cancelado')
       // Pedido cancelado devolve o cupom (29/09/2026): o uso seguia contando no
       // limite e o cliente nao conseguia usar o BEMVINDO de novo.
       await this.prisma.promotionUsage.deleteMany({ where: { orderId: order.id } })
@@ -853,16 +846,6 @@ export class OrdersService {
   }
 
   async remove(id: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
-      include: { customer: { select: CUSTOMER_SAFE_SELECT }, items: { include: { product: true } } },
-    })
-    if (order) {
-      // Deletar o pedido nao deve deixar a reserva de vaga presa no slot --
-      // sem isso, a janela de entrega/retirada fica com capacidade artificialmente
-      // reduzida (achado durante limpeza de pedido de teste, ver CLAUDE.md fila).
-      await this.releaseFulfillmentSlotReservation(order, 'Pedido removido')
-    }
     return this.prisma.order.delete({
       where: { id },
     })
@@ -1154,43 +1137,6 @@ export class OrdersService {
     })
   }
 
-  private async releaseFulfillmentSlotReservation(order: OrderWithRelations, reason: string) {
-    if (order.status === 'CANCELLED' || !order.fulfillmentSlotId) return null
-
-    const slot = await this.prisma.fulfillmentSlot.findFirst({
-      where: {
-        id: order.fulfillmentSlotId,
-        tenantId: order.tenantId,
-        storeId: order.storeId,
-      },
-    })
-    if (!slot) return null
-
-    const itemCount = Math.max(
-      0,
-      Math.ceil(Number(order.fulfillmentSlotItemCount || order.items.reduce((sum, item) => sum + item.quantity, 0))),
-    )
-    const updated = await this.prisma.fulfillmentSlot.update({
-      where: { id: slot.id },
-      data: {
-        reservedOrders: Math.max(0, slot.reservedOrders - 1),
-        reservedItems: Math.max(0, slot.reservedItems - itemCount),
-      },
-    })
-
-    await this.prisma.fulfillmentEvent.create({
-      data: {
-        tenantId: order.tenantId,
-        storeId: order.storeId,
-        orderId: order.id,
-        type: 'slot.released',
-        payload: this.toJsonPayload({ slotId: slot.id, itemCount, reason }),
-      },
-    }).catch(() => null)
-
-    return updated
-  }
-
   private async recordOrderEvent(
     order: Pick<OrderWithRelations, 'id' | 'tenantId' | 'storeId' | 'status' | 'paymentStatus'>,
     type: string,
@@ -1383,8 +1329,6 @@ export class OrdersService {
       storeId: createOrderDto.storeId || DEFAULT_STORE_ID,
       channel: this.normalizeCode(createOrderDto.channel, 'STOREFRONT'),
       fulfillmentType: this.normalizeCode(createOrderDto.fulfillmentType, 'DELIVERY'),
-      fulfillmentSlotId: createOrderDto.fulfillmentSlotId ?? null,
-      fulfillmentSlotItemCount: createOrderDto.fulfillmentSlotItemCount ?? null,
       deliveryAreaId: createOrderDto.deliveryAreaId ?? null,
     }
 
@@ -1440,7 +1384,6 @@ export class OrdersService {
     address?: { id: string; zipCode: string } | null,
     snapshot?: Record<string, unknown> | null,
     fulfillmentType = 'DELIVERY',
-    fulfillmentSlotId?: string | null,
     deliveryAreaId?: string | null,
   ) {
     return {
@@ -1450,7 +1393,6 @@ export class OrdersService {
       outOfArea: Boolean(snapshot?.outOfArea ?? false),
       addressId: address?.id ?? null,
       zipCode: address?.zipCode ?? null,
-      fulfillmentSlotId: fulfillmentSlotId || null,
       deliveryAreaId: deliveryAreaId || null,
     }
   }
@@ -1586,7 +1528,6 @@ export class OrdersService {
       orderId: order.id,
       customerId: order.customerId,
       fulfillmentType: order.fulfillmentType,
-      fulfillmentSlotId: order.fulfillmentSlotId,
       deliveryAreaId: order.deliveryAreaId,
       status: order.status,
       paymentStatus: order.paymentStatus,

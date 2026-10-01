@@ -10,7 +10,7 @@ import { getCheckoutBlockerMessage } from './checkout'
 const quote = (over: Record<string, unknown> = {}) =>
   ({
     stock: { unavailableItems: [], items: [] },
-    delivery: { outOfArea: false, validSlot: true },
+    delivery: { outOfArea: false },
     blockers: [],
     ...over,
   }) as unknown as CheckoutQuoteResponse
@@ -64,7 +64,7 @@ describe('getCheckoutBlockerMessage', () => {
   })
 
   it('estoque ok nao sequestra a mensagem de outro bloqueio', () => {
-    expect(getCheckoutBlockerMessage(quote({ delivery: { outOfArea: true, validSlot: true } }), nome)).toContain(
+    expect(getCheckoutBlockerMessage(quote({ delivery: { outOfArea: true } }), nome)).toContain(
       'fora da zona',
     )
   })

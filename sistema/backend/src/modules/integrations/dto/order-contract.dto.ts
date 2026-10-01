@@ -48,7 +48,6 @@ export interface InternalOrderContract {
   orderId: string
   customerId: string
   fulfillmentType?: string
-  fulfillmentSlotId?: string | null
   deliveryAreaId?: string | null
   status: string
   paymentStatus: string

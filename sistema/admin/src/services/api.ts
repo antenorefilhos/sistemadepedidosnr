@@ -1467,6 +1467,9 @@ export interface DeliveryZone {
   priority: number
   createdAt: string
   updatedAt: string
+  /** Pedidos validos com esta zona nos ultimos 90 dias. */
+  orders90d?: number
+  revenue90d?: number
 }
 
 export interface DeliveryZonePayload {
@@ -1479,35 +1482,6 @@ export interface DeliveryZonePayload {
   freeAbove?: number | null
   active?: boolean
   priority?: number
-}
-
-export interface FulfillmentSlotOccupancy {
-  id: string
-  type: 'DELIVERY' | 'PICKUP'
-  startsAt: string
-  endsAt: string
-  capacityOrders: number
-  capacityItems?: number | null
-  reservedOrders: number
-  reservedItems: number
-  availableOrders: number
-  availableItems?: number | null
-  cutoffMinutes: number
-  cutoffAt: string
-  cutoffExpired: boolean
-  occupancyPercent: number
-  isFull: boolean
-  status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED'
-}
-
-export interface FulfillmentSlotPayload {
-  type: 'DELIVERY' | 'PICKUP'
-  startsAt: string
-  endsAt: string
-  capacityOrders: number
-  capacityItems?: number | null
-  cutoffMinutes?: number
-  status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED'
 }
 
 export interface Driver {
@@ -1545,8 +1519,6 @@ export const deliveryAPI = {
     api.post<{ calculation: any; matches: Array<{ id: string; name: string; fee: number; priority: number; matchedBy: 'CEP' | 'POLYGON' }> }>('/delivery/zones/test', data),
   checkOverlap: (data: { id?: string; type: string; cepStart?: string | null; cepEnd?: string | null; polygonGeoJSON?: string | null }) =>
     api.post<{ overlaps: Array<{ id: string; name: string; reason: string }> }>('/delivery/zones/overlap-check', data),
-  bulkImportZones: (zones: DeliveryZonePayload[]) =>
-    api.post<{ created: number; errors: Array<{ index: number; name?: string; error: string }> }>('/delivery/zones/bulk-import', { zones }),
   // Tabela de frete por localidade (30/09/2026): o que o cliente paga ao digitar o CEP.
   listPoints: () => api.get<DeliveryPoint[]>('/delivery/points'),
   createPoint: (data: DeliveryPointPayload) => api.post<DeliveryPoint>('/delivery/points', data),
@@ -1583,12 +1555,6 @@ export type DeliveryPointPayload = {
 }
 
 export const fulfillmentAPI = {
-  listSlots: (params?: { type?: 'DELIVERY' | 'PICKUP'; from?: string; to?: string; status?: string }) =>
-    api.get<FulfillmentSlotOccupancy[]>('/admin/fulfillment/slots', { params }),
-  createSlot: (data: FulfillmentSlotPayload) => api.post<FulfillmentSlotOccupancy>('/admin/fulfillment/slots', data),
-  updateSlot: (id: string, data: Partial<FulfillmentSlotPayload>) =>
-    api.patch<FulfillmentSlotOccupancy>(`/admin/fulfillment/slots/${id}`, data),
-  deleteSlot: (id: string) => api.delete(`/admin/fulfillment/slots/${id}`),
   listDrivers: () => api.get<Driver[]>('/admin/fulfillment/drivers'),
   createDriver: (data: { name: string; phone?: string; status?: 'ACTIVE' | 'INACTIVE' }) =>
     api.post<Driver>('/admin/fulfillment/drivers', data),

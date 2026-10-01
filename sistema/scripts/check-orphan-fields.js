@@ -42,7 +42,6 @@ const MODELOS_COM_PUBLICO = [
   'Product',
   'StoreBanner',
   'DeliveryZone',
-  'FulfillmentSlot',
   'DeliveryRoute',
   'DeliveryStop',
   'Driver',
