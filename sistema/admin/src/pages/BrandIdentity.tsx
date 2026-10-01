@@ -279,7 +279,7 @@ function Item({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex gap-3">
       <dt className="w-36 shrink-0 text-xs text-gray-500">{label}</dt>
-      <dd className="min-w-0 text-gray-900">{children}</dd>
+      <dd className="min-w-0 text-gray-900 [overflow-wrap:anywhere]">{children}</dd>
     </div>
   )
 }
