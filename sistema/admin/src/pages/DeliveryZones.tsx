@@ -39,11 +39,13 @@ export default function DeliveryZones({ onNavigate }: { onNavigate: (section: 'c
         </p>
       ) : (
         !isLoading && (
-          <p className="flex w-fit flex-wrap items-center gap-2 rounded-full bg-white px-3 py-1 text-sm text-gray-900 ring-1 ring-black/[0.06]">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Entregando em {activePoints} localidade(s) da tabela
-            {activeAreas > 0 && ` e ${activeAreas} área(s) no mapa`}
-            {activeRanges > 0 && `, com ${activeRanges} faixa(s) de CEP de reserva`}
+          <p className="flex w-fit items-start gap-2 rounded-2xl bg-white px-3 py-1 text-sm text-gray-900 ring-1 ring-black/[0.06]">
+            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+            <span>
+              Entregando em {activePoints} localidade(s) da tabela
+              {activeAreas > 0 && ` e ${activeAreas} área(s) no mapa`}
+              {activeRanges > 0 && `, com ${activeRanges} faixa(s) de CEP de reserva`}
+            </span>
           </p>
         )
       )}
