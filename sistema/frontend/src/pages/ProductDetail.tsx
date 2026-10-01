@@ -424,8 +424,10 @@ export default function ProductDetail() {
             ))}
           </div>
 
-          {/^\d{8,14}$/.test(product.ean || '') && (
-            <p className="text-xs text-[#5d4f33]">Código de barras (EAN): <span className="font-mono">{product.ean}</span></p>
+          {/* Peso e producao propria tem codigo interno curto (ex.: 2701), nao
+              codigo de barras: aparece como "Codigo" (pedido do Jonathan, 01/10/2026). */}
+          {product.ean && (
+            <p className="text-xs text-[#5d4f33]">{/^\d{8,14}$/.test(product.ean) ? 'Código de barras (EAN)' : 'Código'}: <span className="font-mono">{product.ean}</span></p>
           )}
 
           <div className="pt-2 flex flex-wrap gap-2">
