@@ -39,7 +39,7 @@ export default function DeliveryZones({ onNavigate }: { onNavigate: (section: 'c
         </p>
       ) : (
         !isLoading && (
-          <p className="inline-flex flex-wrap items-center gap-2 rounded-full bg-white px-3 py-1 text-sm text-gray-900 ring-1 ring-black/[0.06]">
+          <p className="flex w-fit flex-wrap items-center gap-2 rounded-full bg-white px-3 py-1 text-sm text-gray-900 ring-1 ring-black/[0.06]">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
             Entregando em {activePoints} localidade(s) da tabela
             {activeAreas > 0 && ` e ${activeAreas} área(s) no mapa`}
@@ -54,7 +54,7 @@ export default function DeliveryZones({ onNavigate }: { onNavigate: (section: 'c
         </p>
       )}
 
-      <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1 text-sm sm:inline-grid sm:w-auto">
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1 text-sm sm:w-fit">
         {TABS.map((t) => (
           <button key={t.key} type="button" onClick={() => setTab(t.key)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 sm:px-4 ${tab === t.key ? 'bg-gray-900 text-white' : 'text-gray-600'}`}>
             {t.label}
@@ -93,9 +93,9 @@ function RulesTab({
   const value = parseMoney(text)
   const invalid = value != null && (!Number.isFinite(value) || value < 0)
   const dirty = draft != null && value !== saved
-  const ownPoints = points.filter((p) => p.active && p.freeAbove != null).length
+  const ownPoints = points.filter((p) => p.active && p.cep && p.freeAbove != null).length
   const ownAreas = zones.filter((z) => z.active && z.freeAbove != null).length
-  const usingGlobal = points.filter((p) => p.active && p.freeAbove == null).length + zones.filter((z) => z.active && z.freeAbove == null).length
+  const usingGlobal = points.filter((p) => p.active && p.cep && p.freeAbove == null).length + zones.filter((z) => z.active && z.freeAbove == null).length
 
   const save = async () => {
     if (invalid || !dirty) return

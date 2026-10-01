@@ -144,7 +144,8 @@ export function DeliveryAreasTab() {
       )}
 
       {polygons.length > 0 && (
-        <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
+        <section className="isolate overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
+          {/* isolate: as camadas do Leaflet (z-index 400+) passavam por cima da janela de edicao. */}
           <div ref={overviewRef} className="h-[280px] sm:h-[380px]" aria-label="Mapa das áreas de entrega" />
         </section>
       )}
