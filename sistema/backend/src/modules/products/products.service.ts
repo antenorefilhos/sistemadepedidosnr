@@ -1708,7 +1708,7 @@ export class ProductsService {
       source === 'antenorapi'
         ? await this.antenorApiService.syncProducts()
         : await this.solidcomERPService.syncProducts()
-    const { synced, errors, indexedIds } = await this.applyErpProducts(syncResult.data)
+    const { synced, errors, errorItems, indexedIds } = await this.applyErpProducts(syncResult.data)
 
     // O catalogo em massa do Solidcom nao carrega promocao viva; sem esta
     // passada, promocao que saiu do ar no PDV ficaria eterna na vitrine. A
@@ -1740,6 +1740,7 @@ export class ProductsService {
       products: syncResult.data.length,
       synced,
       errors,
+      errorItems,
       taxonomy,
       promotions,
       deactivation,
@@ -2002,6 +2003,8 @@ export class ProductsService {
 
     let synced = 0
     let errors = 0
+    // 30/09/2026: o catch so contava -- "errors: 1" sem dizer qual produto.
+    const errorItems: Array<{ ean: string; erpProductId: number | null; error: string }> = []
     const indexedIds: string[] = []
 
     for (const { item, mainEan, secondaryEans, erpProductId, allEans: groupEans } of resolved) {
@@ -2167,13 +2170,14 @@ export class ProductsService {
         indexedIds.push(product.id)
 
         synced += 1
-      } catch {
+      } catch (error) {
         errors += 1
+        errorItems.push({ ean: mainEan, erpProductId, error: error instanceof Error ? error.message.slice(-300) : String(error) })
       }
     }
 
 
-    return { synced, errors, indexedIds }
+    return { synced, errors, errorItems, indexedIds }
   }
 
   /**
@@ -2287,7 +2291,7 @@ export class ProductsService {
 
     // clearMissingPromotion: a janela recente e confiavel para estado de promocao
     // (bate com o GetProdutosEAN), entao ela pode encerrar promocao que saiu do ar.
-    const { synced, errors, indexedIds } = await this.applyErpProducts(items, {
+    const { synced, errors, errorItems, indexedIds } = await this.applyErpProducts(items, {
       clearMissingPromotion: true,
     })
 
@@ -2361,6 +2365,7 @@ export class ProductsService {
       received: items.length,
       synced,
       errors,
+      errorItems,
       changed: changes.length,
       changes: changes.slice(0, 50),
     }
