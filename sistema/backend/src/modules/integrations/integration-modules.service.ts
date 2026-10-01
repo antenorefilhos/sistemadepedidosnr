@@ -5,8 +5,6 @@ export type IntegrationModuleKey =
   | 'solidcom'
   | 'antenorapi'
   | 'hubspot'
-  | 'rdstation'
-  | 'meta-pixel'
   | 'nfe'
   | 'payments'
 
@@ -33,25 +31,13 @@ export class IntegrationModulesService {
       key: 'antenorapi',
       name: 'AntenorApi (ERP proprio)',
       removable: true,
-      notes: 'API propria que le o SQL Server da loja. Hoje cobre cancelamento e status no PDV.',
+      notes: 'API propria que le o banco da loja: catalogo, pedidos (DAV), cancelamento, faturamento e status no PDV.',
     },
     hubspot: {
       key: 'hubspot',
       name: 'HubSpot CRM',
       removable: true,
       notes: 'Conector CRM plugavel.',
-    },
-    rdstation: {
-      key: 'rdstation',
-      name: 'RD Station',
-      removable: true,
-      notes: 'Automacao de marketing plugavel.',
-    },
-    'meta-pixel': {
-      key: 'meta-pixel',
-      name: 'Meta Pixel',
-      removable: true,
-      notes: 'Telemetria de conversao plugavel.',
     },
     nfe: {
       key: 'nfe',
@@ -71,8 +57,6 @@ export class IntegrationModulesService {
     solidcom: 'INTEGRATION_SOLIDCOM_ENABLED',
     antenorapi: 'INTEGRATION_ANTENORAPI_ENABLED',
     hubspot: 'INTEGRATION_HUBSPOT_ENABLED',
-    rdstation: 'INTEGRATION_RDSTATION_ENABLED',
-    'meta-pixel': 'INTEGRATION_META_PIXEL_ENABLED',
     nfe: 'INTEGRATION_NFE_ENABLED',
     payments: 'INTEGRATION_PAYMENTS_ENABLED',
   }
@@ -82,8 +66,6 @@ export class IntegrationModulesService {
     // Nasce desligado: a VPS ainda nao tem rota ate 10.13.0.2 (JON-11).
     antenorapi: false,
     hubspot: false,
-    rdstation: false,
-    'meta-pixel': false,
     nfe: false,
     payments: false,
   }

@@ -9,6 +9,7 @@ import { Roles } from '../../common/decorators/roles.decorator'
 import { RequireModule } from '../../common/decorators/require-module.decorator'
 import { IntegrationsService } from './integrations.service'
 import { OrderOrchestrationService } from './order-orchestration.service'
+import { IntegrationsOverviewService } from './integrations-overview.service'
 import { WebhookPayload } from './payments-webhook.service'
 import { WebhookGuard } from './webhook.guard'
 import { AntenorApiWebhookGuard } from './antenor-api-webhook.guard'
@@ -30,6 +31,7 @@ export class IntegrationsController {
     private readonly integrationsService: IntegrationsService,
     private readonly orderOrchestrationService: OrderOrchestrationService,
     private readonly antenorApi: AntenorApiService,
+    private readonly overviewService: IntegrationsOverviewService,
     @Inject(forwardRef(() => ProductsService))
     private readonly productsService: ProductsService,
   ) {}
@@ -207,6 +209,33 @@ export class IntegrationsController {
     }
     this.productsService.scheduleWebhookProductSync()
     return { received: true, scheduled: true }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('overview')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tela Integracoes: saude do ERP, catalogo, pedidos sem DAV, cancelamentos e status do caixa' })
+  overview(@Query('days') days?: string) {
+    return this.overviewService.overview(Math.min(90, Math.max(1, Number(days) || 30)))
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('orders/:orderId/resend')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reenviar ao ERP pedido sem DAV (idempotente na AntenorApi)' })
+  resendOrder(@Param('orderId') orderId: string) {
+    return this.orderOrchestrationService.retryOrderSync(orderId)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('orders/:orderId/cancel-retry')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Repetir no ERP o cancelamento que falhou' })
+  retryCancel(@Param('orderId') orderId: string) {
+    return this.orderOrchestrationService.retryCancelSync(orderId)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

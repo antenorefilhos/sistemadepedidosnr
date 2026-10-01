@@ -15,7 +15,7 @@ import { OrderOrchestrationService } from './order-orchestration.service'
  */
 const build = () =>
   new OrderOrchestrationService(
-    {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    {} as never, {} as never, {} as never, {} as never, {} as never,
   )
 
 const obs = (service: OrderOrchestrationService, payload: unknown) =>

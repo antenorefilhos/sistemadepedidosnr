@@ -1,381 +1,283 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, PlugZap, RefreshCcw } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import {
-  integrationsAPI,
-  productsAPI,
-  getApiErrorMessage,
-  type IntegrationModuleDescriptor,
-  type SolidcomStatusResponse,
-} from '../services/api'
+import { useCallback, useEffect, useState } from 'react'
+import { AlertCircle, RefreshCw } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { getApiErrorMessage, integrationsAPI, productsAPI, type IntegrationsOverview } from '../services/api'
 
-const PAYMENTS_UI_ENABLED = (import.meta.env.VITE_PAYMENTS_UI_ENABLED ?? 'false') === 'true'
+// Integracoes (refeita em 01/10/2026). Antes: textos de vitrine sobre
+// conectores que nem existiam e o status do Solidcom, desligado desde 10/09.
+// Agora: o que o lojista precisa saber do ERP (AntenorApi) e o que fazer.
 
-type IntegrationKey = IntegrationModuleDescriptor['key']
-
-type IntegrationMeta = {
-  role: string
-  summary: string
-  contractSummary: string
-  triggerSummary: string
-  observabilitySummary: string
-  nextDeliverable: string
+const TZ = 'America/Sao_Paulo'
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const when = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+const ago = (iso: string | null) => {
+  if (!iso) return 'nunca'
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60_000)
+  if (min < 1) return 'agora'
+  if (min < 60) return `há ${min} min`
+  const h = Math.round(min / 60)
+  return h < 48 ? `há ${h} h` : `há ${Math.round(h / 24)} dias`
+}
+const MODULE_INFO: Record<string, string> = {
+  antenorapi: 'ERP da loja: catálogo, pedidos (DAV), cancelamento, faturamento e status do caixa.',
+  solidcom: 'ERP antigo, desligado desde 10/09/2026. Fica de reserva: ligado, assume pedidos se a AntenorApi falhar.',
+  hubspot: 'CRM. Precisa de conta e chave do HubSpot.',
+  nfe: 'Emissão de NF-e pelo site. Hoje a nota sai no caixa.',
+  payments: 'Pagamento online (PIX/cartão no site). Hoje o caixa cobra na entrega ou retirada.',
 }
 
-const INTEGRATION_META: Record<IntegrationKey, IntegrationMeta> = {
-  solidcom: {
-    role: 'Sincronização de catálogo e pedidos (legado)',
-    summary: 'ERP legado. Desligado desde o cutover pra AntenorApi (JON-17, 10/09/2026) -- mantido no código como fallback, sem uso ativo hoje.',
-    contractSummary: 'Contrato interno normalizado com campos comerciais, pedidos e sincronização.',
-    triggerSummary: 'Disparo automático na criação/cancelamento de pedido e sync manual de catálogo.',
-    observabilitySummary: 'Trilha de falhas, reprocesso manual e reconciliação por período.',
-    nextDeliverable: 'Toggle operacional em runtime já disponível por extensão.',
-  },
-  antenorapi: {
-    role: 'ERP próprio -- catálogo, pedidos e faturamento',
-    summary: 'API própria que lê o SQL Server da loja direto. Assumiu integralmente do Solidcon em 10/09/2026 (JON-17): catálogo, criação de pedido, cancelamento e status/faturamento no PDV.',
-    contractSummary: 'Contrato JSON tipado (POST /pedidos, GET /produtos), assinatura HMAC no webhook (JON-23).',
-    triggerSummary: 'Disparo automático na criação/cancelamento de pedido, sync de catálogo (cron horário + incremental) e webhook de faturamento/cancelamento vindo do PDV.',
-    observabilitySummary: 'Certificado fixado (pinned), retry com backoff no webhook, outbox de retentativa em falha de rede.',
-    nextDeliverable: 'Em produção, sem pendência conhecida.',
-  },
-  hubspot: {
-    role: 'Relacionamento e automações',
-    summary: 'Pipeline para sincronização de clientes, segmentações e campanhas.',
-    contractSummary: 'Contrato interno de cliente, segmento e eventos de jornada.',
-    triggerSummary: 'Disparo por cadastro, recompra e abandono de carrinho.',
-    observabilitySummary: 'Fila de eventos, status por lote e auditoria por contato.',
-    nextDeliverable: 'Conector plugável com replay por snapshot.',
-  },
-  rdstation: {
-    role: 'Marketing automation',
-    summary: 'Módulo opcional para campanhas e automações de marketing.',
-    contractSummary: 'Contrato interno de lead/evento desacoplado do domínio principal.',
-    triggerSummary: 'Disparo por eventos comerciais (cadastro, compra, abandono).',
-    observabilitySummary: 'Snapshots e trilha de replay para eventos enviados.',
-    nextDeliverable: 'Implementar adaptador plugável com toggle de ativação.',
-  },
-  'meta-pixel': {
-    role: 'Medição e conversão',
-    summary: 'Módulo opcional para telemetria de conversão e funil.',
-    contractSummary: 'Contrato interno de evento analítico desacoplado da aplicação core.',
-    triggerSummary: 'Disparo por eventos de vitrine, carrinho e checkout.',
-    observabilitySummary: 'Fila de eventos com auditoria de entrega por lote.',
-    nextDeliverable: 'Implementar adaptador plugável e removível por configuração.',
-  },
-  nfe: {
-    role: 'Emissão fiscal',
-    summary: 'Módulo opcional para emissão de notas fiscais.',
-    contractSummary: 'Contrato interno de documento fiscal normalizado.',
-    triggerSummary: 'Disparo automático ao confirmar pedido.',
-    observabilitySummary: 'Trilha de emissão e replay de documentos.',
-    nextDeliverable: 'Adaptador plugável com provider configurável.',
-  },
-  payments: {
-    role: 'Gateway de pagamento',
-    summary: 'Módulo opcional para gateway de pagamentos.',
-    contractSummary: 'Contrato interno de cobrança e webhook independente.',
-    triggerSummary: 'Disparo por confirmação de pedido quando habilitado.',
-    observabilitySummary: 'Fila de cobrança, webhook e eventos de pagamento.',
-    nextDeliverable: 'Conector plugável com provider configurável.',
-  },
+function Stat({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: 'ok' | 'warn' | 'bad' }) {
+  const dot = tone === 'bad' ? 'bg-rose-500' : tone === 'warn' ? 'bg-amber-500' : tone === 'ok' ? 'bg-emerald-500' : ''
+  return (
+    <div className="rounded-2xl border border-black/[0.06] bg-white p-4">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 flex items-center gap-2 text-lg font-semibold tabular-nums text-gray-900">
+        {dot && <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />}
+        {value}
+      </p>
+      {hint && <p className="mt-0.5 text-xs text-gray-500">{hint}</p>}
+    </div>
+  )
 }
 
 export default function Integrations() {
-  const [selectedIntegration, setSelectedIntegration] = useState<IntegrationKey>('antenorapi')
-  const [showModulesModal, setShowModulesModal] = useState(false)
-  const [modulesLoading, setModulesLoading] = useState(false)
-  const [togglingKey, setTogglingKey] = useState<IntegrationKey | null>(null)
-  const [modules, setModules] = useState<IntegrationModuleDescriptor[]>([])
-  const [status, setStatus] = useState<SolidcomStatusResponse | null>(null)
+  const [data, setData] = useState<IntegrationsOverview | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [notice, setNotice] = useState('')
   const [syncing, setSyncing] = useState(false)
-  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
-  const loadModules = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      setModulesLoading(true)
-      const response = await integrationsAPI.getModules()
-      setModules(response.data.items)
-    } catch (err) {
-      console.error('Erro ao carregar módulos:', getApiErrorMessage(err))
-    } finally {
-      setModulesLoading(false)
+      setData((await integrationsAPI.overview(30)).data)
+      setError('')
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Não foi possível carregar as integrações.'))
     }
   }, [])
+  useEffect(() => {
+    load()
+  }, [load])
 
-  const loadSolidcomStatus = useCallback(async () => {
-    try {
-      const response = await integrationsAPI.getSolidcomStatus()
-      setStatus(response.data)
-    } catch (err) {
-      console.error('Erro ao carregar status Solidcom:', getApiErrorMessage(err))
-    }
-  }, [])
-
-  const toggleModule = useCallback(async (key: IntegrationKey, enabled: boolean) => {
-    try {
-      setTogglingKey(key)
-      await integrationsAPI.setModuleEnabled(key, enabled)
-      await loadModules()
-      if (key === 'solidcom') {
-        await loadSolidcomStatus()
+  // Sync do catalogo: o mesmo da tela Produtos, acompanhado ate terminar.
+  useEffect(() => {
+    if (!syncing) return
+    const t = setInterval(async () => {
+      try {
+        const s = await productsAPI.syncStatus()
+        if (!s.data.running) {
+          setSyncing(false)
+          setNotice(s.data.lastError ? `O sync falhou: ${s.data.lastError}` : 'Catálogo sincronizado.')
+          load()
+        }
+      } catch {
+        /* tenta no proximo ciclo */
       }
-    } catch (err) {
-      console.error('Erro ao atualizar módulo:', getApiErrorMessage(err))
-    } finally {
-      setTogglingKey(null)
-    }
-  }, [loadModules, loadSolidcomStatus])
+    }, 5000)
+    return () => clearInterval(t)
+  }, [syncing, load])
 
-  const runSyncNow = useCallback(async () => {
+  const act = async (key: string, fn: () => Promise<{ data: { success?: boolean; reason?: string } }>, ok: string) => {
+    setBusy(key)
+    setNotice('')
     try {
-      setSyncing(true)
-      setSyncMessage(null)
-      const response = await productsAPI.sync()
-      const data = response.data as { synced?: number; errors?: number; skipped?: boolean; reason?: string }
-      setSyncMessage(
-        data.skipped
-          ? `Sync pulado: ${data.reason || 'módulo desativado'}.`
-          : `Sincronizado: ${data.synced ?? 0} produtos, ${data.errors ?? 0} erros.`,
-      )
-      await loadSolidcomStatus()
-    } catch (err) {
-      setSyncMessage(`Falha ao sincronizar: ${getApiErrorMessage(err)}`)
+      const r = (await fn()).data
+      setNotice(r.success ? ok : `Não deu certo: ${r.reason || 'sem resposta do ERP'}`)
+      await load()
+    } catch (e) {
+      setNotice(getApiErrorMessage(e, 'Não foi possível concluir.'))
     } finally {
-      setSyncing(false)
+      setBusy(null)
     }
-  }, [loadSolidcomStatus])
+  }
 
-  useEffect(() => {
-    loadModules()
-    loadSolidcomStatus()
-  }, [loadModules, loadSolidcomStatus])
-
-  useEffect(() => {
-    if (selectedIntegration === 'solidcom') {
-      loadSolidcomStatus()
+  const toggleModule = async (key: string, on: boolean) => {
+    if (key === 'antenorapi' && !on && !window.confirm('Desligar a AntenorApi para catálogo e pedidos? Sem ela (e sem o Solidcom ligado), pedido novo não chega ao caixa.')) return
+    if (key === 'solidcom' && on && !window.confirm('Ligar o Solidcom como reserva? Ele só envia pedido quando a AntenorApi falhar.')) return
+    setBusy(`mod:${key}`)
+    try {
+      await integrationsAPI.setModuleEnabled(key as never, on)
+      await load()
+    } catch (e) {
+      setNotice(getApiErrorMessage(e, 'Não foi possível mudar o conector.'))
+    } finally {
+      setBusy(null)
     }
-  }, [selectedIntegration, loadSolidcomStatus])
+  }
 
-  const visibleModules = useMemo(() => {
-    return modules.filter((item) => (PAYMENTS_UI_ENABLED ? true : item.key !== 'payments'))
-  }, [modules])
-
-  const selectedModule = useMemo(() => {
-    return visibleModules.find((item) => item.key === selectedIntegration) || visibleModules[0] || null
-  }, [visibleModules, selectedIntegration])
-
-  const selectedIntegrationMeta = useMemo(() => {
-    if (!selectedModule) return null
-    return INTEGRATION_META[selectedModule.key]
-  }, [selectedModule])
+  const d = data
+  const noDav = d?.orders.withoutDav ?? []
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <section className="bg-gradient-to-r from-[#4a0622] via-[#5D082A] to-[#7b1240] text-white rounded-lg p-5 shadow-[0_18px_55px_rgba(74,6,34,0.25)]">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-          <div className="space-y-2">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-[#f4d8e4] font-semibold">Painel de Conectores</p>
-            <h2 className="text-2xl md:text-3xl font-black leading-tight">Integrações do ecossistema</h2>
-            <p className="text-sm text-[#fdebf2] max-w-2xl">
-              Base operacional para múltiplos conectores do sistema, com saúde do conector, trilhas de falha e ações de reprocesso.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-xs font-semibold">
-            <PlugZap size={14} />
-            {visibleModules.filter((item) => item.enabled).length} ativa(s)
-          </div>
-        </div>
-      </section>
+    <div className="mx-auto max-w-7xl space-y-4">
+      <p className="max-w-3xl text-sm text-gray-500">
+        O site conversa com o ERP da loja (AntenorApi): puxa o catálogo, manda cada pedido para virar DAV no caixa, cancela lá quando cancela aqui e recebe de volta separação e faturamento.
+      </p>
 
-      <div className="flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <div>
-          <p className="text-sm font-semibold text-gray-800 mb-1">Módulos Plugáveis</p>
-          <p className="text-xs text-gray-600">Ative ou desative conectores sem remover dados locais</p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setShowModulesModal(!showModulesModal)}
-          className="border-[#5D082A] bg-[#fff5f8] text-[#5D082A] hover:bg-[#ffe5ed] whitespace-nowrap"
-        >
-          <PlugZap size={16} />
-          {showModulesModal ? 'Ocultar' : 'Mostrar'} Módulos
-        </Button>
-      </div>
-
-      {showModulesModal && (
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-6 bg-gradient-to-b from-[#fafafa] to-white border border-gray-200 rounded-lg">
-          {modulesLoading && (
-            <div className="col-span-full flex items-center justify-center py-8 text-gray-500">
-              <Loader2 className="animate-spin mr-2" size={16} /> Carregando módulos...
-            </div>
-          )}
-
-          {!modulesLoading && visibleModules.map((integration) => {
-            const isSelected = selectedModule?.key === integration.key
-            const meta = INTEGRATION_META[integration.key]
-            return (
-              <div
-                key={integration.key}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedIntegration(integration.key)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    setSelectedIntegration(integration.key)
-                  }
-                }}
-                className={`text-left rounded-lg border p-4 min-h-[136px] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5D082A] ${
-                  isSelected
-                    ? 'border-[#5D082A] bg-[#fff5f8] shadow-[0_10px_25px_rgba(93,8,42,0.12)]'
-                    : 'border-gray-200 bg-white hover:border-[#b65982] hover:shadow-sm'
-                }`}
-                aria-pressed={isSelected}
-              >
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="font-bold text-gray-800 text-sm">{integration.name}</p>
-                  <Badge
-                    variant="secondary"
-                    className={`text-[10px] font-bold uppercase tracking-wide ${
-                      integration.enabled
-                        ? 'bg-emerald-50 text-emerald-700 border-transparent'
-                        : 'bg-slate-100 text-slate-600 border-transparent'
-                    }`}
-                  >
-                    {integration.enabled ? 'Ativa' : 'Inativa'}
-                  </Badge>
-                </div>
-                <p className="text-xs text-[#6d123a] font-semibold mb-2">{meta.role}</p>
-                <p className="text-xs text-gray-600 leading-relaxed">{meta.summary}</p>
-
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      toggleModule(integration.key, !integration.enabled)
-                    }}
-                    disabled={togglingKey === integration.key}
-                    className={`min-h-9 text-xs ${
-                      integration.enabled
-                        ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                    } disabled:opacity-60`}
-                  >
-                    {togglingKey === integration.key
-                      ? 'Atualizando...'
-                      : integration.enabled
-                        ? 'Desativar extensão'
-                        : 'Ativar extensão'}
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
-        </section>
+      {error && (
+        <p role="alert" className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+          <AlertCircle size={16} /> {error}
+        </p>
       )}
+      {notice && <p className="rounded-2xl bg-white p-3 text-sm text-gray-800 ring-1 ring-black/[0.06]">{notice}</p>}
 
-      {selectedModule && selectedIntegrationMeta && (
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-        <div className="rounded-lg border border-[#5D082A]/15 bg-[#fff7fa] p-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-[#8b4d67] font-semibold mb-2">Contrato interno</p>
-          <p className="text-sm font-semibold text-gray-800 leading-relaxed">{selectedIntegrationMeta.contractSummary}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500 font-semibold mb-2">Trigger principal</p>
-          <p className="text-sm font-semibold text-gray-800 leading-relaxed">{selectedIntegrationMeta.triggerSummary}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500 font-semibold mb-2">Observabilidade</p>
-          <p className="text-sm font-semibold text-gray-800 leading-relaxed">{selectedIntegrationMeta.observabilitySummary}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500 font-semibold mb-2">Próxima entrega</p>
-          <p className="text-sm font-semibold text-gray-800 leading-relaxed">{selectedIntegrationMeta.nextDeliverable}</p>
-        </div>
-      </section>
-      )}
+      {!d ? (
+        !error && <div className="h-64 animate-pulse rounded-2xl bg-white/70" />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Stat
+              label="ERP"
+              value={d.erp.status === 'ok' ? 'No ar' : d.erp.status === 'degraded' ? 'Com erro' : 'Fora do ar'}
+              tone={d.erp.status === 'ok' ? 'ok' : 'bad'}
+              hint={d.erp.status === 'ok' ? `respondeu em ${d.erp.latencyMs} ms` : d.erp.detail || 'sem resposta'}
+            />
+            <Stat
+              label="Catálogo"
+              value={d.catalog ? `Sincronizado ${ago(d.catalog.at)}` : 'Nunca sincronizado'}
+              tone={d.catalog && d.catalog.errors === 0 ? 'ok' : 'warn'}
+              hint={d.catalog ? `${(d.catalog.synced ?? 0).toLocaleString('pt-BR')} produtos${d.catalog.errors ? `, ${d.catalog.errors} com erro` : ', sem erro'}` : undefined}
+            />
+            <Stat
+              label="Pedidos no caixa · 30 dias"
+              value={`${d.orders.withDav} de ${d.orders.total}`}
+              tone={noDav.length ? 'bad' : 'ok'}
+              hint={noDav.length ? `${noDav.length} sem DAV: o separador não acha no PDV` : 'todos com DAV'}
+            />
+            <Stat
+              label="Status vindos do caixa"
+              value={d.pdvStatus.lastAt ? ago(d.pdvStatus.lastAt) : 'nenhum'}
+              hint={`${d.pdvStatus.events} atualização(ões) de separação/faturamento em 30 dias`}
+            />
+          </div>
 
-      {selectedModule?.key === 'solidcom' && status && (
-        <section className={`border rounded-lg shadow-sm p-6 space-y-3 ${status.enabled ? 'bg-white border-gray-100' : 'bg-slate-50 border-slate-200'}`}>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-bold text-gray-800">Status Solidcon</h3>
-              {!status.enabled && (
-                <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wide bg-slate-200 text-slate-700 border-transparent">
-                  Legado · Desativado
-                </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                setNotice('')
+                try {
+                  await productsAPI.syncBackground()
+                  setSyncing(true)
+                } catch (e) {
+                  setNotice(getApiErrorMessage(e, 'Não foi possível iniciar o sync.'))
+                }
+              }}
+              disabled={syncing}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            >
+              <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sincronizando…' : 'Sincronizar catálogo agora'}
+            </button>
+            <span className="text-xs text-gray-500">Automático: alterações de hora em hora e catálogo completo 4 vezes ao dia.</span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
+              <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Pedidos sem DAV</h3>
+              {noDav.length === 0 ? (
+                <p className="mt-3 inline-flex items-center gap-2 text-sm text-gray-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" /> Todos os pedidos do período chegaram ao caixa.
+                </p>
+              ) : (
+                <ul className="mt-2 divide-y divide-black/[0.05]">
+                  {noDav.map((o) => (
+                    <li key={o.orderId} className="flex items-start gap-3 py-2.5">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+                      <span className="min-w-0 flex-1 text-sm">
+                        <span className="block text-gray-900">
+                          {o.customer || 'Cliente'} · {brl(o.total)} · {when(o.createdAt)}
+                        </span>
+                        <span className="block break-words text-xs text-gray-500">
+                          {o.reason || 'ainda não enviado'} · {o.failures} tentativa(s){o.autoRetry ? ' · reenviando sozinho a cada 10 min' : ' · parou de tentar sozinho'}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled={busy === o.orderId}
+                        onClick={() => act(o.orderId, () => integrationsAPI.resendOrder(o.orderId), 'Pedido enviado: já tem DAV.')}
+                        className="shrink-0 rounded-xl bg-gray-900 px-3 py-1.5 text-xs text-white disabled:opacity-40"
+                      >
+                        {busy === o.orderId ? 'Enviando…' : 'Reenviar'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={runSyncNow}
-                disabled={syncing || !status.enabled}
-                title={!status.enabled ? 'Reative o módulo pra sincronizar por aqui' : undefined}
-                className="bg-[#5D082A] text-white hover:bg-[#4a0622] disabled:opacity-60"
-              >
-                {syncing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCcw size={16} />}
-                {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={loadSolidcomStatus}
-                className="text-gray-600 hover:bg-gray-100"
-                aria-label="Atualizar status"
-              >
-                <RefreshCcw size={16} />
-              </Button>
-            </div>
+              <p className="mt-3 text-xs text-gray-500">Pedido que o ERP recusa é reenviado sozinho por cerca de 2 horas. Reenviar não duplica: o ERP devolve o mesmo DAV.</p>
+            </section>
+
+            <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
+              <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Cancelamentos no caixa · 30 dias</h3>
+              <p className="mt-2 text-sm text-gray-700">{d.cancellations.ok} cancelado(s) também no ERP.</p>
+              {d.cancellations.failed.length > 0 && (
+                <ul className="mt-2 divide-y divide-black/[0.05]">
+                  {d.cancellations.failed.map((c) => (
+                    <li key={c.orderId} className="flex items-start gap-3 py-2.5">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+                      <span className="min-w-0 flex-1 text-sm">
+                        <span className="block text-gray-900">{c.dav ? `DAV ${c.dav}` : 'Sem DAV'} · {c.customer || 'Cliente'} · {brl(c.total)}</span>
+                        <span className="block break-words text-xs text-gray-500">Não cancelou no ERP: {c.reason || 'sem resposta'} · {when(c.at)}</span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled={busy === c.orderId}
+                        onClick={() => act(c.orderId, () => integrationsAPI.retryCancel(c.orderId), 'Cancelado também no ERP.')}
+                        className="shrink-0 rounded-xl bg-gray-900 px-3 py-1.5 text-xs text-white disabled:opacity-40"
+                      >
+                        {busy === c.orderId ? 'Tentando…' : 'Tentar de novo'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {d.cancellations.invoiced.length > 0 && (
+                <div className="mt-3">
+                  <p className="flex gap-2 text-xs text-gray-600">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                    Já estavam faturados no caixa quando foram cancelados aqui. O ERP não cancela cupom emitido: se o dinheiro precisa voltar, o estorno é no PDV.
+                  </p>
+                  <ul className="mt-1 divide-y divide-black/[0.05] pl-3.5">
+                    {d.cancellations.invoiced.map((c) => (
+                      <li key={c.orderId} className="py-1.5 text-sm text-gray-800">
+                        {c.dav ? `DAV ${c.dav}` : 'Sem DAV'} · {c.customer || 'Cliente'} · {brl(c.total)} <span className="text-xs text-gray-500">· {when(c.at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {d.cancellations.failed.length === 0 && d.cancellations.invoiced.length === 0 && (
+                <p className="mt-1 inline-flex items-center gap-2 text-sm text-gray-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" /> Nada pendente.
+                </p>
+              )}
+            </section>
           </div>
 
-          {!status.enabled && (
-            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
-              Substituído pela AntenorApi em 10/09/2026 (JON-17). O código continua aqui como fallback -- os números abaixo são da última vez que o Solidcon rodou, não em tempo real.
-            </div>
-          )}
-
-          {syncMessage && (
-            <div className="rounded-lg border border-[#5D082A]/20 bg-[#fff5f8] p-3 text-xs text-[#6d123a] font-medium">
-              {syncMessage}
-            </div>
-          )}
-
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
-            <p className="text-gray-500 text-xs mb-1">Estado da extensão</p>
-            <p className={`font-semibold ${status.enabled ? 'text-emerald-700' : 'text-slate-600'}`}>
-              {status.enabled ? 'Ativa' : 'Desativada'}
-            </p>
-            {status.note && <p className="text-xs text-gray-600 mt-1">{status.note}</p>}
-          </div>
-
-          {status.lastSync ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <p className="text-gray-500 text-xs">Última sincronização</p>
-                <p className="font-semibold text-gray-800">{new Date(status.lastSync.at).toLocaleString('pt-BR')}</p>
-                <p className="text-xs text-gray-600 mt-1">{status.lastSync.synced} sincronizados, {status.lastSync.errors} erros</p>
-              </div>
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <p className="text-gray-500 text-xs">Total de produtos</p>
-                <p className="font-semibold text-gray-800">{status.productsCount?.toLocaleString('pt-BR')}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-6 text-gray-600">
-              <Loader2 className="animate-spin mx-auto mb-2" size={20} />
-              Carregando status...
-            </div>
-          )}
-        </section>
+          <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
+            <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Conectores</h3>
+            <ul className="mt-2 divide-y divide-black/[0.05]">
+              {d.modules.map((m) => {
+                const canToggle = m.key === 'antenorapi' || m.key === 'solidcom'
+                return (
+                  <li key={m.key} className="flex items-start gap-3 py-3">
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm text-gray-900">
+                        {m.name}
+                        {!canToggle && m.configured === false && <span className="ml-2 text-xs text-gray-400">não configurado</span>}
+                      </span>
+                      <span className="block text-xs text-gray-500">{MODULE_INFO[m.key] || m.notes}</span>
+                    </span>
+                    {canToggle ? (
+                      <Switch checked={m.enabled} disabled={busy === `mod:${m.key}`} onChange={(on) => toggleModule(m.key, on)} aria-label={`${m.enabled ? 'Desligar' : 'Ligar'} ${m.name}`} />
+                    ) : (
+                      <span className="shrink-0 text-xs text-gray-400">{m.enabled ? 'ligado' : 'desligado'}</span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        </>
       )}
     </div>
   )

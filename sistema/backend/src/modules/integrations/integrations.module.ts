@@ -3,6 +3,8 @@ import { SolidcomERPService } from './solidcom-erp.service'
 import { AntenorApiService } from './antenor-api.service'
 import { PdvCancellationScheduler } from './pdv-cancellation.scheduler'
 import { PdvPaymentScheduler } from './pdv-payment.scheduler'
+import { OrderSyncRetryScheduler } from './order-sync-retry.scheduler'
+import { IntegrationsOverviewService } from './integrations-overview.service'
 import { IntegrationsService } from './integrations.service'
 import { IntegrationsController } from './integrations.controller'
 import { HealthController } from './health.controller'
@@ -31,6 +33,8 @@ import { ProductsModule } from '../products/products.module'
     AntenorApiService,
     PdvCancellationScheduler,
     PdvPaymentScheduler,
+    OrderSyncRetryScheduler,
+    IntegrationsOverviewService,
     IntegrationsService,
     HubSpotService,
     NfeService,

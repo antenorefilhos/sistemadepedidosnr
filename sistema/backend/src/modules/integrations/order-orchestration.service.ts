@@ -11,7 +11,6 @@ import {
   OrderNotFoundInErpError,
 } from './antenor-api.service'
 import { IntegrationModulesService } from './integration-modules.service'
-import { IntegrationOutboxService } from './integration-outbox.service'
 import { requireEnv } from '../../common/require-env'
 import { reconcileInvoicedItems, Reconciliacao } from '../../common/order-reconciliation'
 import { NotificationsService } from '../notifications/notifications.service'
@@ -39,7 +38,6 @@ export class OrderOrchestrationService {
     private readonly antenorApi: AntenorApiService,
     private readonly prisma: PrismaService,
     private readonly integrationModules: IntegrationModulesService,
-    private readonly integrationOutbox: IntegrationOutboxService,
     private readonly notificationsService: NotificationsService,
   ) {}
 
@@ -65,16 +63,10 @@ export class OrderOrchestrationService {
       const antenorapi = await this.syncCreatedOrderViaAntenorApi(payload)
       if (antenorapi.ok) return
 
-      if (!solidcomEnabled) {
-        // Sem fallback disponivel -- enfileira aqui mesmo, nao ha um segundo
-        // conector que vai tentar depois.
-        await this.integrationOutbox.enqueueSolidcomOrderFailure(
-          payload.orderId,
-          this.mapToAntenorApiPedido(payload) as unknown as Record<string, unknown>,
-          antenorapi.reason || 'AntenorApi falhou',
-        )
-        return
-      }
+      // Sem fallback: o OrderSyncRetryScheduler reenvia (idempotente) e a tela
+      // Integracoes mostra o pedido sem DAV com o motivo. A fila de outbox nao
+      // servia: o despacho dela nunca enviou nada (01/10/2026).
+      if (!solidcomEnabled) return
 
       this.logger.warn(
         `AntenorApi falhou pro pedido ${payload.orderId} (${antenorapi.reason}) -- tentando fallback via Solidcom antes de desistir.`,
@@ -85,11 +77,9 @@ export class OrderOrchestrationService {
       // falhou -- se o Solidcom deu certo, o pedido ja tem DAV real; reenviar
       // pra AntenorApi depois criaria um segundo pedido no ERP deles.
       if (!solidcom.ok) {
-        await this.integrationOutbox.enqueueSolidcomOrderFailure(
-          payload.orderId,
-          this.mapToAntenorApiPedido(payload) as unknown as Record<string, unknown>,
-          `AntenorApi (${antenorapi.reason}) e fallback Solidcom (${solidcom.reason}) falharam`,
-        )
+        await this.logSyncEvent('SYNC_ORDER_FAILED', payload.orderId, {
+          reason: `AntenorApi (${antenorapi.reason}) e fallback Solidcom (${solidcom.reason}) falharam`,
+        })
       }
       return
     }
@@ -571,20 +561,6 @@ export class OrderOrchestrationService {
           connector: 'ANTENORAPI',
           error: textoErro,
         })
-        await this.integrationOutbox.enqueueEvent({
-          connectorType: 'ERP',
-          provider: 'ANTENORAPI',
-          aggregate: 'ORDER',
-          aggregateId: payload.orderId,
-          type: 'ORDER_CANCEL_TO_ERP',
-          payload: {
-            orderId: payload.orderId,
-            externalOrderNumber,
-            reason: reason || null,
-            previousError: textoErro,
-          },
-          idempotencyKey: `antenorapi:order:${payload.orderId}:cancel`,
-        })
         this.logger.warn(`Falha ao cancelar pedido ${payload.orderId} na AntenorApi`, error)
         return
       }
@@ -604,56 +580,60 @@ export class OrderOrchestrationService {
         reason: reason || null,
         error: reasonText,
       })
-      await this.integrationOutbox.enqueueEvent({
-        connectorType: 'ERP',
-        provider: 'SOLIDCOM',
-        aggregate: 'ORDER',
-        aggregateId: payload.orderId,
-        type: 'ORDER_CANCEL_TO_ERP',
-        payload: { orderId: payload.orderId, externalOrderNumber, reason: reason || null, previousError: reasonText },
-        idempotencyKey: `solidcom:order:${payload.orderId}:cancel`,
-      })
       this.logger.warn(`Falha ao cancelar pedido ${payload.orderId} na integracao ERP`, error)
     }
   }
 
-  async retryOrderSync(orderId: string) {
-    if (!(await this.integrationModules.isEnabled('solidcom'))) {
-      return { orderId, retried: false, reason: 'Modulo Solidcom desativado.' }
-    }
-
-    // Remonta o pedido a partir do estado atual em vez de reenviar o payload
-    // que ja falhou -- senao um pedido que quebrou por payload incompleto
-    // (ex.: obs/endereco nulos, que travaram tudo em 17/08) fica preso pra
-    // sempre repetindo exatamente o mesmo erro.
+  /**
+   * Reenvia ao ERP um pedido que ficou sem DAV (01/10/2026). Antes so tentava
+   * pelo Solidcom -- desligado desde o cutover --, entao com a AntenorApi nao
+   * havia reenvio nenhum: pedido recusado ficava sem DAV para sempre, calado.
+   * AntenorApi e idempotente por cdEcomPedido (devolve o mesmo DAV), entao
+   * reenviar e seguro; Solidcom so entra se a AntenorApi falhar e ele estiver ligado.
+   * Remonta o pedido a partir do estado atual, nao do payload que ja falhou.
+   */
+  /** Repete no ERP o cancelamento que falhou (aparece na tela Integracoes). */
+  async retryCancelSync(orderId: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { status: true, cancellationReason: true } })
+    if (!order) return { orderId, retried: false, reason: 'Pedido nao encontrado.' }
+    if (order.status !== 'CANCELLED') return { orderId, retried: false, reason: 'Pedido nao esta cancelado.' }
     const contract = await this.buildLiveOrderContract(orderId)
+    if (!contract) return { orderId, retried: false, reason: 'Pedido nao encontrado para reprocessar.' }
+    await this.syncCancelledOrder(contract, order.cancellationReason || 'Pedido cancelado')
+    const last = await this.prisma.auditLog.findFirst({
+      where: { entityId: orderId, action: { startsWith: 'CANCEL_ORDER_' } },
+      orderBy: { createdAt: 'desc' },
+      select: { action: true },
+    })
+    const success = last?.action === 'CANCEL_ORDER_SUCCESS' || last?.action === 'CANCEL_ORDER_SKIPPED_NOT_IN_ERP'
+    return { orderId, retried: true, success, reason: success ? undefined : last?.action }
+  }
 
-    if (!contract) {
-      return { orderId, retried: false, reason: 'Pedido nao encontrado para reprocessar.' }
+  async retryOrderSync(orderId: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { erpDav: true, status: true } })
+    if (!order) return { orderId, retried: false, reason: 'Pedido nao encontrado.' }
+    if (order.erpDav) return { orderId, retried: false, success: true, reason: 'Pedido ja tem DAV.' }
+    if (['CANCELLED', 'REFUNDED'].includes(order.status)) return { orderId, retried: false, reason: 'Pedido cancelado.' }
+
+    const contract = await this.buildLiveOrderContract(orderId)
+    if (!contract) return { orderId, retried: false, reason: 'Pedido nao encontrado para reprocessar.' }
+
+    const antenorapiEnabled = await this.integrationModules.isEnabled('antenorapi')
+    const solidcomEnabled = await this.integrationModules.isEnabled('solidcom')
+    if (!antenorapiEnabled && !solidcomEnabled) return { orderId, retried: false, reason: 'Nenhum conector de ERP ligado.' }
+
+    let reason: string | undefined
+    if (antenorapiEnabled) {
+      const result = await this.syncCreatedOrderViaAntenorApi(contract)
+      if (result.ok) return { orderId, retried: true, success: true }
+      reason = result.reason
     }
-
-    const payload = this.mapToSolidcomPedido(contract)
-
-    try {
-      const dav = await this.solidcomERPService.syncOrder(orderId, payload)
-      await this.persistErpDav(orderId, dav)
-      await this.logSyncEvent('SYNC_ORDER_RETRY_SUCCESS', orderId, {
-        externalNumero: payload.numero,
-        dav,
-      })
-      return { orderId, retried: true, success: true }
-    } catch (error) {
-      await this.logSyncEvent('SYNC_ORDER_RETRY_FAILED', orderId, {
-        reason: this.stringifyError(error),
-        payload,
-      })
-      return {
-        orderId,
-        retried: true,
-        success: false,
-        reason: this.stringifyError(error),
-      }
+    if (solidcomEnabled) {
+      const result = await this.syncCreatedOrderViaSolidcom(contract)
+      if (result.ok) return { orderId, retried: true, success: true }
+      reason = reason ? `${reason}; Solidcom: ${result.reason}` : result.reason
     }
+    return { orderId, retried: true, success: false, reason }
   }
 
   private mapToSolidcomPedido(payload: InternalOrderContract): SolidcomPedidoDto {

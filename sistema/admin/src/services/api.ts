@@ -156,7 +156,7 @@ export interface SolidcomStatusResponse {
 }
 
 export interface IntegrationModuleDescriptor {
-  key: 'solidcom' | 'antenorapi' | 'hubspot' | 'rdstation' | 'meta-pixel' | 'nfe' | 'payments'
+  key: 'solidcom' | 'antenorapi' | 'hubspot' | 'nfe' | 'payments'
   name: string
   enabled: boolean
   removable: boolean
@@ -1196,7 +1196,29 @@ export const addressesAPI = {
     api.put<AdminCustomerAddress>(`/addresses/${customerId}/${addressId}`, data),
 }
 
+/** Tela Integracoes (01/10/2026): saude do ERP, catalogo, pedidos sem DAV, cancelamentos e status do caixa. */
+export interface IntegrationsOverview {
+  days: number
+  erp: { status: 'ok' | 'degraded' | 'down'; latencyMs: number | null; detail: string | null }
+  catalog: { at: string; products: number | null; synced: number | null; errors: number } | null
+  orders: {
+    total: number
+    withDav: number
+    withoutDav: Array<{ orderId: string; createdAt: string; customer: string | null; total: number; status: string; failures: number; autoRetry: boolean; reason: string | null }>
+  }
+  cancellations: {
+    ok: number
+    failed: Array<{ orderId: string; dav: string | null; customer: string | null; total: number; at: string; reason: string | null }>
+    invoiced: Array<{ orderId: string; dav: string | null; customer: string | null; total: number; at: string; reason: string | null }>
+  }
+  pdvStatus: { events: number; lastAt: string | null }
+  modules: Array<IntegrationModuleDescriptor & { configured: boolean | null }>
+}
+
 export const integrationsAPI = {
+  overview: (days = 30) => api.get<IntegrationsOverview>('/integrations/overview', { params: { days } }),
+  resendOrder: (orderId: string) => api.post<{ retried: boolean; success?: boolean; reason?: string }>(`/integrations/orders/${orderId}/resend`),
+  retryCancel: (orderId: string) => api.post<{ retried: boolean; success?: boolean; reason?: string }>(`/integrations/orders/${orderId}/cancel-retry`),
   getSystemHealth: () => api.get<SystemHealthResponse>('/health/detail', { params: { t: Date.now() } }),
   getModules: () => api.get<{ items: IntegrationModuleDescriptor[] }>('/integrations/modules'),
   setModuleEnabled: (key: IntegrationModuleDescriptor['key'], enabled: boolean) =>

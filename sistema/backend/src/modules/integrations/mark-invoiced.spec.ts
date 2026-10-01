@@ -30,9 +30,9 @@ const build = (order: Record<string, unknown> | null) => {
     notifyDeliveryTeamOrderReady: jest.fn().mockResolvedValue(undefined),
   }
   // Ordem do constructor: solidcom, antenorApi, prisma, integrationModules,
-  // integrationOutbox, notifications.
+  // notifications.
   const service = new OrderOrchestrationService(
-    {} as never, {} as never, prisma as never, {} as never, {} as never, notifications as never,
+    {} as never, {} as never, prisma as never, {} as never, notifications as never,
   )
   return { service, prisma, notifications }
 }

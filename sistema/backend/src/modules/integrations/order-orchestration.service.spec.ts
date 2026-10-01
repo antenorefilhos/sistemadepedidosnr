@@ -4,7 +4,6 @@ import { InternalOrderContract } from './dto/order-contract.dto'
 import { OrderOrchestrationService } from './order-orchestration.service'
 import { SolidcomERPService } from './solidcom-erp.service'
 import { IntegrationModulesService } from './integration-modules.service'
-import { IntegrationOutboxService } from './integration-outbox.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import {
   AntenorApiService,
@@ -47,10 +46,6 @@ const mockAntenorApiService = {
 const mockIntegrationModulesService = {
   isEnabled: jest.fn(async (key: string) => key !== 'antenorapi'),
 }
-const mockIntegrationOutboxService = {
-  enqueueEvent: jest.fn(),
-  enqueueSolidcomOrderFailure: jest.fn(),
-}
 
 describe('OrderOrchestrationService', () => {
   let service: OrderOrchestrationService
@@ -62,7 +57,6 @@ describe('OrderOrchestrationService', () => {
         { provide: SolidcomERPService, useValue: mockSolidcomERPService },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: IntegrationModulesService, useValue: mockIntegrationModulesService },
-        { provide: IntegrationOutboxService, useValue: mockIntegrationOutboxService },
         { provide: AntenorApiService, useValue: mockAntenorApiService },
         // Injetado pelo gatilho de faturamento (markInvoiced avisa o cliente
         // quando o PDV fecha a venda).
@@ -592,7 +586,6 @@ describe('OrderOrchestrationService', () => {
       // O 409 esta CERTO -- cancelar geraria furo fiscal. Repetir amanha daria
       // 409 de novo, pra sempre. Enfileirar aqui seria transformar uma regra de
       // negocio funcionando numa fila que nunca esvazia.
-      expect(mockIntegrationOutboxService.enqueueEvent).not.toHaveBeenCalled()
     })
 
     it('pedido inexistente no ERP: encerra sem erro e sem retentativa', async () => {
@@ -603,21 +596,14 @@ describe('OrderOrchestrationService', () => {
       await service.syncCancelledOrder(pedido, 'Cliente desistiu')
 
       expect(eventosGravados()).toContain('CANCEL_ORDER_SKIPPED_NOT_IN_ERP')
-      expect(mockIntegrationOutboxService.enqueueEvent).not.toHaveBeenCalled()
     })
 
-    it('falha de rede: enfileira pra retentativa', async () => {
+    it('falha de rede: registra CANCEL_ORDER_FAILED (a tela Integracoes mostra e repete)', async () => {
       mockAntenorApiService.cancelOrder.mockRejectedValue(new Error('ECONNREFUSED'))
 
       await service.syncCancelledOrder(pedido, 'Cliente desistiu')
 
       expect(eventosGravados()).toContain('CANCEL_ORDER_FAILED')
-      expect(mockIntegrationOutboxService.enqueueEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          provider: 'ANTENORAPI',
-          idempotencyKey: 'antenorapi:order:order-cancel-antenor:cancel',
-        }),
-      )
     })
 
     it('nenhum conector ligado: nao tenta cancelar em lugar nenhum', async () => {
@@ -836,16 +822,14 @@ describe('OrderOrchestrationService', () => {
       expect(enviado.itens[0].cdProduto).toBe(7891234567890)
     })
 
-    it('falha na AntenorApi: enfileira no outbox e nao derruba o checkout', async () => {
+    it('falha na AntenorApi: registra SYNC_ORDER_FAILED (o reenvio automatico pega) e nao derruba o checkout', async () => {
       mockAntenorApiService.createOrder.mockRejectedValue(new Error('timeout'))
       mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
 
       await expect(service.syncCreatedOrder(pickupPayload)).resolves.toBeUndefined()
 
-      expect(mockIntegrationOutboxService.enqueueSolidcomOrderFailure).toHaveBeenCalledWith(
-        'order-pickup-1',
-        expect.anything(),
-        expect.stringContaining('timeout'),
+      expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ action: 'SYNC_ORDER_FAILED', entityId: 'order-pickup-1', changes: expect.stringContaining('timeout') }) }),
       )
     })
 
@@ -865,10 +849,9 @@ describe('OrderOrchestrationService', () => {
 
         expect(mockAntenorApiService.createOrder).toHaveBeenCalledTimes(1)
         expect(mockSolidcomERPService.syncOrder).toHaveBeenCalledTimes(1)
-        expect(mockIntegrationOutboxService.enqueueSolidcomOrderFailure).not.toHaveBeenCalled()
       })
 
-      it('AntenorApi falha, Solidcom (fallback) TAMBEM falha: enfileira outbox com os dois motivos', async () => {
+      it('AntenorApi falha, Solidcom (fallback) TAMBEM falha: registra a falha com os dois motivos', async () => {
         mockAntenorApiService.createOrder.mockRejectedValue(new Error('timeout AntenorApi'))
         mockSolidcomERPService.syncOrder.mockRejectedValue(new Error('timeout Solidcom'))
         mockPrismaService.auditLog.create.mockResolvedValue({ id: 'log-1' })
@@ -877,10 +860,8 @@ describe('OrderOrchestrationService', () => {
 
         expect(mockAntenorApiService.createOrder).toHaveBeenCalledTimes(1)
         expect(mockSolidcomERPService.syncOrder).toHaveBeenCalledTimes(1)
-        expect(mockIntegrationOutboxService.enqueueSolidcomOrderFailure).toHaveBeenCalledWith(
-          'order-pickup-1',
-          expect.anything(),
-          expect.stringMatching(/timeout AntenorApi.*timeout Solidcom/),
+        expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ action: 'SYNC_ORDER_FAILED', changes: expect.stringMatching(/timeout AntenorApi.*timeout Solidcom/) }) }),
         )
       })
 
@@ -893,7 +874,6 @@ describe('OrderOrchestrationService', () => {
         await service.syncCreatedOrder(pickupPayload)
 
         expect(mockSolidcomERPService.syncOrder).not.toHaveBeenCalled()
-        expect(mockIntegrationOutboxService.enqueueSolidcomOrderFailure).not.toHaveBeenCalled()
       })
     })
   })
