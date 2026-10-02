@@ -1537,13 +1537,6 @@ export interface AdminNotification {
   createdAt: string
 }
 
-export interface ScheduledNotification {
-  id: string
-  title: string
-  body: string
-  sendAt: string
-}
-
 export interface NotificationDispatch {
   title: string
   body: string
@@ -1643,6 +1636,90 @@ export const intelligenceAPI = {
   get: (days: number) => api.get<IntelligenceResponse>('/admin/intelligence', { params: { days } }),
 }
 
+/** Fila de envios (02/10/2026): tudo que sai com hora marcada. */
+export type QueueOrigin = 'MANUAL' | 'ENCARTE_INICIO' | 'ENCARTE_FIM' | 'OFERTA'
+export type QueueStatus = 'SCHEDULED' | 'PENDING_APPROVAL' | 'SENDING' | 'SENT' | 'CANCELLED' | 'SKIPPED' | 'FAILED'
+export interface QueueItem {
+  id: string
+  origin: QueueOrigin
+  status: QueueStatus
+  type: string
+  title: string
+  body: string
+  url: string | null
+  imageUrl: string | null
+  productId: string | null
+  sendAt: string
+  effectiveSendAt: string
+  expiresAt: string | null
+  respectHours: boolean
+  audienceLabel: string | null
+  audience: { total: number | null; withPush: number | null }
+  meta: {
+    campaignId?: string
+    erpCampaignId?: number | null
+    campaign?: string
+    erpName?: string
+    offers?: number
+    items?: number
+    nearExpiry?: boolean
+    slot?: string
+    product?: string
+    discount?: number
+    reasons?: Record<string, number>
+    customers?: Array<{ id: string; name: string; reason: string }>
+  } | null
+  note: string | null
+  edited: { at: string; by: string | null } | null
+  approved: { at: string; by: string | null } | null
+  cancelled: { at: string; by: string | null } | null
+  sentAt: string | null
+  sentCount: number | null
+  opened: number | null
+  editable: boolean
+  canRestore: boolean
+}
+export interface QueueSettings {
+  encarteEnabled: boolean
+  encarteApproval: boolean
+  offerEnabled: boolean
+  offerApproval: boolean
+  offerSendHours: string
+  cartEnabled: boolean
+}
+export interface QueueResponse {
+  now: string
+  store: { open: boolean; closesAt: string | null; opensAt: string | null }
+  settings: QueueSettings
+  audience: { customers: number; withPush: number }
+  upcoming: QueueItem[]
+  recent: QueueItem[]
+}
+export const notificationQueueAPI = {
+  list: (refresh = false) => api.get<QueueResponse>('/notifications/admin/queue', { params: refresh ? { refresh: 1 } : {} }),
+  edit: (id: string, data: { title?: string; body?: string; url?: string | null; sendAt?: string; imageUrl?: string | null }) =>
+    api.patch(`/notifications/admin/queue/${id}`, data),
+  approve: (id: string) => api.post(`/notifications/admin/queue/${id}/approve`),
+  cancel: (id: string) => api.post(`/notifications/admin/queue/${id}/cancel`),
+  restore: (id: string) => api.post(`/notifications/admin/queue/${id}/restore`),
+  sendNow: (id: string) => api.post<{ sent: boolean; status: QueueStatus; note: string | null; sentCount: number | null }>(`/notifications/admin/queue/${id}/send-now`),
+  retry: (id: string) => api.post(`/notifications/admin/queue/${id}/retry`),
+  settings: (data: Partial<Omit<QueueSettings, 'offerSendHours'>>) => api.patch<QueueResponse>('/notifications/admin/queue/settings', data),
+}
+
+/** Nome do encarte que o cliente ve (02/10/2026). No ERP o nome nao muda. */
+export interface EncarteNameRow {
+  key: string
+  customerName: string
+  hasRule: boolean
+  nearExpiry: boolean
+}
+export const encarteNamesAPI = {
+  list: () => api.get<{ rules: Array<{ key: string; customerName: string; nearExpiry: boolean }>; erpNames: EncarteNameRow[] }>('/promotions/campaigns/name-rules'),
+  save: (data: { key: string; customerName: string; nearExpiry: boolean }) => api.put('/promotions/campaigns/name-rules', data),
+  remove: (key: string) => api.delete(`/promotions/campaigns/name-rules/${encodeURIComponent(key)}`),
+}
+
 export const notificationsAdminAPI = {
   broadcast: (data: {
     type: 'PROMO' | 'CAMPAIGN'
@@ -1663,8 +1740,6 @@ export const notificationsAdminAPI = {
   }) => api.post('/notifications/admin/broadcast', data),
   segmentCount: (params: { inactiveDays?: number; purchasedCategory?: string }) =>
     api.get<{ count: number }>('/notifications/admin/broadcast/segment-count', { params }),
-  listScheduled: () => api.get<ScheduledNotification[]>('/notifications/admin/broadcast/scheduled'),
-  cancelScheduled: (id: string) => api.post(`/notifications/admin/broadcast/scheduled/${id}/cancel`),
   history: (params?: { limit?: number; offset?: number; type?: string }) =>
     api.get<{ hasMore: boolean; items: NotificationDispatch[] }>('/notifications/admin/history', { params }),
   historyCounts: () => api.get<Record<string, number>>('/notifications/admin/history/counts'),

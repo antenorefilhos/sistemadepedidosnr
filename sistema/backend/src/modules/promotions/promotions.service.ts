@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
 import { AntenorApiService } from '../integrations/antenor-api.service'
-import { NotificationsService } from '../notifications/notifications.service'
 import { ProductSearchService } from '../products/product-search.service'
 import { parseErpBusinessDate, parseErpBusinessDateEnd, isPromoValidOnDay } from '../../common/business-window'
-import { fulfillmentDay, isWithinDeliveryHours, spDay } from '../../common/delivery-hours'
+import { dayWindows, fulfillmentDay, lastCloseOnOrBefore, nextOpenAt, spDay, type HoursConfig } from '../../common/delivery-hours'
+import { isProductSellable } from '../../common/product-availability'
 import { loadHoursConfig } from '../../common/promo-day'
 
 const LOWER_WORDS = new Set(['da', 'de', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os', 'com', 'para', 'na', 'no'])
@@ -42,6 +42,40 @@ export function campaignDisplayName(campaign: { name: string; customerName?: str
   return campaign.customerName?.trim() || customerCampaignName(campaign.name)
 }
 
+/** Nome curto para caber no aviso: "Leite Longa Vida UHT Integral Elege Caixinha 1L" -> 36 letras. */
+function shortProductName(name: string): string {
+  const clean = String(name || '').replace(/\s+/g, ' ').trim()
+  return clean.length > 36 ? `${clean.slice(0, 35).trimEnd()}…` : clean
+}
+
+/**
+ * Quando saem os avisos de um encarte (02/10/2026). startAt: abertura do primeiro
+ * dia, ou agora se ja passou. endAt: 3h antes do ultimo fechamento (nunca antes
+ * da abertura daquele dia; agora, se ja passou). expiresAt: o ultimo fechamento
+ * -- a oferta sai do site ali. null = encarte ja terminou.
+ */
+export function encarteSchedule(hours: HoursConfig | null, startDate: Date, endDate: Date, now: Date) {
+  const startDay = spDay(startDate)
+  const endDay = spDay(endDate)
+  let expiresAt: Date
+  let endAt: Date
+  if (hours) {
+    const close = lastCloseOnOrBefore(hours, endDay)
+    if (!close) return null
+    expiresAt = close
+    const lastDayOpen = dayWindows(hours, spDay(close))[0]?.start ?? close
+    endAt = new Date(Math.max(close.getTime() - 3 * 3_600_000, lastDayOpen.getTime()))
+  } else {
+    expiresAt = endDate
+    endAt = new Date(endDate.getTime() - 3 * 3_600_000)
+  }
+  if (now.getTime() >= expiresAt.getTime()) return null
+  const firstOpen = hours ? nextOpenAt(hours, new Date(`${startDay}T00:00:00-03:00`)) : new Date(`${startDay}T09:00:00-03:00`)
+  const startAt = firstOpen.getTime() < now.getTime() ? (hours ? nextOpenAt(hours, now) : now) : firstOpen
+  if (startAt.getTime() >= expiresAt.getTime()) return null
+  return { startAt, endAt: endAt.getTime() < now.getTime() ? now : endAt, expiresAt }
+}
+
 function slugify(value: string): string {
   return value
     .normalize('NFD')
@@ -58,7 +92,6 @@ export class PromotionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly antenorApiService: AntenorApiService,
-    private readonly notificationsService: NotificationsService,
     @Optional() private readonly productSearch?: ProductSearchService,
   ) {}
 
@@ -314,78 +347,116 @@ export class PromotionsService {
   }
 
   /**
-   * Avisa por push quando um encarte comeca e quando esta perto de acabar, sempre
-   * com a loja aberta (02/10/2026): "Chegou" no primeiro horario de atendimento
-   * do primeiro dia; "Ultimas horas" 3h antes de a oferta sair do site, que e o
-   * fechamento do ultimo dia. Antes saiam a meia-noite e as 21h, com a loja
-   * fechada. Cada aviso dispara uma vez so (startNotifiedAt/endingNotifiedAt).
+   * Planeja os avisos de encarte na FILA DE ENVIOS (02/10/2026) -- nao envia
+   * nada: quem envia e o NotificationQueueService, na hora marcada, e a tela
+   * Notificacoes > Fila mostra, edita, cancela e manda na hora.
+   *
+   * Dois avisos por encarte, sempre com a loja aberta:
+   * - inicio: na abertura do primeiro dia (ou agora, se o encarte chegou atrasado);
+   * - fim: 3h antes de a oferta sair do site, que e o fechamento do ultimo dia.
+   * Idempotente pela sourceKey; o que o admin editou nao e sobrescrito, e o que
+   * ele cancelou nao volta. Encarte que saiu do ERP ou terminou: o que ainda nao
+   * saiu e cancelado com o motivo.
    */
-  async notifyCampaignLifecycle(): Promise<{ started: number; ending: number }> {
-    const now = new Date()
+  async planCampaignNotifications(now = new Date()): Promise<{ planned: number; updated: number; cancelled: number }> {
+    const settings = await this.prisma.autoOfferSettings.upsert({ where: { id: 'singleton' }, update: {}, create: { id: 'singleton' } })
     const hours = await loadHoursConfig(this.prisma)
-    if (hours && !isWithinDeliveryHours(hours, now)) return { started: 0, ending: 0 }
-    const today = spDay(now)
-    const day = fulfillmentDay(hours, now)
-    const dayIn3h = fulfillmentDay(hours, new Date(now.getTime() + 3 * 60 * 60 * 1000))
-
-    const open = await this.prisma.promotionCampaign.findMany({
-      where: { active: true, endDate: { gte: now }, OR: [{ startNotifiedAt: null }, { endingNotifiedAt: null }] },
+    const campaigns = await this.prisma.promotionCampaign.findMany({
+      where: { endDate: { gte: new Date(now.getTime() - 2 * 86_400_000) } },
+      include: { items: { include: { product: { select: { name: true, titleMask: true, active: true, syncOption: true, stock: true, isFractional: true } } } } },
     })
 
-    let started = 0
-    let ending = 0
-    for (const campaign of open) {
-      const live = isPromoValidOnDay(day, campaign.startDate, campaign.endDate)
-      if (!live) continue
-      const tag = campaignDisplayName(campaign)
-
-      if (!campaign.startNotifiedAt && today >= spDay(campaign.startDate)) {
-        // JON-171: claim atomico ANTES de enviar -- duas execucoes concorrentes
-        // nao mandam o mesmo aviso duas vezes. Prefere perder um aviso a dobrar.
-        const claim = await this.prisma.promotionCampaign.updateMany({ where: { id: campaign.id, startNotifiedAt: null }, data: { startNotifiedAt: now } })
-        if (claim.count > 0) {
-          try {
-            const customerIds = await this.notificationsService.getAllCustomerIds()
-            await this.notificationsService.broadcastToCustomers(customerIds, {
-              type: 'CAMPAIGN',
-              title: `🛍️ Chegou o encarte ${tag}!`,
-              body: 'Confira as ofertas antes que acabem.',
-              url: '/promocoes',
-              source: 'AUTO',
-            })
-            started += 1
-          } catch (error) {
-            this.logger.error(`Falha ao enviar push de inicio do encarte ${campaign.id}:`, error instanceof Error ? error.stack : String(error))
-          }
-        }
+    let planned = 0
+    let updated = 0
+    let cancelled = 0
+    for (const campaign of campaigns) {
+      const keys = [`encarte:${campaign.id}:inicio`, `encarte:${campaign.id}:fim`]
+      const plan = encarteSchedule(hours, campaign.startDate, campaign.endDate, now)
+      const stopReason = !campaign.active
+        ? 'O encarte saiu do ERP.'
+        : !settings.encarteEnabled
+          ? 'Avisos de encarte desligados na fila.'
+          : !plan
+            ? 'O encarte já terminou.'
+            : null
+      if (stopReason) {
+        const r = await this.prisma.scheduledNotification.updateMany({
+          where: { sourceKey: { in: keys }, status: { in: ['SCHEDULED', 'PENDING_APPROVAL'] } },
+          data: { status: 'CANCELLED', note: stopReason, cancelledAt: now },
+        })
+        cancelled += r.count
+        continue
       }
 
-      // Sai do site em ate 3h (o dia da entrega daqui a 3h ja passou do fim).
-      if (!campaign.endingNotifiedAt && dayIn3h > spDay(campaign.endDate)) {
-        const claim = await this.prisma.promotionCampaign.updateMany({ where: { id: campaign.id, endingNotifiedAt: null }, data: { endingNotifiedAt: now } })
-        if (claim.count > 0) {
-          try {
-            const customerIds = await this.notificationsService.getAllCustomerIds()
-            await this.notificationsService.broadcastToCustomers(customerIds, {
-              type: 'CAMPAIGN',
-              title: `⏰ Últimas horas do encarte ${tag}!`,
-              body: 'As ofertas terminam em breve, aproveite agora.',
-              url: '/promocoes',
-              source: 'AUTO',
-            })
-            ending += 1
-          } catch (error) {
-            this.logger.error(`Falha ao enviar push de fim do encarte ${campaign.id}:`, error instanceof Error ? error.stack : String(error))
-          }
+      const name = campaignDisplayName(campaign)
+      const offers = campaign.items
+        .filter((i) => isProductSellable(i.product) && Number(i.promotionalPrice) < Number(i.regularPrice))
+        .sort((a, b) => Number(b.discountPercent ?? 0) - Number(a.discountPercent ?? 0))
+      const best = offers[0]
+      const brl = (v: unknown) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\u00a0/g, ' ')
+      const bestText = best
+        ? `${shortProductName(best.product.titleMask || best.product.name)} de ${brl(best.regularPrice)} por ${brl(best.promotionalPrice)}${best.product.isFractional ? '/kg' : ''}${offers.length > 1 ? ` e mais ${offers.length - 1} oferta${offers.length > 2 ? 's' : ''}` : ''}.`
+        : 'Confira as ofertas.'
+      const closeLabel = plan!.expiresAt.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
+      const base = {
+        tenantId: campaign.tenantId,
+        type: 'CAMPAIGN',
+        url: campaign.erpCampaignId ? `/encarte/${campaign.erpCampaignId}` : '/promocoes',
+        audienceLabel: 'Todos os clientes com conta',
+        respectHours: true,
+        expiresAt: plan!.expiresAt,
+        meta: { campaignId: campaign.id, erpCampaignId: campaign.erpCampaignId, campaign: name, erpName: campaign.name, offers: offers.length, items: campaign.items.length, nearExpiry: campaign.nearExpiry },
+      }
+      const wanted: Array<{ key: string; origin: string; sendAt: Date; title: string; body: string }> = []
+      if (!campaign.startNotifiedAt) {
+        wanted.push({ key: keys[0], origin: 'ENCARTE_INICIO', sendAt: plan!.startAt, title: `🛍️ Já está no ar: ${name}`, body: bestText })
+      }
+      // Encarte que chegou atrasado (inicio e fim colados): so o de inicio.
+      const tooClose = !campaign.startNotifiedAt && plan!.endAt.getTime() - plan!.startAt.getTime() < 60 * 60_000
+      if (!campaign.endingNotifiedAt && !tooClose) {
+        wanted.push({ key: keys[1], origin: 'ENCARTE_FIM', sendAt: plan!.endAt, title: `⏰ Últimas horas: ${name}`, body: `Termina hoje às ${closeLabel}. ${bestText}` })
+      }
+
+      for (const item of wanted) {
+        const existing = await this.prisma.scheduledNotification.findUnique({ where: { sourceKey: item.key } })
+        if (!existing) {
+          await this.prisma.scheduledNotification.create({
+            data: {
+              ...base,
+              sourceKey: item.key,
+              origin: item.origin,
+              status: settings.encarteApproval ? 'PENDING_APPROVAL' : 'SCHEDULED',
+              sendAt: item.sendAt,
+              title: item.title.slice(0, 80),
+              body: item.body.slice(0, 180),
+            },
+          })
+          planned += 1
+          continue
         }
+        // Cancelado pelo sistema porque o tipo estava desligado: religou, volta.
+        if (existing.status === 'CANCELLED' && existing.note === 'Avisos de encarte desligados na fila.') {
+          await this.prisma.scheduledNotification.update({
+            where: { id: existing.id },
+            data: { ...base, status: settings.encarteApproval ? 'PENDING_APPROVAL' : 'SCHEDULED', note: null, cancelledAt: null, sendAt: item.sendAt, title: item.title.slice(0, 80), body: item.body.slice(0, 180) },
+          })
+          planned += 1
+          continue
+        }
+        if (!['SCHEDULED', 'PENDING_APPROVAL'].includes(existing.status)) continue
+        // Editado pelo admin: so atualiza o que nao e conteudo (validade e contexto).
+        await this.prisma.scheduledNotification.update({
+          where: { id: existing.id },
+          data: existing.editedAt
+            ? { expiresAt: base.expiresAt, meta: base.meta }
+            : { ...base, sendAt: item.sendAt, title: item.title.slice(0, 80), body: item.body.slice(0, 180) },
+        })
+        updated += 1
       }
     }
 
-    if (started || ending) {
-      this.logger.log(`Aviso de encarte: ${started} inicio(s), ${ending} fim proximo.`)
-    }
-
-    return { started, ending }
+    if (planned || cancelled) this.logger.log(`Fila de encartes: ${planned} aviso(s) planejado(s), ${cancelled} cancelado(s).`)
+    return { planned, updated, cancelled }
   }
 
   /** Regras de nome (tela Notificacoes > Fila). Cada regra mostra os encartes que ela cobre agora. */
@@ -412,6 +483,8 @@ export class PromotionsService {
     const nearExpiry = Boolean(input.nearExpiry)
     const rule = await this.prisma.encarteNameRule.upsert({ where: { key }, update: { customerName, nearExpiry }, create: { key, customerName, nearExpiry } })
     await this.applyNameRule(key, { customerName, nearExpiry })
+    // Os avisos ainda na fila passam a usar o nome novo (o que foi editado a mao fica).
+    await this.planCampaignNotifications().catch(() => null)
     return rule
   }
 
@@ -419,6 +492,7 @@ export class PromotionsService {
     const k = encarteKey(key)
     await this.prisma.encarteNameRule.deleteMany({ where: { key: k } })
     await this.applyNameRule(k, { customerName: null, nearExpiry: false })
+    await this.planCampaignNotifications().catch(() => null)
     return { ok: true }
   }
 

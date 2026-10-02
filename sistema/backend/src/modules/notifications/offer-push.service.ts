@@ -5,7 +5,8 @@ import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../common/prisma.service'
 import { isProductSellable } from '../../common/product-availability'
 import { notOfferedCategoryCodes } from '../../common/not-offered-categories'
-import { isWithinDeliveryHours, parseHoursConfig } from '../../common/delivery-hours'
+import { isWithinDeliveryHours, spDay } from '../../common/delivery-hours'
+import { loadHoursConfig } from '../../common/promo-day'
 import { NotificationsService } from './notifications.service'
 
 /**
@@ -23,7 +24,28 @@ import { NotificationsService } from './notifications.service'
  *    (produto e departamento). Cada um recebe a oferta de maior nota para ele.
  * 4. Limites: 1 por dia, maxPerWeek por semana, nunca o mesmo produto em 14 dias,
  *    so dentro do horario de entrega da loja.
+ * 5. Fila de envios (02/10/2026): o plano do proximo horario entra na fila com
+ *    ate 6h de antecedencia e e refeito a cada hora ate sair -- o admin ve,
+ *    edita e cancela antes. Quem envia e o NotificationsService.dispatchDueQueue.
  */
+const PLAN_AHEAD_MS = 6 * 3_600_000
+
+/** Proximo horario de envio (sendHours, horario de Brasilia) depois de `now`. */
+export function nextOfferSlot(sendHours: string, now: Date): Date | null {
+  const hours = String(sendHours || '')
+    .split(',')
+    .map((h) => Number(h.trim()))
+    .filter((h) => Number.isInteger(h) && h >= 0 && h <= 23)
+    .sort((a, b) => a - b)
+  for (let d = 0; d <= 1; d += 1) {
+    const day = spDay(new Date(now.getTime() + d * 86_400_000))
+    for (const h of hours) {
+      const at = new Date(`${day}T${String(h).padStart(2, '0')}:00:00-03:00`)
+      if (at.getTime() > now.getTime()) return at
+    }
+  }
+  return null
+}
 
 const DAY = 86_400_000
 const EMOJI: Array<[RegExp, string]> = [
@@ -175,7 +197,7 @@ export class OfferPushService {
       this.prisma.notification.findMany({
         // Limites contam QUALQUER aviso de marketing (automatico, manual ou
         // agendado): quem recebeu uma campanha hoje nao leva oferta automatica.
-        where: { customerId: { in: customerIds }, source: { in: ['AUTO', 'MANUAL', 'SCHEDULED'] }, type: { not: 'ORDER_UPDATE' }, createdAt: { gte: new Date(now.getTime() - 14 * DAY) } },
+        where: { customerId: { in: customerIds }, source: { in: ['AUTO', 'MANUAL', 'SCHEDULED', 'ENCARTE'] }, type: { not: 'ORDER_UPDATE' }, createdAt: { gte: new Date(now.getTime() - 14 * DAY) } },
         select: { customerId: true, productId: true, createdAt: true },
       }),
     ])
@@ -236,33 +258,103 @@ export class OfferPushService {
     return { settings, candidates: scored.length, customers: customerIds.length, picks }
   }
 
-  /** Envia o plano. Um lote por produto (clientes que receberam a mesma oferta). */
+  /**
+   * Poe o plano de um horario na fila: um item por produto (os clientes que
+   * receberam a mesma oferta). Refazer o plano troca so o que ninguem editou;
+   * o que o admin editou ou cancelou fica como esta.
+   */
+  async planSlot(slot: Date, opts: { now?: Date } = {}) {
+    const now = opts.now ?? new Date()
+    const settings = await this.getSettings()
+    const slotKey = slot.toISOString().slice(0, 16)
+    const prefix = `oferta:${slotKey}:`
+    const { picks, candidates, customers } = await this.plan(slot)
+    const byProduct = new Map<string, OfferPick[]>()
+    for (const pick of picks) byProduct.set(pick.productId, [...(byProduct.get(pick.productId) || []), pick])
+
+    const existing = await this.prisma.scheduledNotification.findMany({ where: { sourceKey: { startsWith: prefix } } })
+    const pendingStatus = ['SCHEDULED', 'PENDING_APPROVAL']
+    const stale = existing.filter((e) => !byProduct.has(String(e.productId)) && !e.editedAt && pendingStatus.includes(e.status))
+    if (stale.length) await this.prisma.scheduledNotification.deleteMany({ where: { id: { in: stale.map((e) => e.id) } } })
+
+    const products = await this.prisma.product.findMany({ where: { id: { in: [...byProduct.keys()] } }, select: { id: true, ean: true } })
+    const eanBy = new Map(products.map((p) => [p.id, p.ean]))
+    let planned = 0
+    for (const [productId, group] of byProduct) {
+      const key = prefix + productId
+      const current = existing.find((e) => e.sourceKey === key)
+      const reasons = group.reduce<Record<string, number>>((acc, g) => ({ ...acc, [g.reason]: (acc[g.reason] || 0) + 1 }), {})
+      const data = {
+        type: 'PROMO',
+        title: group[0].title.slice(0, 80),
+        body: group[0].body.slice(0, 180),
+        productId,
+        imageUrl: eanBy.get(productId) ? `/uploads/products/${eanBy.get(productId)}.webp` : null,
+        customerIds: group.map((g) => g.customerId),
+        audienceLabel: `${group.length} cliente${group.length > 1 ? 's' : ''} · oferta escolhida para cada um`,
+        respectHours: true,
+        sendAt: slot,
+        expiresAt: new Date(slot.getTime() + 2 * 3_600_000),
+        meta: {
+          slot: slotKey,
+          product: group[0].productName,
+          discount: group[0].discount,
+          reasons,
+          customers: group.map((g) => ({ id: g.customerId, name: g.customerName, reason: g.reason })),
+        },
+      }
+      if (!current) {
+        await this.prisma.scheduledNotification.create({
+          data: { ...data, origin: 'OFERTA', sourceKey: key, status: settings.offerApproval ? 'PENDING_APPROVAL' : 'SCHEDULED' },
+        })
+        planned += 1
+      } else if (current.status === 'CANCELLED' && current.note === 'Ofertas automáticas desligadas.') {
+        // Cancelado pelo sistema porque as ofertas estavam desligadas: religou, volta.
+        await this.prisma.scheduledNotification.update({
+          where: { id: current.id },
+          data: { ...data, status: settings.offerApproval ? 'PENDING_APPROVAL' : 'SCHEDULED', note: null, cancelledAt: null },
+        })
+        planned += 1
+      } else if (!current.editedAt && pendingStatus.includes(current.status)) {
+        await this.prisma.scheduledNotification.update({ where: { id: current.id }, data })
+      }
+    }
+    return { slot: slot.toISOString(), candidates, customers, picks: picks.length, products: byProduct.size, planned, removed: stale.length, at: now.toISOString() }
+  }
+
+  /** Planeja o proximo horario de envio, se faltar ate 6h. Desligado: cancela o que estava na fila. */
+  async planNextSlot(now = new Date()) {
+    const settings = await this.getSettings()
+    if (!settings.enabled) {
+      const r = await this.prisma.scheduledNotification.updateMany({
+        where: { origin: 'OFERTA', status: { in: ['SCHEDULED', 'PENDING_APPROVAL'] } },
+        data: { status: 'CANCELLED', note: 'Ofertas automáticas desligadas.', cancelledAt: now },
+      })
+      return { skipped: true, reason: 'desligado', cancelled: r.count }
+    }
+    const slot = nextOfferSlot(settings.sendHours, now)
+    if (!slot || slot.getTime() - now.getTime() > PLAN_AHEAD_MS) return { skipped: true, reason: 'próximo horário ainda longe', slot: slot?.toISOString() ?? null }
+    return this.planSlot(slot, { now })
+  }
+
+  /**
+   * "Enviar agora" da tela Automatico: planeja para este minuto e despacha a fila.
+   * Fica registrado na fila como qualquer outro envio.
+   */
   async run(opts: { force?: boolean } = {}) {
     if (this.running) return { skipped: true, reason: 'já está rodando' }
     this.running = true
     try {
       const settings = await this.getSettings()
       if (!settings.enabled && !opts.force) return { skipped: true, reason: 'desligado' }
-      const brand = await this.prisma.brandConfig.findFirst({ select: { businessHours: true, specialDates: true } })
-      const hours = parseHoursConfig(brand?.businessHours, brand?.specialDates)
+      const hours = await loadHoursConfig(this.prisma)
       if (hours && !isWithinDeliveryHours(hours, new Date())) return { skipped: true, reason: 'loja fora do horário de entrega' }
 
-      const { picks, candidates, customers } = await this.plan()
-      const byProduct = new Map<string, OfferPick[]>()
-      for (const pick of picks) byProduct.set(pick.productId, [...(byProduct.get(pick.productId) || []), pick])
-      for (const [productId, group] of byProduct) {
-        const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { ean: true } })
-        await this.notifications.broadcastToCustomers(group.map((g) => g.customerId), {
-          type: 'PROMO',
-          title: group[0].title,
-          body: group[0].body,
-          imageUrl: product ? `/uploads/products/${product.ean}.webp` : undefined,
-          productId,
-          source: 'AUTO',
-        })
-      }
-      const summary = { at: new Date().toISOString(), candidates, customers, sent: picks.length, products: byProduct.size }
-      await this.prisma.autoOfferSettings.update({ where: { id: 'singleton' }, data: { lastRunAt: new Date(), lastRunSummary: summary } })
+      const now = new Date()
+      const result = await this.planSlot(new Date(Math.floor(now.getTime() / 60_000) * 60_000), { now })
+      await this.notifications.dispatchDueQueue()
+      const summary = { at: now.toISOString(), candidates: result.candidates, customers: result.customers, sent: result.picks, products: result.products }
+      await this.prisma.autoOfferSettings.update({ where: { id: 'singleton' }, data: { lastRunAt: now, lastRunSummary: summary } })
       this.logger.log(`avisos_de_oferta ${JSON.stringify(summary)}`)
       return summary
     } finally {
@@ -270,13 +362,10 @@ export class OfferPushService {
     }
   }
 
-  // De hora em hora; so envia nos horarios configurados (padrao 11h e 17h).
-  @Cron('0 * * * *', { name: 'auto-offer-push', timeZone: 'America/Sao_Paulo' })
+  // De hora em hora (aos 5 min): poe o proximo horario na fila. O envio sai pela fila.
+  @Cron('5 * * * *', { name: 'auto-offer-push', timeZone: 'America/Sao_Paulo' })
   async tick() {
-    const settings = await this.getSettings()
-    const hour = Number(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false }))
-    if (!settings.enabled || !settings.sendHours.split(',').map(Number).includes(hour)) return
-    await this.run().catch((e) => this.logger.error(`avisos_de_oferta falhou: ${e instanceof Error ? e.message : e}`))
+    await this.planNextSlot().catch((e) => this.logger.error(`avisos_de_oferta (plano) falhou: ${e instanceof Error ? e.message : e}`))
   }
 
   /** Resultado dos ultimos 30 dias (AUTO x manuais) e pesos aprendidos. */

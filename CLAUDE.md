@@ -697,6 +697,42 @@ meia-noite), e a que começa amanhã já aparece depois do fechamento de hoje
   de calendário, não instante UTC (`parseErpBusinessDate*`). Lido como UTC, todo
   encarte começava às 21h da véspera e acabava às 20h59.
 
+## Fila de envios: todo aviso com hora marcada passa por ela (02/10/2026)
+
+Pedido do Jonathan: ver antes o que vai sair para o cliente, e poder editar,
+cancelar, aprovar ou mandar na hora. Tela Notificações > **Fila de envios**.
+Por decisão dele, **tudo sai sozinho por padrão**; cada tipo pode ser desligado
+ou passar a exigir aprovação (`auto_offer_settings.encarteApproval/offerApproval`).
+
+- A fila é a tabela `scheduled_notifications` (`origin`: MANUAL, ENCARTE_INICIO,
+  ENCARTE_FIM, OFERTA; `status`: SCHEDULED, PENDING_APPROVAL, SENDING, SENT,
+  CANCELLED, SKIPPED, FAILED). **O que está na fila é exatamente o que sai.**
+- Quem envia: só `NotificationsService.dispatchDueQueue` (a cada minuto), com
+  claim atômico. Automático (`respectHours`) espera a loja abrir; passou de
+  `expiresAt` sem sair vira "Não saiu" com o motivo. Oferta personalizada é
+  reconferida na hora (a oferta ainda vale, o cliente não recebeu outro aviso
+  em 20 h).
+- Quem planeja: `PromotionsService.planCampaignNotifications` (a cada 5 min:
+  "Já está no ar" na abertura do 1º dia, "Últimas horas" 3 h antes do último
+  fechamento, com a melhor oferta real no texto) e
+  `OfferPushService.planNextSlot` (de hora em hora, o próximo horário de
+  oferta com até 6 h de antecedência). Idempotentes por `sourceKey`: **não
+  sobrescrevem o que o admin editou e não recriam o que ele cancelou.**
+- Não envie aviso de marketing por fora da fila. `broadcastToCustomers` direto
+  só para o "Enviar agora" manual da aba Enviar aviso.
+- Lembrete de carrinho esquecido não passa pela fila (é por cliente), mas tem
+  liga/desliga na mesma tela e só sai com a loja aberta.
+
+## Nome do encarte para o cliente (02/10/2026)
+
+O ERP manda o nome cru ("VALIDADE NR"). `encarte_name_rules` (chave = nome sem
+a filial, maiúsculas, sem acento) define o nome que o cliente vê e se o encarte
+é de **validade próxima** (`nearExpiry`: aviso discreto "Preço especial:
+validade próxima" no produto, carrinho e página do encarte — transparência,
+CDC). Decisão do Jonathan: VALIDADE → "Ofertas Relâmpago". Editável na Fila de
+envios > Nome dos encartes. Use `campaignDisplayName()`, nunca `campaign.name`,
+em qualquer lugar que o cliente veja.
+
 ## Janelas de entrega com capacidade: removidas (01/10/2026)
 
 `FulfillmentSlot` (janela avulsa com data/hora e capacidade) nunca teve uma

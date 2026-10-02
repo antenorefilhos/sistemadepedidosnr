@@ -211,24 +211,6 @@ export class NotificationsController {
     })
   }
 
-  @Get('admin/broadcast/scheduled')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Broadcasts agendados, ainda nao disparados' })
-  async listScheduledBroadcasts(@Req() req: { user?: { tenantId?: string } }) {
-    return this.notificationsService.listScheduledBroadcasts(String(req.user?.tenantId || 'tenant_default'))
-  }
-
-  @Post('admin/broadcast/scheduled/:id/cancel')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Cancela um broadcast agendado antes de disparar' })
-  async cancelScheduledBroadcast(@Param('id') id: string, @Req() req: { user?: { tenantId?: string } }) {
-    return this.notificationsService.cancelScheduledBroadcast(id, String(req.user?.tenantId || 'tenant_default'))
-  }
-
   @Get('admin/broadcast/segment-count')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')

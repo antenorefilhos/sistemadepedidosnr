@@ -1,3 +1,6 @@
+import { isWithinDeliveryHours } from '../../common/delivery-hours'
+import { loadHoursConfig } from '../../common/promo-day'
+import { isProductSellable } from '../../common/product-availability'
 import { randomUUID } from 'crypto'
 import { Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { productPath } from '../seo/seo.service'
@@ -28,7 +31,7 @@ export interface CreateNotificationDto {
    */
   url?: string
   /** De onde veio o aviso, para medir resultado por origem (29/09/2026). */
-  source?: 'MANUAL' | 'AUTO' | 'SCHEDULED' | 'ORDER' | 'CART'
+  source?: 'MANUAL' | 'AUTO' | 'SCHEDULED' | 'ORDER' | 'CART' | 'ENCARTE'
 }
 
 /** Destino do clique com ?n=<id>: o site registra a abertura (ver POST :id/opened). */
@@ -410,7 +413,9 @@ export class NotificationsService {
   }
 
   async getAllCustomerIds(): Promise<string[]> {
+    // Cliente bloqueado (antifraude) nao recebe aviso de marketing.
     const customers = await this.prisma.customer.findMany({
+      where: { blocked: false },
       select: { id: true },
     })
     return customers.map((c) => c.id)
@@ -441,66 +446,130 @@ export class NotificationsService {
     purchasedCategory?: string
     sendAt: Date
   }, tenantId: string) {
-    return this.prisma.scheduledNotification.create({ data: { ...dto, tenantId } })
-  }
-
-  async listScheduledBroadcasts(tenantId: string) {
-    return this.prisma.scheduledNotification.findMany({
-      where: { sentAt: null, tenantId },
-      orderBy: { sendAt: 'asc' },
+    const audienceLabel = dto.customerId
+      ? 'Um cliente'
+      : [dto.inactiveDays ? `sem comprar há ${dto.inactiveDays} dias` : null, dto.purchasedCategory ? `compraram em ${dto.purchasedCategory}` : null].filter(Boolean).join(' e ') || 'Todos os clientes com conta'
+    return this.prisma.scheduledNotification.create({
+      data: { ...dto, tenantId, origin: 'MANUAL', status: 'SCHEDULED', audienceLabel: audienceLabel.charAt(0).toUpperCase() + audienceLabel.slice(1) },
     })
   }
 
-  async cancelScheduledBroadcast(id: string, tenantId: string) {
-    const result = await this.prisma.scheduledNotification.deleteMany({ where: { id, sentAt: null, tenantId } })
-    if (result.count === 0) throw new NotFoundException('Agendamento nao encontrado ou ja disparado')
-    return { ok: true }
-  }
-
-  /** Dispara os agendamentos vencidos -- chamado pelo scheduler a cada poucos minutos. */
-  async runDueScheduledBroadcasts() {
+  /**
+   * Despacha a FILA DE ENVIOS (02/10/2026) -- unico lugar que envia aviso com
+   * hora marcada (encarte, oferta personalizada, agendado manual). Roda a cada
+   * minuto. Aviso automatico (respectHours) espera a loja abrir; passou do
+   * horario-limite (expiresAt) sem sair, vira "nao saiu" com o motivo.
+   */
+  async dispatchDueQueue(now = new Date()) {
+    await this.prisma.scheduledNotification.updateMany({
+      where: { status: 'PENDING_APPROVAL', expiresAt: { lt: now } },
+      data: { status: 'SKIPPED', note: 'Não foi aprovado até o horário-limite.' },
+    })
     const due = await this.prisma.scheduledNotification.findMany({
-      where: { sentAt: null, sendAt: { lte: new Date() } },
+      where: { status: 'SCHEDULED', sendAt: { lte: now } },
+      orderBy: { sendAt: 'asc' },
+      take: 50,
     })
+    if (!due.length) return { count: 0 }
+    const hours = due.some((d) => d.respectHours) ? await loadHoursConfig(this.prisma) : null
+    const open = !hours || isWithinDeliveryHours(hours, now)
+
     let sent = 0
     for (const item of due) {
-      // JON-158 (Auditoria 360, Medium): sentAt so era gravado DEPOIS do
-      // broadcastToCustomers, sem claim atomico -- dois schedulers (ou um
-      // disparo manual concorrente) liam o mesmo agendamento como pendente e
-      // enviavam a campanha duas vezes pros mesmos clientes. updateMany com
-      // where sentAt:null e o mesmo padrao de reivindicacao usado no outbox
-      // (JON-50) e no picking (JON-73): so quem ganha a corrida (count===1)
-      // segue pro envio.
-      const claim = await this.prisma.scheduledNotification.updateMany({
-        where: { id: item.id, sentAt: null },
-        data: { sentAt: new Date() },
-      })
-      if (claim.count !== 1) continue
-
-      try {
-        const customers = item.customerId
-          ? [item.customerId]
-          : await this.findCustomerIdsBySegment({
-              inactiveDays: item.inactiveDays ?? undefined,
-              purchasedCategory: item.purchasedCategory ?? undefined,
-            })
-        await this.broadcastToCustomers(customers, {
-          type: item.type as 'PROMO' | 'CAMPAIGN',
-          title: item.title,
-          body: item.body,
-          imageUrl: item.imageUrl ?? undefined,
-          productId: item.productId ?? undefined,
-          bannerId: item.bannerId ?? undefined,
-          source: 'SCHEDULED',
+      if (item.expiresAt && item.expiresAt.getTime() < now.getTime()) {
+        await this.prisma.scheduledNotification.updateMany({
+          where: { id: item.id, status: 'SCHEDULED' },
+          data: { status: 'SKIPPED', note: 'Passou do horário-limite sem sair (a loja estava fechada).' },
         })
-        sent++
-      } catch (error) {
-        // Ja reivindicado (sentAt gravado) -- nao tenta de novo sozinho, pra
-        // nao reabrir a mesma corrida. Falha vira log, nao pedido travado.
-        this.logger.error(`Falha ao disparar broadcast agendado ${item.id}:`, error instanceof Error ? error.stack : String(error))
+        continue
       }
+      if (item.respectHours && !open) continue
+      if (await this.dispatchQueueItem(item.id, now)) sent += 1
     }
     return { count: sent }
+  }
+
+  /**
+   * Envia UM item da fila. Claim atomico (SCHEDULED -> SENDING) antes de tudo:
+   * cron e "Enviar agora" ao mesmo tempo nao mandam duas vezes (mesma regra do
+   * JON-158). Oferta personalizada e reconferida na hora: a oferta ainda vale e
+   * o cliente nao recebeu outro aviso de marketing nas ultimas 20h.
+   */
+  async dispatchQueueItem(id: string, now = new Date()): Promise<boolean> {
+    const claim = await this.prisma.scheduledNotification.updateMany({ where: { id, status: 'SCHEDULED' }, data: { status: 'SENDING' } })
+    if (claim.count !== 1) return false
+    const item = await this.prisma.scheduledNotification.findUnique({ where: { id } })
+    if (!item) return false
+    const skip = async (note: string) => {
+      await this.prisma.scheduledNotification.update({ where: { id }, data: { status: 'SKIPPED', note } })
+      return false
+    }
+
+    try {
+      let customers = item.customerIds.length
+        ? item.customerIds
+        : item.customerId
+          ? [item.customerId]
+          : await this.findCustomerIdsBySegment({ inactiveDays: item.inactiveDays ?? undefined, purchasedCategory: item.purchasedCategory ?? undefined })
+
+      if (item.origin === 'OFERTA') {
+        const reason = await this.offerNoLongerValid(item.productId)
+        if (reason) return skip(reason)
+        const recent = await this.prisma.notification.findMany({
+          where: {
+            customerId: { in: customers },
+            source: { in: ['AUTO', 'MANUAL', 'SCHEDULED', 'ENCARTE'] },
+            type: { not: 'ORDER_UPDATE' },
+            createdAt: { gte: new Date(now.getTime() - 20 * 3_600_000) },
+          },
+          select: { customerId: true },
+        })
+        const busy = new Set(recent.map((n) => n.customerId))
+        customers = customers.filter((c) => !busy.has(c))
+      }
+
+      const allowed = await this.prisma.customer.findMany({ where: { id: { in: customers }, blocked: false }, select: { id: true } })
+      customers = allowed.map((c) => c.id)
+      if (!customers.length) return skip('Nenhum cliente elegível na hora do envio.')
+
+      const source = item.origin === 'OFERTA' ? 'AUTO' : item.origin.startsWith('ENCARTE') ? 'ENCARTE' : 'SCHEDULED'
+      const result = await this.broadcastToCustomers(customers, {
+        type: item.type as 'PROMO' | 'CAMPAIGN',
+        title: item.title,
+        body: item.body,
+        url: item.url ?? undefined,
+        imageUrl: item.imageUrl ?? undefined,
+        productId: item.productId ?? undefined,
+        bannerId: item.bannerId ?? undefined,
+        source,
+      })
+      await this.prisma.scheduledNotification.update({
+        where: { id },
+        data: { status: 'SENT', sentAt: new Date(), sentCount: result.count, batchId: result.batchId ?? null, note: null },
+      })
+      const campaignId = (item.meta as { campaignId?: string } | null)?.campaignId
+      if (campaignId && item.origin === 'ENCARTE_INICIO') await this.prisma.promotionCampaign.updateMany({ where: { id: campaignId }, data: { startNotifiedAt: new Date() } })
+      if (campaignId && item.origin === 'ENCARTE_FIM') await this.prisma.promotionCampaign.updateMany({ where: { id: campaignId }, data: { endingNotifiedAt: new Date() } })
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.error(`Falha ao enviar o item ${id} da fila: ${message}`)
+      await this.prisma.scheduledNotification.update({ where: { id }, data: { status: 'FAILED', note: message.slice(0, 300) } })
+      return false
+    }
+  }
+
+  /** A oferta do aviso ainda existe? Motivo em portugues, ou null se ainda vale. */
+  private async offerNoLongerValid(productId: string | null): Promise<string | null> {
+    if (!productId) return null
+    const [product, settings] = await Promise.all([
+      this.prisma.product.findUnique({ where: { id: productId }, select: { active: true, syncOption: true, stock: true, price: true, promotionalPrice: true } }),
+      this.prisma.autoOfferSettings.findUnique({ where: { id: 'singleton' }, select: { minDiscount: true } }),
+    ])
+    if (!product || !isProductSellable(product)) return 'O produto saiu do site antes do envio.'
+    if (!product.promotionalPrice || product.promotionalPrice >= product.price) return 'A oferta acabou antes do envio.'
+    if (1 - product.promotionalPrice / product.price < (settings?.minDiscount ?? 0) / 100) return 'O desconto ficou abaixo do mínimo antes do envio.'
+    return null
   }
 
   /**

@@ -10,6 +10,8 @@ describe('AbandonedCartScheduler', () => {
       product: {
         findUnique: jest.fn().mockResolvedValue({ name: 'Banana' }),
       },
+      autoOfferSettings: { findUnique: jest.fn().mockResolvedValue({ cartEnabled: true }) },
+      brandConfig: { findUnique: jest.fn().mockResolvedValue(null) },
     }
     const notificationsService = {
       create: jest.fn().mockResolvedValue({}),
@@ -60,5 +62,24 @@ describe('AbandonedCartScheduler', () => {
 
     expect(notificationsService.create).not.toHaveBeenCalled()
     expect(prisma.cart.update).not.toHaveBeenCalled()
+  })
+
+  it('desligado na fila de envios: nao lembra ninguem', async () => {
+    const { scheduler, prisma, notificationsService } = makeScheduler([{ id: 'cart-1', customerId: 'customer-1', items: [{ productId: 'prod-1' }] }])
+    prisma.autoOfferSettings.findUnique.mockResolvedValue({ cartEnabled: false })
+
+    await scheduler.handleCycle()
+
+    expect(prisma.cart.findMany).not.toHaveBeenCalled()
+    expect(notificationsService.create).not.toHaveBeenCalled()
+  })
+
+  it('loja fechada: espera abrir (nao manda lembrete de madrugada)', async () => {
+    const { scheduler, prisma, notificationsService } = makeScheduler([{ id: 'cart-1', customerId: 'customer-1', items: [{ productId: 'prod-1' }] }])
+    prisma.brandConfig.findUnique.mockResolvedValue({ businessHours: '{}', specialDates: JSON.stringify([{ date: '2020-01-05', windows: [{ start: '00:00', end: '23:59' }] }]) })
+
+    await scheduler.handleCycle()
+
+    expect(notificationsService.create).not.toHaveBeenCalled()
   })
 })

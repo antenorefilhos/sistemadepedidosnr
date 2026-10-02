@@ -1,10 +1,11 @@
 import { PromotionsService } from './promotions.service'
 import { PrismaService } from '../../common/prisma.service'
 import { AntenorApiService } from '../integrations/antenor-api.service'
-import { NotificationsService } from '../notifications/notifications.service'
 
 const mockPrismaService = {
   brandConfig: { findUnique: jest.fn() },
+  autoOfferSettings: { upsert: jest.fn() },
+  scheduledNotification: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
   encarteNameRule: { findMany: jest.fn().mockResolvedValue([]) },
   product: {
     findMany: jest.fn(),
@@ -30,11 +31,6 @@ const mockAntenorApiService = {
   getEncartesAtivos: jest.fn(),
 }
 
-const mockNotificationsService = {
-  getAllCustomerIds: jest.fn(),
-  broadcastToCustomers: jest.fn(),
-}
-
 // "Agora" fixo pra toda a suite: 16/09/2026, 22h em Sao Paulo (UTC-3) --
 // deliberadamente depois das 21h, o horario em que o bug de fuso do JON-171
 // fazia "amanha" (data sem horario) parecer "ja comecou".
@@ -58,10 +54,7 @@ describe('PromotionsService', () => {
     service = new PromotionsService(
       mockPrismaService as unknown as PrismaService,
       mockAntenorApiService as unknown as AntenorApiService,
-      mockNotificationsService as unknown as NotificationsService,
     )
-    mockNotificationsService.getAllCustomerIds.mockResolvedValue(['c1'])
-    mockNotificationsService.broadcastToCustomers.mockResolvedValue(undefined)
     mockAntenorApiService.isConfigured.mockReturnValue(true)
     mockPrismaService.promotionCampaignItem.findMany.mockResolvedValue([])
     // activateCampaigns roda dentro de syncFromERP -- default "nada pra
@@ -71,6 +64,9 @@ describe('PromotionsService', () => {
     // Sem horario configurado = dia de calendario (comportamento sem a tela de horario).
     mockPrismaService.brandConfig.findUnique.mockResolvedValue(null)
     mockPrismaService.product.findMany.mockResolvedValue([])
+    mockPrismaService.autoOfferSettings.upsert.mockResolvedValue({ encarteEnabled: true, encarteApproval: false })
+    mockPrismaService.scheduledNotification.findUnique.mockResolvedValue(null)
+    mockPrismaService.scheduledNotification.updateMany.mockResolvedValue({ count: 0 })
   })
 
   afterEach(() => {
@@ -475,30 +471,6 @@ describe('PromotionsService', () => {
       expect(result.productsCleared).toBe(1)
     })
 
-    it('nao manda aviso de encarte com a loja fechada', async () => {
-      comLoja()
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
-        { id: 'c', name: 'TERÇA HORTIFRUTI NR', startDate: parseErpBusinessDate('2026-09-17'), endDate: parseErpBusinessDateEnd('2026-09-17') },
-      ])
-
-      expect(await service.notifyCampaignLifecycle()).toEqual({ started: 0, ending: 0 })
-      expect(mockNotificationsService.broadcastToCustomers).not.toHaveBeenCalled()
-    })
-
-    it('"Chegou" sai na abertura do primeiro dia e "Ultimas horas" 3h antes do fechamento do ultimo', async () => {
-      comLoja()
-      const encarte = { id: 'c', name: 'TERÇA HORTIFRUTI NR', startDate: parseErpBusinessDate('2026-09-17'), endDate: parseErpBusinessDateEnd('2026-09-17'), startNotifiedAt: null, endingNotifiedAt: null }
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([encarte])
-
-      jest.setSystemTime(new Date('2026-09-17T07:00:00-03:00'))
-      expect(await service.notifyCampaignLifecycle()).toEqual({ started: 1, ending: 0 })
-
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([{ ...encarte, startNotifiedAt: new Date() }])
-      jest.setSystemTime(new Date('2026-09-17T17:45:00-03:00'))
-      expect(await service.notifyCampaignLifecycle()).toEqual({ started: 0, ending: 0 })
-      jest.setSystemTime(new Date('2026-09-17T17:50:00-03:00'))
-      expect(await service.notifyCampaignLifecycle()).toEqual({ started: 0, ending: 1 })
-    })
   })
 
   describe('findOneForStorefront', () => {
@@ -602,98 +574,135 @@ describe('PromotionsService', () => {
     })
   })
 
-  describe('notifyCampaignLifecycle', () => {
-    const campaignInWindow = {
-      id: 'campaign-1',
-      name: 'SEGUNDA DA CARNE NV',
-      startDate: new Date('2026-09-16T00:00:00-03:00'),
-      endDate: new Date('2026-09-18T00:00:00-03:00'),
+  describe('fila de envios: planCampaignNotifications (02/10/2026)', () => {
+    const { parseErpBusinessDate, parseErpBusinessDateEnd } = require('../../common/business-window')
+    const { encarteSchedule } = require('./promotions.service')
+    const { parseHoursConfig } = require('../../common/delivery-hours')
+    const hours = parseHoursConfig(LOJA.businessHours, LOJA.specialDates)
+    const sp = (d: Date) => d.toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 16)
+    const encarte = (over: Record<string, unknown> = {}) => ({
+      id: 'c1',
+      tenantId: 'tenant_default',
+      erpCampaignId: 370,
+      name: 'VALIDADE NR',
+      customerName: 'Ofertas Relâmpago',
+      nearExpiry: true,
+      active: true,
+      startDate: parseErpBusinessDate('2026-09-17'),
+      endDate: parseErpBusinessDateEnd('2026-09-17'),
       startNotifiedAt: null,
       endingNotifiedAt: null,
-    }
+      items: [
+        { promotionalPrice: 5.99, regularPrice: 7.99, discountPercent: 25, product: { name: 'Leite Elege 1L', titleMask: null, active: true, syncOption: 'SEMPRE', stock: 1, isFractional: false } },
+        { promotionalPrice: 5.99, regularPrice: 8.99, discountPercent: 33, product: { name: 'Batata Palha Yoki', titleMask: null, active: false, syncOption: 'SEMPRE', stock: 1, isFractional: false } },
+        { promotionalPrice: 7.99, regularPrice: 7.99, discountPercent: 0, product: { name: 'Bebida Lactea', titleMask: null, active: true, syncOption: 'SEMPRE', stock: 1, isFractional: false } },
+      ],
+      ...over,
+    })
 
-    it('claims atomically, sends the push exactly once and marks startNotifiedAt', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([campaignInWindow])
-      mockPrismaService.promotionCampaign.updateMany.mockResolvedValueOnce({ count: 1 })
+    it('encarteSchedule: abertura do primeiro dia, 3h antes do fechamento e limite no fechamento', () => {
+      const plan = encarteSchedule(hours, parseErpBusinessDate('2026-09-17'), parseErpBusinessDateEnd('2026-09-17'), new Date('2026-09-16T22:00:00-03:00'))
+      expect(sp(plan.startAt)).toBe('2026-09-17 07:00')
+      expect(sp(plan.endAt)).toBe('2026-09-17 17:50')
+      expect(sp(plan.expiresAt)).toBe('2026-09-17 20:50')
+    })
 
-      const result = await service.notifyCampaignLifecycle()
+    it('encarteSchedule: encarte que termina no domingo usa o fechamento das 13h45', () => {
+      const plan = encarteSchedule(hours, parseErpBusinessDate('2026-09-19'), parseErpBusinessDateEnd('2026-09-20'), new Date('2026-09-19T08:00:00-03:00'))
+      expect(sp(plan.startAt)).toBe('2026-09-19 08:00')
+      expect(sp(plan.endAt)).toBe('2026-09-20 10:45')
+      expect(sp(plan.expiresAt)).toBe('2026-09-20 13:45')
+    })
 
-      expect(mockPrismaService.promotionCampaign.updateMany).toHaveBeenCalledWith({
-        where: { id: 'campaign-1', startNotifiedAt: null },
-        data: { startNotifiedAt: expect.any(Date) },
+    it('encarteSchedule: depois do fechamento do ultimo dia nao ha mais aviso', () => {
+      expect(encarteSchedule(hours, parseErpBusinessDate('2026-09-17'), parseErpBusinessDateEnd('2026-09-17'), new Date('2026-09-17T20:50:00-03:00'))).toBeNull()
+    })
+
+    it('planeja inicio e fim na fila com o nome do cliente, a melhor oferta real e o destino do encarte', async () => {
+      comLoja()
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([encarte()])
+
+      const result = await service.planCampaignNotifications()
+
+      expect(result.planned).toBe(2)
+      const created = mockPrismaService.scheduledNotification.create.mock.calls.map((c: any) => c[0].data)
+      expect(created.map((d: any) => d.sourceKey)).toEqual(['encarte:c1:inicio', 'encarte:c1:fim'])
+      expect(created[0]).toEqual(expect.objectContaining({ origin: 'ENCARTE_INICIO', status: 'SCHEDULED', title: '🛍️ Já está no ar: Ofertas Relâmpago', url: '/encarte/370', respectHours: true }))
+      // So o leite e oferta de verdade: batata inativa, bebida lactea sem desconto.
+      expect(created[0].body).toBe('Leite Elege 1L de R$ 7,99 por R$ 5,99.')
+      expect(created[1]).toEqual(expect.objectContaining({ origin: 'ENCARTE_FIM', title: '⏰ Últimas horas: Ofertas Relâmpago' }))
+      expect(created[1].body).toBe('Termina hoje às 20:50. Leite Elege 1L de R$ 7,99 por R$ 5,99.')
+      expect(sp(created[1].sendAt)).toBe('2026-09-17 17:50')
+      expect(created[0].meta).toEqual(expect.objectContaining({ offers: 1, items: 3 }))
+    })
+
+    it('com aprovacao exigida, entra como aguardando aprovacao', async () => {
+      comLoja()
+      mockPrismaService.autoOfferSettings.upsert.mockResolvedValue({ encarteEnabled: true, encarteApproval: true })
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([encarte()])
+
+      await service.planCampaignNotifications()
+
+      expect(mockPrismaService.scheduledNotification.create.mock.calls[0][0].data.status).toBe('PENDING_APPROVAL')
+    })
+
+    it('inicio ja enviado (legado): planeja so o fim', async () => {
+      comLoja()
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([encarte({ startNotifiedAt: new Date() })])
+
+      await service.planCampaignNotifications()
+
+      expect(mockPrismaService.scheduledNotification.create).toHaveBeenCalledTimes(1)
+      expect(mockPrismaService.scheduledNotification.create.mock.calls[0][0].data.sourceKey).toBe('encarte:c1:fim')
+    })
+
+    it('nao pisa no que o admin editou: so atualiza limite e contexto', async () => {
+      comLoja()
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([encarte()])
+      mockPrismaService.scheduledNotification.findUnique.mockResolvedValue({ id: 'q1', status: 'SCHEDULED', editedAt: new Date(), title: 'Meu título' })
+
+      await service.planCampaignNotifications()
+
+      const data = mockPrismaService.scheduledNotification.update.mock.calls[0][0].data
+      expect(Object.keys(data).sort()).toEqual(['expiresAt', 'meta'])
+    })
+
+    it('o que ja saiu ou foi cancelado pelo admin nao volta', async () => {
+      comLoja()
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([encarte()])
+      mockPrismaService.scheduledNotification.findUnique.mockResolvedValue({ id: 'q1', status: 'CANCELLED', note: 'Cancelado no admin.' })
+
+      const result = await service.planCampaignNotifications()
+
+      expect(mockPrismaService.scheduledNotification.create).not.toHaveBeenCalled()
+      expect(mockPrismaService.scheduledNotification.update).not.toHaveBeenCalled()
+      expect(result.planned).toBe(0)
+    })
+
+    it('avisos de encarte desligados: cancela o que ainda nao saiu, com o motivo', async () => {
+      comLoja()
+      mockPrismaService.autoOfferSettings.upsert.mockResolvedValue({ encarteEnabled: false, encarteApproval: false })
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([encarte()])
+      mockPrismaService.scheduledNotification.updateMany.mockResolvedValue({ count: 2 })
+
+      const result = await service.planCampaignNotifications()
+
+      expect(mockPrismaService.scheduledNotification.updateMany).toHaveBeenCalledWith({
+        where: { sourceKey: { in: ['encarte:c1:inicio', 'encarte:c1:fim'] }, status: { in: ['SCHEDULED', 'PENDING_APPROVAL'] } },
+        data: expect.objectContaining({ status: 'CANCELLED', note: 'Avisos de encarte desligados na fila.' }),
       })
-      expect(mockNotificationsService.broadcastToCustomers).toHaveBeenCalledTimes(1)
-      expect(mockNotificationsService.broadcastToCustomers).toHaveBeenCalledWith(['c1'], expect.objectContaining({ title: '🛍️ Chegou o encarte Segunda da Carne!', source: 'AUTO' }))
-      expect(result).toEqual({ started: 1, ending: 0 })
+      expect(result.cancelled).toBe(2)
     })
 
-    it('nao dispara o push (nem chama broadcast) quando o claim atomico perde a corrida (count 0)', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([campaignInWindow])
-      mockPrismaService.promotionCampaign.updateMany.mockResolvedValueOnce({ count: 0 })
+    it('religou: o que o sistema cancelou por "desligado" volta para a fila', async () => {
+      comLoja()
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([encarte()])
+      mockPrismaService.scheduledNotification.findUnique.mockResolvedValue({ id: 'q1', status: 'CANCELLED', note: 'Avisos de encarte desligados na fila.' })
 
-      const result = await service.notifyCampaignLifecycle()
+      const result = await service.planCampaignNotifications()
 
-      expect(mockNotificationsService.broadcastToCustomers).not.toHaveBeenCalled()
-      expect(result).toEqual({ started: 0, ending: 0 })
-    })
-
-    it('nao notifica inicio de campanha cujo startDate parseado ainda esta no futuro (sem horario da loja)', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
-        { id: 'campaign-futura', name: 'AMANHA', startDate: new Date('2026-09-17T03:00:00.000Z'), endDate: new Date('2026-09-19T03:00:00.000Z'), startNotifiedAt: null, endingNotifiedAt: null },
-      ])
-
-      const result = await service.notifyCampaignLifecycle()
-
-      expect(mockPrismaService.promotionCampaign.updateMany).not.toHaveBeenCalled()
-      expect(mockNotificationsService.broadcastToCustomers).not.toHaveBeenCalled()
-      expect(result).toEqual({ started: 0, ending: 0 })
-    })
-
-    it('does not notify a campaign already marked as notified', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([{ ...campaignInWindow, startNotifiedAt: new Date(), endingNotifiedAt: new Date() }])
-
-      const result = await service.notifyCampaignLifecycle()
-
-      expect(mockNotificationsService.broadcastToCustomers).not.toHaveBeenCalled()
-      expect(result).toEqual({ started: 0, ending: 0 })
-    })
-
-    it('notifies ending for a campaign leaving the site within 3h, com claim atomico', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
-        { id: 'campaign-2', name: 'OFERTA RELAMPAGO', startDate: new Date('2026-09-15T00:00:00-03:00'), endDate: new Date('2026-09-16T23:59:59.999-03:00'), startNotifiedAt: new Date(), endingNotifiedAt: null },
-      ])
-      mockPrismaService.promotionCampaign.updateMany.mockResolvedValueOnce({ count: 1 })
-
-      const result = await service.notifyCampaignLifecycle()
-
-      expect(mockPrismaService.promotionCampaign.updateMany).toHaveBeenCalledWith({
-        where: { id: 'campaign-2', endingNotifiedAt: null },
-        data: { endingNotifiedAt: expect.any(Date) },
-      })
-      expect(mockNotificationsService.broadcastToCustomers).toHaveBeenCalledTimes(1)
-      expect(result).toEqual({ started: 0, ending: 1 })
-    })
-
-    it('nao marca startNotifiedAt (nem qualquer outra escrita) se o push falhar -- so o claim, que ja e intencional', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([campaignInWindow])
-      mockPrismaService.promotionCampaign.updateMany.mockResolvedValueOnce({ count: 1 })
-      mockNotificationsService.broadcastToCustomers.mockRejectedValueOnce(new Error('push provider fora do ar'))
-
-      const result = await service.notifyCampaignLifecycle()
-
-      // O claim ja aconteceu (proposital: prefere perder um aviso a mandar
-      // dobrado). O metodo nao deve lancar -- so loga e segue.
-      expect(result).toEqual({ started: 0, ending: 0 })
-    })
-
-    it('does nothing outside the start/ending windows', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([])
-
-      const result = await service.notifyCampaignLifecycle()
-
-      expect(mockNotificationsService.broadcastToCustomers).not.toHaveBeenCalled()
-      expect(mockPrismaService.promotionCampaign.update).not.toHaveBeenCalled()
-      expect(result).toEqual({ started: 0, ending: 0 })
+      expect(mockPrismaService.scheduledNotification.update.mock.calls[0][0].data).toEqual(expect.objectContaining({ status: 'SCHEDULED', note: null }))
+      expect(result.planned).toBe(2)
     })
   })
 })

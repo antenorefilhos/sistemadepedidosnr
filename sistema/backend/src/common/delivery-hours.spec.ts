@@ -83,3 +83,20 @@ describe('fulfillmentDay (02/10/2026: o preco segue o dia da entrega)', () => {
   it('vespera de feriado depois do fechamento: pula o feriado', () => expect(fulfillmentDay(loja, at('2026-10-11T14:00:00-03:00'))).toBe('2026-10-13'))
   it('sem horario configurado: o proprio dia', () => expect(fulfillmentDay(null, at('2026-10-02T23:30:00-03:00'))).toBe('2026-10-02'))
 })
+
+describe('nextOpenAt / lastCloseOnOrBefore (fila de envios, 02/10/2026)', () => {
+  const { nextOpenAt, lastCloseOnOrBefore } = require('./delivery-hours')
+  const loja = {
+    weekly: Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, { enabled: true, windows: [{ start: '07:00', end: d === 0 ? '13:45' : '20:50' }] }])),
+    specialDates: [{ date: '2026-10-12', closed: true }],
+  }
+  const iso = (d: Date) => d.toISOString()
+
+  it('aberta agora: o proprio instante', () => expect(iso(nextOpenAt(loja, new Date('2026-10-02T10:00:00-03:00')))).toBe('2026-10-02T13:00:00.000Z'))
+  it('de madrugada: a abertura do dia', () => expect(iso(nextOpenAt(loja, new Date('2026-10-02T02:00:00-03:00')))).toBe('2026-10-02T10:00:00.000Z'))
+  it('depois do fechamento: a abertura de amanha', () => expect(iso(nextOpenAt(loja, new Date('2026-10-02T21:00:00-03:00')))).toBe('2026-10-03T10:00:00.000Z'))
+  it('vespera de feriado a noite: pula o feriado', () => expect(iso(nextOpenAt(loja, new Date('2026-10-11T14:00:00-03:00')))).toBe('2026-10-13T10:00:00.000Z'))
+  it('ultimo fechamento do dia', () => expect(iso(lastCloseOnOrBefore(loja, '2026-10-02'))).toBe('2026-10-02T23:50:00.000Z'))
+  it('domingo fecha 13h45', () => expect(iso(lastCloseOnOrBefore(loja, '2026-10-04'))).toBe('2026-10-04T16:45:00.000Z'))
+  it('feriado fechado: o fechamento do dia anterior', () => expect(iso(lastCloseOnOrBefore(loja, '2026-10-12'))).toBe('2026-10-11T16:45:00.000Z'))
+})

@@ -38,9 +38,14 @@ describe('NotificationsService', () => {
       },
       scheduledNotification: {
         findMany: jest.fn(),
+        findUnique: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
+      brandConfig: { findUnique: jest.fn().mockResolvedValue(null) },
+      autoOfferSettings: { findUnique: jest.fn().mockResolvedValue({ minDiscount: 15 }) },
+      product: { findUnique: jest.fn() },
+      promotionCampaign: { updateMany: jest.fn() },
     }
     const pushNotificationService = {
       sendNotification: jest.fn().mockResolvedValue({ sent: 1, failed: 0, skipped: 0 }),
@@ -269,76 +274,110 @@ describe('NotificationsService', () => {
     })
   })
 
-  describe('runDueScheduledBroadcasts', () => {
-    it('dispara agendamento com sendAt no passado e sentAt=null, e marca sentAt', async () => {
-      const { service, prisma } = makeService()
-      const item = {
-        id: 'sched-1',
-        type: 'PROMO',
-        title: 'Oferta',
-        body: 'Confira',
-        customerId: 'customer-1',
-        imageUrl: null,
-        productId: null,
-        bannerId: null,
-        inactiveDays: null,
-        purchasedCategory: null,
-      }
-      prisma.scheduledNotification.findMany.mockResolvedValue([item])
-      prisma.customer.findMany.mockResolvedValue([])
+  describe('fila de envios: dispatchDueQueue (02/10/2026)', () => {
+    const item = (over: Record<string, unknown> = {}) => ({
+      id: 'q1',
+      origin: 'MANUAL',
+      status: 'SCHEDULED',
+      type: 'PROMO',
+      title: 'Oferta',
+      body: 'Confira',
+      url: null,
+      customerId: 'customer-1',
+      customerIds: [],
+      imageUrl: null,
+      productId: null,
+      bannerId: null,
+      inactiveDays: null,
+      purchasedCategory: null,
+      respectHours: false,
+      expiresAt: null,
+      meta: null,
+      ...over,
+    })
+    const ready = (prisma: any, it: any) => {
+      prisma.scheduledNotification.findMany.mockResolvedValue([it])
+      prisma.scheduledNotification.findUnique.mockResolvedValue(it)
+      prisma.customer.findMany.mockImplementation(({ where }: any) => Promise.resolve((where.id.in as string[]).map((id) => ({ id }))))
       prisma.pushSubscription.findMany.mockResolvedValue([])
+      prisma.notification.findMany.mockResolvedValue([])
+    }
 
-      const result = await service.runDueScheduledBroadcasts()
+    it('envia o que venceu: claim atomico, grava enviado com quantos e o lote', async () => {
+      const { service, prisma } = makeService()
+      ready(prisma, item())
 
-      expect(prisma.scheduledNotification.findMany).toHaveBeenCalledWith({
-        where: { sentAt: null, sendAt: { lte: expect.any(Date) } },
+      const result = await service.dispatchDueQueue()
+
+      expect(prisma.scheduledNotification.updateMany).toHaveBeenCalledWith({ where: { id: 'q1', status: 'SCHEDULED' }, data: { status: 'SENDING' } })
+      expect(prisma.scheduledNotification.update).toHaveBeenCalledWith({
+        where: { id: 'q1' },
+        data: expect.objectContaining({ status: 'SENT', sentCount: 1, batchId: expect.any(String) }),
       })
-      expect(prisma.scheduledNotification.updateMany).toHaveBeenCalledWith({
-        where: { id: 'sched-1', sentAt: null },
-        data: { sentAt: expect.any(Date) },
-      })
+      expect(prisma.notification.createMany.mock.calls[0][0].data[0].source).toBe('SCHEDULED')
       expect(result).toEqual({ count: 1 })
     })
 
-    it('nao dispara agendamento ja disparado (query so busca sentAt=null)', async () => {
+    it('corrida (JON-158): se outro processo ja reivindicou, nao reenvia', async () => {
       const { service, prisma } = makeService()
-      prisma.scheduledNotification.findMany.mockResolvedValue([])
+      ready(prisma, item())
+      prisma.scheduledNotification.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 0 })
 
-      const result = await service.runDueScheduledBroadcasts()
-
-      expect(prisma.scheduledNotification.updateMany).not.toHaveBeenCalled()
-      expect(result).toEqual({ count: 0 })
+      expect(await service.dispatchDueQueue()).toEqual({ count: 0 })
+      expect(prisma.notification.createMany).not.toHaveBeenCalled()
     })
 
-    // JON-158: sentAt so era gravado DEPOIS do broadcast, sem claim atomico
-    // -- dois disparos concorrentes do mesmo agendamento enviavam a campanha
-    // duas vezes. updateMany com where sentAt:null so deixa quem ganhar a
-    // corrida (count===1) seguir pro envio.
-    it('corrida: segundo disparo do mesmo agendamento nao reenvia a campanha', async () => {
+    it('automatico com a loja fechada espera a abertura (nem reivindica)', async () => {
       const { service, prisma } = makeService()
-      const item = {
-        id: 'sched-race', type: 'PROMO', title: 'Oferta', body: 'Confira',
-        customerId: 'customer-1', imageUrl: null, productId: null, bannerId: null,
-        inactiveDays: null, purchasedCategory: null,
-      }
-      prisma.scheduledNotification.findMany.mockResolvedValue([item])
-      prisma.scheduledNotification.updateMany.mockResolvedValue({ count: 0 }) // outro processo ja reivindicou
-      prisma.customer.findMany.mockResolvedValue([])
-      prisma.pushSubscription.findMany.mockResolvedValue([])
+      ready(prisma, item({ respectHours: true }))
+      // Horario valido so num domingo de 2020: hoje nunca cai nele.
+      prisma.brandConfig.findUnique.mockResolvedValue({ businessHours: '{}', specialDates: JSON.stringify([{ date: '2020-01-05', windows: [{ start: '00:00', end: '23:59' }] }]) })
 
-      const result = await service.runDueScheduledBroadcasts()
-
-      expect(result).toEqual({ count: 0 })
+      expect(await service.dispatchDueQueue()).toEqual({ count: 0 })
+      expect(prisma.scheduledNotification.updateMany).not.toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'SENDING' } }))
     })
 
-    it('nao dispara agendamento no futuro (query so busca sendAt <= agora)', async () => {
+    it('passou do horario-limite sem sair: vira "nao saiu" com o motivo', async () => {
       const { service, prisma } = makeService()
-      prisma.scheduledNotification.findMany.mockResolvedValue([])
+      ready(prisma, item({ expiresAt: new Date(Date.now() - 60_000) }))
 
-      await service.runDueScheduledBroadcasts()
+      expect(await service.dispatchDueQueue()).toEqual({ count: 0 })
+      expect(prisma.scheduledNotification.updateMany).toHaveBeenCalledWith({
+        where: { id: 'q1', status: 'SCHEDULED' },
+        data: expect.objectContaining({ status: 'SKIPPED' }),
+      })
+    })
 
-      const call = prisma.scheduledNotification.findMany.mock.calls[0][0]
-      expect(call.where.sendAt.lte.getTime()).toBeLessThanOrEqual(Date.now())
+    it('oferta que acabou antes do envio: nao sai e diz por que', async () => {
+      const { service, prisma } = makeService()
+      ready(prisma, item({ origin: 'OFERTA', productId: 'p1', customerId: null, customerIds: ['customer-1'] }))
+      prisma.product.findUnique.mockResolvedValue({ active: true, syncOption: 'SEMPRE', stock: 1, price: 10, promotionalPrice: null })
+
+      expect(await service.dispatchDueQueue()).toEqual({ count: 0 })
+      expect(prisma.scheduledNotification.update).toHaveBeenCalledWith({ where: { id: 'q1' }, data: { status: 'SKIPPED', note: 'A oferta acabou antes do envio.' } })
+    })
+
+    it('oferta: quem recebeu outro aviso de marketing nas ultimas 20h fica de fora', async () => {
+      const { service, prisma } = makeService()
+      ready(prisma, item({ origin: 'OFERTA', productId: 'p1', customerId: null, customerIds: ['customer-1', 'customer-2'] }))
+      prisma.product.findUnique.mockResolvedValue({ active: true, syncOption: 'SEMPRE', stock: 1, price: 10, promotionalPrice: 7 })
+      prisma.notification.findMany.mockResolvedValue([{ customerId: 'customer-1' }])
+
+      await service.dispatchDueQueue()
+
+      const rows = prisma.notification.createMany.mock.calls[0][0].data
+      expect(rows.map((r: any) => r.customerId)).toEqual(['customer-2'])
+      expect(rows[0].source).toBe('AUTO')
+    })
+
+    it('aviso de encarte marca o encarte como avisado', async () => {
+      const { service, prisma } = makeService()
+      ready(prisma, item({ origin: 'ENCARTE_FIM', type: 'CAMPAIGN', customerId: 'customer-1', meta: { campaignId: 'c1' } }))
+
+      await service.dispatchDueQueue()
+
+      expect(prisma.notification.createMany.mock.calls[0][0].data[0].source).toBe('ENCARTE')
+      expect(prisma.promotionCampaign.updateMany).toHaveBeenCalledWith({ where: { id: 'c1' }, data: { endingNotifiedAt: expect.any(Date) } })
     })
   })
 })

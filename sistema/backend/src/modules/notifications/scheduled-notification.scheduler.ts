@@ -3,8 +3,8 @@ import { Cron } from '@nestjs/schedule'
 import { NotificationsService } from './notifications.service'
 
 /**
- * Dispara broadcasts agendados (admin/broadcast com "sendAt" no futuro)
- * quando a hora chega. Mesmo padrao de PromotionsScheduler.
+ * Despacha a fila de envios (encarte, oferta personalizada e agendado manual)
+ * quando a hora chega. Ver NotificationsService.dispatchDueQueue.
  */
 @Injectable()
 export class ScheduledNotificationScheduler {
@@ -13,13 +13,14 @@ export class ScheduledNotificationScheduler {
 
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  @Cron('*/5 * * * *', { name: 'scheduled-notifications' })
+  // Fila de envios (02/10/2026): a cada minuto, para "17:50" sair as 17:50.
+  @Cron('* * * * *', { name: 'scheduled-notifications' })
   async handleDue(): Promise<void> {
     if (this.isRunning) return
     this.isRunning = true
     try {
-      const { count } = await this.notificationsService.runDueScheduledBroadcasts()
-      if (count > 0) this.logger.log(`${count} broadcast(s) agendado(s) disparado(s).`)
+      const { count } = await this.notificationsService.dispatchDueQueue()
+      if (count > 0) this.logger.log(`Fila de envios: ${count} aviso(s) enviado(s).`)
     } catch (error) {
       this.logger.error('Falha ao disparar broadcasts agendados:', error instanceof Error ? error.stack : String(error))
     } finally {

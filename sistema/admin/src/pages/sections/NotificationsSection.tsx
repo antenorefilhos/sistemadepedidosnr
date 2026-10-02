@@ -12,23 +12,26 @@ import {
   type CatalogProduct,
   type NotificationDispatch,
 } from '../../services/api'
+import NotificationQueueTab from './NotificationQueue'
 
-// Notificacoes (refeita em 29/09/2026 com o Jonathan). Tres partes:
+// Notificacoes (refeita em 29/09/2026 com o Jonathan). Quatro partes:
+// - Fila de envios (02/10/2026): o que vai sair com hora marcada (encarte,
+//   oferta personalizada, agendado), para editar, cancelar, aprovar ou mandar ja.
 // - Automatico: avisos de oferta por algoritmo proprio (sem IA externa): escolhe
 //   a oferta de cada cliente pelo que ele compra/olha, aprende com o que foi
 //   aberto e respeita limites. Aqui liga, ajusta, simula e ve o resultado.
 // - Enviar aviso: envio manual com destino, publico e agendamento.
 // - Historico: o que saiu, quantos abriram e quantos pedidos vieram em 48 h.
 
-type Tab = 'auto' | 'send' | 'history'
+type Tab = 'queue' | 'auto' | 'send' | 'history'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—')
-const SOURCE_LABEL: Record<string, string> = { AUTO: 'Automático', MANUAL: 'Manual', SCHEDULED: 'Agendado', CART: 'Carrinho esquecido', ORDER: 'Pedido' }
+const SOURCE_LABEL: Record<string, string> = { AUTO: 'Oferta personalizada', MANUAL: 'Manual', SCHEDULED: 'Agendado', CART: 'Carrinho esquecido', ORDER: 'Pedido', ENCARTE: 'Encarte' }
 const codeOf = (name: string) =>
   name.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 
 export default function NotificationsSection() {
-  const [tab, setTab] = useState<Tab>('auto')
+  const [tab, setTab] = useState<Tab>('queue')
   const [departments, setDepartments] = useState<Array<{ code: string; name: string }>>([])
 
   useEffect(() => {
@@ -41,9 +44,10 @@ export default function NotificationsSection() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <div className="flex w-max gap-1 rounded-2xl border border-black/[0.06] bg-white p-1">
+      <div className="flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-black/[0.06] bg-white p-1 sm:w-max">
         {(
           [
+            ['queue', 'Fila de envios'],
             ['auto', 'Automático'],
             ['send', 'Enviar aviso'],
             ['history', 'Histórico'],
@@ -54,8 +58,9 @@ export default function NotificationsSection() {
           </button>
         ))}
       </div>
+      {tab === 'queue' && <NotificationQueueTab />}
       {tab === 'auto' && <AutoTab depName={depName} />}
-      {tab === 'send' && <SendTab departments={departments} onSent={() => setTab('history')} />}
+      {tab === 'send' && <SendTab departments={departments} onSent={(scheduled) => setTab(scheduled ? 'queue' : 'history')} />}
       {tab === 'history' && <HistoryTab />}
     </div>
   )
@@ -310,7 +315,7 @@ function AutoTab({ depName }: { depName: (code: string) => string }) {
 
 type Audience = 'all' | 'segment' | 'one'
 
-function SendTab({ departments, onSent }: { departments: Array<{ code: string; name: string }>; onSent: () => void }) {
+function SendTab({ departments, onSent }: { departments: Array<{ code: string; name: string }>; onSent: (scheduled: boolean) => void }) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [target, setTarget] = useState<'home' | 'product' | 'banner'>('home')
@@ -384,7 +389,7 @@ function SendTab({ departments, onSent }: { departments: Array<{ code: string; n
         purchasedCategory: audience === 'segment' ? category || undefined : undefined,
         sendAt: scheduling ? new Date(sendAt).toISOString() : undefined,
       })
-      onSent()
+      onSent(scheduling)
     } catch (e) {
       setError(getApiErrorMessage(e, 'Não foi possível enviar.'))
     } finally {
@@ -530,40 +535,8 @@ function SendTab({ departments, onSent }: { departments: Array<{ code: string; n
             </div>
           </div>
         </Card>
-        <Scheduled />
       </div>
     </div>
-  )
-}
-
-function Scheduled() {
-  const [items, setItems] = useState<Array<{ id: string; title: string; sendAt: string }>>([])
-  const load = () => notificationsAdminAPI.listScheduled().then((r) => setItems(r.data as any)).catch(() => setItems([]))
-  useEffect(() => {
-    load()
-  }, [])
-  if (!items.length) return null
-  return (
-    <Card>
-      <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500">Agendados</h3>
-      <ul className="mt-2 divide-y divide-black/[0.05]">
-        {items.map((a) => (
-          <li key={a.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-            <span className="min-w-0">
-              <span className="block truncate text-gray-900">{a.title}</span>
-              <span className="text-xs text-gray-400">{new Date(a.sendAt).toLocaleString('pt-BR')}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => window.confirm('Cancelar este agendamento?') && notificationsAdminAPI.cancelScheduled(a.id).then(load)}
-              className="rounded-lg px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
-            >
-              Cancelar
-            </button>
-          </li>
-        ))}
-      </ul>
-    </Card>
   )
 }
 

@@ -2139,23 +2139,53 @@ model Notification {
   @@map("notifications")
 }
 
+// Fila de envios (02/10/2026): TODO aviso de marketing com hora marcada passa
+// por aqui -- encarte, oferta personalizada e agendado manual. O que esta na
+// fila e exatamente o que sai; a tela Notificacoes > Fila edita, cancela, aprova
+// e manda na hora. Despachado por NotificationQueueService.
 model ScheduledNotification {
   id                String    @id @default(cuid())
   tenantId          String    @default("tenant_default")
+  // MANUAL | ENCARTE_INICIO | ENCARTE_FIM | OFERTA
+  origin            String    @default("MANUAL")
+  // SCHEDULED | PENDING_APPROVAL | SENDING | SENT | CANCELLED | SKIPPED | FAILED
+  status            String    @default("SCHEDULED")
+  // Idempotencia dos planejadores (ex.: encarte:<id>:inicio, oferta:<slot>:<produto>)
+  sourceKey         String?   @unique
   type              String
   title             String
   body              String
+  url               String?
   customerId        String?
+  // Publico explicito (oferta personalizada); vazio = segmento ou todos
+  customerIds       String[]  @default([])
+  audienceLabel     String?
   imageUrl          String?
   productId         String?
   bannerId          String?
   inactiveDays      Int?
   purchasedCategory String?
   sendAt            DateTime
+  // Depois disso nao sai mais (ex.: o encarte ja saiu do site)
+  expiresAt         DateTime?
+  // Automatico so sai com a loja aberta (espera a abertura)
+  respectHours      Boolean   @default(false)
+  meta              Json?
+  note              String?
+  editedAt          DateTime?
+  editedBy          String?
+  approvedAt        DateTime?
+  approvedBy        String?
+  cancelledAt       DateTime?
+  cancelledBy       String?
   sentAt            DateTime?
+  sentCount         Int?
+  batchId           String?
   createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
 
   @@index([tenantId, sentAt, sendAt])
+  @@index([status, sendAt])
   @@map("scheduled_notifications")
 }
 
@@ -2359,6 +2389,11 @@ model AutoOfferSettings {
   minDiscount    Int       @default(15)
   maxPerWeek     Int       @default(3)
   sendHours      String    @default("11,17")
+  // Fila de envios (02/10/2026): o que sai sozinho e o que espera aprovacao.
+  encarteEnabled  Boolean  @default(true)
+  encarteApproval Boolean  @default(false)
+  offerApproval   Boolean  @default(false)
+  cartEnabled     Boolean  @default(true)
   learnedWeights Json?
   lastRunAt      DateTime?
   lastRunSummary Json?

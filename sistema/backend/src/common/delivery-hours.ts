@@ -80,6 +80,38 @@ export const fulfillmentDay = (config: HoursConfig | null, at: Date): string => 
   return isoDate
 }
 
+const DAY_MS = 86_400_000
+
+/** Janelas de atendimento de um dia (AAAA-MM-DD, Brasilia) como instantes. */
+export const dayWindows = (config: HoursConfig, isoDate: string): Array<{ start: Date; end: Date }> => {
+  const weekday = new Date(`${isoDate}T12:00:00-03:00`).getUTCDay()
+  return windowsFor(config, isoDate, weekday).map((w) => ({
+    start: new Date(`${isoDate}T${w.start}:00-03:00`),
+    end: new Date(`${isoDate}T${w.end}:00-03:00`),
+  }))
+}
+
+/** Proximo instante com a loja aberta a partir de `from` (o proprio, se ja estiver aberta). */
+export const nextOpenAt = (config: HoursConfig | null, from: Date): Date => {
+  if (!config) return from
+  for (let i = 0; i <= 14; i += 1) {
+    for (const w of dayWindows(config, zoned(new Date(from.getTime() + i * DAY_MS)).isoDate)) {
+      if (from.getTime() < w.end.getTime()) return from.getTime() > w.start.getTime() ? from : w.start
+    }
+  }
+  return from
+}
+
+/** Ultimo fechamento no dia `isoDate` ou antes dele (feriado fechado volta para o dia anterior). */
+export const lastCloseOnOrBefore = (config: HoursConfig, isoDate: string): Date | null => {
+  for (let i = 0; i <= 14; i += 1) {
+    const day = zoned(new Date(new Date(`${isoDate}T12:00:00-03:00`).getTime() - i * DAY_MS)).isoDate
+    const windows = dayWindows(config, day)
+    if (windows.length) return windows[windows.length - 1].end
+  }
+  return null
+}
+
 /** Le a config salva no admin; sem horario configurado devolve null (nada a validar). */
 export const parseHoursConfig = (businessHours?: string | null, specialDates?: string | null): HoursConfig | null => {
   if (!businessHours) return null

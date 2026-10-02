@@ -61,10 +61,12 @@ export class PromotionsScheduler {
     }
   }
 
-  @Cron(process.env.PROMOTIONS_NOTIFY_CRON || '*/15 * * * *', { name: 'promotions-notify-lifecycle' })
+  // Fila de envios (02/10/2026): planeja os avisos de encarte; quem envia e o
+  // NotificationQueueService na hora marcada.
+  @Cron(process.env.PROMOTIONS_NOTIFY_CRON || '*/5 * * * *', { name: 'promotions-notify-lifecycle' })
   async handleNotifyLifecycle(): Promise<void> {
     try {
-      await this.promotionsService.notifyCampaignLifecycle()
+      await this.promotionsService.planCampaignNotifications()
     } catch (error) {
       this.logger.error('Falha no aviso de inicio/fim de encarte:', error instanceof Error ? error.stack : String(error))
     }

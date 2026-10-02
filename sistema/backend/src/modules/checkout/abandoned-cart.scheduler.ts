@@ -3,6 +3,8 @@ import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../common/prisma.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { winstonLogger } from '../../common/logger'
+import { isWithinDeliveryHours } from '../../common/delivery-hours'
+import { loadHoursConfig } from '../../common/promo-day'
 
 /**
  * Lembrete de carrinho abandonado: cliente colocou item, sumiu por 2h,
@@ -37,6 +39,13 @@ export class AbandonedCartScheduler {
 
     this.isRunning = true
     try {
+      // Fila de envios (02/10/2026): liga/desliga na tela Notificacoes > Fila, e
+      // so lembra com a loja aberta -- antes saia de madrugada.
+      const settings = await this.prisma.autoOfferSettings.findUnique({ where: { id: 'singleton' }, select: { cartEnabled: true } })
+      if (settings && !settings.cartEnabled) return
+      const hours = await loadHoursConfig(this.prisma)
+      if (hours && !isWithinDeliveryHours(hours, new Date())) return
+
       const threshold = new Date(Date.now() - 2 * 60 * 60 * 1000)
       const carts = await this.prisma.cart.findMany({
         where: {
