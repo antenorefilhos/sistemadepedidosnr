@@ -146,7 +146,7 @@ services:
       # Ligado por padrao, como o sync de produtos.
       PROMOTIONS_SYNC_CRON_ENABLED: ${PROMOTIONS_SYNC_CRON_ENABLED:-true}
       PROMOTIONS_SYNC_CRON: ${PROMOTIONS_SYNC_CRON:-*/30 * * * *}
-      PROMOTIONS_EXPIRE_CRON: ${PROMOTIONS_EXPIRE_CRON:-*/15 * * * *}
+      PROMOTIONS_EXPIRE_CRON: ${PROMOTIONS_EXPIRE_CRON:-*/5 * * * *}
       TZ: ${TZ:-America/Sao_Paulo}
     depends_on:
       - db

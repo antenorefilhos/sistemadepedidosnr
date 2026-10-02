@@ -58,6 +58,28 @@ export const isWithinDeliveryHours = (config: HoursConfig, date: Date, inclusive
   })
 }
 
+/** Dia de calendario em Brasilia (AAAA-MM-DD). Aceita data pura, que ja e o dia. */
+export const spDay = (date: Date | string): string =>
+  typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : zoned(new Date(date)).isoDate
+
+/**
+ * Dia em que um pedido feito em `at` sera entregue ou retirado (02/10/2026):
+ * hoje, se a loja ainda atende hoje depois de `at` (antes de abrir tambem e
+ * hoje); senao, o proximo dia com horario. E o dia cujo preco o caixa cobra --
+ * o site nao fecha, entao depois do fechamento o preco ja e o de amanha.
+ * Sem horario configurado, o proprio dia.
+ */
+export const fulfillmentDay = (config: HoursConfig | null, at: Date): string => {
+  const { isoDate, weekday, minutes } = zoned(at)
+  if (!config) return isoDate
+  if (windowsFor(config, isoDate, weekday).some((w) => minutes < toMinutes(w.end))) return isoDate
+  for (let i = 1; i <= 14; i += 1) {
+    const next = zoned(new Date(at.getTime() + i * 86_400_000))
+    if (windowsFor(config, next.isoDate, next.weekday).length) return next.isoDate
+  }
+  return isoDate
+}
+
 /** Le a config salva no admin; sem horario configurado devolve null (nada a validar). */
 export const parseHoursConfig = (businessHours?: string | null, specialDates?: string | null): HoursConfig | null => {
   if (!businessHours) return null

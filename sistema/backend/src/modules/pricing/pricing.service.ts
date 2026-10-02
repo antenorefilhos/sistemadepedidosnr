@@ -1,4 +1,7 @@
 import { FraudService } from '../fraud/fraud.service'
+import { isPromoValidOnDay } from '../../common/business-window'
+import { spDay } from '../../common/delivery-hours'
+import { promoDayFor } from '../../common/promo-day'
 import { Optional, BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
@@ -20,10 +23,10 @@ type QuoteRequest = {
   customerSegment?: string
   couponCode?: string
   deliveryAmount?: number
-  // JON-187: data da janela de entrega/retirada escolhida -- preco
-  // promocional so vale se essa data ainda estiver dentro da vigencia
-  // (Product.promotionalPriceValidUntil). Ausente = comportamento antigo
-  // (promocao sempre vale), usado por preview/simulacao sem slot escolhido.
+  // JON-187: dia da entrega/retirada -- preco promocional so vale se esse DIA
+  // ainda estiver na vigencia (Product.promotionalPriceValidUntil). Checkout e
+  // pedido passam promoDayFor() (common/promo-day.ts): o agendado, ou o dia da
+  // entrega de um pedido feito agora. Ausente = promocao vale (preview).
   deliveryDate?: string
   // JON-184: resolvido no backend (CheckoutService.resolveClubMembership),
   // nunca aceito cru do cliente -- ver comentario em checkout.service.ts.
@@ -233,10 +236,13 @@ export class PricingService {
       customerId: request.customerId,
       customerSegment: request.customerSegment,
     })
+    const deliveryDay = request.deliveryDate && !Number.isNaN(new Date(request.deliveryDate.length === 10 ? `${request.deliveryDate}T12:00:00Z` : request.deliveryDate).getTime())
+      ? spDay(request.deliveryDate)
+      : null
     const priceListItems = await this.findPriceListItems(priceLists.map((list) => list.id), items.map((item) => item.productId))
     const priceByProduct = this.pickPriceListItems(priceLists, priceListItems)
     const clubPriceByProduct = request.isClubMember
-      ? await this.findActiveClubPrices({ tenantId, storeId, productIds: items.map((item) => item.productId) })
+      ? await this.findActiveClubPrices({ tenantId, storeId, productIds: items.map((item) => item.productId), day: deliveryDay ?? (await promoDayFor(this.prisma)) })
       : new Map<string, number>()
 
     const quoteItems = items.map((item) => {
@@ -251,12 +257,12 @@ export class PricingService {
       // vigencia -- pedido feito hoje pra entrega amanha, com promocao que
       // acaba hoje, paga preco de tabela (evita divergencia contra o PDV,
       // que fatura no dia da entrega e ja aplicaria o preco cheio la).
-      const deliveryDate = request.deliveryDate ? new Date(request.deliveryDate) : null
+      // Comparacao por DIA em Brasilia (02/10/2026): a validade guarda o fim do
+      // ultimo dia, e o que importa e se a entrega cai nele ou depois.
       const promoExpired =
         product.promotionalPriceValidUntil != null &&
-        deliveryDate != null &&
-        !Number.isNaN(deliveryDate.getTime()) &&
-        deliveryDate.getTime() > product.promotionalPriceValidUntil.getTime()
+        deliveryDay != null &&
+        deliveryDay > spDay(product.promotionalPriceValidUntil)
       const effectivePromotionalPrice = promoExpired ? null : product.promotionalPrice
       let listUnitPrice = Number(priceListItem?.price ?? effectivePromotionalPrice ?? product.price)
       if (!Number.isFinite(listUnitPrice) || listUnitPrice <= 0) {
@@ -701,20 +707,23 @@ export class PricingService {
   // JON-183/184: clubPrice vive em PromotionCampaignItem (so existe no
   // encarte), nao em Product -- por isso e uma busca separada da lista de
   // precos normal. So considera campanha ATIVA e dentro da janela de datas.
-  private async findActiveClubPrices(params: { tenantId: string; storeId: string; productIds: string[] }) {
+  private async findActiveClubPrices(params: { tenantId: string; storeId: string; productIds: string[]; day: string }) {
     if (params.productIds.length === 0) return new Map<string, number>()
     const now = new Date()
     const items = await this.prisma.promotionCampaignItem.findMany({
       where: {
         productId: { in: params.productIds },
         clubPrice: { not: null },
-        campaign: { tenantId: params.tenantId, storeId: params.storeId, active: true, startDate: { lte: now }, endDate: { gte: now } },
+        campaign: { tenantId: params.tenantId, storeId: params.storeId, active: true, endDate: { gte: now } },
       },
-      select: { productId: true, clubPrice: true },
+      select: { productId: true, clubPrice: true, campaign: { select: { startDate: true, endDate: true } } },
     })
     const byProduct = new Map<string, number>()
     for (const item of items) {
-      if (item.clubPrice != null) byProduct.set(item.productId, Number(item.clubPrice))
+      // Mesma regra do preco do encarte: vale no dia da entrega (isPromoValidOnDay).
+      if (item.clubPrice != null && isPromoValidOnDay(params.day, item.campaign.startDate, item.campaign.endDate)) {
+        byProduct.set(item.productId, Number(item.clubPrice))
+      }
     }
     return byProduct
   }

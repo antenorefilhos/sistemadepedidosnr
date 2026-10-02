@@ -4,6 +4,7 @@ import { AntenorApiService } from '../integrations/antenor-api.service'
 import { NotificationsService } from '../notifications/notifications.service'
 
 const mockPrismaService = {
+  brandConfig: { findUnique: jest.fn() },
   product: {
     findMany: jest.fn(),
     update: jest.fn(),
@@ -38,6 +39,16 @@ const mockNotificationsService = {
 // fazia "amanha" (data sem horario) parecer "ja comecou".
 const NOW = new Date('2026-09-16T22:00:00-03:00')
 
+// Horario da loja (02/10/2026): segunda a sabado 07:00-20:50, domingo 07:00-13:45.
+// 16/09/2026 e uma quarta: as 22h a loja ja fechou e o pedido e de quinta (17/09).
+const LOJA = {
+  businessHours: JSON.stringify(
+    Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, { enabled: true, windows: [{ start: '07:00', end: d === 0 ? '13:45' : '20:50' }] }])),
+  ),
+  specialDates: '[]',
+}
+const comLoja = () => mockPrismaService.brandConfig.findUnique.mockResolvedValue(LOJA)
+
 describe('PromotionsService', () => {
   let service: PromotionsService
 
@@ -56,6 +67,9 @@ describe('PromotionsService', () => {
     // ativar" pros testes que nao mexem nisso de proposito.
     mockPrismaService.promotionCampaign.findMany.mockResolvedValue([])
     mockPrismaService.promotionCampaign.updateMany.mockResolvedValue({ count: 1 })
+    // Sem horario configurado = dia de calendario (comportamento sem a tela de horario).
+    mockPrismaService.brandConfig.findUnique.mockResolvedValue(null)
+    mockPrismaService.product.findMany.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -185,7 +199,10 @@ describe('PromotionsService', () => {
 
       const result = await service.syncFromERP()
 
-      expect(mockPrismaService.product.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { promotionalPrice: 20 } })
+      expect(mockPrismaService.product.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: { promotionalPrice: 20, promotionalPriceValidUntil: new Date('2026-09-18T00:00:00-03:00') },
+      })
       expect(result).toEqual({ campaignsSynced: 1, itemsSynced: 1, productsUpdated: 1 })
     })
 
@@ -261,7 +278,7 @@ describe('PromotionsService', () => {
 
       await service.syncFromERP()
 
-      expect(mockPrismaService.product.update).toHaveBeenCalledWith({ where: { id: 'p-errado' }, data: { promotionalPrice: null } })
+      expect(mockPrismaService.product.update).toHaveBeenCalledWith({ where: { id: 'p-errado' }, data: { promotionalPrice: null, promotionalPriceValidUntil: null } })
       expect(mockPrismaService.promotionCampaignItem.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['item-orfao'] } } })
     })
 
@@ -310,7 +327,10 @@ describe('PromotionsService', () => {
 
       const result = await service.activateCampaigns()
 
-      expect(mockPrismaService.product.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { promotionalPrice: 20 } })
+      expect(mockPrismaService.product.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: { promotionalPrice: 20, promotionalPriceValidUntil: new Date('2026-09-18T00:00:00-03:00') },
+      })
       expect(result).toEqual({ campaignsActivated: 1, productsActivated: 1 })
     })
 
@@ -320,7 +340,7 @@ describe('PromotionsService', () => {
           id: 'campaign-1',
           startDate: new Date('2026-09-16T00:00:00-03:00'),
           endDate: new Date('2026-09-18T00:00:00-03:00'),
-          items: [{ productId: 'p1', promotionalPrice: 20, product: { id: 'p1', promotionalPrice: 20 } }],
+          items: [{ productId: 'p1', promotionalPrice: 20, product: { id: 'p1', promotionalPrice: 20, promotionalPriceValidUntil: new Date('2026-09-18T00:00:00-03:00') } }],
         },
       ])
 
@@ -348,8 +368,9 @@ describe('PromotionsService', () => {
 
       const result = await service.activateCampaigns()
 
-      expect(mockPrismaService.product.update).toHaveBeenNthCalledWith(1, { where: { id: 'p1' }, data: { promotionalPrice: 25 } })
-      expect(mockPrismaService.product.update).toHaveBeenNthCalledWith(2, { where: { id: 'p1' }, data: { promotionalPrice: 20 } })
+      const fim = new Date('2026-09-18T00:00:00-03:00')
+      expect(mockPrismaService.product.update).toHaveBeenNthCalledWith(1, { where: { id: 'p1' }, data: { promotionalPrice: 25, promotionalPriceValidUntil: fim } })
+      expect(mockPrismaService.product.update).toHaveBeenNthCalledWith(2, { where: { id: 'p1' }, data: { promotionalPrice: 20, promotionalPriceValidUntil: fim } })
       expect(result).toEqual({ campaignsActivated: 2, productsActivated: 2 })
     })
 
@@ -370,6 +391,112 @@ describe('PromotionsService', () => {
 
       expect(mockPrismaService.product.update).not.toHaveBeenCalled()
       expect(result.productsActivated).toBe(0)
+    })
+  })
+
+  describe('horario da loja (02/10/2026): o preco segue o dia da entrega', () => {
+    const { parseErpBusinessDate, parseErpBusinessDateEnd } = require('../../common/business-window')
+
+    it('com a loja fechada na vespera, o encarte de amanha ja vale no site (opcao A)', async () => {
+      comLoja()
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
+        {
+          id: 'amanha',
+          startDate: parseErpBusinessDate('2026-09-17'),
+          endDate: parseErpBusinessDateEnd('2026-09-17'),
+          items: [{ productId: 'p1', promotionalPrice: 20, product: { id: 'p1', promotionalPrice: null } }],
+        },
+      ])
+
+      const result = await service.activateCampaigns()
+
+      expect(result.productsActivated).toBe(1)
+    })
+
+    it('com a loja ainda aberta, o encarte de amanha nao vale', async () => {
+      comLoja()
+      jest.setSystemTime(new Date('2026-09-16T20:30:00-03:00'))
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
+        {
+          id: 'amanha',
+          startDate: parseErpBusinessDate('2026-09-17'),
+          endDate: parseErpBusinessDateEnd('2026-09-17'),
+          items: [{ productId: 'p1', promotionalPrice: 20, product: { id: 'p1', promotionalPrice: null } }],
+        },
+      ])
+
+      expect((await service.activateCampaigns()).productsActivated).toBe(0)
+    })
+
+    it('no ultimo dia, depois do fechamento, o encarte sai do site (nao espera a meia-noite)', async () => {
+      comLoja()
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
+        {
+          id: 'acaba-hoje',
+          startDate: parseErpBusinessDate('2026-09-14'),
+          endDate: parseErpBusinessDateEnd('2026-09-16'),
+          items: [{ productId: 'p1', promotionalPrice: 20, product: { id: 'p1', promotionalPrice: 20 } }],
+        },
+      ])
+
+      const result = await service.expireCampaigns()
+
+      expect(mockPrismaService.product.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { promotionalPrice: null, promotionalPriceValidUntil: null } })
+      expect(result).toEqual({ campaignsExpired: 1, productsCleared: 1 })
+    })
+
+    it('no ultimo dia, com a loja aberta, o encarte continua', async () => {
+      comLoja()
+      jest.setSystemTime(new Date('2026-09-16T20:40:00-03:00'))
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
+        {
+          id: 'acaba-hoje',
+          startDate: parseErpBusinessDate('2026-09-14'),
+          endDate: parseErpBusinessDateEnd('2026-09-16'),
+          items: [{ productId: 'p1', promotionalPrice: 20, product: { id: 'p1', promotionalPrice: 20 } }],
+        },
+      ])
+
+      expect(await service.expireCampaigns()).toEqual({ campaignsExpired: 0, productsCleared: 0 })
+    })
+
+    it('oferta do ERP por produto que acaba hoje tambem sai no fechamento', async () => {
+      comLoja()
+      mockPrismaService.product.findMany.mockResolvedValue([
+        { id: 'p-hoje', promotionalPriceValidUntil: parseErpBusinessDateEnd('2026-09-16') },
+        { id: 'p-amanha', promotionalPriceValidUntil: parseErpBusinessDateEnd('2026-09-17') },
+      ])
+
+      const result = await service.expireCampaigns()
+
+      expect(mockPrismaService.product.update).toHaveBeenCalledTimes(1)
+      expect(mockPrismaService.product.update).toHaveBeenCalledWith({ where: { id: 'p-hoje' }, data: { promotionalPrice: null, promotionalPriceValidUntil: null } })
+      expect(result.productsCleared).toBe(1)
+    })
+
+    it('nao manda aviso de encarte com a loja fechada', async () => {
+      comLoja()
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
+        { id: 'c', name: 'TERÇA HORTIFRUTI NR', startDate: parseErpBusinessDate('2026-09-17'), endDate: parseErpBusinessDateEnd('2026-09-17') },
+      ])
+
+      expect(await service.notifyCampaignLifecycle()).toEqual({ started: 0, ending: 0 })
+      expect(mockNotificationsService.broadcastToCustomers).not.toHaveBeenCalled()
+    })
+
+    it('"Chegou" sai na abertura do primeiro dia e "Ultimas horas" 3h antes do fechamento do ultimo', async () => {
+      comLoja()
+      const encarte = { id: 'c', name: 'TERÇA HORTIFRUTI NR', startDate: parseErpBusinessDate('2026-09-17'), endDate: parseErpBusinessDateEnd('2026-09-17'), startNotifiedAt: null, endingNotifiedAt: null }
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([encarte])
+
+      jest.setSystemTime(new Date('2026-09-17T07:00:00-03:00'))
+      expect(await service.notifyCampaignLifecycle()).toEqual({ started: 1, ending: 0 })
+
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([{ ...encarte, startNotifiedAt: new Date() }])
+      jest.setSystemTime(new Date('2026-09-17T17:45:00-03:00'))
+      expect(await service.notifyCampaignLifecycle()).toEqual({ started: 0, ending: 0 })
+      jest.setSystemTime(new Date('2026-09-17T17:50:00-03:00'))
+      expect(await service.notifyCampaignLifecycle()).toEqual({ started: 0, ending: 1 })
     })
   })
 
@@ -442,6 +569,7 @@ describe('PromotionsService', () => {
       mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
         {
           id: 'campaign-1',
+          endDate: new Date('2026-09-15T23:59:59.999-03:00'),
           items: [
             { productId: 'p1', promotionalPrice: 20, product: { id: 'p1', promotionalPrice: 20 } },
             { productId: 'p2', promotionalPrice: 15, product: { id: 'p2', promotionalPrice: 12 } },
@@ -454,7 +582,7 @@ describe('PromotionsService', () => {
       expect(mockPrismaService.product.update).toHaveBeenCalledTimes(1)
       expect(mockPrismaService.product.update).toHaveBeenCalledWith({
         where: { id: 'p1' },
-        data: { promotionalPrice: null },
+        data: { promotionalPrice: null, promotionalPriceValidUntil: null },
       })
       expect(mockPrismaService.promotionCampaign.update).toHaveBeenCalledWith({
         where: { id: 'campaign-1' },
@@ -479,10 +607,12 @@ describe('PromotionsService', () => {
       name: 'SEGUNDA DA CARNE NV',
       startDate: new Date('2026-09-16T00:00:00-03:00'),
       endDate: new Date('2026-09-18T00:00:00-03:00'),
+      startNotifiedAt: null,
+      endingNotifiedAt: null,
     }
 
     it('claims atomically, sends the push exactly once and marks startNotifiedAt', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValueOnce([campaignInWindow]).mockResolvedValueOnce([])
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([campaignInWindow])
       mockPrismaService.promotionCampaign.updateMany.mockResolvedValueOnce({ count: 1 })
 
       const result = await service.notifyCampaignLifecycle()
@@ -492,14 +622,12 @@ describe('PromotionsService', () => {
         data: { startNotifiedAt: expect.any(Date) },
       })
       expect(mockNotificationsService.broadcastToCustomers).toHaveBeenCalledTimes(1)
+      expect(mockNotificationsService.broadcastToCustomers).toHaveBeenCalledWith(['c1'], expect.objectContaining({ title: '🛍️ Chegou o encarte Segunda da Carne!', source: 'AUTO' }))
       expect(result).toEqual({ started: 1, ending: 0 })
     })
 
     it('nao dispara o push (nem chama broadcast) quando o claim atomico perde a corrida (count 0)', async () => {
-      // Simula duas execucoes concorrentes do scheduler pro mesmo encarte:
-      // a primeira ja reivindicou startNotifiedAt entre o findMany e este
-      // updateMany.
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValueOnce([campaignInWindow]).mockResolvedValueOnce([])
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([campaignInWindow])
       mockPrismaService.promotionCampaign.updateMany.mockResolvedValueOnce({ count: 0 })
 
       const result = await service.notifyCampaignLifecycle()
@@ -508,12 +636,10 @@ describe('PromotionsService', () => {
       expect(result).toEqual({ started: 0, ending: 0 })
     })
 
-    it('nao notifica inicio de campanha cujo startDate parseado ainda esta no futuro (defesa em profundidade)', async () => {
-      mockPrismaService.promotionCampaign.findMany
-        .mockResolvedValueOnce([
-          { id: 'campaign-futura', name: 'AMANHA', startDate: new Date('2026-09-17T03:00:00.000Z'), endDate: new Date('2026-09-19T03:00:00.000Z') },
-        ])
-        .mockResolvedValueOnce([])
+    it('nao notifica inicio de campanha cujo startDate parseado ainda esta no futuro (sem horario da loja)', async () => {
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
+        { id: 'campaign-futura', name: 'AMANHA', startDate: new Date('2026-09-17T03:00:00.000Z'), endDate: new Date('2026-09-19T03:00:00.000Z'), startNotifiedAt: null, endingNotifiedAt: null },
+      ])
 
       const result = await service.notifyCampaignLifecycle()
 
@@ -523,7 +649,7 @@ describe('PromotionsService', () => {
     })
 
     it('does not notify a campaign already marked as notified', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([{ ...campaignInWindow, startNotifiedAt: new Date(), endingNotifiedAt: new Date() }])
 
       const result = await service.notifyCampaignLifecycle()
 
@@ -531,10 +657,10 @@ describe('PromotionsService', () => {
       expect(result).toEqual({ started: 0, ending: 0 })
     })
 
-    it('notifies ending for a campaign finishing within 3h, com claim atomico', async () => {
-      mockPrismaService.promotionCampaign.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ id: 'campaign-2', name: 'OFERTA RELAMPAGO' }])
+    it('notifies ending for a campaign leaving the site within 3h, com claim atomico', async () => {
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([
+        { id: 'campaign-2', name: 'OFERTA RELAMPAGO', startDate: new Date('2026-09-15T00:00:00-03:00'), endDate: new Date('2026-09-16T23:59:59.999-03:00'), startNotifiedAt: new Date(), endingNotifiedAt: null },
+      ])
       mockPrismaService.promotionCampaign.updateMany.mockResolvedValueOnce({ count: 1 })
 
       const result = await service.notifyCampaignLifecycle()
@@ -548,7 +674,7 @@ describe('PromotionsService', () => {
     })
 
     it('nao marca startNotifiedAt (nem qualquer outra escrita) se o push falhar -- so o claim, que ja e intencional', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValueOnce([campaignInWindow]).mockResolvedValueOnce([])
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([campaignInWindow])
       mockPrismaService.promotionCampaign.updateMany.mockResolvedValueOnce({ count: 1 })
       mockNotificationsService.broadcastToCustomers.mockRejectedValueOnce(new Error('push provider fora do ar'))
 
@@ -560,7 +686,7 @@ describe('PromotionsService', () => {
     })
 
     it('does nothing outside the start/ending windows', async () => {
-      mockPrismaService.promotionCampaign.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+      mockPrismaService.promotionCampaign.findMany.mockResolvedValue([])
 
       const result = await service.notifyCampaignLifecycle()
 

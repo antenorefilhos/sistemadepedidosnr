@@ -326,7 +326,7 @@ export const checkoutAPI = {
     api.post<{ session: CheckoutQuoteResponse['session']; reused: boolean }>('/checkout/sessions', data),
   quoteSession: (
     id: string,
-    data: { customerId?: string; couponCode?: string; deliveryAddressId?: string; delivery?: CheckoutDeliveryPayload },
+    data: { customerId?: string; couponCode?: string; deliveryAddressId?: string; delivery?: CheckoutDeliveryPayload; scheduledFor?: string },
   ) => api.post<CheckoutQuoteResponse>(`/checkout/sessions/${id}/quote`, data),
   confirmSession: (
     id: string,

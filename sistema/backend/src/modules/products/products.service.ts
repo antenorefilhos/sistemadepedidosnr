@@ -1,3 +1,5 @@
+import { promoDayFor } from '../../common/promo-day'
+import { spDay } from '../../common/delivery-hours'
 import { createHash } from 'crypto'
 import { copyFileSync, existsSync } from 'fs'
 import { join } from 'path'
@@ -1956,6 +1958,9 @@ export class ProductsService {
 
   private async applyErpProducts(items: ERPProduct[], options: { clearMissingPromotion?: boolean; releaseReassignedEans?: boolean } = {}) {
     const groups = this.groupErpItemsByProduct(items)
+    // Dia da entrega de um pedido feito agora: oferta do ERP que ja acabou para
+    // o site (fechamento do ultimo dia) nao volta pelo sync (02/10/2026).
+    const promoDay = await promoDayFor(this.prisma)
 
     // Uma linha "representante" por grupo com o ean principal escolhido e os
     // demais EANs do mesmo id_produto em secondaryEans -- e o que vira 1
@@ -2062,16 +2067,21 @@ export class ProductsService {
         // eterna na vitrine. So limpamos a partir de uma fonte confiavel para
         // promocao (a janela recente); o GetProdutos em massa serve preco velho e
         // apagaria promocao boa. Ver docs/solidcom-api.md.
-        const promotionalPrice = options.clearMissingPromotion
-          ? (item.promotionalPrice ?? null)
-          : item.promotionalPrice
+        const feedPromoEnded = item.promotionalPriceValidUntil != null && promoDay > spDay(item.promotionalPriceValidUntil)
+        const promotionalPrice = feedPromoEnded
+          ? null
+          : options.clearMissingPromotion
+            ? (item.promotionalPrice ?? null)
+            : item.promotionalPrice
         // JON-187: mesma logica/motivo do promotionalPrice acima -- so limpa
         // a vigencia quando a promocao em si tambem esta sendo limpa por uma
         // fonte confiavel, senao um GetProdutos em massa sem o campo apagaria
         // a data de uma promocao que a janela recente tinha acabado de gravar.
-        const promotionalPriceValidUntil = options.clearMissingPromotion
-          ? (item.promotionalPriceValidUntil ?? null)
-          : item.promotionalPriceValidUntil
+        const promotionalPriceValidUntil = feedPromoEnded
+          ? null
+          : options.clearMissingPromotion
+            ? (item.promotionalPriceValidUntil ?? null)
+            : item.promotionalPriceValidUntil
 
         const fields = {
           name: item.name,

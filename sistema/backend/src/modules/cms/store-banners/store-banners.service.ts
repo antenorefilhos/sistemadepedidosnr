@@ -1,3 +1,5 @@
+import { isPromoValidOnDay } from '../../../common/business-window';
+import { promoDayFor } from '../../../common/promo-day';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma.service';
 import { promises as fs } from 'fs';
@@ -135,6 +137,7 @@ export class StoreBannersService {
     });
 
     const campaignByErpId = await this.resolveCampaigns(banners);
+    const promoDay = campaignByErpId.size ? await promoDayFor(this.prisma, null, now) : '';
 
     // Vigencia: banner vinculado a encarte (campaignErpId) segue 100% a
     // campanha depois que ela sincroniza. Antes disso (ou se o encarte
@@ -147,7 +150,8 @@ export class StoreBannersService {
       if (banner.campaignErpId != null) {
         const campaign = campaignByErpId.get(banner.campaignErpId);
         if (campaign) {
-          return campaign.active && campaign.startDate <= now && campaign.endDate >= now;
+          // Mesma regra do preco do encarte: o dia da entrega de um pedido feito agora.
+          return campaign.active && isPromoValidOnDay(promoDay, campaign.startDate, campaign.endDate);
         }
       }
       if (banner.startDate && banner.startDate > now) return false;

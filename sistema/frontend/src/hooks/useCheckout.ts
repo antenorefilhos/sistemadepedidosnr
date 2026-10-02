@@ -54,7 +54,7 @@ export function useQuoteCheckoutSession() {
       data,
     }: {
       id: string
-      data: { customerId?: string; couponCode?: string; deliveryAddressId?: string; delivery?: CheckoutDeliveryPayload }
+      data: { customerId?: string; couponCode?: string; deliveryAddressId?: string; delivery?: CheckoutDeliveryPayload; scheduledFor?: string }
     }) => checkoutAPI.quoteSession(id, data),
   })
 }

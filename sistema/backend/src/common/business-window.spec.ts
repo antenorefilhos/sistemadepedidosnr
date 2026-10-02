@@ -78,3 +78,22 @@ describe('isWithinBusinessWindow', () => {
     expect(isWithinBusinessWindow(start, end, new Date('2026-09-18T00:00:01-03:00'))).toBe(false)
   })
 })
+
+describe('isPromoValidOnDay (02/10/2026)', () => {
+  const { isPromoValidOnDay } = require('./business-window')
+  const inicio = parseErpBusinessDate('2026-10-01')
+  const fim = parseErpBusinessDateEnd('2026-10-02')
+
+  it('vale do primeiro ao ultimo dia, inclusive', () => {
+    expect(isPromoValidOnDay('2026-10-01', inicio, fim)).toBe(true)
+    expect(isPromoValidOnDay('2026-10-02', inicio, fim)).toBe(true)
+  })
+  it('nao vale na vespera nem no dia seguinte', () => {
+    expect(isPromoValidOnDay('2026-09-30', inicio, fim)).toBe(false)
+    expect(isPromoValidOnDay('2026-10-03', inicio, fim)).toBe(false)
+  })
+  it('sem inicio ou sem fim, o lado aberto nao limita', () => {
+    expect(isPromoValidOnDay('2020-01-01', null, fim)).toBe(true)
+    expect(isPromoValidOnDay('2030-01-01', inicio, null)).toBe(true)
+  })
+})

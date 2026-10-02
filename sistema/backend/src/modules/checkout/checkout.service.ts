@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { isWithinDeliveryHours, parseHoursConfig } from '../../common/delivery-hours'
+import { promoDayFor } from '../../common/promo-day'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { isProductSellable } from '../../common/product-availability'
@@ -374,7 +375,10 @@ export class CheckoutService {
     // preco fica consistente do preview ate a gravacao do pedido -- sem essa
     // consistencia, o PRICE_DIVERGED (que compara os dois) dispararia falso
     // positivo toda vez que a promocao expirasse entre as etapas.
-    const deliveryDate = deliveryBase.slot?.windowStart || undefined
+    // 02/10/2026: o dia vem do servidor (agendado, ou o da entrega de um
+    // pedido feito agora pelo horario da loja) -- antes era o windowStart que o
+    // navegador mandava, que com a loja fechada apontava para hoje a noite.
+    const deliveryDate = await promoDayFor(this.prisma, dto.scheduledFor)
     const resolvedCustomerId = dto.customerId || session.customerId || cart.customerId || undefined
     // JON-183/184: resolvido no backend a partir do CPF ja cadastrado, nunca
     // aceito como flag vinda do cliente -- senao seria trivial forjar

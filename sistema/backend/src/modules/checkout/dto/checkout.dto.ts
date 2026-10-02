@@ -93,6 +93,11 @@ export class QuoteCheckoutSessionDto {
   @IsOptional()
   @IsArray()
   acceptedSubstitutionProductIds?: string[]
+
+  /** ISO do horario escolhido pelo cliente. Ausente = "o quanto antes". */
+  @IsOptional()
+  @IsISO8601()
+  scheduledFor?: string
 }
 
 export class ConfirmCheckoutSessionDto extends QuoteCheckoutSessionDto {
@@ -104,10 +109,6 @@ export class ConfirmCheckoutSessionDto extends QuoteCheckoutSessionDto {
   @IsString()
   notes?: string
 
-  /** ISO do horario escolhido pelo cliente. Ausente = "o quanto antes". */
-  @IsOptional()
-  @IsISO8601()
-  scheduledFor?: string
 
   @IsOptional()
   @IsString()

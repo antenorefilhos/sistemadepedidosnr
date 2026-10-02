@@ -8,7 +8,7 @@ import { PromotionsService } from './promotions.service'
  *
  * - PROMOTIONS_SYNC_CRON_ENABLED: 'true' para habilitar (default: desabilitado).
  * - PROMOTIONS_SYNC_CRON: expressao cron do sync (default: a cada 30min).
- * - PROMOTIONS_EXPIRE_CRON: expressao cron da limpeza (default: a cada 15min).
+ * - PROMOTIONS_EXPIRE_CRON: expressao cron da limpeza (default: a cada 5min -- a oferta sai ate 5min depois do fechamento).
  */
 @Injectable()
 export class PromotionsScheduler {
@@ -37,7 +37,7 @@ export class PromotionsScheduler {
     }
   }
 
-  @Cron(process.env.PROMOTIONS_EXPIRE_CRON || '*/15 * * * *', { name: 'promotions-expire' })
+  @Cron(process.env.PROMOTIONS_EXPIRE_CRON || '*/5 * * * *', { name: 'promotions-expire' })
   async handleExpire(): Promise<void> {
     if (!this.enabled) return
     try {

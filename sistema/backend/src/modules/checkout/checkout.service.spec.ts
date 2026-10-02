@@ -286,19 +286,24 @@ describe('CheckoutService', () => {
   })
 
   it('recusa pedido "o quanto antes" com a loja fechada e aceita agendado dentro do horario', async () => {
-    // Horario valido so num domingo de 2020: hoje nunca cai nele.
-    mockPrisma.brandConfig.findUnique.mockResolvedValueOnce({
+    // Horario valido so num domingo de 2020: hoje nunca cai nele. Vale para
+    // todas as leituras do pedido (o preco tambem le o horario, 02/10/2026).
+    mockPrisma.brandConfig.findUnique.mockResolvedValue({
       businessHours: JSON.stringify({}),
       specialDates: JSON.stringify([{ date: '2020-01-05', windows: [{ start: '00:00', end: '23:59' }] }]),
     })
-    await expect(
-      service.confirmSession(undefined, 'session-1', {
-        customerId: 'customer-1',
-        paymentMethod: 'PIX',
-        delivery: { cep: '01001000', slotId: 'slot-1' },
-      }),
-    ).rejects.toThrow('Estamos fechados agora')
-    expect(mockOrdersService.create).not.toHaveBeenCalled()
+    try {
+      await expect(
+        service.confirmSession(undefined, 'session-1', {
+          customerId: 'customer-1',
+          paymentMethod: 'PIX',
+          delivery: { cep: '01001000', slotId: 'slot-1' },
+        }),
+      ).rejects.toThrow('Estamos fechados agora')
+      expect(mockOrdersService.create).not.toHaveBeenCalled()
+    } finally {
+      mockPrisma.brandConfig.findUnique.mockResolvedValue(null)
+    }
   })
 
   // JON-70 (Auditoria 360, Medium): analyticsEvent.create falhando DEPOIS do

@@ -1,4 +1,5 @@
 import { FraudService } from '../fraud/fraud.service'
+import { promoDayFor } from '../../common/promo-day'
 import { isPrivateIp } from '../../common/real-client-ip'
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common'
 import { CUSTOMER_SAFE_SELECT } from '../../common/customer-safe-select'
@@ -388,10 +389,9 @@ export class OrdersService {
     // prioridade quando o cliente agendou; senao usa o windowStart do slot
     // ASAP que veio no deliverySnapshot. Sem nenhum dos dois (pedido criado
     // fora do checkout, ex.: admin), promocao vale sempre como antes.
-    const deliveryDate =
-      createOrderDto.scheduledFor ||
-      (createOrderDto.deliverySnapshot as { slot?: { windowStart?: string | null } } | undefined)?.slot?.windowStart ||
-      undefined
+    // Mesmo dia que o checkout usou (promoDayFor): o agendado, ou o da entrega
+    // de um pedido feito agora pelo horario da loja (02/10/2026).
+    const deliveryDate = await promoDayFor(this.prisma, createOrderDto.scheduledFor)
 
     const isClubMember = await this.resolveClubMembership(tenantId, customerId)
 

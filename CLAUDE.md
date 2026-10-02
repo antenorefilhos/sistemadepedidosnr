@@ -669,6 +669,34 @@ regra mora em `DeliveryService.calculate`: sem valor próprio da
 prévia da loja leem dali. O primeiro pedido grátis é o cupom BEMVINDO (tela
 Cupons), não um interruptor desta tela.
 
+## Regra de negócio: oferta vale no dia da ENTREGA, e sai do site no fechamento (02/10/2026)
+
+O site não fecha nem dorme: depois do horário da loja, todo pedido é entregue
+ou retirado no próximo dia de abertura, e o caixa cobra o preço **desse** dia.
+Decisão do Jonathan: a oferta que acaba hoje sai do site no fechamento (não à
+meia-noite), e a que começa amanhã já aparece depois do fechamento de hoje
+("opção A").
+
+- `fulfillmentDay(horario, agora)` (`common/delivery-hours.ts`): hoje, se a loja
+  ainda atende hoje (antes de abrir também é hoje); senão, o próximo dia com
+  horário (pula feriado/data especial fechada). Horário vem da tela Horário de
+  entrega (`brand_config.businessHours`/`specialDates`).
+- `isPromoValidOnDay(dia, inicio, fim)` (`common/business-window.ts`) é a regra
+  única. Vale em: ativação/limpeza do encarte (`PromotionsService`, a cada 5
+  min), oferta por produto do ERP (limpeza + o sync não reaplica), preço de
+  clube, vitrine/página do encarte, banner de encarte e checkout.
+- Checkout e pedido usam `promoDayFor()` (`common/promo-day.ts`): o dia agendado
+  ou o da entrega de um pedido feito agora — **calculado no servidor**. Antes o
+  checkout usava o `windowStart` mandado pelo navegador, que com a loja fechada
+  apontava para hoje à noite.
+- O encarte agora grava `promotionalPriceValidUntil` no produto; antes a trava
+  da JON-187 não valia para preço de encarte.
+- Avisos de encarte só saem com a loja aberta: "Chegou" na abertura do primeiro
+  dia, "Últimas horas" 3h antes do fechamento do último dia.
+- A AntenorApi manda a data do encarte como `00:00:00Z`/`23:59:59.999Z`: é dia
+  de calendário, não instante UTC (`parseErpBusinessDate*`). Lido como UTC, todo
+  encarte começava às 21h da véspera e acabava às 20h59.
+
 ## Janelas de entrega com capacidade: removidas (01/10/2026)
 
 `FulfillmentSlot` (janela avulsa com data/hora e capacidade) nunca teve uma

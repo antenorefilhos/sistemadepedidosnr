@@ -415,6 +415,9 @@ export default function Checkout() {
         couponCode: couponCode || undefined,
         deliveryAddressId,
         delivery: getDeliveryPayload(deliveryAddressId),
+        // O preco de oferta segue o dia da entrega (02/10/2026): o total da
+        // tela e o cobrado no confirmar usam o mesmo dia agendado.
+        scheduledFor: scheduledFor || undefined,
       },
     })
     setCheckoutQuote(quoteResponse.data)
@@ -427,8 +430,18 @@ export default function Checkout() {
     createCheckoutSession,
     getDeliveryPayload,
     quoteCheckoutSession,
+    scheduledFor,
     user?.id,
   ])
+
+  // Trocou o dia agendado: a oferta pode valer ou nao nesse dia -- recalcula.
+  const lastQuotedScheduleRef = useRef(scheduledFor)
+  useEffect(() => {
+    if (lastQuotedScheduleRef.current === scheduledFor) return
+    lastQuotedScheduleRef.current = scheduledFor
+    if (step !== 'payment' || !checkoutSessionIdRef.current) return
+    ensureCheckoutSession({ customerId: user?.id }).catch(() => null)
+  }, [scheduledFor, step, ensureCheckoutSession, user?.id])
 
   // Cupom aplicado/retirado aqui no checkout: recalcula na hora. Se o
   // servidor recusar (ex.: ja usado por este cliente), tira o cupom e avisa
