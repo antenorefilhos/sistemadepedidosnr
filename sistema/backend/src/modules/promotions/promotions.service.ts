@@ -465,13 +465,15 @@ export class PromotionsService {
       this.prisma.encarteNameRule.findMany({ orderBy: { key: 'asc' } }),
       this.prisma.promotionCampaign.findMany({ where: { endDate: { gte: new Date(Date.now() - 30 * 86_400_000) } }, select: { name: true }, orderBy: { startDate: 'desc' } }),
     ])
-    const seen = [...new Set(campaigns.map((c) => encarteKey(c.name)))]
+    // Nome original mais recente por chave: o automatico sai dele (a chave nao tem acento).
+    const original = new Map<string, string>()
+    for (const c of campaigns) if (!original.has(encarteKey(c.name))) original.set(encarteKey(c.name), c.name)
     return {
       rules,
       // Nomes do ERP dos ultimos 30 dias, com o que o cliente ve hoje -- base para criar regra.
-      erpNames: seen.map((key) => {
+      erpNames: [...original.entries()].map(([key, name]) => {
         const rule = rules.find((r) => r.key === key)
-        return { key, customerName: rule?.customerName ?? customerCampaignName(key), hasRule: Boolean(rule), nearExpiry: rule?.nearExpiry ?? false }
+        return { key, erpName: name, customerName: rule?.customerName ?? customerCampaignName(name), hasRule: Boolean(rule), nearExpiry: rule?.nearExpiry ?? false }
       }),
     }
   }

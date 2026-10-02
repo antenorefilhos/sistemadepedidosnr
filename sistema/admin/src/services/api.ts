@@ -1710,6 +1710,8 @@ export const notificationQueueAPI = {
 /** Nome do encarte que o cliente ve (02/10/2026). No ERP o nome nao muda. */
 export interface EncarteNameRow {
   key: string
+  /** Nome como veio do ERP (com acento e filial). */
+  erpName?: string
   customerName: string
   hasRule: boolean
   nearExpiry: boolean

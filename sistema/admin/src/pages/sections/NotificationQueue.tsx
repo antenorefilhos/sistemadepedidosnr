@@ -493,7 +493,7 @@ function EncarteNames({ onSaved }: { onSaved: () => void }) {
         {rows.map((r) =>
           edit?.key === r.key ? (
             <li key={r.key} className="space-y-2 py-3">
-              <p className="text-xs text-gray-500">No ERP: {r.key}</p>
+              <p className="text-xs text-gray-500">No ERP: {r.erpName || r.key}</p>
               <input
                 autoFocus
                 value={edit.customerName}
@@ -521,7 +521,7 @@ function EncarteNames({ onSaved }: { onSaved: () => void }) {
               <span className="min-w-0 flex-1">
                 <span className="block text-sm text-gray-900">{r.customerName}</span>
                 <span className="block text-xs text-gray-500">
-                  No ERP: {r.key}
+                  No ERP: {r.erpName || r.key}
                   {r.nearExpiry && ' · avisa validade próxima'}
                   {!r.hasRule && ' · nome automático'}
                 </span>
@@ -614,7 +614,7 @@ function Editor({ item, now, storeOpen, onClose, onSaved }: { item: QueueItem; n
         </div>
       }
     >
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 px-4 py-5 sm:px-6 lg:grid-cols-2 lg:gap-10">
         <div className="space-y-4">
           <label className="block">
             <span className="flex justify-between text-xs text-gray-600">
