@@ -53,7 +53,7 @@ export default function NotificationsSection() {
             ['history', 'Histórico'],
           ] as Array<[Tab, string]>
         ).map(([k, label]) => (
-          <button key={k} type="button" onClick={() => setTab(k)} className={`rounded-xl px-3 py-1.5 text-sm ${tab === k ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+          <button key={k} type="button" onClick={() => setTab(k)} className={`shrink-0 whitespace-nowrap rounded-xl px-3 py-1.5 text-sm ${tab === k ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
             {label}
           </button>
         ))}
