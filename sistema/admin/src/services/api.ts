@@ -1637,7 +1637,7 @@ export const intelligenceAPI = {
 }
 
 /** Fila de envios (02/10/2026): tudo que sai com hora marcada. */
-export type QueueOrigin = 'MANUAL' | 'ENCARTE_INICIO' | 'ENCARTE_FIM' | 'OFERTA'
+export type QueueOrigin = 'MANUAL' | 'ENCARTE_INICIO' | 'ENCARTE_FIM' | 'OFERTA' | 'CARRINHO'
 export type QueueStatus = 'SCHEDULED' | 'PENDING_APPROVAL' | 'SENDING' | 'SENT' | 'CANCELLED' | 'SKIPPED' | 'FAILED'
 export interface QueueItem {
   id: string
@@ -1661,8 +1661,14 @@ export interface QueueItem {
     campaign?: string
     erpName?: string
     offers?: number
-    items?: number
+    /** Encarte: quantos itens tem. Carrinho: os itens de maior valor. */
+    items?: number | Array<{ name: string; quantity: number }>
     nearExpiry?: boolean
+    customerId?: string
+    customer?: string
+    snapshotAt?: string
+    itemCount?: number
+    subtotal?: number
     slot?: string
     product?: string
     discount?: number
@@ -1686,11 +1692,20 @@ export interface QueueSettings {
   offerApproval: boolean
   offerSendHours: string
   cartEnabled: boolean
+  cartApproval: boolean
+  cartDelayMinutes: number
+  cartTitle: string
+  cartBody: string
+  cartImage: boolean
+  cartMinTotal: number
+  cartCooldownDays: number
 }
 export interface QueueResponse {
   now: string
   store: { open: boolean; closesAt: string | null; opensAt: string | null }
   settings: QueueSettings
+  /** Lembrete de carrinho, ultimos 30 dias: viraram pedido em ate 48 h. */
+  cartStats: { sent: number; opened: number; recovered: number; revenue: number }
   audience: { customers: number; withPush: number }
   upcoming: QueueItem[]
   recent: QueueItem[]

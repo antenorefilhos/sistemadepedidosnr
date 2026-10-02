@@ -1,7 +1,7 @@
 import { createContext, useState, useCallback, useEffect, ReactNode, useContext } from 'react'
 import type { Product } from '../types'
-import { getProductLineTotal, hasConfiguredFractionStep } from '../utils/productPricing'
-import { couponsAPI } from '../services/api'
+import { getProductLineTotal, getProductStep, hasConfiguredFractionStep } from '../utils/productPricing'
+import { cartSnapshotAPI, couponsAPI } from '../services/api'
 import { CouponNoticeDialog, type CouponNotice } from '../components/CouponNoticeDialog'
 
 export interface CartItem {
@@ -48,6 +48,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart))
   }, [cart])
+
+  // Carrinho de quem esta logado vai para o servidor (02/10/2026): e a base do
+  // lembrete de carrinho esquecido -- antes ele so via quem chegava ao checkout.
+  // Quantidade real (kg em item por peso), como o checkout manda. Login novo
+  // (evento auth:changed) manda o carrinho que ja estava montado.
+  const [authTick, setAuthTick] = useState(0)
+  useEffect(() => {
+    const bump = () => setAuthTick((t) => t + 1)
+    window.addEventListener('auth:changed', bump)
+    return () => window.removeEventListener('auth:changed', bump)
+  }, [])
+  useEffect(() => {
+    if (!localStorage.getItem('token')) return
+    const timer = window.setTimeout(() => {
+      cartSnapshotAPI
+        .save(cart.map((item) => ({ productId: item.productId, quantity: item.quantity * getProductStep(item.product) })))
+        .catch(() => null)
+    }, 1500)
+    return () => window.clearTimeout(timer)
+  }, [cart, authTick])
 
   useEffect(() => {
     if (!couponCode) {

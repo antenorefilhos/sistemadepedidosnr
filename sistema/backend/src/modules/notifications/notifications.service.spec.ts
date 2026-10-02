@@ -35,6 +35,7 @@ describe('NotificationsService', () => {
         findUnique: jest.fn(),
         findMany: jest.fn(),
         groupBy: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
       },
       scheduledNotification: {
         findMany: jest.fn(),
@@ -46,6 +47,7 @@ describe('NotificationsService', () => {
       autoOfferSettings: { findUnique: jest.fn().mockResolvedValue({ minDiscount: 15 }) },
       product: { findUnique: jest.fn() },
       promotionCampaign: { updateMany: jest.fn() },
+      cartSnapshot: { findUnique: jest.fn() },
     }
     const pushNotificationService = {
       sendNotification: jest.fn().mockResolvedValue({ sent: 1, failed: 0, skipped: 0 }),
@@ -368,6 +370,39 @@ describe('NotificationsService', () => {
       const rows = prisma.notification.createMany.mock.calls[0][0].data
       expect(rows.map((r: any) => r.customerId)).toEqual(['customer-2'])
       expect(rows[0].source).toBe('AUTO')
+    })
+
+    it('lembrete de carrinho: o carrinho mudou desde o plano, nao sai', async () => {
+      const { service, prisma } = makeService()
+      ready(prisma, item({ origin: 'CARRINHO', meta: { snapshotAt: '2026-10-02T17:00:00.000Z' } }))
+      prisma.cartSnapshot.findUnique.mockResolvedValue({ updatedAt: new Date('2026-10-02T17:30:00.000Z') })
+
+      expect(await service.dispatchDueQueue()).toEqual({ count: 0 })
+      expect(prisma.scheduledNotification.update).toHaveBeenCalledWith({ where: { id: 'q1' }, data: { status: 'SKIPPED', note: 'O cliente mexeu no carrinho, esvaziou ou fechou o pedido.' } })
+    })
+
+    it('lembrete de carrinho: mesmo carrinho e sem pedido, sai como CART', async () => {
+      const { service, prisma } = makeService()
+      ready(prisma, item({ origin: 'CARRINHO', meta: { snapshotAt: '2026-10-02T17:00:00.000Z' } }))
+      prisma.cartSnapshot.findUnique.mockResolvedValue({ updatedAt: new Date('2026-10-02T17:00:00.000Z') })
+
+      expect(await service.dispatchDueQueue()).toEqual({ count: 1 })
+      expect(prisma.notification.createMany.mock.calls[0][0].data[0].source).toBe('CART')
+    })
+
+    it('{nome}: cada cliente recebe com o proprio primeiro nome (e sem nome, sem ele)', async () => {
+      const { service, prisma } = makeService()
+      ready(prisma, item({ title: '{nome}, chegou oferta!', customerId: null, customerIds: ['customer-1', 'customer-2'] }))
+      prisma.customer.findMany.mockImplementation(({ where, select }: any) =>
+        Promise.resolve(
+          (where.id.in as string[]).map((id) => (select?.name ? { id, name: id === 'customer-1' ? 'ANA PAULA' : '' } : { id })),
+        ),
+      )
+
+      await service.dispatchDueQueue()
+
+      const rows = prisma.notification.createMany.mock.calls[0][0].data
+      expect(rows.map((r: any) => r.title)).toEqual(['Ana, chegou oferta!', 'Chegou oferta!'])
     })
 
     it('aviso de encarte marca o encarte como avisado', async () => {

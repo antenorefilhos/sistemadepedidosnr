@@ -493,6 +493,11 @@ export interface Notification {
   createdAt: string
 }
 
+/** Carrinho de quem esta logado no servidor (lembrete de carrinho esquecido, 02/10/2026). */
+export const cartSnapshotAPI = {
+  save: (items: Array<{ productId: string; quantity: number }>) => api.put('/cart-snapshot', { items }),
+}
+
 export const notificationsAPI = {
   list: () => api.get<Notification[]>('/notifications'),
   unreadCount: () => api.get<number>('/notifications/unread-count'),

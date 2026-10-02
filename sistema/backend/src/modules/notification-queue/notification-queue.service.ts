@@ -6,6 +6,7 @@ import { loadHoursConfig } from '../../common/promo-day'
 import { NotificationsService } from '../notifications/notifications.service'
 import { OfferPushService } from '../notifications/offer-push.service'
 import { PromotionsService } from '../promotions/promotions.service'
+import { CartReminderService } from '../cart-reminder/cart-reminder.service'
 
 /**
  * Fila de envios (02/10/2026) -- a tela Notificacoes > Fila. Tudo que sai com
@@ -21,7 +22,20 @@ const UPCOMING = ['SCHEDULED', 'PENDING_APPROVAL', 'SENDING']
 const DONE = ['SENT', 'CANCELLED', 'SKIPPED', 'FAILED']
 
 export type QueueEditInput = { title?: string; body?: string; url?: string | null; sendAt?: string; imageUrl?: string | null }
-export type QueueSettingsInput = { encarteEnabled?: boolean; encarteApproval?: boolean; offerEnabled?: boolean; offerApproval?: boolean; cartEnabled?: boolean }
+export type QueueSettingsInput = {
+  encarteEnabled?: boolean
+  encarteApproval?: boolean
+  offerEnabled?: boolean
+  offerApproval?: boolean
+  cartEnabled?: boolean
+  cartApproval?: boolean
+  cartDelayMinutes?: number
+  cartTitle?: string
+  cartBody?: string
+  cartImage?: boolean
+  cartMinTotal?: number
+  cartCooldownDays?: number
+}
 
 @Injectable()
 export class NotificationQueueService {
@@ -32,6 +46,7 @@ export class NotificationQueueService {
     private readonly notifications: NotificationsService,
     private readonly offerPush: OfferPushService,
     private readonly promotions: PromotionsService,
+    private readonly cartReminders: CartReminderService,
   ) {}
 
   /** Refaz os planos (encarte e oferta) antes de mostrar -- a tela nunca mostra plano velho. */
@@ -39,6 +54,7 @@ export class NotificationQueueService {
     await Promise.all([
       this.promotions.planCampaignNotifications(now).catch((e) => this.logger.error(`plano de encarte: ${e instanceof Error ? e.message : e}`)),
       this.offerPush.planNextSlot(now).catch((e) => this.logger.error(`plano de oferta: ${e instanceof Error ? e.message : e}`)),
+      this.cartReminders.plan(now).catch((e) => this.logger.error(`plano de carrinho: ${e instanceof Error ? e.message : e}`)),
     ])
   }
 
@@ -46,7 +62,7 @@ export class NotificationQueueService {
     const now = new Date()
     if (opts.refresh) await this.refreshPlans(now)
 
-    const [settings, hours, upcoming, recent, allCustomers, subs] = await Promise.all([
+    const [settings, hours, upcoming, recent, allCustomers, subs, cartStats] = await Promise.all([
       this.prisma.autoOfferSettings.upsert({ where: { id: 'singleton' }, update: {}, create: { id: 'singleton' } }),
       loadHoursConfig(this.prisma),
       this.prisma.scheduledNotification.findMany({ where: { status: { in: UPCOMING } }, orderBy: { sendAt: 'asc' }, take: 200 }),
@@ -57,6 +73,7 @@ export class NotificationQueueService {
       }),
       this.prisma.customer.count({ where: { blocked: false } }),
       this.prisma.pushSubscription.findMany({ where: { customerId: { not: null } }, select: { customerId: true }, distinct: ['customerId'] }),
+      this.cartReminders.stats(),
     ])
     const withPush = new Set(subs.map((s) => s.customerId as string))
 
@@ -117,7 +134,15 @@ export class NotificationQueueService {
         offerApproval: settings.offerApproval,
         offerSendHours: settings.sendHours,
         cartEnabled: settings.cartEnabled,
+        cartApproval: settings.cartApproval,
+        cartDelayMinutes: settings.cartDelayMinutes,
+        cartTitle: settings.cartTitle,
+        cartBody: settings.cartBody,
+        cartImage: settings.cartImage,
+        cartMinTotal: settings.cartMinTotal,
+        cartCooldownDays: settings.cartCooldownDays,
       },
+      cartStats,
       audience: { customers: allCustomers, withPush: withPush.size },
       upcoming: upcoming.map(view),
       recent: recent.map(view),
@@ -193,7 +218,8 @@ export class NotificationQueueService {
     const now = new Date()
     if (item.expiresAt && item.expiresAt.getTime() <= now.getTime()) throw new BadRequestException('Passou do horário-limite desse aviso; não dá mais para restaurar.')
     const settings = await this.prisma.autoOfferSettings.findUnique({ where: { id: 'singleton' } })
-    const needsApproval = (item.origin.startsWith('ENCARTE') && settings?.encarteApproval) || (item.origin === 'OFERTA' && settings?.offerApproval)
+    const needsApproval =
+      (item.origin.startsWith('ENCARTE') && settings?.encarteApproval) || (item.origin === 'OFERTA' && settings?.offerApproval) || (item.origin === 'CARRINHO' && settings?.cartApproval)
     await this.prisma.scheduledNotification.update({
       where: { id },
       data: {
@@ -241,6 +267,30 @@ export class NotificationQueueService {
     if (input.offerEnabled !== undefined) data.enabled = Boolean(input.offerEnabled)
     if (input.offerApproval !== undefined) data.offerApproval = Boolean(input.offerApproval)
     if (input.cartEnabled !== undefined) data.cartEnabled = Boolean(input.cartEnabled)
+    if (input.cartApproval !== undefined) data.cartApproval = Boolean(input.cartApproval)
+    if (input.cartImage !== undefined) data.cartImage = Boolean(input.cartImage)
+    if (input.cartDelayMinutes !== undefined) {
+      const m = Math.round(Number(input.cartDelayMinutes))
+      if (!Number.isFinite(m) || m < 30 || m > 48 * 60) throw new BadRequestException('A espera do lembrete vai de 30 minutos a 48 horas.')
+      data.cartDelayMinutes = m
+    }
+    if (input.cartMinTotal !== undefined) {
+      const v = Number(input.cartMinTotal)
+      if (!Number.isFinite(v) || v < 0 || v > 5000) throw new BadRequestException('Valor mínimo inválido.')
+      data.cartMinTotal = Math.round(v * 100) / 100
+    }
+    if (input.cartCooldownDays !== undefined) {
+      const d = Math.round(Number(input.cartCooldownDays))
+      if (!Number.isFinite(d) || d < 0 || d > 30) throw new BadRequestException('O intervalo entre lembretes vai de 0 a 30 dias.')
+      data.cartCooldownDays = d
+    }
+    for (const [key, max] of [['cartTitle', 80], ['cartBody', 180]] as const) {
+      if (input[key] === undefined) continue
+      const text = String(input[key]).replace(/\s+/g, ' ').trim()
+      if (!text) throw new BadRequestException(key === 'cartTitle' ? 'O título não pode ficar vazio.' : 'O texto não pode ficar vazio.')
+      if (text.length > max) throw new BadRequestException(`${key === 'cartTitle' ? 'Título' : 'Texto'} passa de ${max} caracteres.`)
+      data[key] = text
+    }
     await this.prisma.autoOfferSettings.upsert({ where: { id: 'singleton' }, update: data, create: { id: 'singleton', ...(data as object) } })
 
     // Mudou a exigencia de aprovacao: o que ja esta na fila segue a regra nova
@@ -254,6 +304,7 @@ export class NotificationQueueService {
     }
     await flip(['ENCARTE_INICIO', 'ENCARTE_FIM'], input.encarteApproval)
     await flip(['OFERTA'], input.offerApproval)
+    await flip(['CARRINHO'], input.cartApproval)
     await this.refreshPlans()
     return this.list()
   }

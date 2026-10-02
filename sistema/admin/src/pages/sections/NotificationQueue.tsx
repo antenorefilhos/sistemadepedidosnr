@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Check, ChevronDown, Loader2, Pencil, RefreshCw, RotateCcw, Send, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle, Check, ChevronDown, Loader2, Pencil, RefreshCw, RotateCcw, Send, SlidersHorizontal, User, X } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { WorkspaceDialog } from '../../components/WorkspaceDialog'
 import {
@@ -12,6 +12,7 @@ import {
   type QueueResponse,
   type QueueSettings,
 } from '../../services/api'
+import { SAMPLE_NAME, insertAtCursor, personalize, renderCartTemplate } from '../../utils/personalize'
 
 // Fila de envios (02/10/2026, pedido do Jonathan): tudo que vai sair com hora
 // marcada -- aviso de encarte, oferta personalizada e agendado manual -- aparece
@@ -45,8 +46,11 @@ const ORIGIN: Record<string, string> = {
   ENCARTE_INICIO: 'Encarte · começou',
   ENCARTE_FIM: 'Encarte · últimas horas',
   OFERTA: 'Oferta personalizada',
-  MANUAL: 'Agendado no admin',
+  CARRINHO: 'Carrinho esquecido',
+  MANUAL: 'Enviado no admin',
 }
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const minutesLabel = (m: number) => (m < 60 ? `${m} min` : m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`)
 const STATUS: Record<string, { label: string; dot: string }> = {
   SCHEDULED: { label: 'Agendado', dot: 'bg-emerald-500' },
   PENDING_APPROVAL: { label: 'Aguardando sua aprovação', dot: 'bg-amber-500' },
@@ -80,6 +84,7 @@ export default function NotificationQueueTab() {
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [editing, setEditing] = useState<QueueItem | null>(null)
+  const [cartOpen, setCartOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
   const load = useCallback(async (refresh = false) => {
@@ -167,7 +172,14 @@ export default function NotificationQueueTab() {
         <Stat label="Saíram · 3 dias" value={String(sent.length)} hint={delivered ? `${plural(delivered, 'cliente', 'clientes')} · ${opened} abriram` : 'nenhum envio'} />
       </div>
 
-      <Sources settings={data.settings} audience={data.audience} onChange={(patch) => run('settings', () => notificationQueueAPI.settings(patch), 'Configuração salva.')} busy={busy === 'settings'} />
+      <Sources
+        settings={data.settings}
+        audience={data.audience}
+        cartStats={data.cartStats}
+        onCustomizeCart={() => setCartOpen(true)}
+        onChange={(patch) => run('settings', () => notificationQueueAPI.settings(patch), 'Configuração salva.')}
+        busy={busy === 'settings'}
+      />
 
       <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
         <div className="flex items-center justify-between gap-2">
@@ -188,6 +200,19 @@ export default function NotificationQueueTab() {
       <Recent items={data.recent} now={data.now} busy={busy} actions={actions} />
 
       <EncarteNames onSaved={() => load(true)} />
+
+      {cartOpen && (
+        <CartReminderDialog
+          settings={data.settings}
+          stats={data.cartStats}
+          onClose={() => setCartOpen(false)}
+          onSaved={async () => {
+            setCartOpen(false)
+            setNotice({ tone: 'ok', text: 'Lembrete de carrinho salvo. Os que ainda não saíram já usam o texto novo.' })
+            await load(true)
+          }}
+        />
+      )}
 
       {editing && (
         <Editor
@@ -211,11 +236,15 @@ export default function NotificationQueueTab() {
 function Sources({
   settings,
   audience,
+  cartStats,
+  onCustomizeCart,
   onChange,
   busy,
 }: {
   settings: QueueSettings
   audience: QueueResponse['audience']
+  cartStats: QueueResponse['cartStats']
+  onCustomizeCart: () => void
   onChange: (patch: Partial<Omit<QueueSettings, 'offerSendHours'>>) => void
   busy: boolean
 }) {
@@ -223,10 +252,28 @@ function Sources({
     .split(',')
     .map((h) => `${h.trim()}h`)
     .join(' e ')
-  const rows: Array<{ name: string; when: string; on: boolean; onKey: keyof QueueSettings; approval?: boolean; approvalKey?: keyof QueueSettings }> = [
+  const rows: Array<{ name: string; when: string; on: boolean; onKey: keyof QueueSettings; approval?: boolean; approvalKey?: keyof QueueSettings; extra?: React.ReactNode }> = [
     { name: 'Avisos de encarte', when: 'na abertura do primeiro dia e 3 h antes do fechamento do último', on: settings.encarteEnabled, onKey: 'encarteEnabled', approval: settings.encarteApproval, approvalKey: 'encarteApproval' },
     { name: 'Ofertas personalizadas', when: `às ${hours}, a melhor oferta para cada cliente`, on: settings.offerEnabled, onKey: 'offerEnabled', approval: settings.offerApproval, approvalKey: 'offerApproval' },
-    { name: 'Carrinho esquecido', when: '2 h depois que o cliente para, um por carrinho (não passa pela fila)', on: settings.cartEnabled, onKey: 'cartEnabled' },
+    {
+      name: 'Carrinho esquecido',
+      when: `${minutesLabel(settings.cartDelayMinutes)} depois que o cliente logado para de mexer no carrinho${settings.cartMinTotal > 0 ? `, a partir de ${brl(settings.cartMinTotal)}` : ''} · no máximo 1 a cada ${plural(settings.cartCooldownDays, 'dia', 'dias')}`,
+      on: settings.cartEnabled,
+      onKey: 'cartEnabled',
+      approval: settings.cartApproval,
+      approvalKey: 'cartApproval',
+      extra: (
+        <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button type="button" onClick={onCustomizeCart} className="inline-flex items-center gap-1 text-xs font-medium text-gray-900 underline-offset-2 hover:underline">
+            <SlidersHorizontal size={12} /> Personalizar
+          </button>
+          <span className="text-xs text-gray-500">
+            30 dias: {plural(cartStats.sent, 'lembrete', 'lembretes')} · {cartStats.opened} abriram · {plural(cartStats.recovered, 'pedido', 'pedidos')} em 48 h
+            {cartStats.revenue > 0 && ` (${brl(cartStats.revenue)})`}
+          </span>
+        </span>
+      ),
+    },
   ]
   return (
     <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
@@ -242,6 +289,7 @@ function Sources({
             <span className="min-w-0 flex-1">
               <span className="block text-sm text-gray-900">{r.name}</span>
               <span className="block text-xs text-gray-500">{r.when}</span>
+              {r.extra}
             </span>
             <span className="flex flex-wrap items-center gap-4">
               {r.approvalKey && (
@@ -257,7 +305,9 @@ function Sources({
             </span>
           </li>
         ))}
-        <li className="py-3 text-xs text-gray-500">Agendado no admin (aba Enviar aviso): sai no horário escolhido e também aparece aqui.</li>
+        <li className="py-3 text-xs text-gray-500">
+          Enviado no admin (aba Enviar aviso): sai no horário escolhido e também aparece aqui. Em qualquer texto, <code className="rounded bg-gray-100 px-1">{'{nome}'}</code> vira o primeiro nome de cada cliente.
+        </li>
       </ul>
     </section>
   )
@@ -325,6 +375,7 @@ function Badge({ status }: { status: string }) {
 function ItemCard({ item, busy, onEdit, actions }: { item: QueueItem; busy: boolean; onEdit: (i: QueueItem) => void; actions: Actions }) {
   const m = item.meta || {}
   const fewOffers = item.origin.startsWith('ENCARTE') && typeof m.offers === 'number' && m.offers < 3
+  const cartItems = Array.isArray(m.items) ? m.items : null
   return (
     <li className="flex gap-3 rounded-xl border border-black/[0.06] p-3">
       <When item={item} />
@@ -337,11 +388,18 @@ function ItemCard({ item, busy, onEdit, actions }: { item: QueueItem; busy: bool
         <p className="mt-1.5 text-sm font-semibold text-gray-900 [overflow-wrap:anywhere]">{item.title}</p>
         <p className="text-sm text-gray-700 [overflow-wrap:anywhere]">{item.body}</p>
         <p className="mt-1 text-xs text-gray-500">
-          {audienceText(item)} · {destinationText(item)}
+          {item.origin === 'CARRINHO'
+            ? `${m.customer || 'Cliente'} · ${plural(m.itemCount ?? 0, 'item', 'itens')} · ${brl(m.subtotal ?? 0)} · abre o carrinho`
+            : `${audienceText(item)} · ${destinationText(item)}`}
         </p>
+        {cartItems && cartItems.length > 0 && (
+          <p className="mt-0.5 text-[11px] text-gray-400 [overflow-wrap:anywhere]">
+            {cartItems.map((i) => `${i.name} (${Number(i.quantity).toLocaleString('pt-BR')})`).join(' · ')}
+          </p>
+        )}
         {fewOffers && (
           <p className="mt-1 flex items-center gap-1 text-xs text-amber-800">
-            <AlertCircle size={12} /> Só {plural(m.offers as number, 'oferta de verdade à venda', 'ofertas de verdade à venda')} ({m.items} no encarte).
+            <AlertCircle size={12} /> Só {plural(m.offers as number, 'oferta de verdade à venda', 'ofertas de verdade à venda')} ({typeof m.items === 'number' ? m.items : '?'} no encarte).
           </p>
         )}
         {(item.edited || item.approved) && (
@@ -551,6 +609,8 @@ function Editor({ item, now, storeOpen, onClose, onSaved }: { item: QueueItem; n
   const [url, setUrl] = useState<string>(item.url ?? '')
   const [when, setWhen] = useState(toLocalInput(item.sendAt))
   const [image, setImage] = useState<string | null>(item.imageUrl)
+  const titleRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const m = item.meta || {}
@@ -620,14 +680,16 @@ function Editor({ item, now, storeOpen, onClose, onSaved }: { item: QueueItem; n
             <span className="flex justify-between text-xs text-gray-600">
               Título <span className={title.length > 50 ? 'text-amber-700' : 'text-gray-400'}>{title.length}/80</span>
             </span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} className={`${field} mt-1 h-10`} />
+            <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} className={`${field} mt-1 h-10`} />
+            <NameChip onClick={() => setTitle(insertAtCursor(titleRef.current, title, '{nome}'))} />
             {title.length > 50 && <span className="mt-1 block text-[11px] text-amber-800">Na tela bloqueada o título pode ser cortado depois de uns 50 caracteres.</span>}
           </label>
           <label className="block">
             <span className="flex justify-between text-xs text-gray-600">
               Texto <span className={body.length > 120 ? 'text-amber-700' : 'text-gray-400'}>{body.length}/180</span>
             </span>
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={180} rows={3} className={`${field} mt-1 py-2`} />
+            <textarea ref={bodyRef} value={body} onChange={(e) => setBody(e.target.value)} maxLength={180} rows={3} className={`${field} mt-1 py-2`} />
+            <NameChip onClick={() => setBody(insertAtCursor(bodyRef.current, body, '{nome}'))} />
           </label>
           <label className="block">
             <span className="text-xs text-gray-600">Ao tocar, abre</span>
@@ -680,8 +742,169 @@ function Editor({ item, now, storeOpen, onClose, onSaved }: { item: QueueItem; n
         </div>
         <div className="space-y-4">
           <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Como o cliente vê</p>
-          <PushPreview title={title} body={body} image={image} />
-          <BellPreview title={title} body={body} />
+          <PushPreview title={personalize(title, SAMPLE_NAME)} body={personalize(body, SAMPLE_NAME)} image={image} />
+          <BellPreview title={personalize(title, SAMPLE_NAME)} body={personalize(body, SAMPLE_NAME)} />
+          {/\{\s*nome\s*\}/i.test(title + body) && (
+            <p className="text-[11px] text-gray-500">
+              Prévia com "{SAMPLE_NAME}". Cada cliente recebe com o próprio primeiro nome; quem não tem nome cadastrado recebe a frase sem ele: "{personalize(title, null)}".
+            </p>
+          )}
+        </div>
+      </div>
+    </WorkspaceDialog>
+  )
+}
+
+function NameChip({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-200">
+      <User size={11} /> Inserir nome do cliente
+    </button>
+  )
+}
+
+const DELAYS = [30, 60, 120, 180, 360, 720, 1440]
+const COOLDOWNS = [0, 1, 2, 3, 5, 7, 14, 30]
+
+function CartReminderDialog({ settings, stats, onClose, onSaved }: { settings: QueueSettings; stats: QueueResponse['cartStats']; onClose: () => void; onSaved: () => void }) {
+  const [title, setTitle] = useState(settings.cartTitle)
+  const [body, setBody] = useState(settings.cartBody)
+  const [delay, setDelay] = useState(settings.cartDelayMinutes)
+  const [minTotal, setMinTotal] = useState(String(settings.cartMinTotal || ''))
+  const [cooldown, setCooldown] = useState(settings.cartCooldownDays)
+  const [image, setImage] = useState(settings.cartImage)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const titleRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const [focus, setFocus] = useState<'title' | 'body'>('body')
+  const sample = { name: SAMPLE_NAME, product: 'Picanha Bovina Peça kg', itemCount: 4, subtotal: 186.4 }
+  const previewTitle = renderCartTemplate(title, sample)
+  const previewBody = renderCartTemplate(body, sample)
+  const min = Number(String(minTotal).replace(',', '.')) || 0
+  const problems = [!title.trim() && 'título', !body.trim() && 'texto', title.length > 80 && 'título longo demais', body.length > 180 && 'texto longo demais'].filter(Boolean) as string[]
+
+  const insert = (token: string) => {
+    if (focus === 'title') setTitle(insertAtCursor(titleRef.current, title, token))
+    else setBody(insertAtCursor(bodyRef.current, body, token))
+  }
+  const save = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      await notificationQueueAPI.settings({ cartTitle: title, cartBody: body, cartDelayMinutes: delay, cartMinTotal: min, cartCooldownDays: cooldown, cartImage: image })
+      onSaved()
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Não foi possível salvar.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+  const field = 'w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-gray-900'
+  const tokens: Array<[string, string]> = [
+    ['{nome}', 'nome do cliente'],
+    ['{itens}', 'produto principal e quantos mais'],
+    ['{produto}', 'só o produto principal'],
+    ['{total}', 'valor do carrinho'],
+  ]
+
+  return (
+    <WorkspaceDialog
+      label="Lembrete de carrinho esquecido"
+      onClose={onClose}
+      title={
+        <>
+          <h3 className="text-base font-semibold text-gray-900">Lembrete de carrinho esquecido</h3>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Para cliente logado que montou o carrinho e não fechou o pedido. Sai com a loja aberta e aparece na fila antes de sair.
+          </p>
+        </>
+      }
+      footer={
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="min-w-0 flex-1 text-xs text-gray-500">{error ? <span className="text-rose-700">{error}</span> : problems.length ? `Ajuste: ${problems.join(', ')}.` : ''}</p>
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+            Cancelar
+          </button>
+          <button type="button" onClick={save} disabled={saving || problems.length > 0} className="inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-5 py-2 text-sm text-white disabled:opacity-40">
+            {saving && <Loader2 size={14} className="animate-spin" />} Salvar
+          </button>
+        </div>
+      }
+    >
+      <div className="grid grid-cols-1 gap-8 px-4 py-5 sm:px-6 lg:grid-cols-2 lg:gap-10">
+        <div className="space-y-4">
+          <label className="block">
+            <span className="flex justify-between text-xs text-gray-600">
+              Título <span className={title.length > 50 ? 'text-amber-700' : 'text-gray-400'}>{title.length}/80</span>
+            </span>
+            <input ref={titleRef} value={title} onFocus={() => setFocus('title')} onChange={(e) => setTitle(e.target.value)} maxLength={80} className={`${field} mt-1 h-10`} />
+          </label>
+          <label className="block">
+            <span className="flex justify-between text-xs text-gray-600">
+              Texto <span className={body.length > 120 ? 'text-amber-700' : 'text-gray-400'}>{body.length}/180</span>
+            </span>
+            <textarea ref={bodyRef} value={body} onFocus={() => setFocus('body')} onChange={(e) => setBody(e.target.value)} maxLength={180} rows={3} className={`${field} mt-1 py-2`} />
+          </label>
+          <div>
+            <p className="text-xs text-gray-600">Inserir no {focus === 'title' ? 'título' : 'texto'}</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {tokens.map(([t, label]) => (
+                <button key={t} type="button" onClick={() => insert(t)} className="rounded-lg bg-gray-100 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-200" title={label}>
+                  {t} <span className="text-gray-400">· {label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs text-gray-600">Esperar depois que o cliente para</span>
+              <select value={delay} onChange={(e) => setDelay(Number(e.target.value))} className={`${field} mt-1 h-10`}>
+                {[...new Set([...DELAYS, settings.cartDelayMinutes])].sort((a, b) => a - b).map((m) => (
+                  <option key={m} value={m}>
+                    {minutesLabel(m)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-gray-600">No máximo 1 lembrete a cada</span>
+              <select value={cooldown} onChange={(e) => setCooldown(Number(e.target.value))} className={`${field} mt-1 h-10`}>
+                {[...new Set([...COOLDOWNS, settings.cartCooldownDays])].sort((a, b) => a - b).map((d) => (
+                  <option key={d} value={d}>
+                    {d === 0 ? 'sem limite (1 por carrinho)' : plural(d, 'dia', 'dias')}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-gray-600">Só carrinho a partir de (R$)</span>
+              <input inputMode="decimal" value={minTotal} onChange={(e) => setMinTotal(e.target.value)} placeholder="0,00 = qualquer valor" className={`${field} mt-1 h-10`} />
+            </label>
+            <label className="flex items-center gap-2 self-end pb-2 text-sm text-gray-700">
+              <Switch checked={image} onChange={setImage} aria-label="Mostrar a foto do produto principal" />
+              Foto do produto principal
+            </label>
+          </div>
+          <p className="text-[11px] text-gray-500">
+            Não lembra quem já fechou o pedido, quem mexeu no carrinho de novo (o relógio recomeça) nem cliente bloqueado. Cliente sem login não tem como ser lembrado.
+          </p>
+        </div>
+        <div className="space-y-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Como o cliente vê</p>
+          <PushPreview title={previewTitle} body={previewBody} image={null} />
+          {image && <p className="-mt-2 text-[11px] text-gray-500">No celular vai também a foto do produto de maior valor do carrinho.</p>}
+          <BellPreview title={previewTitle} body={previewBody} />
+          <p className="text-[11px] text-gray-500">
+            Prévia com {SAMPLE_NAME}, 4 itens e {brl(sample.subtotal)}. Sem nome cadastrado: "{renderCartTemplate(title, { ...sample, name: null })}".
+          </p>
+          <div className="rounded-2xl border border-black/[0.06] p-3 text-xs text-gray-600">
+            <p className="font-medium text-gray-900">Últimos 30 dias</p>
+            <p className="mt-1">
+              {plural(stats.sent, 'lembrete enviado', 'lembretes enviados')} · {stats.opened} abriram · {plural(stats.recovered, 'pedido', 'pedidos')} em até 48 h
+              {stats.revenue > 0 && ` · ${brl(stats.revenue)}`}
+            </p>
+          </div>
         </div>
       </div>
     </WorkspaceDialog>

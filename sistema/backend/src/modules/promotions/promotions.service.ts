@@ -5,6 +5,7 @@ import { ProductSearchService } from '../products/product-search.service'
 import { parseErpBusinessDate, parseErpBusinessDateEnd, isPromoValidOnDay } from '../../common/business-window'
 import { dayWindows, fulfillmentDay, lastCloseOnOrBefore, nextOpenAt, spDay, type HoursConfig } from '../../common/delivery-hours'
 import { isProductSellable } from '../../common/product-availability'
+import { shortProductName } from '../../common/personalize'
 import { loadHoursConfig } from '../../common/promo-day'
 
 const LOWER_WORDS = new Set(['da', 'de', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os', 'com', 'para', 'na', 'no'])
@@ -40,12 +41,6 @@ export function encarteKey(raw: string): string {
 /** Nome que o cliente ve: o da regra (EncarteNameRule) ou o do ERP arrumado. */
 export function campaignDisplayName(campaign: { name: string; customerName?: string | null }): string {
   return campaign.customerName?.trim() || customerCampaignName(campaign.name)
-}
-
-/** Nome curto para caber no aviso: "Leite Longa Vida UHT Integral Elege Caixinha 1L" -> 36 letras. */
-function shortProductName(name: string): string {
-  const clean = String(name || '').replace(/\s+/g, ' ').trim()
-  return clean.length > 36 ? `${clean.slice(0, 35).trimEnd()}…` : clean
 }
 
 /**

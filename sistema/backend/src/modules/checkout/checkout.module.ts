@@ -8,14 +8,13 @@ import { CartController } from './cart.controller'
 import { AdminCheckoutController, CheckoutSessionsController } from './checkout.controller'
 import { CartService } from './cart.service'
 import { CheckoutService } from './checkout.service'
-import { AbandonedCartScheduler } from './abandoned-cart.scheduler'
 import { NotificationsModule } from '../notifications/notifications.module'
 import { IntegrationsModule } from '../integrations/integrations.module'
 
 @Module({
   imports: [PricingModule, InventoryModule, DeliveryModule, OrdersModule, NotificationsModule, IntegrationsModule],
   controllers: [CartController, CheckoutSessionsController, AdminCheckoutController],
-  providers: [CartService, CheckoutService, TenantAccessGuard, AbandonedCartScheduler],
+  providers: [CartService, CheckoutService, TenantAccessGuard],
   exports: [CartService, CheckoutService],
 })
 export class CheckoutModule {}

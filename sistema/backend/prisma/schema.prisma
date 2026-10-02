@@ -897,7 +897,6 @@ model Cart {
   customerId String?
   deviceId   String?
   status     String     @default("ACTIVE")
-  abandonedNotifiedAt DateTime?
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
   items      CartItem[]
@@ -2139,6 +2138,21 @@ model Notification {
   @@map("notifications")
 }
 
+// Carrinho da loja de quem esta logado (02/10/2026). O carrinho do site vive no
+// navegador; sem isso o lembrete so via quem chegava ao checkout. updatedAt so
+// muda quando o conteudo muda (ressincronizar igual nao reinicia o relogio).
+model CartSnapshot {
+  customerId String   @id
+  items      Json
+  itemCount  Int
+  subtotal   Float
+  updatedAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([updatedAt])
+  @@map("cart_snapshots")
+}
+
 // Fila de envios (02/10/2026): TODO aviso de marketing com hora marcada passa
 // por aqui -- encarte, oferta personalizada e agendado manual. O que esta na
 // fila e exatamente o que sai; a tela Notificacoes > Fila edita, cancela, aprova
@@ -2394,6 +2408,14 @@ model AutoOfferSettings {
   encarteApproval Boolean  @default(false)
   offerApproval   Boolean  @default(false)
   cartEnabled     Boolean  @default(true)
+  // Lembrete de carrinho esquecido, personalizavel na Fila de envios (02/10/2026).
+  cartApproval     Boolean @default(false)
+  cartDelayMinutes Int     @default(120)
+  cartTitle        String  @default("{nome}, esqueceu algo no carrinho?")
+  cartBody         String  @default("Você deixou {itens} no carrinho. Finalize seu pedido!")
+  cartImage        Boolean @default(true)
+  cartMinTotal     Float   @default(0)
+  cartCooldownDays Int     @default(3)
   learnedWeights Json?
   lastRunAt      DateTime?
   lastRunSummary Json?

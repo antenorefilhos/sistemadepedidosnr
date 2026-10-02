@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, ImageOff, Loader2, Search, Send, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle, ImageOff, Loader2, Search, Send, User, X } from 'lucide-react'
 import {
   autoOffersAPI,
   cmsAPI,
@@ -13,6 +13,7 @@ import {
   type NotificationDispatch,
 } from '../../services/api'
 import NotificationQueueTab from './NotificationQueue'
+import { SAMPLE_NAME, insertAtCursor, personalize } from '../../utils/personalize'
 
 // Notificacoes (refeita em 29/09/2026 com o Jonathan). Quatro partes:
 // - Fila de envios (02/10/2026): o que vai sair com hora marcada (encarte,
@@ -318,6 +319,8 @@ type Audience = 'all' | 'segment' | 'one'
 function SendTab({ departments, onSent }: { departments: Array<{ code: string; name: string }>; onSent: (scheduled: boolean) => void }) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const titleRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
   const [target, setTarget] = useState<'home' | 'product' | 'banner'>('home')
   const [product, setProduct] = useState<CatalogProduct | null>(null)
   const [productQuery, setProductQuery] = useState('')
@@ -409,15 +412,21 @@ function SendTab({ departments, onSent }: { departments: Array<{ code: string; n
               Título <span className={`font-normal ${title.length > 45 ? 'text-amber-600' : 'text-gray-400'}`}>{title.length}/45</span>
             </span>
             <span className="block text-xs text-gray-400">Aparece em negrito no celular. Curto e direto.</span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex.: 🥩 Semana do churrasco" className={`${field} mt-1`} />
+            <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex.: 🥩 {nome}, semana do churrasco" className={`${field} mt-1`} />
           </label>
+          <button type="button" onClick={() => setTitle(insertAtCursor(titleRef.current, title, '{nome}'))} className="-mt-3 inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-200">
+            <User size={11} /> Inserir nome do cliente no título
+          </button>
           <label className="block">
             <span className="flex justify-between text-xs font-medium text-gray-700">
               Mensagem <span className={`font-normal ${body.length > 120 ? 'text-amber-600' : 'text-gray-400'}`}>{body.length}/120</span>
             </span>
             <span className="block text-xs text-gray-400">O detalhe da oferta: o que é, quanto custa, até quando.</span>
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} placeholder="Ex.: Picanha e linguiça com até 30% de desconto até domingo." className="mt-1 w-full resize-none rounded-xl border border-black/[0.08] px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400" />
+            <textarea ref={bodyRef} value={body} onChange={(e) => setBody(e.target.value)} rows={2} placeholder="Ex.: Picanha e linguiça com até 30% de desconto até domingo." className="mt-1 w-full resize-none rounded-xl border border-black/[0.08] px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400" />
           </label>
+          <button type="button" onClick={() => setBody(insertAtCursor(bodyRef.current, body, '{nome}'))} className="-mt-3 inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-200">
+            <User size={11} /> Inserir nome do cliente na mensagem
+          </button>
 
           <div>
             <span className="block text-xs font-medium text-gray-700">Ao tocar, abre</span>
@@ -527,13 +536,18 @@ function SendTab({ departments, onSent }: { departments: Array<{ code: string; n
               <div className="flex items-start gap-2.5">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#5D082A] text-[10px] font-bold text-white">AF</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-gray-900">{title.trim() || 'Título do aviso'}</p>
-                  <p className="line-clamp-2 text-xs text-gray-600">{body.trim() || 'Mensagem do aviso'}</p>
+                  <p className="truncate text-sm font-semibold text-gray-900">{personalize(title.trim(), SAMPLE_NAME) || 'Título do aviso'}</p>
+                  <p className="line-clamp-2 text-xs text-gray-600">{personalize(body.trim(), SAMPLE_NAME) || 'Mensagem do aviso'}</p>
                 </div>
               </div>
               {image && <img src={resolveApiUrl(image)} alt="" className="mt-2 h-32 w-full rounded-lg object-cover" />}
             </div>
           </div>
+          {/\{\s*nome\s*\}/i.test(title + body) && (
+            <p className="mt-2 text-xs text-gray-500">
+              Prévia com "{SAMPLE_NAME}": cada cliente recebe com o próprio primeiro nome. Quem não tem nome cadastrado recebe sem ele: "{personalize(title.trim(), null) || '…'}".
+            </p>
+          )}
         </Card>
       </div>
     </div>

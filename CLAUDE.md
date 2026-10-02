@@ -718,10 +718,24 @@ ou passar a exigir aprovação (`auto_offer_settings.encarteApproval/offerApprov
   `OfferPushService.planNextSlot` (de hora em hora, o próximo horário de
   oferta com até 6 h de antecedência). Idempotentes por `sourceKey`: **não
   sobrescrevem o que o admin editou e não recriam o que ele cancelou.**
-- Não envie aviso de marketing por fora da fila. `broadcastToCustomers` direto
-  só para o "Enviar agora" manual da aba Enviar aviso.
-- Lembrete de carrinho esquecido não passa pela fila (é por cliente), mas tem
-  liga/desliga na mesma tela e só sai com a loja aberta.
+- Não envie aviso de marketing por fora da fila: `broadcastToCustomers` só é
+  chamado pelo despachante.
+- **Lembrete de carrinho esquecido** (refeito em 02/10/2026) também passa pela
+  fila. O antigo lia o carrinho que o *checkout* cria — um por tentativa — e em
+  produção 39 de 43 lembretes eram repetidos e 7 foram para quem já tinha
+  comprado; quem enchia o carrinho sem chegar ao checkout nunca era lembrado.
+  Agora o site manda o carrinho de quem está logado (`PUT /cart-snapshot`,
+  tabela `cart_snapshots`, um por cliente, `updatedAt` só muda se o conteúdo
+  mudar) e `CartReminderService.plan` põe o lembrete na fila para sair
+  `cartDelayMinutes` depois da última mudança. Pedido apaga o carrinho guardado;
+  o despachante reconfere que o carrinho é o mesmo e que não houve pedido.
+  Texto, espera, valor mínimo, foto e intervalo: tela Fila > Carrinho esquecido
+  > Personalizar. Cliente sem login não tem como ser lembrado.
+- **`{nome}`** em qualquer texto de aviso vira o primeiro nome de cada cliente
+  (`common/personalize.ts`); sem nome confiável a frase sai sem ele. O
+  histórico mostra o texto-modelo (vem da fila pelo `batchId`).
+- O "Enviar agora" manual da aba Enviar aviso também entra na fila (já vencido)
+  e sai na hora — fica registrado como os outros.
 
 ## Nome do encarte para o cliente (02/10/2026)
 

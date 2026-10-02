@@ -11,6 +11,7 @@ import { AddressesModule } from './modules/addresses/addresses.module'
 import { IntegrationsModule } from './modules/integrations/integrations.module'
 import { NotificationsModule } from './modules/notifications/notifications.module'
 import { NotificationQueueModule } from './modules/notification-queue/notification-queue.module'
+import { CartReminderModule } from './modules/cart-reminder/cart-reminder.module'
 import { DatabaseModule } from './common/database.module'
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
@@ -108,6 +109,7 @@ class AppController {
     IntegrationsModule,
     NotificationsModule,
     NotificationQueueModule,
+    CartReminderModule,
     UploadsModule,
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),

@@ -638,6 +638,12 @@ export class OrdersService {
     }
 
     this.fraud?.recordSignals(tenantId, customerId, fraudCtx, customer.email).catch(() => null)
+    // Comprou: o carrinho guardado acabou (o lembrete de carrinho nao sai mais).
+    try {
+      await this.prisma.cartSnapshot.deleteMany({ where: { customerId } })
+    } catch {
+      // Lembrete e acessorio: falhar aqui nao pode derrubar o pedido ja gravado.
+    }
 
     await this.orderOrchestrationService.syncCreatedOrder(
       this.toOrderOrchestrationPayload(order, orchestrationItems, address),

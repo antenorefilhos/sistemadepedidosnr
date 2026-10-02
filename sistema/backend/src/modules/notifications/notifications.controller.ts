@@ -194,21 +194,19 @@ export class NotificationsController {
       return { scheduled: true, sendAt: scheduled.sendAt }
     }
 
-    const customers = body.customerId
-      ? [body.customerId]
-      : await this.notificationsService.findCustomerIdsBySegment({
-          inactiveDays: body.inactiveDays,
-          purchasedCategory: body.purchasedCategory,
-        })
-
-    return this.notificationsService.broadcastToCustomers(customers, {
+    // Agora tambem passa pela fila (02/10/2026): fica no historico da fila e
+    // ganha o mesmo tratamento ({nome}, cliente bloqueado fora).
+    return this.notificationsService.sendNowViaQueue({
       type: body.type,
       title: body.title,
       body: body.body,
+      customerId: body.customerId,
       imageUrl: body.imageUrl,
       productId: body.productId,
       bannerId: body.bannerId,
-    })
+      inactiveDays: body.inactiveDays,
+      purchasedCategory: body.purchasedCategory,
+    }, String(req.user?.tenantId || 'tenant_default'))
   }
 
   @Get('admin/broadcast/segment-count')

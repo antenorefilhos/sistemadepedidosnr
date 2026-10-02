@@ -1,8 +1,9 @@
 import { isWithinDeliveryHours } from '../../common/delivery-hours'
+import { hasNamePlaceholder, personalize } from '../../common/personalize'
 import { loadHoursConfig } from '../../common/promo-day'
 import { isProductSellable } from '../../common/product-availability'
 import { randomUUID } from 'crypto'
-import { Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { productPath } from '../seo/seo.service'
 import { Prisma } from '@prisma/client'
 import { resolveBannerLink } from '../cms/store-banners/banner-link'
@@ -149,13 +150,23 @@ export class NotificationsService {
 
     // Id por cliente gerado aqui: vai na URL do push (?n=) para medir o clique.
     const batchId = randomUUID()
-    const rows = customerIds.map((customerId) => ({ id: randomUUID(), customerId }))
+    // {nome} (02/10/2026): cada cliente recebe com o proprio primeiro nome.
+    const personal = hasNamePlaceholder(dto.title) || hasNamePlaceholder(dto.body)
+    const nameOf = personal
+      ? new Map((await this.prisma.customer.findMany({ where: { id: { in: customerIds } }, select: { id: true, name: true } })).map((c) => [c.id, c.name]))
+      : new Map<string, string>()
+    const rows = customerIds.map((customerId) => ({
+      id: randomUUID(),
+      customerId,
+      title: personal ? personalize(dto.title, nameOf.get(customerId)) : dto.title,
+      body: personal ? personalize(dto.body, nameOf.get(customerId)) : dto.body,
+    }))
     await this.prisma.notification.createMany({
       data: rows.map((row) => ({
         id: row.id,
         type: dto.type,
-        title: dto.title,
-        body: dto.body,
+        title: row.title,
+        body: row.body,
         customerId: row.customerId,
         imageUrl,
         productId: dto.productId,
@@ -168,8 +179,8 @@ export class NotificationsService {
     await Promise.all(
       rows.map((row) =>
         this.pushNotificationService.sendNotification(row.customerId, {
-          title: dto.title,
-          body: dto.body,
+          title: row.title,
+          body: row.body,
           image: imageUrl,
           url: withNotificationId(url, row.id),
         }),
@@ -254,8 +265,11 @@ export class NotificationsService {
           AND ord."createdAt" > n."createdAt" AND ord."createdAt" <= n."createdAt" + interval '48 hours'
           AND ord.status NOT IN ('CANCELLED', 'REFUNDED')
       )
-      SELECT d.*, (SELECT COUNT(*) FROM o WHERE o.k = d.k) AS orders, (SELECT COALESCE(SUM(o.total), 0) FROM o WHERE o.k = d.k)::float AS revenue
-      FROM d ORDER BY d."sentAt" DESC
+      -- Texto-modelo da fila (com {nome}), nao a versao de um cliente so.
+      SELECT d.*, COALESCE(sn.title, d.title) AS title, COALESCE(sn.body, d.body) AS body,
+        (SELECT COUNT(*) FROM o WHERE o.k = d.k) AS orders, (SELECT COALESCE(SUM(o.total), 0) FROM o WHERE o.k = d.k)::float AS revenue
+      FROM d LEFT JOIN scheduled_notifications sn ON sn."batchId" = d.k
+      ORDER BY d."sentAt" DESC
     `
 
     const hasMore = rows.length > limitSeguro
@@ -454,6 +468,15 @@ export class NotificationsService {
     })
   }
 
+  /** "Enviar agora" do admin: entra na fila ja vencido e sai na hora -- fica registrado como os outros. */
+  async sendNowViaQueue(dto: Omit<Parameters<NotificationsService['scheduleBroadcast']>[0], 'sendAt'>, tenantId: string) {
+    const item = await this.scheduleBroadcast({ ...dto, sendAt: new Date() }, tenantId)
+    await this.dispatchQueueItem(item.id)
+    const after = await this.prisma.scheduledNotification.findUnique({ where: { id: item.id }, select: { status: true, sentCount: true, batchId: true, note: true } })
+    if (after?.status !== 'SENT') throw new BadRequestException(after?.note || 'Não foi possível enviar.')
+    return { count: after.sentCount ?? 0, batchId: after.batchId }
+  }
+
   /**
    * Despacha a FILA DE ENVIOS (02/10/2026) -- unico lugar que envia aviso com
    * hora marcada (encarte, oferta personalizada, agendado manual). Roda a cada
@@ -512,6 +535,15 @@ export class NotificationsService {
           ? [item.customerId]
           : await this.findCustomerIdsBySegment({ inactiveDays: item.inactiveDays ?? undefined, purchasedCategory: item.purchasedCategory ?? undefined })
 
+      if (item.origin === 'CARRINHO') {
+        // O carrinho tem que ser o MESMO de quando o lembrete foi planejado.
+        const snapshotAt = (item.meta as { snapshotAt?: string } | null)?.snapshotAt
+        const snap = item.customerId ? await this.prisma.cartSnapshot.findUnique({ where: { customerId: item.customerId } }) : null
+        if (!snap || !snapshotAt || snap.updatedAt.getTime() !== new Date(snapshotAt).getTime()) return skip('O cliente mexeu no carrinho, esvaziou ou fechou o pedido.')
+        const bought = await this.prisma.order.count({ where: { customerId: item.customerId!, createdAt: { gt: snap.updatedAt }, status: { notIn: ['CANCELLED', 'REFUNDED'] } } })
+        if (bought) return skip('O cliente já fechou o pedido.')
+      }
+
       if (item.origin === 'OFERTA') {
         const reason = await this.offerNoLongerValid(item.productId)
         if (reason) return skip(reason)
@@ -532,7 +564,7 @@ export class NotificationsService {
       customers = allowed.map((c) => c.id)
       if (!customers.length) return skip('Nenhum cliente elegível na hora do envio.')
 
-      const source = item.origin === 'OFERTA' ? 'AUTO' : item.origin.startsWith('ENCARTE') ? 'ENCARTE' : 'SCHEDULED'
+      const source = item.origin === 'OFERTA' ? 'AUTO' : item.origin === 'CARRINHO' ? 'CART' : item.origin.startsWith('ENCARTE') ? 'ENCARTE' : 'SCHEDULED'
       const result = await this.broadcastToCustomers(customers, {
         type: item.type as 'PROMO' | 'CAMPAIGN',
         title: item.title,

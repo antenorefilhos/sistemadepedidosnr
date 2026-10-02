@@ -71,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('token', access_token)
       localStorage.setItem('user', JSON.stringify(userData))
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
+      window.dispatchEvent(new Event('auth:changed'))
 
       navigate(destinoSeguro(destino))
     } finally {
@@ -89,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('token', access_token)
       localStorage.setItem('user', JSON.stringify(userData))
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
+      window.dispatchEvent(new Event('auth:changed'))
 
       navigate('/')
     } finally {
