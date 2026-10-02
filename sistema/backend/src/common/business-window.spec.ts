@@ -11,9 +11,15 @@ describe('parseErpBusinessDate', () => {
     expect(parsed.toISOString()).toBe('2026-09-17T17:30:00.000Z')
   })
 
-  it('respeita ISO em UTC (Z) sem reinterpretar como Sao Paulo', () => {
-    const parsed = parseErpBusinessDate('2026-09-17T00:00:00.000Z')
-    expect(parsed.toISOString()).toBe('2026-09-17T00:00:00.000Z')
+  it('meia-noite com Z e o DIA do encarte em Sao Paulo (formato da AntenorApi)', () => {
+    // 01/10/2026: VALIDADE NR veio 2026-09-30T00:00:00.000Z e comecava 29/09 21h.
+    expect(parseErpBusinessDate('2026-09-30T00:00:00.000Z').toISOString()).toBe('2026-09-30T03:00:00.000Z')
+    expect(parseErpBusinessDate('2026-09-30T00:00:00Z').toISOString()).toBe('2026-09-30T03:00:00.000Z')
+  })
+
+  it('respeita ISO em UTC (Z) com horario de verdade', () => {
+    const parsed = parseErpBusinessDate('2026-09-17T14:30:00.000Z')
+    expect(parsed.toISOString()).toBe('2026-09-17T14:30:00.000Z')
   })
 
   it('regressao do bug real: as 22h de hoje, um encarte de amanha (so data) nao pode parecer ja comecado', () => {
@@ -35,6 +41,13 @@ describe('parseErpBusinessDateEnd', () => {
   it('respeita ISO com horario e offset explicitos, sem reinterpretar', () => {
     const parsed = parseErpBusinessDateEnd('2026-09-17T23:59:59.999-03:00')
     expect(parsed.toISOString()).toBe('2026-09-18T02:59:59.999Z')
+  })
+
+  it('23:59:59.999Z da AntenorApi e o fim do dia em Sao Paulo, nao 20h59', () => {
+    // 01/10/2026: o encarte saia do site as 21h do ultimo dia, 3h antes do caixa.
+    expect(parseErpBusinessDateEnd('2026-10-02T23:59:59.999Z').toISOString()).toBe('2026-10-03T02:59:59.999Z')
+    expect(parseErpBusinessDateEnd('2026-10-02T00:00:00.000Z').toISOString()).toBe('2026-10-03T02:59:59.999Z')
+    expect(parseErpBusinessDateEnd('2026-10-02T18:00:00.000Z').toISOString()).toBe('2026-10-02T18:00:00.000Z')
   })
 
   it('regressao do bug real: uma campanha que termina "hoje" (so data) nao pode expirar as 00h', () => {

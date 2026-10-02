@@ -1,3 +1,4 @@
+import { parseErpBusinessDateEnd } from '../../common/business-window'
 import { Injectable, Logger } from '@nestjs/common'
 import axios, { AxiosError, AxiosInstance } from 'axios'
 import * as fs from 'fs'
@@ -652,7 +653,7 @@ export class AntenorApiService {
     const validUntilRaw = row.PROMOCAO_VALIDA_ATE ?? row.promocaoValidaAte
     const promotionalPriceValidUntil =
       promotionalPrice !== undefined && typeof validUntilRaw === 'string' && validUntilRaw
-        ? new Date(validUntilRaw)
+        ? parseErpBusinessDateEnd(validUntilRaw)
         : undefined
 
     if (!ean || !name || !Number.isFinite(price)) return null

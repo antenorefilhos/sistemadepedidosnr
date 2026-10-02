@@ -13,27 +13,31 @@
  */
 const SAO_PAULO_OFFSET = '-03:00'
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+// 01/10/2026: a AntenorApi serializa a DATA do encarte (o ERP so guarda o dia)
+// como meia-noite ou 23:59:59.999 com "Z". Lido ao pe da letra, todo encarte
+// comecava as 21h da vespera e acabava as 20h59 do ultimo dia em Brasilia --
+// o site tirava o preco 3h antes do caixa. Esses dois horarios exatos sao dia
+// de calendario, nao instante UTC; qualquer outro horario com Z e respeitado.
+const DAY_START_Z_RE = /^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.0+)?Z$/
+const DAY_END_Z_RE = /^(\d{4}-\d{2}-\d{2})T23:59:59(?:\.\d+)?Z$/
 
 export function parseErpBusinessDate(raw: string): Date {
-  if (DATE_ONLY_RE.test(raw)) {
-    return new Date(`${raw}T00:00:00${SAO_PAULO_OFFSET}`)
-  }
+  const day = DATE_ONLY_RE.test(raw) ? raw : DAY_START_Z_RE.exec(raw)?.[1]
+  if (day) return new Date(`${day}T00:00:00${SAO_PAULO_OFFSET}`)
   return new Date(raw)
 }
 
 /**
  * Mesma armadilha do comentario acima, na ponta oposta: uma `endDate`
  * "so a data" precisa significar o FIM daquele dia, nao o inicio -- senao a
- * campanha expira as 00h do ultimo dia em vez de as 23h59. Confirmado com a
- * AntenorApi (18/09/2026, braincoletivo) que `promotionalPriceValidUntil` do
- * lado deles ja vem em ISO completo terminando `23:59:59.999Z` -- essa
- * funcao e a rede de seguranca pra qualquer `endDate`/`dataFim` que ainda
- * chegue so como `"AAAA-MM-DD"` (Solidcom ou fonte futura).
+ * campanha expira as 00h do ultimo dia em vez de as 23h59. A AntenorApi manda
+ * `endDate` e `promotionalPriceValidUntil` como `AAAA-MM-DDT23:59:59.999Z`, que
+ * e o fim do dia de CALENDARIO, nao 23h59 UTC (ver DAY_END_Z_RE). Meia-noite
+ * com Z no fim tambem vira o fim daquele dia ("valida ate 02/10").
  */
 export function parseErpBusinessDateEnd(raw: string): Date {
-  if (DATE_ONLY_RE.test(raw)) {
-    return new Date(`${raw}T23:59:59.999${SAO_PAULO_OFFSET}`)
-  }
+  const day = DATE_ONLY_RE.test(raw) ? raw : (DAY_END_Z_RE.exec(raw) || DAY_START_Z_RE.exec(raw))?.[1]
+  if (day) return new Date(`${day}T23:59:59.999${SAO_PAULO_OFFSET}`)
   return new Date(raw)
 }
 

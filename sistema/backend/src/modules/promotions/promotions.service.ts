@@ -282,6 +282,7 @@ export class PromotionsService {
           title: `🛍️ Chegou o encarte ${customerCampaignName(campaign.name)}!`,
           body: 'Confira as ofertas antes que acabem.',
           url: '/promocoes',
+          source: 'AUTO',
         })
         started += 1
       } catch (error) {
@@ -312,6 +313,7 @@ export class PromotionsService {
           title: `⏰ Últimas horas do encarte ${customerCampaignName(campaign.name)}!`,
           body: 'As ofertas terminam em breve, aproveite agora.',
           url: '/promocoes',
+          source: 'AUTO',
         })
         ending += 1
       } catch (error) {
