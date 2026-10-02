@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common'
 import { PromotionsService } from './promotions.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -23,6 +23,27 @@ export class PromotionsController {
   @Get('by-erp/:erpCampaignId')
   findOneByErpId(@Param('erpCampaignId') erpCampaignId: string) {
     return this.promotionsService.findOneForStorefront(Number(erpCampaignId))
+  }
+
+  @Get('name-rules')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  listNameRules() {
+    return this.promotionsService.listNameRules()
+  }
+
+  @Put('name-rules')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  saveNameRule(@Body() body: { key: string; customerName: string; nearExpiry?: boolean }) {
+    return this.promotionsService.saveNameRule(body)
+  }
+
+  @Delete('name-rules/:key')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  deleteNameRule(@Param('key') key: string) {
+    return this.promotionsService.deleteNameRule(key)
   }
 
   @Get()

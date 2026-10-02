@@ -57,6 +57,7 @@ function DeliveryInfoCard() {
 import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
 import { useAuth } from '../hooks/useAuth'
+import { NEAR_EXPIRY_NOTE, useNearExpiryProductIds } from '../hooks/useCMS'
 import NotificationBell from '../components/NotificationBell'
 import { ProductRecipeShelf } from '../components/RecipeShelf'
 import { MobileBottomNav } from '../components/MobileBottomNav'
@@ -74,6 +75,7 @@ export default function ProductDetail() {
   const { data: substitutes = [] } = useSmartSubstitutes(product?.id ?? '', 6)
   const { count } = useCart()
   const { user } = useAuth()
+  const nearExpiryIds = useNearExpiryProductIds()
   const [imageIndex, setImageIndex] = useState(0)
   const [imgError, setImgError] = useState(false)
   // 3 (01/10/2026): URL nova na borda, com o cache de 5 min no navegador.
@@ -398,6 +400,7 @@ export default function ProductDetail() {
               <span className="text-xs font-medium text-gray-500">{price.referenceText}</span>
             )}
           </div>
+          {nearExpiryIds.has(product.id) && <p className="text-xs text-gray-500">{NEAR_EXPIRY_NOTE}</p>}
 
           <ProductPurchasePanel product={product} />
           <DeliveryInfoCard />

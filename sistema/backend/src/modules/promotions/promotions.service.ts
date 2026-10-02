@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
 import { AntenorApiService } from '../integrations/antenor-api.service'
 import { NotificationsService } from '../notifications/notifications.service'
@@ -24,6 +24,22 @@ export function customerCampaignName(raw: string): string {
   return words
     .map((w, i) => (i > 0 && LOWER_WORDS.has(w) ? w : w.charAt(0).toLocaleUpperCase('pt-BR') + w.slice(1)))
     .join(' ')
+}
+
+/** Chave da regra de nome: sem filial, maiusculas, sem acento ("Validade NR" -> VALIDADE). */
+export function encarteKey(raw: string): string {
+  return String(raw || '')
+    .replace(/\s+(NR|NV)\s*$/i, '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Nome que o cliente ve: o da regra (EncarteNameRule) ou o do ERP arrumado. */
+export function campaignDisplayName(campaign: { name: string; customerName?: string | null }): string {
+  return campaign.customerName?.trim() || customerCampaignName(campaign.name)
 }
 
 function slugify(value: string): string {
@@ -71,6 +87,7 @@ export class PromotionsService {
       return { campaignsSynced: 0, itemsSynced: 0, productsUpdated: 0 }
     }
     const campaigns = await this.antenorApiService.getEncartesAtivos()
+    const rules = new Map((await this.prisma.encarteNameRule.findMany()).map((r) => [r.key, r]))
 
     let itemsSynced = 0
     let productsUpdated = 0
@@ -82,9 +99,12 @@ export class PromotionsService {
         : []
       const productIdByEan = new Map(products.map((p) => [p.ean, p.id]))
 
+      const rule = rules.get(encarteKey(erpCampaign.name))
+      const naming = { customerName: rule?.customerName ?? null, nearExpiry: rule?.nearExpiry ?? false }
       const campaign = await this.prisma.promotionCampaign.upsert({
         where: { erpCampaignId: erpCampaign.erpCampaignId },
         create: {
+          ...naming,
           erpCampaignId: erpCampaign.erpCampaignId,
           name: erpCampaign.name,
           slug: slugify(erpCampaign.name),
@@ -93,6 +113,7 @@ export class PromotionsService {
           active: true,
         },
         update: {
+          ...naming,
           name: erpCampaign.name,
           startDate: parseErpBusinessDate(erpCampaign.startDate),
           endDate: parseErpBusinessDateEnd(erpCampaign.endDate),
@@ -316,7 +337,7 @@ export class PromotionsService {
     for (const campaign of open) {
       const live = isPromoValidOnDay(day, campaign.startDate, campaign.endDate)
       if (!live) continue
-      const tag = customerCampaignName(campaign.name)
+      const tag = campaignDisplayName(campaign)
 
       if (!campaign.startNotifiedAt && today >= spDay(campaign.startDate)) {
         // JON-171: claim atomico ANTES de enviar -- duas execucoes concorrentes
@@ -365,6 +386,47 @@ export class PromotionsService {
     }
 
     return { started, ending }
+  }
+
+  /** Regras de nome (tela Notificacoes > Fila). Cada regra mostra os encartes que ela cobre agora. */
+  async listNameRules() {
+    const [rules, campaigns] = await Promise.all([
+      this.prisma.encarteNameRule.findMany({ orderBy: { key: 'asc' } }),
+      this.prisma.promotionCampaign.findMany({ where: { endDate: { gte: new Date(Date.now() - 30 * 86_400_000) } }, select: { name: true }, orderBy: { startDate: 'desc' } }),
+    ])
+    const seen = [...new Set(campaigns.map((c) => encarteKey(c.name)))]
+    return {
+      rules,
+      // Nomes do ERP dos ultimos 30 dias, com o que o cliente ve hoje -- base para criar regra.
+      erpNames: seen.map((key) => {
+        const rule = rules.find((r) => r.key === key)
+        return { key, customerName: rule?.customerName ?? customerCampaignName(key), hasRule: Boolean(rule), nearExpiry: rule?.nearExpiry ?? false }
+      }),
+    }
+  }
+
+  async saveNameRule(input: { key: string; customerName: string; nearExpiry?: boolean }) {
+    const key = encarteKey(input.key)
+    const customerName = String(input.customerName || '').trim().slice(0, 60)
+    if (!key || !customerName) throw new BadRequestException('Informe o nome do encarte no ERP e o nome para o cliente.')
+    const nearExpiry = Boolean(input.nearExpiry)
+    const rule = await this.prisma.encarteNameRule.upsert({ where: { key }, update: { customerName, nearExpiry }, create: { key, customerName, nearExpiry } })
+    await this.applyNameRule(key, { customerName, nearExpiry })
+    return rule
+  }
+
+  async deleteNameRule(key: string) {
+    const k = encarteKey(key)
+    await this.prisma.encarteNameRule.deleteMany({ where: { key: k } })
+    await this.applyNameRule(k, { customerName: null, nearExpiry: false })
+    return { ok: true }
+  }
+
+  /** Aplica a regra aos encartes ja gravados (vigentes e futuros) com essa chave. */
+  private async applyNameRule(key: string, naming: { customerName: string | null; nearExpiry: boolean }) {
+    const campaigns = await this.prisma.promotionCampaign.findMany({ where: { endDate: { gte: new Date() } }, select: { id: true, name: true } })
+    const ids = campaigns.filter((c) => encarteKey(c.name) === key).map((c) => c.id)
+    if (ids.length) await this.prisma.promotionCampaign.updateMany({ where: { id: { in: ids } }, data: naming })
   }
 
   findAllAdmin() {
@@ -426,6 +488,8 @@ export class PromotionsService {
   private mapCampaignForStorefront(campaign: {
     id: string
     name: string
+    customerName?: string | null
+    nearExpiry?: boolean
     slug: string
     type: string
     bannerUrl: string | null
@@ -446,7 +510,8 @@ export class PromotionsService {
   }) {
     return {
       id: campaign.id,
-      name: customerCampaignName(campaign.name),
+      name: campaignDisplayName(campaign),
+      nearExpiry: Boolean(campaign.nearExpiry),
       slug: campaign.slug,
       type: campaign.type,
       bannerUrl: campaign.bannerUrl,

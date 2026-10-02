@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import { couponsAPI, customersAPI } from '../services/api'
 import type { Product } from '../types'
 import { useProductRecommendations, useSmartSubstitutes } from '../hooks/useCart'
-import { useTopSellingProducts } from '../hooks/useCMS'
+import { NEAR_EXPIRY_NOTE, useNearExpiryProductIds, useTopSellingProducts } from '../hooks/useCMS'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { productPath } from '../utils/productUrl'
 import { formatPrice, formatProductTitle } from '../utils/format'
@@ -48,6 +48,7 @@ export default function Cart() {
   const zoneFreeAbove = useKnownZoneFreeAbove()
   const { openModal: openDeliveryModal } = useDeliveryVerificationModal()
   const { cart, removeItem, updateQuantity, updateAllowSubstitution, clear, total, subtotal, discount, couponCode, applyCoupon, removeCoupon } = useCart()
+  const nearExpiryIds = useNearExpiryProductIds()
 
   // JON-183: consulta a fidelidade Mercafacil automaticamente pro cliente
   // logado (CPF ja cadastrado, sem pedir de novo). staleTime longo -- o
@@ -251,6 +252,7 @@ export default function Cart() {
                         <p className="text-[#5D082A] font-semibold mt-1">
                           {pricePresentation?.fullLabel || formatPrice(0)}
                         </p>
+                        {nearExpiryIds.has(item.productId) && <p className="mt-0.5 text-xs text-gray-500">{NEAR_EXPIRY_NOTE}</p>}
                         <Badge className={`mt-2 normal-case tracking-normal ${availability.tone}`}>
                           {availability.label}
                         </Badge>

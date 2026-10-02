@@ -5,6 +5,7 @@ import { NotificationsService } from '../notifications/notifications.service'
 
 const mockPrismaService = {
   brandConfig: { findUnique: jest.fn() },
+  encarteNameRule: { findMany: jest.fn().mockResolvedValue([]) },
   product: {
     findMany: jest.fn(),
     update: jest.fn(),

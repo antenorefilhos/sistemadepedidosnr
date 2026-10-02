@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { analyticsAPI, cmsAPI, promotionsAPI } from '../services/api'
 import type { Product } from '../types'
@@ -163,7 +164,17 @@ export interface PromotionCampaignCMS {
   startDate: string
   endDate: string
   highlightInHome: boolean
+  /** Encarte de produto perto do vencimento (regra de nome no admin). */
+  nearExpiry?: boolean
   items: Product[]
+}
+
+/** Aviso de transparencia (02/10/2026): produto em encarte de validade proxima. */
+export const NEAR_EXPIRY_NOTE = 'Preço especial: validade próxima'
+
+export function useNearExpiryProductIds() {
+  const { data } = usePromotionCampaigns()
+  return useMemo(() => new Set((data || []).filter((c) => c.nearExpiry).flatMap((c) => c.items.map((p) => p.id))), [data])
 }
 
 export function usePromotionCampaigns() {

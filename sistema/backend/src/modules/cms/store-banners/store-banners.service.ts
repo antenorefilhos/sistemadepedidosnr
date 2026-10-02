@@ -1,3 +1,4 @@
+import { campaignDisplayName } from '../../promotions/promotions.service';
 import { isPromoValidOnDay } from '../../../common/business-window';
 import { promoDayFor } from '../../../common/promo-day';
 import { BadRequestException, Injectable } from '@nestjs/common';
@@ -119,7 +120,7 @@ export class StoreBannersService {
   // pro consumidor do banner (nome, vigencia) e um mapa por erpCampaignId.
   private async resolveCampaigns(banners: { campaignErpId: number | null }[]) {
     const ids = [...new Set(banners.filter((b) => b.campaignErpId != null).map((b) => b.campaignErpId as number))];
-    if (ids.length === 0) return new Map<number, { name: string; active: boolean; startDate: Date; endDate: Date }>();
+    if (ids.length === 0) return new Map<number, { name: string; customerName: string | null; active: boolean; startDate: Date; endDate: Date }>();
     const campaigns = await this.prisma.promotionCampaign.findMany({ where: { erpCampaignId: { in: ids } } });
     return new Map(campaigns.map((c) => [c.erpCampaignId as number, c]));
   }
@@ -173,7 +174,7 @@ export class StoreBannersService {
       return {
         ...banner,
         highlightedProduct: banner.linkType === 'product' && banner.linkValue ? productById.get(banner.linkValue) || null : null,
-        campaignName: campaign?.name ?? null,
+        campaignName: campaign ? campaignDisplayName(campaign) : null,
         campaignEndDate: campaign?.endDate ?? null,
       };
     });

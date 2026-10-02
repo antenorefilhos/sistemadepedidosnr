@@ -29,6 +29,7 @@ type Campaign = {
   name: string
   startDate: string
   endDate: string
+  nearExpiry?: boolean
   items: CampaignItem[]
 }
 
@@ -97,6 +98,7 @@ export default function Encarte() {
             <p className="text-sm text-gray-500 mb-4">
               {campaign.items.length} {campaign.items.length === 1 ? 'produto em oferta' : 'produtos em oferta'} · válido até{' '}
               {new Date(campaign.endDate).toLocaleDateString('pt-BR')}
+              {campaign.nearExpiry && ' · preço especial por validade próxima'}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {[...campaign.items]

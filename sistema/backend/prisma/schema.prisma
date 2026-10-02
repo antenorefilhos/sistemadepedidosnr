@@ -1520,6 +1520,11 @@ model PromotionCampaign {
   highlightInHome Boolean   @default(false)
   startNotifiedAt   DateTime?
   endingNotifiedAt  DateTime?
+  // Como o cliente ve o encarte (02/10/2026): vem da regra de nome
+  // (EncarteNameRule) pelo nome do ERP. Sem regra, o nome do ERP arrumado.
+  customerName      String?
+  // Encarte de produto perto do vencimento: o site avisa "validade proxima".
+  nearExpiry        Boolean   @default(false)
 
   items           PromotionCampaignItem[]
 
@@ -1528,6 +1533,20 @@ model PromotionCampaign {
 
   @@index([tenantId, storeId, active, startDate, endDate])
   @@map("promotion_campaigns")
+}
+
+// Nome que o cliente ve para um encarte do ERP (02/10/2026). Chave = nome do ERP
+// sem o codigo da filial, em maiusculas e sem acento ("VALIDADE NR" -> VALIDADE),
+// porque o mesmo encarte volta toda semana com outro numero. No ERP o nome nao muda.
+model EncarteNameRule {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  customerName String
+  nearExpiry   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("encarte_name_rules")
 }
 
 model PromotionCampaignItem {
