@@ -658,7 +658,7 @@ export class AnalyticsService {
     const scope = this.analyticsScope(tenantId, params.storeId)
     const rows: Prisma.MetricSnapshotCreateManyInput[] = []
 
-    const [orders, events, orderItems, stockPositions, pickingTasks, integrationJobs, deadLetters, customerProfiles, paymentTransactions] = await Promise.all([
+    const [orders, events, orderItems, stockPositions, pickingTasks, customerProfiles, paymentTransactions] = await Promise.all([
       this.prisma.order.findMany({
         where: orderWhere,
         select: {
@@ -705,14 +705,6 @@ export class AnalyticsService {
       this.prisma.pickingTask.findMany({
         where: { ...scope, createdAt: { gte: periodStart, lt: periodEnd } },
         select: { id: true, storeId: true, status: true, assignedToId: true, startedAt: true, completedAt: true, slaDueAt: true },
-      }),
-      this.prisma.integrationJob.findMany({
-        where: { ...scope, createdAt: { gte: periodStart, lt: periodEnd } },
-        select: { storeId: true, type: true, status: true, connectorId: true, error: true },
-      }),
-      this.prisma.integrationDeadLetter.findMany({
-        where: { ...scope, createdAt: { gte: periodStart, lt: periodEnd }, resolvedAt: null },
-        select: { storeId: true, connectorId: true, reason: true, lastError: true },
       }),
       this.prisma.customerProfile.findMany({
         where: { ...scope },
@@ -802,10 +794,6 @@ export class AnalyticsService {
     this.pushMetric(rows, base, { dashboard: 'PICKING', metric: 'DELAYED_PICKING_TASKS', value: delayedPicking.length })
     this.pushMetric(rows, base, { dashboard: 'PICKING', metric: 'PICKING_PRODUCTIVITY', value: completedPicking.length, unit: 'TASKS' })
     this.pushMetric(rows, base, { dashboard: 'PICKING', metric: 'AVG_PICKING_MINUTES', value: pickingMinutes.length > 0 ? pickingMinutes.reduce((sum, value) => sum + value, 0) / pickingMinutes.length : 0, unit: 'MINUTES' })
-
-    const failedJobs = integrationJobs.filter((job) => ['FAILED', 'ERROR'].includes(String(job.status || '').toUpperCase()))
-    this.pushMetric(rows, base, { dashboard: 'INTEGRATIONS', metric: 'INTEGRATION_FAILURES', value: failedJobs.length + deadLetters.length })
-    this.pushMetric(rows, base, { dashboard: 'INTEGRATIONS', metric: 'DEAD_LETTERS_OPEN', value: deadLetters.length })
 
     const inactiveCutoff = new Date(periodEnd)
     inactiveCutoff.setDate(inactiveCutoff.getDate() - 30)

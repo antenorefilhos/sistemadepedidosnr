@@ -29,7 +29,6 @@ interface HealthReport {
     meilisearch: ServiceStatus
     solidcom: ServiceStatus
     paymentsGateway: ServiceStatus
-    queue: ServiceStatus
     storage: ServiceStatus
   }
 }
@@ -73,13 +72,12 @@ export class HealthController {
   }
 
   private async runChecks(): Promise<HealthReport> {
-    const [database, redis, meilisearch, solidcom, paymentsGateway, queue, storage] = await Promise.allSettled([
+    const [database, redis, meilisearch, solidcom, paymentsGateway, storage] = await Promise.allSettled([
       this.checkDatabase(),
       this.checkRedis(),
       this.checkMeilisearch(),
       this.checkSolidcom(),
       this.checkPaymentsGateway(),
-      this.checkQueue(),
       this.checkStorage(),
     ])
 
@@ -94,7 +92,6 @@ export class HealthController {
       meilisearch: resolve(meilisearch),
       solidcom: resolve(solidcom),
       paymentsGateway: resolve(paymentsGateway),
-      queue: resolve(queue),
       storage: resolve(storage),
     }
 
@@ -223,14 +220,6 @@ export class HealthController {
       }
       return { status: 'down', latencyMs: Date.now() - start, detail: 'payments gateway unreachable' }
     }
-  }
-
-  private async checkQueue(): Promise<ServiceStatus> {
-    const start = Date.now()
-    const pending = await this.prisma.outboxEvent.count({ where: { status: { in: ['PENDING', 'FAILED'] } } })
-    const deadLetters = await this.prisma.integrationDeadLetter.count({ where: { resolvedAt: null } })
-    const status: ServiceStatus['status'] = deadLetters > 0 ? 'degraded' : 'ok'
-    return { status, latencyMs: Date.now() - start, detail: `pending=${pending}; deadLetters=${deadLetters}` }
   }
 
   private async checkStorage(): Promise<ServiceStatus> {

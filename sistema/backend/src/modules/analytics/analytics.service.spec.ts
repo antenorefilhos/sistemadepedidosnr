@@ -20,12 +20,6 @@ const mockPrisma: any = {
   pickingTask: {
     findMany: jest.fn(),
   },
-  integrationJob: {
-    findMany: jest.fn(),
-  },
-  integrationDeadLetter: {
-    findMany: jest.fn(),
-  },
   customerProfile: {
     findMany: jest.fn(),
   },
@@ -136,8 +130,6 @@ describe('AnalyticsService BI foundation', () => {
       { id: 'task-1', status: 'PENDING', slaDueAt: new Date(Date.now() - 60_000), startedAt: null, completedAt: null },
       { id: 'task-2', status: 'COMPLETED', slaDueAt: null, startedAt: new Date('2026-05-27T10:00:00Z'), completedAt: new Date('2026-05-27T10:30:00Z') },
     ])
-    mockPrisma.integrationJob.findMany.mockResolvedValue([{ status: 'FAILED', type: 'STOCK_SYNC', error: 'timeout' }])
-    mockPrisma.integrationDeadLetter.findMany.mockResolvedValue([{ reason: 'max_attempts', lastError: 'timeout' }])
     mockPrisma.customerProfile.findMany.mockResolvedValue([
       { customerId: 'customer-1', ltv: 200, orderCount: 3, lastOrderAt: new Date('2026-03-01T00:00:00Z'), churnRiskScore: 80 },
     ])
@@ -158,7 +150,6 @@ describe('AnalyticsService BI foundation', () => {
       expect.objectContaining({ dashboard: 'FUNNEL', metric: 'NO_RESULT_SEARCHES', value: 1 }),
       expect.objectContaining({ dashboard: 'RUPTURE', metric: 'LOST_SALES_BY_PRODUCT', value: 20, productId: 'prod-1' }),
       expect.objectContaining({ dashboard: 'PICKING', metric: 'DELAYED_PICKING_TASKS', value: 1 }),
-      expect.objectContaining({ dashboard: 'INTEGRATIONS', metric: 'INTEGRATION_FAILURES', value: 2 }),
       expect.objectContaining({ dashboard: 'CRM', metric: 'INACTIVE_CUSTOMERS', value: 1 }),
       expect.objectContaining({ dashboard: 'PAYMENTS', metric: 'PAYMENT_FAILURES', value: 1 }),
     ]))

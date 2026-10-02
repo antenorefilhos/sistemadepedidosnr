@@ -1010,9 +1010,12 @@ desligado desde o cutover. Hoje:
 - Tela Integrações lista pedido sem DAV (botão Reenviar), cancelamento que não
   chegou ao ERP (Tentar de novo, `retryCancelSync`) e faturado que precisa de
   estorno no PDV.
-- **Não volte a enfileirar falha de pedido no outbox.** A fila, os jobs e as
-  dead letters continuam no código só porque três painéis contam as linhas;
-  nada os processa. Remoção pendente.
+- **A fila de outbox foi removida** (01/10/2026, migration
+  `20261001040000_drop_integration_outbox`): o despacho nunca enviou nada.
+  Tinha 9 eventos parados, 1 conector e nenhum job; cópia das tabelas em
+  `/root/backups/outbox-2026-10-01.sql` na VPS. Não recrie fila genérica:
+  reenvio é o `OrderSyncRetryScheduler`, e a observabilidade mede "pedido sem
+  DAV" direto em `orders`.
 
 Saúde do ERP: a AntenorApi usa certificado próprio. Chamar com `axios` puro
 dá `DEPTH_ZERO_SELF_SIGNED_CERT` e o ERP aparece "fora do ar" funcionando (o

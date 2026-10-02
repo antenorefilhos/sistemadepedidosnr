@@ -7,7 +7,6 @@ import { PaymentsService } from './payments.service'
 import { PaymentsWebhookService } from './payments-webhook.service'
 import { PaymentsLedgerService } from './payments-ledger.service'
 import { IntegrationModulesService } from './integration-modules.service'
-import { IntegrationOutboxService } from './integration-outbox.service'
 
 const mockPrismaService = {
   product: {
@@ -37,18 +36,6 @@ const mockPaymentsLedgerService = {
   registerChargeback: jest.fn(),
   reconcile: jest.fn(),
 }
-const mockIntegrationOutboxService = {
-  createConnector: jest.fn(),
-  listConnectors: jest.fn(),
-  enqueueEvent: jest.fn(),
-  listOutboxEvents: jest.fn(),
-  replayOutboxEvent: jest.fn(),
-  runDueOutboxBatch: jest.fn(),
-  listJobs: jest.fn(),
-  listDeadLetters: jest.fn(),
-  replayDeadLetter: jest.fn(),
-  getPanel: jest.fn(),
-}
 const mockIntegrationModulesService = {
   list: jest.fn().mockResolvedValue([]),
   setEnabled: jest.fn(),
@@ -68,7 +55,6 @@ describe('IntegrationsService', () => {
         { provide: PaymentsService, useValue: mockPaymentsService },
         { provide: PaymentsWebhookService, useValue: mockPaymentsWebhookService },
         { provide: PaymentsLedgerService, useValue: mockPaymentsLedgerService },
-        { provide: IntegrationOutboxService, useValue: mockIntegrationOutboxService },
         { provide: IntegrationModulesService, useValue: mockIntegrationModulesService },
       ],
     }).compile()

@@ -7,12 +7,10 @@ import { NfeService } from './nfe.service'
 import { PaymentsService } from './payments.service'
 import { PaymentsWebhookService, WebhookPayload } from './payments-webhook.service'
 import { PaymentsLedgerService } from './payments-ledger.service'
-import { IntegrationOutboxService } from './integration-outbox.service'
 import { FiscalDocumentContract, FiscalDocumentItemContract, FiscalDocumentPreviewResponse } from './dto/fiscal-document.dto'
 import { ChargeContract, ChargePreviewResponse } from './dto/charge-contract.dto'
 import { IntegrationModuleKey, IntegrationModulesService } from './integration-modules.service'
 import { CreatePaymentTransactionDto, CreateRefundDto, ReconcilePaymentsDto, RegisterChargebackDto } from './dto/payment-ledger.dto'
-import { CreateIntegrationConnectorDto, EnqueueOutboxEventDto } from './dto/integration-outbox.dto'
 import { requireEnv } from '../../common/require-env'
 
 type SyncFailureAction = 'SYNC_ORDER_FAILED' | 'SYNC_ORDER_RETRY_FAILED'
@@ -26,7 +24,6 @@ export class IntegrationsService {
     private payments: PaymentsService,
     private paymentsWebhook: PaymentsWebhookService,
     private paymentsLedger: PaymentsLedgerService,
-    private integrationOutbox: IntegrationOutboxService,
     private integrationModules: IntegrationModulesService,
   ) {}
 
@@ -432,52 +429,6 @@ export class IntegrationsService {
       providerRows: dto.providerRows,
       dryRun: dto.dryRun,
     })
-  }
-
-  async createIntegrationConnector(dto: CreateIntegrationConnectorDto) {
-    return this.integrationOutbox.createConnector(dto)
-  }
-
-  async listIntegrationConnectors(filters: { type?: string; provider?: string; status?: string }) {
-    return this.integrationOutbox.listConnectors(filters)
-  }
-
-  async enqueueIntegrationEvent(dto: EnqueueOutboxEventDto) {
-    return this.integrationOutbox.enqueueEvent(dto)
-  }
-
-  async listOutboxEvents(filters: {
-    status?: string
-    connectorId?: string
-    aggregate?: string
-    aggregateId?: string
-    limit?: number
-  }) {
-    return this.integrationOutbox.listOutboxEvents(filters)
-  }
-
-  async replayOutboxEvent(eventId: string) {
-    return this.integrationOutbox.replayOutboxEvent(eventId)
-  }
-
-  async runOutboxWorker(limit?: number) {
-    return this.integrationOutbox.runDueOutboxBatch(limit)
-  }
-
-  async listIntegrationJobs(filters: { status?: string; connectorId?: string; limit?: number }) {
-    return this.integrationOutbox.listJobs(filters)
-  }
-
-  async listIntegrationDeadLetters(filters: { connectorId?: string; unresolvedOnly?: boolean; limit?: number }) {
-    return this.integrationOutbox.listDeadLetters(filters)
-  }
-
-  async replayIntegrationDeadLetter(deadLetterId: string) {
-    return this.integrationOutbox.replayDeadLetter(deadLetterId)
-  }
-
-  async getIntegrationOperationsPanel() {
-    return this.integrationOutbox.getPanel()
   }
 
   private async logIntegrationEvent(

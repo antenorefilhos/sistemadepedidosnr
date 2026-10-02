@@ -127,24 +127,6 @@ export interface SolidcomSyncHistoryItem {
   errors: number
 }
 
-export interface SystemServiceStatus {
-  status: 'ok' | 'degraded' | 'down'
-  latencyMs?: number
-  detail?: string
-}
-
-export interface SystemHealthResponse {
-  status: 'ok' | 'degraded' | 'down'
-  timestamp: string
-  version: string
-  services: {
-    database: SystemServiceStatus
-    redis: SystemServiceStatus
-    meilisearch: SystemServiceStatus
-    solidcom: SystemServiceStatus
-  }
-}
-
 export interface SolidcomStatusResponse {
   integration: 'solidcom'
   enabled?: boolean
@@ -469,95 +451,6 @@ export interface PaymentReconciliationResponse {
     amountMismatch: Array<Record<string, unknown>>
     generatedAt: string
   }
-}
-
-export interface IntegrationConnectorItem {
-  id: string
-  tenantId: string
-  storeId: string
-  type: string
-  provider: string
-  status: string
-  config: Record<string, unknown>
-  createdAt: string
-  updatedAt: string
-  health?: {
-    pending: number
-    failed: number
-    dead: number
-    lastJobStatus?: string | null
-    lastJobAt?: string | null
-  }
-}
-
-export interface OutboxEventItem {
-  id: string
-  tenantId: string
-  storeId: string
-  connectorId?: string | null
-  aggregate: string
-  aggregateId: string
-  type: string
-  payload: Record<string, unknown>
-  status: string
-  attempts: number
-  maxAttempts: number
-  idempotencyKey?: string | null
-  nextRetryAt?: string | null
-  lockedAt?: string | null
-  processedAt?: string | null
-  lastError?: string | null
-  createdAt: string
-  updatedAt: string
-  connector?: IntegrationConnectorItem | null
-}
-
-export interface IntegrationJobItem {
-  id: string
-  connectorId: string
-  outboxEventId?: string | null
-  type: string
-  status: string
-  payload: Record<string, unknown>
-  result?: Record<string, unknown> | null
-  attempts: number
-  error?: string | null
-  idempotencyKey?: string | null
-  nextRetryAt?: string | null
-  startedAt?: string | null
-  finishedAt?: string | null
-  createdAt: string
-  updatedAt: string
-  connector?: IntegrationConnectorItem
-  attemptLogs?: Array<Record<string, unknown>>
-}
-
-export interface IntegrationDeadLetterItem {
-  id: string
-  connectorId?: string | null
-  outboxEventId?: string | null
-  jobId?: string | null
-  reason: string
-  payload: Record<string, unknown>
-  lastError?: string | null
-  replayCount: number
-  resolvedAt?: string | null
-  createdAt: string
-  updatedAt: string
-  connector?: IntegrationConnectorItem | null
-}
-
-export interface IntegrationListResponse<T> {
-  total: number
-  items: T[]
-}
-
-export interface IntegrationOperationsPanel {
-  connectors: number
-  outbox: Record<string, number>
-  jobs: Record<string, number>
-  deadLetters: number
-  recentAttempts: Array<Record<string, unknown>>
 }
 
 export interface FiscalDocumentHistoryResponse {
@@ -1226,36 +1119,9 @@ export const integrationsAPI = {
   overview: (days = 30) => api.get<IntegrationsOverview>('/integrations/overview', { params: { days } }),
   resendOrder: (orderId: string) => api.post<{ retried: boolean; success?: boolean; reason?: string }>(`/integrations/orders/${orderId}/resend`),
   retryCancel: (orderId: string) => api.post<{ retried: boolean; success?: boolean; reason?: string }>(`/integrations/orders/${orderId}/cancel-retry`),
-  getSystemHealth: () => api.get<SystemHealthResponse>('/health/detail', { params: { t: Date.now() } }),
   getModules: () => api.get<{ items: IntegrationModuleDescriptor[] }>('/integrations/modules'),
   setModuleEnabled: (key: IntegrationModuleDescriptor['key'], enabled: boolean) =>
     api.patch<IntegrationModuleDescriptor>(`/integrations/modules/${key}`, { enabled }),
-  getOperationsPanel: () => api.get<IntegrationOperationsPanel>('/integrations/operations/panel'),
-  listConnectors: (params?: { type?: string; provider?: string; status?: string }) =>
-    api.get<IntegrationListResponse<IntegrationConnectorItem>>('/integrations/connectors', { params }),
-  createConnector: (data: { type: string; provider: string; status?: string; config?: Record<string, unknown> }) =>
-    api.post<IntegrationConnectorItem>('/integrations/connectors', data),
-  listOutboxEvents: (params?: { status?: string; connectorId?: string; aggregate?: string; aggregateId?: string; limit?: number }) =>
-    api.get<IntegrationListResponse<OutboxEventItem>>('/integrations/outbox/events', { params }),
-  enqueueOutboxEvent: (data: {
-    connectorId?: string
-    connectorType?: string
-    provider?: string
-    aggregate: string
-    aggregateId: string
-    type: string
-    payload: Record<string, unknown>
-    idempotencyKey?: string
-    maxAttempts?: number
-  }) => api.post<{ event: OutboxEventItem; duplicate: boolean }>('/integrations/outbox/events', data),
-  replayOutboxEvent: (eventId: string) => api.post<OutboxEventItem>(`/integrations/outbox/events/${eventId}/replay`),
-  runOutboxWorker: (limit = 10) => api.post('/integrations/outbox/worker/run', { limit }),
-  listIntegrationJobs: (params?: { status?: string; connectorId?: string; limit?: number }) =>
-    api.get<IntegrationListResponse<IntegrationJobItem>>('/integrations/jobs', { params }),
-  listDeadLetters: (params?: { connectorId?: string; unresolvedOnly?: boolean; limit?: number }) =>
-    api.get<IntegrationListResponse<IntegrationDeadLetterItem>>('/integrations/dead-letters', { params }),
-  replayDeadLetter: (deadLetterId: string) =>
-    api.post<{ deadLetterId: string; replayEventId: string }>(`/integrations/dead-letters/${deadLetterId}/replay`),
   getSolidcomStatus: () => api.get<SolidcomStatusResponse>('/integrations/solidcom/status'),
   getOrderSyncFailures: (params?: {
     limit?: number

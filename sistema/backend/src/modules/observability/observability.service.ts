@@ -11,19 +11,16 @@ export class ObservabilityService {
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
+    const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000)
     const [
-      pendingOutbox,
-      failedJobs,
-      openDeadLetters,
       unsyncedOrders,
       failedWebhooks,
       expiredReservations,
       pendingPayments,
     ] = await Promise.all([
-      this.prisma.outboxEvent.count({ where: { status: { in: ['PENDING', 'FAILED'] } } }),
-      this.prisma.integrationJob.count({ where: { status: { in: ['FAILED', 'ERROR'] }, createdAt: { gte: oneDayAgo } } }),
-      this.prisma.integrationDeadLetter.count({ where: { resolvedAt: null } }),
-      this.prisma.outboxEvent.count({ where: { aggregate: 'ORDER', status: { in: ['PENDING', 'FAILED'] }, createdAt: { lt: oneHourAgo } } }),
+      // Pedido valido sem DAV ha mais de 1h (01/10/2026): media a fila de
+      // outbox, que nunca recebeu pedido. Mesma regra do OrderSyncRetryScheduler.
+      this.prisma.order.count({ where: { erpDav: null, status: { notIn: ['CANCELLED', 'REFUNDED'] }, createdAt: { gte: twoDaysAgo, lt: oneHourAgo } } }),
       this.prisma.webhookDelivery.count({ where: { status: { in: ['FAILED', 'DEAD'] }, createdAt: { gte: oneDayAgo } } }),
       this.prisma.stockReservation.count({ where: { status: 'ACTIVE', expiresAt: { lt: now } } }),
       this.prisma.paymentTransaction.count({ where: { status: { in: ['PENDING', 'AUTHORIZED'] }, createdAt: { lt: oneHourAgo } } }),
@@ -32,11 +29,6 @@ export class ObservabilityService {
     return {
       timestamp: now.toISOString(),
       http: MetricsRegistry.httpSummary(),
-      queues: {
-        accumulated: pendingOutbox,
-        failedJobs,
-        deadLettersOpen: openDeadLetters,
-      },
       orders: {
         withoutErpSyncAboveSla: unsyncedOrders,
       },
@@ -60,9 +52,7 @@ export class ObservabilityService {
       timestamp: metrics.timestamp,
       summary: {
         httpRequests: metrics.http.totalRequests,
-        queueAccumulated: metrics.queues.accumulated,
-        failedJobs: metrics.queues.failedJobs,
-        deadLettersOpen: metrics.queues.deadLettersOpen,
+        ordersWithoutErpSync: metrics.orders.withoutErpSyncAboveSla,
         failedWebhooks: metrics.webhooks.failed,
         pendingPaymentsAboveSla: metrics.payments.pendingAboveSla,
       },
@@ -84,11 +74,11 @@ export class ObservabilityService {
       runbooks: [
         {
           key: 'erp-failure',
-          trigger: 'Falha de ERP, outbox acumulado ou pedido sem sync acima do SLA',
+          trigger: 'Pedido sem DAV acima do SLA (o ERP nao recebeu)',
           firstActions: [
-            'Abrir /api/integrations/operations/panel',
-            'Verificar dead letters e ultimo erro do conector Solidcom',
-            'Reprocessar outbox/dead-letter somente apos confirmar idempotencia',
+            'Abrir a tela Integracoes do admin: pedidos sem DAV, com o erro de cada um',
+            'Conferir se a AntenorApi esta no ar (Integracoes > ERP)',
+            'Reenviar pela tela; o envio e idempotente por cdEcomPedido (devolve o mesmo DAV)',
           ],
         },
         {
@@ -132,8 +122,6 @@ export class ObservabilityService {
 
     if (hasHigh5xx) alerts.push({ key: 'http-5xx-rate', severity: 'critical', message: 'Erro 5xx acima do limite', value: 1 })
     if (hasHighCheckout4xx) alerts.push({ key: 'checkout-error-rate', severity: 'warning', message: 'Checkout error rate alto', value: 1 })
-    if (metrics.queues.accumulated > 100) alerts.push({ key: 'queue-accumulated', severity: 'warning', message: 'Fila acumulada acima do limite', value: metrics.queues.accumulated })
-    if (metrics.queues.failedJobs > 0 || metrics.queues.deadLettersOpen > 0) alerts.push({ key: 'integration-failing', severity: 'critical', message: 'Integracao falhando ou DLQ aberta', value: metrics.queues.failedJobs + metrics.queues.deadLettersOpen })
     if (metrics.orders.withoutErpSyncAboveSla > 0) alerts.push({ key: 'order-unsynced-sla', severity: 'critical', message: 'Pedido sem sync ERP acima do SLA', value: metrics.orders.withoutErpSyncAboveSla })
     if (metrics.payments.pendingAboveSla > 0) alerts.push({ key: 'payment-pending-sla', severity: 'warning', message: 'Pagamento pendente acima do SLA', value: metrics.payments.pendingAboveSla })
     if (metrics.inventory.expiredReservations > 0) alerts.push({ key: 'expired-reservations', severity: 'warning', message: 'Reservas expiradas ainda ativas', value: metrics.inventory.expiredReservations })

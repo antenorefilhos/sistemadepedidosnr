@@ -14,7 +14,6 @@ import { NfeService } from './nfe.service'
 import { PaymentsService } from './payments.service'
 import { PaymentsWebhookService } from './payments-webhook.service'
 import { PaymentsLedgerService } from './payments-ledger.service'
-import { IntegrationOutboxService } from './integration-outbox.service'
 import { WebhookGuard } from './webhook.guard'
 import { RetryService } from '../../common/services/retry.service'
 import { IntegrationModulesService } from './integration-modules.service'
@@ -41,7 +40,6 @@ import { ProductsModule } from '../products/products.module'
     PaymentsService,
     PaymentsWebhookService,
     PaymentsLedgerService,
-    IntegrationOutboxService,
     WebhookGuard,
     OrderOrchestrationService,
     RetryService,
@@ -56,7 +54,6 @@ import { ProductsModule } from '../products/products.module'
     PaymentsService,
     PaymentsWebhookService,
     PaymentsLedgerService,
-    IntegrationOutboxService,
     WebhookGuard,
     OrderOrchestrationService,
     RetryService,

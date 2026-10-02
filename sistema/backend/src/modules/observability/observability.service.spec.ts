@@ -2,9 +2,7 @@ import { MetricsRegistry } from '../../common/observability/metrics-registry'
 import { ObservabilityService } from './observability.service'
 
 const mockPrisma: any = {
-  outboxEvent: { count: jest.fn() },
-  integrationJob: { count: jest.fn() },
-  integrationDeadLetter: { count: jest.fn() },
+  order: { count: jest.fn() },
   webhookDelivery: { count: jest.fn() },
   stockReservation: { count: jest.fn() },
   paymentTransaction: { count: jest.fn() },
@@ -24,9 +22,7 @@ describe('ObservabilityService', () => {
     MetricsRegistry.observeHttp({ method: 'GET', route: '/products', status: 200, durationMs: 260, timestamp: Date.now() })
     MetricsRegistry.observeHttp({ method: 'POST', route: '/checkout/sessions', status: 422, durationMs: 900, timestamp: Date.now() })
 
-    mockPrisma.outboxEvent.count.mockResolvedValue(0)
-    mockPrisma.integrationJob.count.mockResolvedValue(0)
-    mockPrisma.integrationDeadLetter.count.mockResolvedValue(0)
+    mockPrisma.order.count.mockResolvedValue(0)
     mockPrisma.webhookDelivery.count.mockResolvedValue(0)
     mockPrisma.stockReservation.count.mockResolvedValue(0)
     mockPrisma.paymentTransaction.count.mockResolvedValue(0)
@@ -39,12 +35,8 @@ describe('ObservabilityService', () => {
     ]))
   })
 
-  it('raises alerts for failing integrations, unsynced orders and expired reservations', async () => {
-    mockPrisma.outboxEvent.count
-      .mockResolvedValueOnce(2)
-      .mockResolvedValueOnce(1)
-    mockPrisma.integrationJob.count.mockResolvedValue(1)
-    mockPrisma.integrationDeadLetter.count.mockResolvedValue(1)
+  it('raises alerts for unsynced orders and expired reservations', async () => {
+    mockPrisma.order.count.mockResolvedValue(1)
     mockPrisma.webhookDelivery.count.mockResolvedValue(1)
     mockPrisma.stockReservation.count.mockResolvedValue(3)
     mockPrisma.paymentTransaction.count.mockResolvedValue(1)
@@ -52,7 +44,6 @@ describe('ObservabilityService', () => {
     const result = await service.checkAlerts()
 
     expect(result.alerts).toEqual(expect.arrayContaining([
-      expect.objectContaining({ key: 'integration-failing', severity: 'critical' }),
       expect.objectContaining({ key: 'order-unsynced-sla', severity: 'critical' }),
       expect.objectContaining({ key: 'expired-reservations', severity: 'warning' }),
       expect.objectContaining({ key: 'payment-pending-sla', severity: 'warning' }),

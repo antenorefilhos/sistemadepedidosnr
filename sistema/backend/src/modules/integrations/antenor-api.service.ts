@@ -467,7 +467,7 @@ export class AntenorApiService {
    * cutover Solidcom -> AntenorApi).
    *
    * Idempotente por `cdEcomPedido` do lado deles: reenviar o mesmo pedido
-   * (retry de rede, worker de outbox) nao duplica o DAV, devolve o mesmo
+   * (retry de rede, reenvio automatico) nao duplica o DAV, devolve o mesmo
    * numero com `idempotente: true`. Espelha o `numero` que ja usamos pro
    * Solidcom (`toExternalOrderNumber`) -- mesmo identificador nos dois
    * conectores, o que mantem cancelamento/webhook funcionando sem trocar de
