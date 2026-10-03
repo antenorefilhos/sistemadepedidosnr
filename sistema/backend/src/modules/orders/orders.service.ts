@@ -694,7 +694,13 @@ export class OrdersService {
     const order = await this.prisma.order.findUnique({ where: { id }, select: { status: true } })
     if (!order) throw new NotFoundException('Pedido nao encontrado.')
     const next = finishStatusAfter(order.status)
-    if (!next) throw new BadRequestException('Este pedido ainda não pode ser finalizado: ele precisa passar pelo caixa primeiro.')
+    if (!next) {
+      throw new BadRequestException(
+        ['COMPLETED', 'PARTIALLY_CANCELLED', 'CANCELLED', 'REFUNDED'].includes(order.status)
+          ? 'Este pedido já foi encerrado.'
+          : 'Este pedido ainda não pode ser finalizado: ele precisa passar pelo caixa primeiro.',
+      )
+    }
     return this.updateStatus(id, next, undefined, actor)
   }
 
