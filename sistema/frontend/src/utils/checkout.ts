@@ -65,13 +65,14 @@ export function getCheckoutBlockerMessage(
     const detalhe = indisponiveis
       .map((item) => {
         const nome = nomePorProduto?.(item.productId) || 'Item do carrinho'
+        if (item.message) return `${nome}: ${item.message}`
         return item.available > 0
-          ? `${nome} (voce pediu ${item.requested}, temos ${item.available})`
+          ? `${nome} (você pediu ${item.requested}, temos ${item.available})`
           : `${nome} (esgotado)`
       })
       .join('; ')
     return `Revise o carrinho para continuar: ${detalhe}.`
   }
-  if (quote.delivery.outOfArea) return 'Endereco fora da zona de entrega cadastrada.'
-  return quote.blockers.join('; ') || 'Nao foi possivel confirmar o checkout agora.'
+  if (quote.delivery.outOfArea) return 'Endereço fora da zona de entrega cadastrada.'
+  return quote.blockers.join('; ') || 'Não foi possível confirmar o pedido agora.'
 }

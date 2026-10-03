@@ -1349,10 +1349,10 @@ export default function Checkout() {
                     )}
                     {checkoutQuote?.stock.unavailableItems.length ? (
                       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                        <p className="font-semibold mb-1">Itens indisponiveis</p>
+                        <p className="font-semibold mb-1">Revise antes de confirmar</p>
                         {checkoutQuote.stock.unavailableItems.map((item) => (
                           <p key={item.productId}>
-                            {cart.find((cartItem) => cartItem.productId === item.productId)?.product?.name || item.productId}: solicitado {item.requested}, disponivel {item.available}
+                            {cart.find((cartItem) => cartItem.productId === item.productId)?.product?.name || 'Item do carrinho'}: {item.message || 'saiu do site. Tire do carrinho para continuar.'}
                           </p>
                         ))}
                       </div>

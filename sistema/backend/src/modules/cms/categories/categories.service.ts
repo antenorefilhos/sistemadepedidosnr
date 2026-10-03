@@ -96,6 +96,7 @@ export const STOREFRONT_PRODUCT_SELECT = {
   category: true,
   origin: true,
   active: true,
+  saleWeekdays: true,
 } as const;
 
 export type ShelfProduct = {
@@ -116,6 +117,7 @@ export type ShelfProduct = {
   category: string;
   origin: string | null;
   active: boolean;
+  saleWeekdays: number[];
 };
 
 /** Mesma mascara de nome que /products aplica — sem isso a vitrine mostra o nome cru do ERP. */

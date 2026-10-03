@@ -1,4 +1,5 @@
 import type { Product } from '../types'
+import { isSoldOnWeekday, normalizeSaleWeekdays, saleDaysLabel, saleDaysShort } from './saleDays'
 import {
   formatPortionFromStep,
   getFractionDisplayUnit,
@@ -33,6 +34,12 @@ export type ProductCardViewModel = {
   outOfStock: boolean
   /** Motivo do `outOfStock`: cadastro sem porcao, nao falta de estoque. */
   missingFractionStep: boolean
+  /** Motivo do `outOfStock`: hoje nao e dia de venda do produto (ex.: pizza so de quinta a domingo). */
+  offDay: boolean
+  /** "de quinta a domingo" quando o produto tem dias de venda; vazio quando vende todo dia. */
+  saleDaysText: string
+  /** Selo sobre a foto quando nao da para comprar: "Indisponível" ou "Só qui a dom". */
+  unavailableLabel: string
 }
 
 export function parseFractionDetails(alternativeDescription?: string): FractionDetails {
@@ -75,7 +82,7 @@ export function parseFractionDetails(alternativeDescription?: string): FractionD
   }
 }
 
-export function getProductCardViewModel(product: Product): ProductCardViewModel {
+export function getProductCardViewModel(product: Product, saleWeekday?: number): ProductCardViewModel {
   const unitLabel = getFractionDisplayUnit(product)
   const fractionDetails = parseFractionDetails(product.alternativeDescription)
   const hasPromotionalPrice =
@@ -85,6 +92,7 @@ export function getProductCardViewModel(product: Product): ProductCardViewModel 
 
   const step = getProductStep(product)
   const missingFractionStep = product.isFractional && !hasConfiguredFractionStep(product)
+  const offDay = saleWeekday !== undefined && !isSoldOnWeekday(product, saleWeekday)
   const pricing = getProductPricePresentation(product)
   const currentPrice = pricing.displayPrice
   const originalPrice = hasPromotionalPrice ? product.price * step : null
@@ -149,9 +157,12 @@ export function getProductCardViewModel(product: Product): ProductCardViewModel 
     ctaLabel: missingFractionStep ? 'Indisponível' : (product.isFractional ? 'Adicionar porção' : 'Adicionar'),
     isFractional: Boolean(product.isFractional),
     isOnSale: hasPromotionalPrice,
-    outOfStock: missingFractionStep || (product.syncOption !== 'SEMPRE' && stockValue <= 0),
+    outOfStock: missingFractionStep || (product.syncOption !== 'SEMPRE' && stockValue <= 0) || offDay,
     /** Distingue o motivo de `outOfStock`: cadastro incompleto, nao falta de
      *  estoque. Exposto para a UI nao ter que comparar o texto do `ctaLabel`. */
     missingFractionStep: Boolean(missingFractionStep),
+    offDay,
+    saleDaysText: normalizeSaleWeekdays(product.saleWeekdays).length ? saleDaysLabel(product.saleWeekdays) : '',
+    unavailableLabel: offDay ? `Só ${saleDaysShort(product.saleWeekdays)}` : 'Indisponível',
   }
 }

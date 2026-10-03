@@ -213,7 +213,34 @@ describe('CheckoutService', () => {
     })
 
     expect(result.canConfirm).toBe(false)
-    expect(result.stock.unavailableItems).toEqual([{ productId: 'prod-1', requested: 2, available: 0 }])
+    expect(result.stock.unavailableItems).toEqual([
+      { productId: 'prod-1', requested: 2, available: 0, reason: 'INDISPONIVEL', message: 'Saiu do site. Tire do carrinho para continuar.' },
+    ])
+  })
+
+  // 03/10/2026: pizza com assadeira so de quinta a domingo. Vale o dia da entrega.
+  it('produto fora do dia de venda bloqueia pelo dia agendado e libera no dia certo', async () => {
+    const pizza = { id: 'prod-1', syncOption: 'SEMPRE', stock: -5, active: true, saleWeekdays: [0, 4, 5, 6] }
+    mockInventoryService.getAvailability.mockResolvedValue({ tenantId: 'tenant_default', storeId: 'store_default', items: [{ productId: 'prod-1', available: -5 }] })
+
+    mockPrisma.product.findMany.mockResolvedValueOnce([pizza])
+    const quarta = await service.quoteSession(undefined, 'session-1', {
+      delivery: { cep: '01001000', slotId: 'slot-1' },
+      scheduledFor: '2026-10-07T15:00:00-03:00',
+    })
+    expect(quarta.canConfirm).toBe(false)
+    expect(quarta.blockers).toContain('itens fora do dia de venda')
+    expect(quarta.stock.unavailableItems[0]).toEqual(expect.objectContaining({
+      reason: 'FORA_DO_DIA',
+      message: 'Vendido só de quinta a domingo. Agende para um desses dias ou tire do carrinho.',
+    }))
+
+    mockPrisma.product.findMany.mockResolvedValueOnce([pizza])
+    const sabado = await service.quoteSession(undefined, 'session-1', {
+      delivery: { cep: '01001000', slotId: 'slot-1' },
+      scheduledFor: '2026-10-10T15:00:00-03:00',
+    })
+    expect(sabado.stock.unavailableItems).toEqual([])
   })
 
   it('SEMPRE com estoque negativo continua vendavel', async () => {

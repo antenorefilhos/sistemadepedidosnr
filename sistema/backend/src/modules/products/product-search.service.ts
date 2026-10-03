@@ -386,6 +386,7 @@ export class ProductSearchService implements OnModuleInit {
     classification02: string | null
     classification03: string | null
     classification04: string | null
+    saleWeekdays?: number[]
   }, popularityScore: number) {
     return {
       id: product.id,
@@ -414,6 +415,7 @@ export class ProductSearchService implements OnModuleInit {
       classification02: product.classification02,
       classification03: product.classification03,
       classification04: product.classification04,
+      saleWeekdays: product.saleWeekdays || [],
       availability: this.resolveAvailability(product),
       popularityScore,
     }

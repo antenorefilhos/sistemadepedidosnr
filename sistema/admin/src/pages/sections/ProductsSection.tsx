@@ -10,6 +10,7 @@ import {
   type CatalogResponse,
   type CatalogTab,
 } from '../../services/api'
+import { normalizeSaleWeekdays, saleDaysLabel, saleDaysShort } from '../../utils/saleDays'
 
 // Produtos (refeita em 29/09/2026 com o Jonathan). O ERP (AntenorApi) e a fonte
 // de preco, estoque e cadastro -- o que se edita aqui e como o produto aparece
@@ -56,6 +57,7 @@ function Status({ p }: { p: CatalogProduct }) {
     <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
       {p.status === 'ON' ? (p.siteVisibility === 'SEMPRE' ? 'No site · sempre à venda' : 'No site') : p.reason}
+      {p.saleWeekdays?.length ? ` · só ${saleDaysShort(p.saleWeekdays)}` : ''}
     </span>
   )
 }
@@ -481,6 +483,8 @@ function Photo({ ean, slot, name }: { ean: string; slot: '1' | '2'; name: string
 
 type Visibility = 'ERP' | 'SEMPRE' | 'OCULTO'
 
+const WEEK: Array<[number, string]> = [[0, 'Dom'], [1, 'Seg'], [2, 'Ter'], [3, 'Qua'], [4, 'Qui'], [5, 'Sex'], [6, 'Sáb']]
+
 function ProductPanel({
   product: p,
   categories,
@@ -500,6 +504,7 @@ function ProductPanel({
     videoUrl: p.videoUrl || '',
     manualIsFractional: Boolean(p.manualIsFractional),
     manualFractionStep: p.manualFractionStep != null ? String(p.manualFractionStep) : '',
+    saleWeekdays: normalizeSaleWeekdays(p.saleWeekdays),
   }
   const [form, setForm] = useState(initial)
   const [saving, setSaving] = useState(false)
@@ -521,7 +526,8 @@ function ProductPanel({
     setSaving(true)
     setError('')
     try {
-      const site: { visibility?: Visibility; categoryId?: string | null; displayName?: string | null } = {}
+      const site: { visibility?: Visibility; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[] } = {}
+      if (JSON.stringify(form.saleWeekdays) !== JSON.stringify(initial.saleWeekdays)) site.saleWeekdays = form.saleWeekdays
       if (form.visibility !== initial.visibility) site.visibility = form.visibility
       if (form.categoryId !== initial.categoryId) site.categoryId = form.categoryId || null
       if (form.displayName.trim() !== initial.displayName) site.displayName = form.displayName.trim() || null
@@ -645,6 +651,40 @@ function ProductPanel({
               />
               <span className="mt-1 block text-gray-400">Vazio usa a descrição e-commerce do ERP. Corrigir no ERP vale para todos os canais.</span>
             </label>
+
+            <div className="mt-4">
+              <span className="text-xs text-gray-500">Dias de venda</span>
+              <div className="mt-1 grid grid-cols-7 gap-1">
+                {WEEK.map(([d, label]) => {
+                  const on = form.saleWeekdays.length === 0 || form.saleWeekdays.includes(d)
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => {
+                        const current = form.saleWeekdays.length ? form.saleWeekdays : [0, 1, 2, 3, 4, 5, 6]
+                        const next = on ? current.filter((x) => x !== d) : [...current, d]
+                        if (next.length) set({ saleWeekdays: normalizeSaleWeekdays(next) })
+                      }}
+                      className={`h-9 rounded-lg text-sm ${on ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-1.5 text-xs text-gray-500">
+                {form.saleWeekdays.length === 0
+                  ? 'Vende todos os dias. Toque num dia para tirar.'
+                  : `Só pode ser pedido para entrega ou retirada ${saleDaysLabel(form.saleWeekdays)}. Nos outros dias aparece no site como "Só ${saleDaysShort(form.saleWeekdays)}", sem botão de comprar. Pedido feito depois do fechamento vale para o dia seguinte.`}
+                {form.saleWeekdays.length > 0 && (
+                  <button type="button" onClick={() => set({ saleWeekdays: [] })} className="ml-1 text-gray-900 underline underline-offset-2">
+                    Todos os dias
+                  </button>
+                )}
+              </p>
+            </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block text-xs text-gray-500">

@@ -24,7 +24,7 @@ describe('getCheckoutBlockerMessage', () => {
       nome,
     )
     expect(msg).toContain('VINHO ROSE ADOBE 750ml')
-    expect(msg).toContain('voce pediu 6')
+    expect(msg).toContain('você pediu 6')
     expect(msg).toContain('temos 3')
   })
 

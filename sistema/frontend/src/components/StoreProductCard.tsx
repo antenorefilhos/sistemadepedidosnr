@@ -8,6 +8,7 @@ import type { Product } from '../types'
 import { productPath } from '../utils/productUrl'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { getProductCardViewModel } from '../utils/productCard'
+import { useSaleWeekday } from '../hooks/useDeliveryOperation'
 import { formatProductQuantity, getProductPricePresentation } from '../utils/productPricing'
 import { trackEvent } from '../utils/analytics'
 import { Badge } from './ui/badge'
@@ -44,7 +45,8 @@ export function StoreProductCard({
   const imageCandidates = [`/thumbs/products/${product.ean}.webp`, `${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`]
     .map((url) => `${url}?v=${imageVersion}`)
   const imageUrl = imageCandidates[imageIndex]
-  const viewModel = useMemo(() => getProductCardViewModel(product), [product])
+  const saleWeekday = useSaleWeekday()
+  const viewModel = useMemo(() => getProductCardViewModel(product, saleWeekday), [product, saleWeekday])
   const pricePresentation = useMemo(() => getProductPricePresentation(product), [product])
   const displayQuantity = useMemo(() => {
     if (!product.isFractional) return `${quantity}`
@@ -156,7 +158,7 @@ export function StoreProductCard({
         {viewModel.outOfStock && (
           <div className="absolute inset-0 flex items-end justify-center bg-black/10 pb-3 pointer-events-none">
             <span className="whitespace-nowrap rounded-md border border-white/45 bg-white/45 px-3 py-1 text-label font-bold uppercase tracking-[0.04em] text-[#3f3f46] backdrop-blur-md">
-              Indisponível
+              {viewModel.unavailableLabel}
             </span>
           </div>
         )}

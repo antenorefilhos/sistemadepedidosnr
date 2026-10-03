@@ -25,6 +25,8 @@ import { Button, buttonVariants } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
 import { Input } from '../components/ui/input'
 import { surfaceClasses } from '../components/ui/surface'
+import { useSaleWeekday } from '../hooks/useDeliveryOperation'
+import { isSoldOnWeekday, saleDaysLabel } from '../utils/saleDays'
 
 function cleanFractionText(text?: string) {
   const raw = String(text || '').trim()
@@ -32,20 +34,22 @@ function cleanFractionText(text?: string) {
   return raw.replace(/^\s*fracionamento\s*:\s*/i, '').trim()
 }
 
-function getAvailabilityLabel(product?: Product) {
+function getAvailabilityLabel(product: Product | undefined, saleWeekday: number) {
   if (!product?.active || product?.syncOption === 'NUNCA') return { label: 'Indisponível', tone: 'border-red-100 bg-red-50 text-red-700' }
+  if (!isSoldOnWeekday(product, saleWeekday)) return { label: `Só ${saleDaysLabel(product.saleWeekdays)}`, tone: 'border-amber-100 bg-amber-50 text-amber-800' }
   if (product?.syncOption === 'ESTOQUE' && typeof product.stock === 'number' && product.stock <= 0) {
     return { label: 'Sem estoque', tone: 'border-red-100 bg-red-50 text-red-700' }
   }
   if (product?.syncOption === 'ESTOQUE' && typeof product.stock === 'number' && product.stock <= 3) {
     return { label: 'Poucas unidades', tone: 'border-amber-100 bg-amber-50 text-amber-700' }
   }
-  return { label: 'Disponivel', tone: 'border-emerald-100 bg-emerald-50 text-emerald-700' }
+  return { label: 'Disponível', tone: 'border-emerald-100 bg-emerald-50 text-emerald-700' }
 }
 
 export default function Cart() {
   const { user } = useAuth()
   const zoneFreeAbove = useKnownZoneFreeAbove()
+  const saleWeekday = useSaleWeekday()
   const { openModal: openDeliveryModal } = useDeliveryVerificationModal()
   const { cart, removeItem, updateQuantity, updateAllowSubstitution, clear, total, subtotal, discount, couponCode, applyCoupon, removeCoupon } = useCart()
   const nearExpiryIds = useNearExpiryProductIds()
@@ -219,7 +223,7 @@ export default function Cart() {
                 const pricePresentation = item.product ? getProductPricePresentation(item.product) : null
                 const subtotal = item.product ? getProductLineTotal(item.product, item.quantity) : 0
                 const imageUrl = item.product?.ean ? `/thumbs/products/${item.product.ean}.webp?v=3` : ''
-                const availability = getAvailabilityLabel(item.product)
+                const availability = getAvailabilityLabel(item.product, saleWeekday)
 
                 return (
                   <article

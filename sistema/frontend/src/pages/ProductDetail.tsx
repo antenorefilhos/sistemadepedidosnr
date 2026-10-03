@@ -7,6 +7,7 @@ import type { Product } from '../types'
 import { formatProductTitle } from '../utils/format'
 import { getProductPricePresentation, formatProductQuantity } from '../utils/productPricing'
 import { getProductCardViewModel } from '../utils/productCard'
+import { useSaleWeekday } from '../hooks/useDeliveryOperation'
 import { trackEvent } from '../utils/analytics'
 import { SEO, StructuredData } from '../components/SEO'
 import { getProductDetailSections } from '../utils/productDetailSchema'
@@ -494,7 +495,8 @@ function ProductPurchasePanel({ product }: { product: Product }) {
   const { cart, addItem, updateQuantity, removeItem } = useCart()
   const [unitMode, setUnitMode] = useState<'unit' | 'weight'>('unit')
 
-  const viewModel = useMemo(() => getProductCardViewModel(product), [product])
+  const saleWeekday = useSaleWeekday()
+  const viewModel = useMemo(() => getProductCardViewModel(product, saleWeekday), [product, saleWeekday])
   const pricing = useMemo(() => getProductPricePresentation(product), [product])
   const cartItem = cart.find((item) => item.productId === product.id)
   const quantity = cartItem?.quantity || 0
@@ -535,16 +537,24 @@ function ProductPurchasePanel({ product }: { product: Product }) {
     return (
       <div className="rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] px-4 py-4 text-center">
         <p className="text-sm font-semibold text-[#8a6a3a]">
-          {viewModel.missingFractionStep
-            ? 'Produto temporariamente indisponível'
-            : 'Sem estoque no momento'}
+          {viewModel.offDay
+            ? `Vendido só ${viewModel.saleDaysText}`
+            : viewModel.missingFractionStep
+              ? 'Produto temporariamente indisponível'
+              : 'Sem estoque no momento'}
         </p>
+        {viewModel.offDay && <p className="mt-1 text-xs text-[#8a6a3a]">Volte para pedir num desses dias.</p>}
       </div>
     )
   }
 
   return (
     <div className="space-y-3">
+      {viewModel.saleDaysText && (
+        <p className="rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] px-3 py-2 text-xs font-medium text-[#8a6a3a]">
+          Vendido só {viewModel.saleDaysText}.
+        </p>
+      )}
       {product.isFractional && (
         <div className="flex gap-2">
           <Button

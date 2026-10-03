@@ -431,6 +431,7 @@ export class RecommendationsService {
       isFractional: true,
       fractionStep: true,
       active: true,
+      saleWeekdays: true,
     } satisfies Prisma.ProductSelect
   }
 

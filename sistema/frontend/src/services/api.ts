@@ -84,7 +84,7 @@ export interface CheckoutQuoteResponse {
   }
   stock: {
     allAvailable: boolean
-    unavailableItems: Array<{ productId: string; requested: number; available: number }>
+    unavailableItems: Array<{ productId: string; requested: number; available: number; reason?: 'FORA_DO_DIA' | 'INDISPONIVEL'; message?: string }>
     items: Array<{
       productId: string
       requested: number

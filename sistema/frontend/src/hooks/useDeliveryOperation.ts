@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getDeliveryOperationStatusWithConfig, parseHoursConfig, type DeliveryOperationStatus, type HoursConfig } from '../utils/deliveryOperation'
+import { getDeliveryOperationStatusWithConfig, getFulfillmentWeekday, parseHoursConfig, type DeliveryOperationStatus, type HoursConfig } from '../utils/deliveryOperation'
 import { useBrand } from './useBrand'
 
 /** Horario de entrega configurado no admin (semana + datas especiais). */
 export function useHoursConfig(): HoursConfig {
   const { businessHours, specialDates } = useBrand()
   return useMemo(() => parseHoursConfig(businessHours, specialDates), [businessHours, specialDates])
+}
+
+/** Dia da semana que vale para os dias de venda do produto: o da entrega de um pedido feito agora. */
+export function useSaleWeekday(): number {
+  return getFulfillmentWeekday(useHoursConfig())
 }
 
 export function useDeliveryOperation(): DeliveryOperationStatus {

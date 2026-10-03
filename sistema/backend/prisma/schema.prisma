@@ -475,6 +475,9 @@ model Product {
   erpActive Boolean  @default(true)
   erpSyncOption String?
   siteVisibility String? // null = segue o ERP | OCULTO | SEMPRE
+  // Dias da semana em que o produto e vendido (0 = domingo ... 6 = sabado);
+  // vazio = todos. Vale o dia da entrega/retirada. Ver common/sale-days.ts.
+  saleWeekdays Int[] @default([])
   categoryOverrideId String? // categoria do site escolhida no admin (Category.id, raiz)
   // 22/09/2026: marcado no primeiro sync COMPLETO em que o produto nao veio
   // na resposta do ERP; limpo (null) assim que ele reaparecer. Deactivacao

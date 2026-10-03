@@ -20,6 +20,8 @@ export interface Product {
   category?: string
   origin?: string
   active: boolean
+  /** Dias da semana em que e vendido (0 = domingo); vazio/ausente = todos. */
+  saleWeekdays?: number[]
 }
 
 export interface Customer {

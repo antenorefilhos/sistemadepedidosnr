@@ -85,6 +85,20 @@ export const getDayHours = (config: HoursConfig, isoDate: string, weekday: numbe
   return { windows: day?.enabled ? day.windows : [], note: special?.note || null }
 }
 
+/**
+ * Dia da semana da entrega/retirada de um pedido feito agora: hoje, se a loja
+ * ainda atende hoje; senao o proximo dia aberto. Mesma regra do servidor
+ * (fulfillmentDay em backend/src/common/delivery-hours.ts).
+ */
+export const getFulfillmentWeekday = (config: HoursConfig, now = new Date()): number => {
+  const { isoDate, weekday, minutesOfDay } = getZonedDateParts(now)
+  if (getDayHours(config, isoDate, weekday).windows.some((w) => minutesOfDay < parseHHMM(w.end))) return weekday
+  for (let offset = 1; offset <= 14; offset += 1) {
+    if (getDayHours(config, addDaysIso(isoDate, offset), (weekday + offset) % 7).windows.length) return (weekday + offset) % 7
+  }
+  return weekday
+}
+
 /** Proxima abertura a partir de agora (hoje mais tarde ou nos proximos 7 dias). */
 const findNextOpening = (config: HoursConfig, isoDate: string, weekday: number, minutesOfDay: number) => {
   for (let offset = 0; offset <= 7; offset += 1) {

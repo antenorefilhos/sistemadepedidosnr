@@ -900,6 +900,8 @@ export interface CatalogProduct {
   erpSyncOption: string | null
   siteVisibility: 'OCULTO' | 'SEMPRE' | null
   categoryOverrideId: string | null
+  /** Dias da semana em que vende (0 = domingo); vazio = todos. */
+  saleWeekdays: number[]
   categoryId: string | null
   categoryName: string | null
   hasPhoto: boolean
@@ -941,7 +943,7 @@ export const productsAPI = {
   getMercadologicalTree: () => api.get<MercadologicalTreeResponse>('/products/admin/mercadological-tree'),
   catalog: (params: { tab?: CatalogTab; search?: string; category?: string; page?: number; limit?: number }) =>
     api.get<CatalogResponse>('/products/admin/catalog', { params }),
-  updateSite: (id: string, data: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null }) =>
+  updateSite: (id: string, data: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[] }) =>
     api.patch(`/products/admin/${id}/site`, data),
   createAdmin: (data: ProductPayload) => api.post('/products/admin', data),
   create: (data: ProductPayload) => api.post('/products', data),

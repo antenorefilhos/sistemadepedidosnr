@@ -103,6 +103,7 @@ const PRODUCT_SELECT = {
   origin: true,
   active: true,
   erpProductId: true,
+  saleWeekdays: true,
 } as const;
 
 export type HomeVitrinesQuery = {

@@ -4,6 +4,7 @@ import { promoDayFor } from '../../common/promo-day'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { isProductSellable } from '../../common/product-availability'
+import { isSoldOnDay, saleDaysLabel } from '../../common/sale-days'
 import { DEFAULT_STORE_ID, DEFAULT_TENANT_ID } from '../../common/tenant/tenant.constants'
 import { TenantContext } from '../../common/tenant/tenant-context'
 import { DeliveryService } from '../delivery/delivery.service'
@@ -22,7 +23,7 @@ type CartPayload = Awaited<ReturnType<CartService['findCart']>>
 
 type StockSnapshot = {
   allAvailable: boolean
-  unavailableItems: Array<{ productId: string; requested: number; available: number }>
+  unavailableItems: Array<{ productId: string; requested: number; available: number; reason?: 'FORA_DO_DIA' | 'INDISPONIVEL'; message?: string }>
   items: Array<{
     productId: string
     requested: number
@@ -364,7 +365,8 @@ export class CheckoutService {
     if (cart.status !== 'ACTIVE') throw new BadRequestException('Carrinho nao esta ativo para checkout.')
     if (cart.items.length === 0) throw new BadRequestException('Carrinho deve conter ao menos um item.')
 
-    const stock = await this.buildStockSnapshot({ tenantId, storeId }, cart)
+    const deliveryDate = await promoDayFor(this.prisma, dto.scheduledFor)
+    const stock = await this.buildStockSnapshot({ tenantId, storeId }, cart, deliveryDate)
     const deliveryBase = await this.resolveDelivery(
       { tenantId, storeId },
       dto,
@@ -378,7 +380,6 @@ export class CheckoutService {
     // 02/10/2026: o dia vem do servidor (agendado, ou o da entrega de um
     // pedido feito agora pelo horario da loja) -- antes era o windowStart que o
     // navegador mandava, que com a loja fechada apontava para hoje a noite.
-    const deliveryDate = await promoDayFor(this.prisma, dto.scheduledFor)
     const resolvedCustomerId = dto.customerId || session.customerId || cart.customerId || undefined
     // JON-183/184: resolvido no backend a partir do CPF ja cadastrado, nunca
     // aceito como flag vinda do cliente -- senao seria trivial forjar
@@ -454,7 +455,7 @@ export class CheckoutService {
     }
   }
 
-  private async buildStockSnapshot(context: { tenantId: string; storeId: string }, cart: CartPayload): Promise<StockSnapshot> {
+  private async buildStockSnapshot(context: { tenantId: string; storeId: string }, cart: CartPayload, deliveryDate: string): Promise<StockSnapshot> {
     const [availability, products] = await Promise.all([
       this.inventoryService.getAvailability(
         context,
@@ -462,7 +463,7 @@ export class CheckoutService {
       ),
       this.prisma.product.findMany({
         where: { tenantId: context.tenantId, storeId: context.storeId, id: { in: cart.items.map((item) => item.productId) } },
-        select: { id: true, syncOption: true, stock: true, active: true },
+        select: { id: true, syncOption: true, stock: true, active: true, saleWeekdays: true },
       }),
     ])
     const availableByProduct = new Map(availability.items.map((item) => [item.productId, item.available]))
@@ -475,12 +476,19 @@ export class CheckoutService {
       // ter deixado de ser vendavel entre entrar no carrinho e fechar --
       // ex.: zerou o estoque de um item 'ESTOQUE' e ele saiu da vitrine.
       const produto = produtoPorId.get(item.productId)
-      const inStock = produto ? isProductSellable(produto) : false
+      const sellable = produto ? isProductSellable(produto) : false
+      // Dias de venda (03/10/2026): vale o dia da entrega/retirada, o mesmo das ofertas.
+      const offDay = Boolean(produto && sellable && !isSoldOnDay(produto, deliveryDate))
+      const inStock = sellable && !offDay
       return {
         productId: item.productId,
         requested,
         available,
         inStock,
+        ...(inStock ? {} : {
+          reason: offDay ? 'FORA_DO_DIA' as const : 'INDISPONIVEL' as const,
+          message: offDay ? `Vendido só ${saleDaysLabel(produto?.saleWeekdays)}. Agende para um desses dias ou tire do carrinho.` : 'Saiu do site. Tire do carrinho para continuar.',
+        }),
         allowSubstitution: Boolean(item.allowSubstitution),
         substitutionStatus: item.allowSubstitution ? 'ACCEPTED' as const : 'DECLINED' as const,
       }
@@ -492,6 +500,8 @@ export class CheckoutService {
         productId: item.productId,
         requested: item.requested,
         available: item.available,
+        reason: item.reason,
+        message: item.message,
       })),
       items,
     }
@@ -606,7 +616,8 @@ export class CheckoutService {
 
   private getBlockers(stock: StockSnapshot, delivery: DeliverySnapshot) {
     const blockers: string[] = []
-    if (!stock.allAvailable) blockers.push('itens indisponiveis em estoque')
+    if (stock.unavailableItems.some((i) => i.reason === 'FORA_DO_DIA')) blockers.push('itens fora do dia de venda')
+    if (stock.unavailableItems.some((i) => i.reason !== 'FORA_DO_DIA')) blockers.push('itens indisponiveis em estoque')
     if (delivery.outOfArea) blockers.push('endereco fora da area de entrega')
     if (!delivery.minimumOrderMet) blockers.push('pedido abaixo do minimo da area de entrega')
     return blockers

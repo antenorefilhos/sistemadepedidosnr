@@ -104,7 +104,7 @@ export class ProductsController {
   @ApiOperation({ summary: 'Ajustes do site que o sync respeita: ocultar/sempre a venda, categoria, nome no site' })
   updateSiteSettings(
     @Param('id') id: string,
-    @Body() body: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null },
+    @Body() body: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[] },
     @Req() req: TenantContextRequest,
   ) {
     return this.productsService.updateSiteSettings(id, body || {}, req.user?.id)
