@@ -493,6 +493,23 @@ describe('PromotionsService', () => {
       expect(result?.items).toEqual([expect.objectContaining({ id: 'p1', promotionalPrice: 40 })])
     })
 
+    it('so mostra o que da para comprar: fora do feed, "nunca na internet" e sem estoque saem (03/10/2026)', async () => {
+      mockPrismaService.promotionCampaign.findUnique.mockResolvedValue({
+        id: 'campaign-1', name: 'ENCARTE FINAL SEMANA NR', slug: 'x', type: 'encarte', bannerUrl: null,
+        startDate: new Date('2026-09-16T00:00:00-03:00'), endDate: new Date('2026-09-18T00:00:00-03:00'), highlightInHome: false, active: true,
+        items: [
+          { product: { id: 'ok', active: true, syncOption: 'SEMPRE', stock: 0 }, regularPrice: 10, promotionalPrice: 8 },
+          { product: { id: 'nunca', active: true, syncOption: 'NUNCA', stock: 5 }, regularPrice: 13, promotionalPrice: 8 },
+          { product: { id: 'sem-estoque', active: true, syncOption: 'ESTOQUE', stock: 0 }, regularPrice: 5, promotionalPrice: 4 },
+          { product: { id: 'fora-do-feed', active: false, syncOption: 'SEMPRE', stock: 0 }, regularPrice: 5, promotionalPrice: 4 },
+        ],
+      })
+
+      const result = await service.findOneForStorefront(375)
+
+      expect(result?.items.map((i: any) => i.id)).toEqual(['ok'])
+    })
+
     it('returns null when the campaign does not exist or is inactive', async () => {
       mockPrismaService.promotionCampaign.findUnique.mockResolvedValue(null)
 

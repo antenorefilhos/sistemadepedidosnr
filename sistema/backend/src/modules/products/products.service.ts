@@ -960,7 +960,14 @@ export class ProductsService {
         ...tenantStoreWhere(context),
         active: true,
         promotionalPrice: { not: null, gt: 0 },
-        AND: [storefrontVisibilityFilter],
+        // 03/10/2026: sem isto a vitrine de ofertas mostrava produto que o ERP
+        // marca como "nunca na internet" ou sem estoque -- o cliente abria e via
+        // "Indisponivel" (energetico Baly do encarte de fim de semana).
+        AND: [
+          storefrontVisibilityFilter,
+          { syncOption: { not: 'NUNCA' } },
+          { OR: [{ syncOption: 'SEMPRE' }, { AND: [{ syncOption: { in: ['ESTOQUE', 'ESTQOUE'] } }, { stock: { gt: 0 } }] }] },
+        ],
       },
       orderBy: { name: 'asc' },
     })

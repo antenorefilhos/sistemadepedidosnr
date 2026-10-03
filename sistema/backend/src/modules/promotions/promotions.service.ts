@@ -589,7 +589,9 @@ export class PromotionsService {
       startDate: campaign.startDate,
       endDate: campaign.endDate,
       highlightInHome: campaign.highlightInHome,
-      items: campaign.items.map((item) => ({
+      // So o que da para comprar no site (03/10/2026): item do encarte fora do
+      // feed do e-commerce ou marcado "nunca na internet" aparecia como Indisponivel.
+      items: campaign.items.filter((item) => isProductSellable(item.product as { active?: boolean; syncOption?: string; stock?: unknown })).map((item) => ({
         ...(item.product as object),
         regularPrice: item.regularPrice,
         promotionalPrice: item.promotionalPrice,
