@@ -60,6 +60,13 @@ export const ORDER_STATUSES = new Set([
   'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'PARTIALLY_CANCELLED', 'CANCELLED', 'REFUNDED', 'FAILED_SYNC',
 ])
 
+/** Proximo passo depois do caixa: entrega vira entregue; retirada (ou entregue) vira concluido. */
+export function finishStatusAfter(status: string): 'DELIVERED' | 'COMPLETED' | null {
+  if (status === 'READY_FOR_DELIVERY' || status === 'OUT_FOR_DELIVERY') return 'DELIVERED'
+  if (status === 'READY_FOR_PICKUP' || status === 'DELIVERED') return 'COMPLETED'
+  return null
+}
+
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name)
@@ -675,6 +682,20 @@ export class OrdersService {
     })
 
     return order
+  }
+
+  /**
+   * Ultimo passo pelo app de separacao (03/10/2026): enquanto o entregador nao
+   * usa o app dele (o motoboy ainda nao tem celular da loja), quem separa marca
+   * a entrega ou conclui a retirada. So estes dois passos, os mesmos do botao
+   * principal do admin, e pela mesma regra (aviso ao cliente, quem mudou).
+   */
+  async finishFromPicking(id: string, actor?: OrderOmsActor) {
+    const order = await this.prisma.order.findUnique({ where: { id }, select: { status: true } })
+    if (!order) throw new NotFoundException('Pedido nao encontrado.')
+    const next = finishStatusAfter(order.status)
+    if (!next) throw new BadRequestException('Este pedido ainda não pode ser finalizado: ele precisa passar pelo caixa primeiro.')
+    return this.updateStatus(id, next, undefined, actor)
   }
 
   async updateStatus(id: string, status: string, reason?: string, actor?: OrderOmsActor) {

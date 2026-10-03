@@ -38,6 +38,14 @@ const PAST_CASHIER_LABEL: Record<string, string> = {
   REFUNDED: 'Estornado',
 }
 
+// Ultimo passo depois do caixa, o mesmo botao principal do admin.
+const FINISH_NEXT: Record<string, { label: string; confirm: string; done: string }> = {
+  READY_FOR_DELIVERY: { label: 'Marcar como entregue', confirm: 'Confirma que o pedido foi entregue ao cliente?', done: 'Pedido entregue' },
+  OUT_FOR_DELIVERY: { label: 'Marcar como entregue', confirm: 'Confirma que o pedido foi entregue ao cliente?', done: 'Pedido entregue' },
+  READY_FOR_PICKUP: { label: 'Concluir pedido', confirm: 'Confirma que o cliente retirou o pedido?', done: 'Pedido concluído' },
+  DELIVERED: { label: 'Concluir pedido', confirm: 'Concluir o pedido? Ele sai da lista de pedidos em andamento.', done: 'Pedido concluído' },
+}
+
 type ConfirmMode = null | 'scan' | 'ean' | 'manual'
 
 interface ConfirmState {
@@ -409,6 +417,21 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     }
   }
 
+  // Enquanto o entregador nao usa o app dele, quem separa finaliza o pedido (03/10/2026).
+  const handleFinishOrder = async () => {
+    if (!finishNext || !window.confirm(finishNext.confirm)) return
+    setActionLoading(true)
+    try {
+      await pickerApi.finishOrder(orderId)
+      toast.success(finishNext.done)
+      await fetchData()
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Não foi possível finalizar o pedido')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleSendToCashier = async () => {
     setActionLoading(true)
     try {
@@ -452,6 +475,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const isSentToCashier = order.status in PAST_CASHIER_LABEL
   const canFinish = allDone && task && !isSeparated && !isSentToCashier
   const canSendToCashier = (isSeparated || allDone) && !isSentToCashier
+  const finishNext = FINISH_NEXT[order.status] || null
   const adjustment = orderAdjustment(order)
 
   return (
@@ -492,7 +516,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
 
       {/* Action buttons */}
       {(canFinish || canSendToCashier || isSentToCashier) && (
-        <div className="px-4 py-2 bg-white border-b flex gap-2">
+        <div className="px-4 py-2 bg-white border-b flex flex-wrap gap-2">
           {canFinish && (
             <button
               onClick={handleFinishPicking}
@@ -513,10 +537,19 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             </button>
           )}
           {isSentToCashier && (
-            <div className="flex-1 h-11 rounded-xl bg-green-50 border border-green-200 text-green-700 font-semibold text-sm flex items-center justify-center gap-2">
+            <div className="flex-1 basis-full h-11 rounded-xl bg-green-50 border border-green-200 text-green-700 font-semibold text-sm flex items-center justify-center gap-2">
               <Check size={16} />
               {PAST_CASHIER_LABEL[order.status]}
             </div>
+          )}
+          {finishNext && (
+            <button
+              onClick={handleFinishOrder}
+              disabled={actionLoading}
+              className="flex-1 basis-full h-11 rounded-xl bg-gray-900 text-white font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <><Check size={16} /> {finishNext.label}</>}
+            </button>
           )}
         </div>
       )}

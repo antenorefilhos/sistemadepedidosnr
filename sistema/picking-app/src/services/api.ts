@@ -110,6 +110,8 @@ export const pickerApi = {
 
   sendToCashier: (orderId: string, data?: { deliveryInstructions?: string }) =>
     api.post<Order>(`/picker/orders/${orderId}/send-to-cashier`, data || {}),
+  /** Depois do caixa: entrega vira entregue; retirada (ou entregue) vira concluido. */
+  finishOrder: (orderId: string) => api.post<Order>(`/picker/orders/${orderId}/finish`, {}),
 
   getTask: (id: string) =>
     api.get<PickingTask>(`/picker/tasks/${id}`),

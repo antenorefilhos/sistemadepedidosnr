@@ -15,6 +15,7 @@ import {
   SubstitutePickingItemDto,
 } from './dto/picking.dto'
 import { PickingService } from './picking.service'
+import { OrdersService } from '../orders/orders.service'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
 
 @ApiTags('Picker')
@@ -24,7 +25,10 @@ import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decora
 @RelaxedThrottle()
 @Controller('picker')
 export class PickerController {
-  constructor(private readonly pickingService: PickingService) {}
+  constructor(
+    private readonly pickingService: PickingService,
+    private readonly ordersService: OrdersService,
+  ) {}
 
   @Get('orders')
   @ApiOperation({ summary: 'Buscar pedidos com filtros' })
@@ -61,6 +65,12 @@ export class PickerController {
     @Req() req: TenantContextRequest,
   ) {
     return this.pickingService.sendToCashier(orderId, getTenantContext(req), this.actorFromRequest(req), body?.deliveryInstructions)
+  }
+
+  @Post('orders/:orderId/finish')
+  @ApiOperation({ summary: 'Marcar como entregue ou concluir o pedido (depois do caixa)' })
+  async finishOrder(@Param('orderId') orderId: string, @Req() req: TenantContextRequest) {
+    return this.ordersService.finishFromPicking(orderId, this.actorFromRequest(req))
   }
 
   @Get('tasks')
