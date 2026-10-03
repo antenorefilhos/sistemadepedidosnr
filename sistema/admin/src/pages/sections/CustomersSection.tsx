@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Bell, Copy, Download, ImageOff, KeyRound, Loader2, MessageCircle, Pencil, Search } from 'lucide-react'
+import { AlertCircle, Bell, Copy, Download, ImageOff, KeyRound, Loader2, MessageCircle, Pencil, Search, Trash2 } from 'lucide-react'
 import { WorkspaceDialog } from '../../components/WorkspaceDialog'
 import {
   addressesAPI,
@@ -548,17 +548,31 @@ function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () =
                                 </span>
                               ) : null}
                             </span>
-                            <button
-                              type="button"
-                              aria-label="Editar endereço"
-                              onClick={() => {
-                                setAddrEditing(a.id)
-                                setAddr({ street: a.street, number: a.number, complement: a.complement || '', neighborhood: a.neighborhood, city: a.city, state: a.state, zipCode: a.zipCode, locality: a.locality || '', deliveryPointCode: a.deliveryPointCode || '' })
-                              }}
-                              className="shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                            >
-                              <Pencil size={13} />
-                            </button>
+                            <span className="flex shrink-0 items-center">
+                              <button
+                                type="button"
+                                aria-label="Editar endereço"
+                                onClick={() => {
+                                  setAddrEditing(a.id)
+                                  setAddr({ street: a.street, number: a.number, complement: a.complement || '', neighborhood: a.neighborhood, city: a.city, state: a.state, zipCode: a.zipCode, locality: a.locality || '', deliveryPointCode: a.deliveryPointCode || '' })
+                                }}
+                                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="Excluir endereço"
+                                disabled={busy === 'address'}
+                                onClick={() => {
+                                  const extra = a.isDefault && c.addresses.length > 1 ? ' Outro endereço passa a ser o principal.' : ''
+                                  if (window.confirm(`Excluir o endereço "${a.street}, ${a.number}"? Pedidos já feitos não mudam.${extra}`)) run('address', () => addressesAPI.remove(id, a.id))
+                                }}
+                                className="rounded-lg p-2 text-gray-400 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </span>
                           </div>
                         )}
                       </li>

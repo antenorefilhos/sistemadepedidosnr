@@ -1102,6 +1102,8 @@ export const customersAdminAPI = {
 export const addressesAPI = {
   update: (customerId: string, addressId: string, data: Partial<Omit<AdminCustomerAddress, 'id' | 'isDefault'>>) =>
     api.put<AdminCustomerAddress>(`/addresses/${customerId}/${addressId}`, data),
+  /** Pedido ja feito guarda copia do endereco: excluir nao muda pedido nenhum. */
+  remove: (customerId: string, addressId: string) => api.delete(`/addresses/${customerId}/${addressId}`),
 }
 
 /** Tela Integracoes (01/10/2026): saude do ERP, catalogo, pedidos sem DAV, cancelamentos e status do caixa. */
