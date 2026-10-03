@@ -36,6 +36,7 @@ const mockPrismaService = {
 const mockAntenorApiService = {
   cancelOrder: jest.fn(),
   getOrderStatus: jest.fn(),
+  getInvoicedItems: jest.fn(),
   createOrder: jest.fn(),
   isConfigured: jest.fn().mockReturnValue(true),
 }
@@ -875,6 +876,47 @@ describe('OrderOrchestrationService', () => {
 
         expect(mockSolidcomERPService.syncOrder).not.toHaveBeenCalled()
       })
+    })
+  })
+
+  describe('reconcileInvoicedOrder', () => {
+    const pedido = {
+      id: 'order-1',
+      erpDav: '102122',
+      items: [{ quantity: 1, unitPrice: 18.5, product: { erpProductId: 1363, ean: '7896005801512', secondaryEans: [], name: 'Cafe' } }],
+    }
+
+    beforeEach(() => {
+      mockIntegrationModulesService.isEnabled.mockImplementation(async () => true)
+      mockPrismaService.order.findFirst.mockResolvedValue(pedido)
+      mockPrismaService.auditLog.findFirst.mockResolvedValue(null)
+      mockAntenorApiService.getOrderStatus.mockResolvedValue(null)
+    })
+
+    it('cupom ainda sem itens nao vira divergencia: espera a proxima rodada', async () => {
+      mockAntenorApiService.getInvoicedItems.mockResolvedValue([])
+      const r = await service.reconcileInvoicedOrder(undefined, 'order-1')
+      expect(r).toEqual({ orderId: 'order-1', motivo: 'Cupom ainda sem itens registrados no PDV.' })
+      expect(mockPrismaService.orderEvent.create).not.toHaveBeenCalled()
+    })
+
+    it('itens com quantidade zerada (cabecalho sem itens gravados) tambem espera', async () => {
+      mockAntenorApiService.getInvoicedItems.mockResolvedValue([{ cdProduto: 1363, qtdFaturada: 0, vlUnitario: 18.5 }])
+      const r = await service.reconcileInvoicedOrder(undefined, 'order-1')
+      expect(r).toHaveProperty('motivo')
+      expect(mockPrismaService.orderEvent.create).not.toHaveBeenCalled()
+    })
+
+    it('item cancelado no caixa e divergencia real e fica registrada', async () => {
+      mockAntenorApiService.getInvoicedItems.mockResolvedValue([{ cdProduto: 1363, ean: '7896005801512', qtdFaturada: 0, vlUnitario: 18.5, canceladoNoCaixa: true }])
+      await service.reconcileInvoicedOrder(undefined, 'order-1')
+      expect(mockPrismaService.orderEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ type: 'order.invoice_diverged' }) }))
+    })
+
+    it('cupom que confere grava a conferencia', async () => {
+      mockAntenorApiService.getInvoicedItems.mockResolvedValue([{ cdProduto: 1363, ean: '7896005801512', qtdFaturada: 1, vlUnitario: 18.5, vlTotal: 18.5 }])
+      await service.reconcileInvoicedOrder(undefined, 'order-1')
+      expect(mockPrismaService.orderEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ type: 'order.invoice_reconciled' }) }))
     })
   })
 

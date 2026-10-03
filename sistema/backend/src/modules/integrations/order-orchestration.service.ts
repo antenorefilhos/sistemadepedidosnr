@@ -948,15 +948,25 @@ export class OrderOrchestrationService {
 
     const externalOrderNumber = await this.resolveExternalOrderNumber(orderId)
     const faturados = await this.antenorApi.getInvoicedItems(externalOrderNumber)
-    // Como o caixa recebeu (forma, valor do cupom, nota). Opcional: sem isso a
-    // conferencia dos itens continua valendo.
-    const statusPdv = faturados ? await this.antenorApi.getOrderStatus(externalOrderNumber).catch(() => null) : null
-    const fat = statusPdv?.faturamento
 
     if (!faturados) {
       // Sem cupom ainda: nao e erro. O pedido pode nem ter passado no caixa.
       return { orderId, motivo: 'Pedido ainda nao faturado no PDV.' }
     }
+    // Cupom sem nenhum item registrado (03/10/2026): o caixa grava o cabecalho
+    // antes dos itens, e a conferencia que roda no instante do faturamento lia
+    // a lista vazia. Gravava "nenhum item saiu no cupom" de vez (102121 e
+    // 102122, entregues e cobrados certo) e o agendador nunca conferia de novo.
+    // Agora nao grava nada e o PdvPaymentScheduler tenta de novo em 15 min.
+    // Item cancelado no caixa conta como registrado: isso e divergencia real.
+    if (!faturados.some((i) => Number(i.qtdFaturada) > 0 || i.canceladoNoCaixa)) {
+      return { orderId, motivo: 'Cupom ainda sem itens registrados no PDV.' }
+    }
+
+    // Como o caixa recebeu (forma, valor do cupom, nota). Opcional: sem isso a
+    // conferencia dos itens continua valendo.
+    const statusPdv = await this.antenorApi.getOrderStatus(externalOrderNumber).catch(() => null)
+    const fat = statusPdv?.faturamento
 
     const reconciliacao = reconcileInvoicedItems(
       order.items.map((i) => ({
