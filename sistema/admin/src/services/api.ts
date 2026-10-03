@@ -754,6 +754,9 @@ export interface AdminCustomer {
     city: string
     state: string
     zipCode: string
+    /** Localidade da tabela de frete (quando o CEP cobre mais de uma). */
+    locality?: string | null
+    deliveryPointCode?: string | null
     isDefault: boolean
   }>
 }

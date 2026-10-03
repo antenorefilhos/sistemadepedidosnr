@@ -5,10 +5,12 @@ import {
   addressesAPI,
   customersAdminAPI,
   customersAPI,
+  deliveryAPI,
   getApiErrorMessage,
   resolveApiUrl,
   type CustomerDetail,
   type CustomerRow,
+  type DeliveryPoint,
 } from '../../services/api'
 import { OrderDetail, STATUS_LABEL } from './OrdersSection'
 
@@ -238,6 +240,12 @@ export default function CustomersSection() {
   )
 }
 
+const digitsOnly = (v?: string | null) => String(v || '').replace(/\D/g, '')
+const formatCep = (v?: string | null) => {
+  const d = digitsOnly(v)
+  return d.length === 8 ? `${d.slice(0, 5)}-${d.slice(5)}` : String(v || '')
+}
+
 // ─── Perfil ────────────────────────────────────────────────────────────────
 
 function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
@@ -246,7 +254,23 @@ function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () =
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ name: '', whatsapp: '', email: '', cpf: '' })
   const [addrEditing, setAddrEditing] = useState<string | null>(null)
-  const [addr, setAddr] = useState({ street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '' })
+  const [addr, setAddr] = useState({ street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '', locality: '', deliveryPointCode: '' })
+  // Tabela de frete por localidade (tela Taxas de Entrega): e ela que decide o
+  // frete de quem digita o CEP. Corrigir a localidade aqui vale para o proximo
+  // pedido deste endereco (03/10/2026).
+  const [points, setPoints] = useState<DeliveryPoint[]>([])
+  useEffect(() => {
+    deliveryAPI
+      .listPoints()
+      .then(({ data }) => setPoints((data || []).filter((p) => p.active && p.cep).sort((x, y) => x.locality.localeCompare(y.locality, 'pt-BR'))))
+      .catch(() => setPoints([]))
+  }, [])
+  const pointByCode = useMemo(() => new Map(points.map((p) => [p.code, p])), [points])
+  const pointsByCep = useMemo(() => {
+    const m = new Map<string, DeliveryPoint[]>()
+    for (const p of points) m.set(String(p.cep), [...(m.get(String(p.cep)) || []), p])
+    return m
+  }, [points])
   const [busy, setBusy] = useState<string | null>(null)
   const [reset, setReset] = useState<{ resetUrl: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -289,8 +313,16 @@ function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () =
   }
   const saveAddress = async () => {
     if (!addrEditing) return
-    const ok = await run('address', () => addressesAPI.update(id, addrEditing, addr))
+    const ok = await run('address', () =>
+      addressesAPI.update(id, addrEditing, { ...addr, locality: addr.locality || null, deliveryPointCode: addr.deliveryPointCode || null }),
+    )
     if (ok) setAddrEditing(null)
+  }
+  const pickPoint = (code: string) => {
+    const p = pointByCode.get(code)
+    if (!p) return setAddr({ ...addr, locality: '', deliveryPointCode: '' })
+    // O calculo do frete acha a localidade pelo CEP: grava o CEP dela junto.
+    setAddr({ ...addr, locality: p.locality, deliveryPointCode: p.code, zipCode: formatCep(String(p.cep)) })
   }
   const toggleBlock = async () => {
     if (!c) return
@@ -467,7 +499,23 @@ function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () =
                             <input placeholder="Bairro" value={addr.neighborhood} onChange={(e) => setAddr({ ...addr, neighborhood: e.target.value })} className={`${input} col-span-3`} />
                             <input placeholder="Cidade" value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} className={`${input} col-span-3`} />
                             <input placeholder="UF" value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value })} className={`${input} col-span-2`} />
-                            <input placeholder="CEP" value={addr.zipCode} onChange={(e) => setAddr({ ...addr, zipCode: e.target.value })} className={`${input} col-span-4`} />
+                            <input placeholder="CEP" value={addr.zipCode} onChange={(e) => setAddr({ ...addr, zipCode: e.target.value, locality: '', deliveryPointCode: '' })} className={`${input} col-span-4`} />
+                            <label className="col-span-6 block text-xs text-gray-500">
+                              Localidade do frete
+                              <select value={addr.deliveryPointCode} onChange={(e) => pickPoint(e.target.value)} className={`${input} mt-1 w-full bg-white`}>
+                                <option value="">{points.length ? 'Pelo CEP digitado' : 'Carregando tabela de frete…'}</option>
+                                {points.map((p) => (
+                                  <option key={p.code} value={p.code}>
+                                    {p.locality} · {brl(p.fee)} · CEP {formatCep(String(p.cep))}
+                                  </option>
+                                ))}
+                              </select>
+                              <span className="mt-1 block text-gray-400">
+                                {addr.deliveryPointCode && pointByCode.get(addr.deliveryPointCode)
+                                  ? `Próximos pedidos deste endereço pagam ${brl(pointByCode.get(addr.deliveryPointCode)!.fee)} de frete (${addr.locality}). O CEP passa a ser o da localidade.`
+                                  : 'Escolha a localidade quando o cliente informou a errada ou o CEP serve a mais de uma. Vale para o próximo pedido; pedido já feito não muda.'}
+                              </span>
+                            </label>
                             <div className="col-span-6 flex justify-end gap-2">
                               <button type="button" onClick={() => setAddrEditing(null)} className="rounded-xl px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100">
                                 Cancelar
@@ -485,16 +533,27 @@ function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () =
                                 {a.complement ? ` · ${a.complement}` : ''}
                               </span>
                               <span className="block text-xs text-gray-500">
-                                {a.neighborhood} · {a.city}
+                                {a.neighborhood} · {a.city} · CEP {formatCep(a.zipCode)}
                                 {a.isDefault && ' · principal'}
                               </span>
+                              {a.deliveryPointCode && pointByCode.get(a.deliveryPointCode) ? (
+                                <span className="block text-xs text-gray-700">
+                                  Frete: {pointByCode.get(a.deliveryPointCode)!.locality} · {brl(pointByCode.get(a.deliveryPointCode)!.fee)}
+                                </span>
+                              ) : (pointsByCep.get(digitsOnly(a.zipCode))?.length || 0) > 1 ? (
+                                <span className="block text-xs text-amber-700">CEP com várias localidades e nenhuma escolhida: o cliente escolhe no pedido.</span>
+                              ) : pointsByCep.get(digitsOnly(a.zipCode))?.length === 1 ? (
+                                <span className="block text-xs text-gray-700">
+                                  Frete: {pointsByCep.get(digitsOnly(a.zipCode))![0].locality} · {brl(pointsByCep.get(digitsOnly(a.zipCode))![0].fee)}
+                                </span>
+                              ) : null}
                             </span>
                             <button
                               type="button"
                               aria-label="Editar endereço"
                               onClick={() => {
                                 setAddrEditing(a.id)
-                                setAddr({ street: a.street, number: a.number, complement: a.complement || '', neighborhood: a.neighborhood, city: a.city, state: a.state, zipCode: a.zipCode })
+                                setAddr({ street: a.street, number: a.number, complement: a.complement || '', neighborhood: a.neighborhood, city: a.city, state: a.state, zipCode: a.zipCode, locality: a.locality || '', deliveryPointCode: a.deliveryPointCode || '' })
                               }}
                               className="shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
                             >
