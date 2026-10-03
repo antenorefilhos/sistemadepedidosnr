@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, ChefHat, Clock, Users } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
@@ -77,23 +77,39 @@ function Shelf({ eyebrow, title, recipes, className }: { eyebrow: string; title:
   )
 }
 
-/** Faixa da Home: as receitas publicadas mais recentes. */
+/**
+ * Ordem aleatoria (03/10/2026, pedido do Jonathan): a cada visita a faixa
+ * mostra outras receitas, em vez de sempre as mais recentes. Sorteia uma vez
+ * por carga da lista -- nao reembaralha a cada render.
+ */
+function shuffled<T>(list: T[]): T[] {
+  const a = [...list]
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+/** Faixa da Home: 8 receitas publicadas, sorteadas a cada visita. */
 export function HomeRecipeShelf({ className }: { className?: string }) {
   const { data } = useQuery({
     queryKey: ['recipes', 'home'],
-    queryFn: async () => (await recipesAPI.list(undefined, 1, 8)).data as { data: RecipeCardData[] },
+    queryFn: async () => (await recipesAPI.list(undefined, 1, 60)).data as { data: RecipeCardData[] },
     staleTime: 1000 * 60 * 5,
   })
-  return <Shelf eyebrow="Para cozinhar" title="Receitas com ingredientes da loja" recipes={data?.data ?? []} className={className} />
+  const recipes = useMemo(() => shuffled(data?.data ?? []).slice(0, 8), [data])
+  return <Shelf eyebrow="Para cozinhar" title="Receitas com ingredientes da loja" recipes={recipes} className={className} />
 }
 
 /** Pagina do produto: receitas que usam este produto. */
 export function ProductRecipeShelf({ productId, className }: { productId: string; className?: string }) {
   const { data } = useQuery({
     queryKey: ['recipes', 'product', productId],
-    queryFn: async () => (await recipesAPI.list(undefined, 1, 6, productId)).data as { data: RecipeCardData[] },
+    queryFn: async () => (await recipesAPI.list(undefined, 1, 30, productId)).data as { data: RecipeCardData[] },
     enabled: Boolean(productId),
     staleTime: 1000 * 60 * 5,
   })
-  return <Shelf eyebrow="Use em" title="Receitas com este produto" recipes={data?.data ?? []} className={className} />
+  const recipes = useMemo(() => shuffled(data?.data ?? []).slice(0, 6), [data])
+  return <Shelf eyebrow="Use em" title="Receitas com este produto" recipes={recipes} className={className} />
 }
