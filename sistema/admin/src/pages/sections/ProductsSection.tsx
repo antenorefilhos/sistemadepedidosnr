@@ -333,7 +333,7 @@ export default function ProductsSection() {
       ) : (
         res && (
           <div className={`overflow-hidden rounded-2xl border border-black/[0.06] bg-white transition-opacity ${loading ? 'opacity-60' : ''}`}>
-            <div className="hidden grid-cols-[minmax(0,1fr)_200px_120px_90px_160px] gap-4 border-b border-black/[0.05] px-4 py-2 text-[11px] uppercase tracking-wide text-gray-400 md:grid">
+            <div className="hidden grid-cols-[minmax(0,1fr)_180px_110px_80px_130px] gap-4 border-b border-black/[0.05] px-4 py-2 text-[11px] uppercase tracking-wide text-gray-400 md:grid">
               <span>Produto</span>
               <span>Categoria no site</span>
               <span className="text-right">Preço</span>
@@ -346,10 +346,10 @@ export default function ProductsSection() {
                   <button
                     type="button"
                     onClick={() => setOpen(p)}
-                    className="grid w-full grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-4 py-2 text-left hover:bg-gray-50/70 md:grid-cols-[minmax(0,1fr)_200px_120px_90px_160px]"
+                    className="grid w-full grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-4 py-1.5 text-left hover:bg-gray-50/70 md:grid-cols-[minmax(0,1fr)_180px_110px_80px_130px]"
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <Thumb p={p} size={60} />
+                      <Thumb p={p} size={76} />
                       <span className="min-w-0">
                         <span className="block truncate text-sm text-gray-900">{p.displayName}</span>
                         <span className="block truncate text-xs text-gray-400">
