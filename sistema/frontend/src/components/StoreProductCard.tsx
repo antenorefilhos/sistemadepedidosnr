@@ -106,6 +106,8 @@ export function StoreProductCard({
     pet: 'border-violet-600 bg-violet-600 text-white',
     tobacco: 'border-zinc-700 bg-zinc-700 text-white',
     top: 'border-orange-500 bg-orange-500 text-white',
+    // Etiqueta do admin (Importado, Premium, Luxo...): o dourado da adega.
+    label: 'border-[#D2BB8A] bg-[#D2BB8A] text-[#231F20]',
     default: 'border-[#5D082A] bg-[#5D082A] text-white',
   } as Record<string, string>)[viewModel.badgeVariant] ?? 'border-[#5D082A] bg-[#5D082A] text-white'
 

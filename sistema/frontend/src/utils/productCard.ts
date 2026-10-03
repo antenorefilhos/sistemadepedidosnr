@@ -26,7 +26,7 @@ export type ProductCardViewModel = {
   originalPrice: number | null
   referenceText: string
   badgeText: string
-  badgeVariant: 'default' | 'urgent' | 'promo' | 'frozen' | 'pet' | 'tobacco' | 'top'
+  badgeVariant: 'default' | 'urgent' | 'promo' | 'frozen' | 'pet' | 'tobacco' | 'top' | 'label'
   discountPct: number
   ctaLabel: string
   isFractional: boolean
@@ -115,7 +115,11 @@ export function getProductCardViewModel(product: Product, saleWeekday?: number):
   const isFrozen = category === 'CONGELADOS'
   const isPet = category === 'PET_SHOP'
   const isTobacco = category === 'TABACARIA'
-  const isTopSeller = (product.badges || '').toUpperCase().includes('TOP')
+  // Etiqueta escolhida no admin (Produtos > produto > "Etiqueta no card"). Ate
+  // 03/10/2026 so um texto com "TOP" virava selo: o admin grava "Mais Vendido",
+  // "Importado", "Premium"... e nenhuma aparecia no card.
+  const adminLabel = String(product.badges || '').trim()
+  const isTopSeller = /^mais vendido$/i.test(adminLabel) || adminLabel.toUpperCase().includes('TOP')
 
   let badgeText = ''
   let badgeVariant: ProductCardViewModel['badgeVariant'] = 'default'
@@ -129,6 +133,9 @@ export function getProductCardViewModel(product: Product, saleWeekday?: number):
   } else if (isTopSeller) {
     badgeText = '🔥 Mais vendido'
     badgeVariant = 'top'
+  } else if (adminLabel) {
+    badgeText = adminLabel
+    badgeVariant = 'label'
   } else if (isFrozen) {
     badgeText = '❄️ Congelado'
     badgeVariant = 'frozen'

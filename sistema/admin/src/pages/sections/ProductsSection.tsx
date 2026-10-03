@@ -723,6 +723,7 @@ function ProductPanel({
                     </option>
                   ))}
                 </select>
+                <span className="mt-1 block text-gray-400">Selo no canto da foto, nas vitrines, na busca e nas categorias. Promoção e "Tá acabando" aparecem no lugar dela enquanto valerem.</span>
               </label>
               <label className="block text-xs text-gray-500">
                 Vídeo (YouTube, Instagram, TikTok)
