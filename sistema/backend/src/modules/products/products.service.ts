@@ -18,7 +18,7 @@ import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-cont
 import { productIdsMatchingText } from '../../common/unaccent-search'
 import { applySiteVisibility, isProductSellable } from '../../common/product-availability'
 import { normalizeSaleWeekdays } from '../../common/sale-days'
-import { eansWithPhoto } from '../../common/product-photos'
+import { eansWithPhoto, photoVersion } from '../../common/product-photos'
 import { notOfferedCategoryCodes } from '../../common/not-offered-categories'
 import { resolveEffectiveFractional, type FractionalSource } from '../../common/fractional.util'
 
@@ -1604,6 +1604,7 @@ export class ProductsService {
         ...p,
         displayName: p.titleMask || p.name,
         hasPhoto: withPhoto.has(p.ean),
+        photoVersion: withPhoto.has(p.ean) ? photoVersion(p.ean) : null,
         categoryId,
         categoryName: categoryId ? categoryName.get(categoryId) || null : null,
         onPromo: status === 'ON' && isPromo(p),

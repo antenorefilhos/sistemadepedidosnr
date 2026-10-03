@@ -913,6 +913,8 @@ export interface CatalogProduct {
   categoryId: string | null
   categoryName: string | null
   hasPhoto: boolean
+  /** Muda quando a foto e trocada: vai na URL da miniatura para nao pegar cache. */
+  photoVersion?: number | null
   onPromo: boolean
   status: 'ON' | 'OFF' | 'HIDDEN' | 'INACTIVE'
   reason: string | null

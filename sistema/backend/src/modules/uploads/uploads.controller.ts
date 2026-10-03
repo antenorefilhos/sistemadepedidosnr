@@ -89,8 +89,13 @@ export class UploadsController {
     const base = `https://mercado.antenorefilhos.com.br/uploads/products/${ean}${suffix}.webp`;
     // Miniatura dos cards (thumbs.controller.ts) tambem fica na borda.
     const thumb = `https://mercado.antenorefilhos.com.br/thumbs/products/${ean}${suffix}.webp`;
+    // 03/10/2026: as telas do admin carregam pelo host da API, que o Cloudflare
+    // tambem guarda (1 dia na borda) e que nunca era purgado -- a loja mostrava
+    // a foto nova e o admin a antiga, mesmo com Ctrl+F5.
+    const apiBase = `https://api.antenorefilhos.com.br/uploads/products/${ean}${suffix}.webp`;
+    const apiThumb = `https://api.antenorefilhos.com.br/thumbs/products/${ean}${suffix}.webp`;
     // v=3 desde 01/10/2026; v=2 ainda pode vir de pagina antiga em cache.
-    return [base, thumb, ...['2', '3'].flatMap((v) => [`${base}?v=${v}`, `${thumb}?v=${v}`])];
+    return [base, thumb, apiBase, apiThumb, ...['2', '3'].flatMap((v) => [`${base}?v=${v}`, `${thumb}?v=${v}`])];
   }
 
   @Post()

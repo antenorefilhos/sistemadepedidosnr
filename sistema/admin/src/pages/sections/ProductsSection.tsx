@@ -67,7 +67,7 @@ function Thumb({ p, size = 40 }: { p: CatalogProduct; size?: number }) {
   return (
     <span className="flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50" style={{ width: size, height: size }}>
       {p.hasPhoto && !failed ? (
-        <img src={resolveApiUrl(`/thumbs/products/${p.ean}.webp`)} alt="" loading="lazy" className="h-full w-full object-contain" onError={() => setFailed(true)} />
+        <img src={resolveApiUrl(`/thumbs/products/${p.ean}.webp${p.photoVersion ? `?v=${p.photoVersion}` : ''}`)} alt="" loading="lazy" className="h-full w-full object-contain" onError={() => setFailed(true)} />
       ) : (
         <ImageOff size={size / 2.8} className="text-gray-300" />
       )}
@@ -93,12 +93,28 @@ function Price({ p }: { p: CatalogProduct }) {
 
 export default function ProductsSection() {
   // Aba e departamento podem vir da tela Departamentos (?tab=&category=).
-  const [params] = useSearchParams()
+  // Aba, busca, categoria e pagina ficam na URL (03/10/2026): atualizar a
+  // pagina (Ctrl+R) volta exatamente para a mesma lista, com os dados novos.
+  const [params, setParams] = useSearchParams()
   const [tab, setTab] = useState<CatalogTab>(() => (TABS.some((t) => t.key === params.get('tab')) ? (params.get('tab') as CatalogTab) : 'site'))
-  const [search, setSearch] = useState('')
-  const [query, setQuery] = useState('')
+  const [search, setSearch] = useState(() => params.get('q') || '')
+  const [query, setQuery] = useState(() => (params.get('q') || '').trim())
   const [category, setCategory] = useState(() => params.get('category') || '')
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(() => Math.max(1, Number(params.get('page')) || 1))
+  useEffect(() => {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        const put = (key: string, value: string | null) => (value ? next.set(key, value) : next.delete(key))
+        put('tab', tab === 'site' ? null : tab)
+        put('q', query || null)
+        put('category', category || null)
+        put('page', page > 1 ? String(page) : null)
+        return next.toString() === prev.toString() ? prev : next
+      },
+      { replace: true },
+    )
+  }, [tab, query, category, page, setParams])
   const [res, setRes] = useState<CatalogResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -130,11 +146,13 @@ export default function ProductsSection() {
   // Busca enquanto digita, com uma pausa curta.
   useEffect(() => {
     const t = setTimeout(() => {
-      setQuery(search.trim())
+      const next = search.trim()
+      if (next === query) return
+      setQuery(next)
       setPage(1)
     }, 300)
     return () => clearTimeout(t)
-  }, [search])
+  }, [search, query])
 
   // Sync manual: acompanha o job no servidor ate terminar e recarrega.
   useEffect(() => {
@@ -315,12 +333,12 @@ export default function ProductsSection() {
       ) : (
         res && (
           <div className={`overflow-hidden rounded-2xl border border-black/[0.06] bg-white transition-opacity ${loading ? 'opacity-60' : ''}`}>
-            <div className="hidden grid-cols-[minmax(0,1fr)_170px_130px_90px_190px] gap-4 border-b border-black/[0.05] px-4 py-2 text-[11px] uppercase tracking-wide text-gray-400 md:grid">
+            <div className="hidden grid-cols-[minmax(0,1fr)_200px_120px_90px_160px] gap-4 border-b border-black/[0.05] px-4 py-2 text-[11px] uppercase tracking-wide text-gray-400 md:grid">
               <span>Produto</span>
               <span>Categoria no site</span>
               <span className="text-right">Preço</span>
               <span className="text-right">Estoque</span>
-              <span>Situação</span>
+              <span className="text-right">Situação</span>
             </div>
             <ul className="divide-y divide-black/[0.05]">
               {res.data.map((p) => (
@@ -328,10 +346,10 @@ export default function ProductsSection() {
                   <button
                     type="button"
                     onClick={() => setOpen(p)}
-                    className="grid w-full grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-4 py-2.5 text-left hover:bg-gray-50/70 md:grid-cols-[minmax(0,1fr)_170px_130px_90px_190px]"
+                    className="grid w-full grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-4 py-2 text-left hover:bg-gray-50/70 md:grid-cols-[minmax(0,1fr)_200px_120px_90px_160px]"
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <Thumb p={p} />
+                      <Thumb p={p} size={60} />
                       <span className="min-w-0">
                         <span className="block truncate text-sm text-gray-900">{p.displayName}</span>
                         <span className="block truncate text-xs text-gray-400">
@@ -354,7 +372,7 @@ export default function ProductsSection() {
                       <Price p={p} />
                     </span>
                     <span className="hidden text-right text-sm tabular-nums text-gray-600 md:block">{qty(p.stock)}</span>
-                    <span className="hidden md:block">
+                    <span className="hidden justify-end text-right md:flex">
                       <Status p={p} />
                     </span>
                   </button>
@@ -382,7 +400,10 @@ export default function ProductsSection() {
         <ProductPanel
           product={open}
           categories={res?.categories || []}
-          onClose={() => setOpen(null)}
+          onClose={() => {
+            setOpen(null)
+            load()
+          }}
           onSaved={() => {
             setOpen(null)
             load()
