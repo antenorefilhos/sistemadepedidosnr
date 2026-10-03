@@ -12,7 +12,7 @@ const STATUS_LABEL: Record<string, string> = {
   PLANNED: 'Montando',
   READY: 'Pronta',
   OUT_FOR_DELIVERY: 'Em Rota',
-  COMPLETED: 'Concluida',
+  COMPLETED: 'Concluída',
   CANCELLED: 'Cancelada',
 }
 

@@ -1,5 +1,6 @@
 import { AlertTriangle, Edit3, Loader2 } from 'lucide-react'
 import { Modal } from './PickingShared'
+import { qtd } from '../utils/quantity'
 
 interface Product {
   id: string
@@ -49,11 +50,11 @@ export function ManualConfirmModal({
         <div className="flex items-start gap-2">
           <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-amber-800">Confirmacao Manual</p>
+            <p className="text-sm font-semibold text-amber-800">Confirmação manual</p>
             <p className="text-xs text-amber-700 mt-0.5">
               {weighted
-                ? 'Confirme que separou este item. Informe o peso real pesado na balanca.'
-                : 'Confirme que separou este item. Ajuste a quantidade se necessario.'}
+                ? 'Confirme que separou este item. Informe o peso real pesado na balança.'
+                : 'Confirme que separou este item. Ajuste a quantidade se necessário.'}
             </p>
           </div>
         </div>
@@ -64,8 +65,8 @@ export function ManualConfirmModal({
         <div className="mt-3">
           <label className="text-xs text-gray-500 block mb-1">
             {weighted
-              ? `Peso separado em ${product?.unit || 'kg'} (pedido: ${requested} ${product?.unit || 'kg'})`
-              : `Quantidade separada (pedido: ${requested} ${product?.unit || 'un'})`}
+              ? `Peso separado em ${product?.unit || 'kg'} (pedido: ${qtd(requested)} ${product?.unit || 'kg'})`
+              : `Quantidade separada (pedido: ${qtd(requested)} ${product?.unit || 'un'})`}
           </label>
           <div className="flex items-center gap-2">
             <button
@@ -95,7 +96,7 @@ export function ManualConfirmModal({
           <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
             <p className="text-xs text-orange-700">
               <Edit3 size={12} className="inline mr-1" />
-              Enviando {adjustQty} de {requested} {product?.unit || 'un'} — o valor do pedido sera recalculado.
+              Enviando {qtd(adjustQty)} de {qtd(requested)} {product?.unit || 'un'} — o valor do pedido será recalculado.
             </p>
           </div>
         )}
@@ -112,7 +113,7 @@ export function ManualConfirmModal({
           disabled={actionLoading || adjustQty < minValue}
           className={`flex-1 h-12 rounded-xl text-white font-semibold disabled:opacity-40 ${isAdjusted ? 'bg-orange-600' : 'bg-amber-600'}`}
         >
-          {actionLoading ? <Loader2 size={18} className="animate-spin mx-auto" /> : isAdjusted ? `Enviar ${adjustQty}` : 'Sim, Separei'}
+          {actionLoading ? <Loader2 size={18} className="animate-spin mx-auto" /> : isAdjusted ? `Enviar ${qtd(adjustQty)}` : 'Sim, Separei'}
         </button>
       </div>
     </Modal>

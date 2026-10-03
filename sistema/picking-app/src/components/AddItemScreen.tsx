@@ -56,7 +56,7 @@ export function AddItemScreen({
           <button
             onClick={onOpenScanner}
             className="w-12 h-12 flex-shrink-0 rounded-xl bg-brand-500 text-white flex items-center justify-center active:bg-brand-600"
-            title="Ler codigo de barras"
+            title="Ler código de barras"
           >
             <Camera size={20} />
           </button>

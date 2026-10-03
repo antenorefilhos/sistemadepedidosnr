@@ -2,6 +2,7 @@ import { AlertTriangle, ArrowLeft, Check, Edit3, Loader2, Send, Truck, X } from 
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
 import { deliveryLabel, paymentLabel } from '../utils/orderInfo'
 import { Order, PickingTaskItem } from '../services/api'
+import { noteLabel } from '../utils/quantity'
 
 export function ReviewScreen({
   order, doneItems, deliveryInstructions, sendConfirm, actionLoading,
@@ -92,7 +93,7 @@ export function ReviewScreen({
                 <div key={item.id} className="flex items-start gap-3 py-1">
                   <X size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
                   <span className="flex-1 text-sm text-red-800">{productFor(item)?.name || 'Produto'}</span>
-                  {item.notes && <span className="text-xs text-red-400 flex-shrink-0">{item.notes}</span>}
+                  {noteLabel(item.notes) && <span className="text-xs text-red-400 flex-shrink-0">{noteLabel(item.notes)}</span>}
                 </div>
               ))}
             </div>
@@ -122,11 +123,11 @@ export function ReviewScreen({
         <div className="bg-white rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <Truck size={14} className="text-gray-400" />
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Instrucoes de entrega</p>
+            <p className="text-xs text-gray-400 uppercase tracking-wide">Instruções de entrega</p>
             <span className="text-xs text-gray-300">(opcional)</span>
           </div>
           <textarea
-            placeholder="Ex: entregar no portao lateral, ligar antes, nao tocar campainha..."
+            placeholder="Ex: entregar no portão lateral, ligar antes, não tocar campainha..."
             value={deliveryInstructions}
             onChange={(e) => onDeliveryInstructionsChange(e.target.value)}
             rows={3}
@@ -139,8 +140,8 @@ export function ReviewScreen({
           <div className="flex items-start gap-2">
             <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-red-700">
-              Apos enviar ao caixa, o pedido sera registrado no sistema Solidcon.
-              Depois disso, so podera ser finalizado no PDV ou cancelado totalmente.
+              Após enviar ao caixa, o pedido será registrado no sistema Solidcon.
+              Depois disso, só poderá ser finalizado no PDV ou cancelado totalmente.
             </p>
           </div>
         </div>

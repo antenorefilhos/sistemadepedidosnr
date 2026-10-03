@@ -38,7 +38,7 @@ export default function Login({ onLogin }: { onLogin: (name: string) => void }) 
           <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <LogIn className="text-white" size={32} />
           </div>
-          <h1 className="text-2xl font-bold text-white">Separacao</h1>
+          <h1 className="text-2xl font-bold text-white">Separação</h1>
           <p className="text-white/60 text-sm mt-1">Antenor & Filhos</p>
         </div>
 

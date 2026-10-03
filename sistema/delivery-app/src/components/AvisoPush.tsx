@@ -17,13 +17,13 @@ export function AvisoPush() {
 
   const textoPorEstado: Record<string, string> = {
     negado:
-      'As notificacoes estao bloqueadas para este site. Libere nas configuracoes do navegador para receber avisos de entrega liberada.',
+      'As notificações estão bloqueadas para este site. Libere nas configurações do navegador para receber avisos de entrega liberada.',
     'sem-suporte':
-      'Para receber avisos no iPhone, instale este app: toque em Compartilhar e depois em "Adicionar a Tela de Inicio".',
-    'sem-https': 'Avisos so funcionam em conexao segura (https).',
-    'sem-chave': 'Avisos indisponiveis: falta configurar a chave de notificacao no servidor.',
-    erro: 'Nao foi possivel ativar os avisos agora. Tente de novo.',
-    dispensado: 'Voce ainda nao respondeu o pedido de permissao. Toque para tentar de novo.',
+      'Para receber avisos no iPhone, instale este app: toque em Compartilhar e depois em "Adicionar à Tela de Início".',
+    'sem-https': 'Avisos só funcionam em conexão segura (https).',
+    'sem-chave': 'Avisos indisponíveis: falta configurar a chave de notificação no servidor.',
+    erro: 'Não foi possível ativar os avisos agora. Tente de novo.',
+    dispensado: 'Você ainda não respondeu o pedido de permissão. Toque para tentar de novo.',
   }
   const mensagem = textoPorEstado[estado]
   // Estados sem acao possivel do lado do funcionario nao ganham botao: botao

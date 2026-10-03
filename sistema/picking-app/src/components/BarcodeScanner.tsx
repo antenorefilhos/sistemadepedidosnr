@@ -58,12 +58,12 @@ export default function BarcodeScanner({
         } catch {
           if (!mounted) return
           setManualFallback(true)
-          setError('Nao foi possivel iniciar a leitura. Digite o codigo manualmente.')
+          setError('Não foi possível iniciar a leitura. Digite o código manualmente.')
         }
       } catch {
         if (!mounted) return
         setManualFallback(true)
-        setError('Camera nao disponivel. Digite o codigo manualmente.')
+        setError('Câmera não disponível. Digite o código manualmente.')
       }
     }
 
@@ -109,7 +109,7 @@ export default function BarcodeScanner({
         <input
           type="text"
           inputMode="numeric"
-          placeholder="Digite o codigo de barras"
+          placeholder="Digite o código de barras"
           value={manualCode}
           onChange={(e) => setManualCode(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && manualCode.trim() && onResult(manualCode.trim())}
@@ -141,12 +141,12 @@ export default function BarcodeScanner({
         </div>
         <div className="absolute top-3 left-3 bg-black/50 text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5">
           <Camera size={12} />
-          Aponte para o codigo
+          Aponte para o código
         </div>
       </div>
       <button onClick={onClose} className="w-full h-11 rounded-xl border border-gray-200 text-gray-600 font-medium flex items-center justify-center gap-2">
         <X size={16} />
-        Fechar Camera
+        Fechar câmera
       </button>
     </div>
   )

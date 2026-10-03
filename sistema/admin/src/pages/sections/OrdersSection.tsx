@@ -82,6 +82,52 @@ const EVENT_LABEL: Record<string, string> = {
   'order.delivered': 'Entregue',
   'order.delivery_failed': 'Falha na entrega',
   'order.failed_sync': 'Falha ao enviar ao ERP',
+  'order.invoiced': 'Faturado no caixa',
+  'order.invoice_reconciled': 'Cupom confere com o pedido',
+  'order.invoice_diverged': 'Cupom diferente do pedido',
+  'order.cancelled_in_erp': 'Cancelado no caixa',
+  'order.status_restored': 'Etapa corrigida',
+  'order.taken_by_driver': 'Entregador pegou o pedido',
+  'order.delivery_retry': 'Nova tentativa de entrega',
+}
+
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
+
+// Linha de detalhe de cada registro, a partir do que o proprio evento gravou.
+function eventDetail(ev: { type: string; payload?: unknown }): string | null {
+  const p = (ev.payload || {}) as Record<string, unknown>
+  if (typeof p.reason === 'string' && p.reason) return p.reason
+  if (ev.type === 'order.invoiced') {
+    // hrRegistro vem do PDV em hora local, gravada com "Z": le o texto, nao converte.
+    const hr = typeof p.hrRegistro === 'string' ? p.hrRegistro : ''
+    const quando = hr.length >= 16 ? `registrado em ${hr.slice(8, 10)}/${hr.slice(5, 7)} às ${hr.slice(11, 16)}` : ''
+    return [p.nrCupom ? `Cupom ${p.nrCupom}` : '', quando].filter(Boolean).join(' · ') || null
+  }
+  if (ev.type === 'order.invoice_diverged') {
+    const itens = Array.isArray(p.itens) ? (p.itens as Array<{ situacao?: string }>) : []
+    const conta = (sit: string) => itens.filter((i) => i.situacao === sit).length
+    const partes = [
+      conta('NAO_FATURADO') ? `${plural(conta('NAO_FATURADO'), 'item não saiu', 'itens não saíram')} no cupom` : '',
+      conta('QUANTIDADE_DIVERGENTE') ? `${plural(conta('QUANTIDADE_DIVERGENTE'), 'item', 'itens')} com quantidade diferente` : '',
+      conta('ADICIONADO_NO_CAIXA') ? `${plural(conta('ADICIONADO_NO_CAIXA'), 'item incluído', 'itens incluídos')} no caixa` : '',
+    ]
+    const pedido = Number(p.totalPedido)
+    const cupom = Number(p.totalFaturado)
+    if (Number.isFinite(pedido) && Number.isFinite(cupom) && Math.abs(pedido - cupom) >= 0.01) partes.push(`cupom ${brl(cupom)}, pedido ${brl(pedido)}`)
+    return partes.filter(Boolean).join(' · ') || null
+  }
+  if (ev.type === 'order.cancelled_in_erp' && typeof p.motivo === 'string') return p.motivo
+  return null
+}
+
+// Notas automaticas do app de separacao. A quantidade corrigida ja aparece na
+// linha do item (pedido x separado); as antigas vinham sem acento e com ponto.
+function pickerNote(note?: string | null): string | null {
+  const n = String(note || '').trim()
+  if (!n || /^Quantidade corrigida:/.test(n)) return null
+  if (n === 'Marcacao manual' || n === 'Marcação manual') return 'Separado sem ler o código de barras'
+  if (n.includes('Incluido durante separacao')) return 'Incluído pelo separador'
+  return `Separador: ${n}`
 }
 const ACTOR_LABEL: Record<string, string> = { SYSTEM: 'sistema', ADMIN: 'admin', PICKER: 'separador', DRIVER: 'entregador', CUSTOMER: 'cliente' }
 const ITEM_STATUS: Record<string, string> = {
@@ -536,7 +582,7 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                             {' · '}<span className={item.substitutionPolicy === 'DENY' ? 'text-gray-700' : ''}>{item.substitutionPolicy === 'DENY' ? 'cliente não quer troca' : 'aceita troca'}</span>
                           </p>
                           {item.cutReason && <p className="mt-0.5 text-xs text-rose-700">{item.cutReason}</p>}
-                          {item.pickerNotes && <p className="mt-0.5 text-xs text-gray-500">Separador: {item.pickerNotes}</p>}
+                          {pickerNote(item.pickerNotes) && <p className="mt-0.5 text-xs text-gray-500">{pickerNote(item.pickerNotes)}</p>}
                         </div>
                         <span className="shrink-0 text-right text-sm tabular-nums text-gray-900">
                           {brl(final ?? item.subtotal)}
@@ -613,14 +659,14 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                 ) : (
                   <ol className="space-y-2.5">
                     {(order.events || []).slice().reverse().map((ev) => {
-                      const reason = (ev.payload as { reason?: string } | undefined)?.reason
+                      const detail = eventDetail(ev)
                       return (
                         <li key={ev.id} className="flex gap-3 text-sm">
                           <span className="w-24 shrink-0 text-xs tabular-nums text-gray-400">{new Date(ev.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                          <span className="min-w-0 text-gray-800">
-                            {EVENT_LABEL[ev.type] || ev.type}
+                          <span className="min-w-0 text-gray-800" title={EVENT_LABEL[ev.type] ? undefined : ev.type}>
+                            {EVENT_LABEL[ev.type] || 'Registro do sistema'}
                             <span className="text-gray-400"> · {ACTOR_LABEL[ev.actorType] || ev.actorType}</span>
-                            {reason && <span className="block text-xs text-gray-500">{reason}</span>}
+                            {detail && <span className="block text-xs text-gray-500">{detail}</span>}
                           </span>
                         </li>
                       )

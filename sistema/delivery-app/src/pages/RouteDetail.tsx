@@ -9,7 +9,7 @@ const STOP_STATUS_LABEL: Record<string, string> = {
   OUT_FOR_DELIVERY: 'A caminho',
   ARRIVED: 'No local',
   DELIVERED: 'Entregue',
-  FAILED: 'Nao entregue',
+  FAILED: 'Não entregue',
 }
 
 const STOP_STATUS_COLOR: Record<string, string> = {
@@ -23,8 +23,8 @@ const STOP_STATUS_COLOR: Record<string, string> = {
 const PAYMENT_LABEL: Record<string, string> = {
   CASH: 'Dinheiro',
   PIX: 'PIX',
-  CREDIT_CARD: 'Cartao Credito',
-  DEBIT_CARD: 'Cartao Debito',
+  CREDIT_CARD: 'Cartão de crédito',
+  DEBIT_CARD: 'Cartão de débito',
 }
 
 const NEXT_STATUSES: Record<string, string[]> = {
@@ -105,7 +105,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
     try {
       const { data } = await driverApi.completeRoute(route.id)
       setRoute(data)
-      toast.success('Rota concluida')
+      toast.success('Rota concluída')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Erro ao concluir')
     } finally {
@@ -155,7 +155,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
   if (!route) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3">
-        <p className="text-gray-500">Rota nao encontrada</p>
+        <p className="text-gray-500">Rota não encontrada</p>
         <button onClick={onBack} className="text-brand-500 font-medium">Voltar</button>
       </div>
     )
@@ -265,7 +265,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
               )}
               {stop.order?.deliveryInstructions && (
                 <p className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5 mb-2">
-                  <strong>Instrucoes:</strong> {stop.order.deliveryInstructions}
+                  <strong>Instruções:</strong> {stop.order.deliveryInstructions}
                 </p>
               )}
 
@@ -316,7 +316,7 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
 
         {done.length > 0 && pending.length > 0 && (
           <p className="text-xs text-gray-400 text-center pt-2">
-            {done.length} de {route.stops.length} concluida(s)
+            {done.length} de {route.stops.length} concluída(s)
           </p>
         )}
       </div>
@@ -329,10 +329,10 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              {failModal.status === 'DELIVERED' ? 'Como foi a entrega?' : 'Motivo da nao entrega'}
+              {failModal.status === 'DELIVERED' ? 'Como foi a entrega?' : 'Motivo da não entrega'}
             </h2>
             <textarea
-              placeholder={failModal.status === 'DELIVERED' ? 'Ex: entregue ao proprio cliente na portaria' : 'Ex: cliente ausente, endereco nao encontrado'}
+              placeholder={failModal.status === 'DELIVERED' ? 'Ex: entregue ao próprio cliente na portaria' : 'Ex: cliente ausente, endereço não encontrado'}
               value={failModal.notes}
               onChange={(e) => setFailModal((s) => s ? { ...s, notes: e.target.value } : s)}
               rows={3}

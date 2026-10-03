@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
   OUT_FOR_DELIVERY: 'Em Entrega',
   DELIVERED: 'Entregue',
   FAILED_DELIVERY: 'Entrega Falhou',
-  COMPLETED: 'Concluido',
+  COMPLETED: 'Concluído',
   CANCELLED: 'Cancelado',
   // Faltavam: sem eles a tela mostrava o valor cru do banco em ingles
   // (o uso e `STATUS_LABEL[status] || status`).

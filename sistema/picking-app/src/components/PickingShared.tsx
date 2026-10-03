@@ -1,11 +1,12 @@
 import { Camera, Check, ChevronDown, ChevronUp, Edit3, Keyboard, Package, RotateCcw, Trash2, X } from 'lucide-react'
 import { PickingTaskItem } from '../services/api'
+import { noteLabel, qtd } from '../utils/quantity'
 
 export const ITEM_STATUS_LABEL: Record<string, string> = {
   PENDING: 'Pendente',
   PICKED: 'Separado',
   MISSING: 'Faltante',
-  SUBSTITUTED: 'Substituido',
+  SUBSTITUTED: 'Substituído',
   CANCELLED: 'Cancelado',
 }
 
@@ -129,8 +130,8 @@ export function DoneItemCard({
             {product?.name || 'Produto'}
           </p>
           <p className="text-xs text-gray-500">
-            {isAdjusted ? `Corrigido: ${picked}/${requested} ${product?.unit || 'un'}` : (ITEM_STATUS_LABEL[taskItem.status] || taskItem.status)}
-            {taskItem.notes && !isAdjusted && <span className="ml-1">· {taskItem.notes}</span>}
+            {isAdjusted ? `Corrigido: ${qtd(picked)} de ${qtd(requested)} ${product?.unit || 'un'}` : (ITEM_STATUS_LABEL[taskItem.status] || taskItem.status)}
+            {noteLabel(taskItem.notes) && !isAdjusted && <span className="ml-1">· {noteLabel(taskItem.notes)}</span>}
           </p>
         </div>
       </div>

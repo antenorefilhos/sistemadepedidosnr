@@ -3,6 +3,7 @@ import { ArrowLeft, Check, ClipboardList, Loader2, Package, Plus } from 'lucide-
 import { pickerApi, PickingTask, PickingTaskItem, Order } from '../services/api'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
 import { deliveryLabel, paymentLabel } from '../utils/orderInfo'
+import { qtd, qtdInput } from '../utils/quantity'
 import toast from 'react-hot-toast'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { Modal, ItemCard, DoneItemCard } from '../components/PickingShared'
@@ -89,7 +90,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             setOrder(found)
             setTask(found.pickingTask || null)
           } else {
-            toast.error('Pedido nao encontrado')
+            toast.error('Pedido não encontrado')
           }
         } catch {
           toast.error('Erro ao carregar pedido')
@@ -142,7 +143,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       await pickerApi.claimTask(task.id)
       await refreshTask()
       setTakeoverConfirm(false)
-      toast.success('Separacao assumida')
+      toast.success('Separação assumida')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Erro ao assumir')
     } finally {
@@ -192,7 +193,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     const orderItem = getOrderItemForTaskItem(taskItem)
     const inicial = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1)
     setAdjustQty(inicial)
-    setAdjustQtyText(String(inicial))
+    setAdjustQtyText(qtdInput(inicial))
     setConfirm({ mode: 'manual', itemId: null, taskItemId: taskItem.id, ean: '' })
   }
 
@@ -223,7 +224,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     const valido = Number.isFinite(parsed) && parsed > 0 ? Math.max(minValue, parsed) : minValue
     const arredondado = Number(valido.toFixed(3))
     setAdjustQty(arredondado)
-    setAdjustQtyText(String(arredondado))
+    setAdjustQtyText(qtdInput(arredondado))
   }
 
   const handleBarcodeResult = async (barcode: string) => {
@@ -237,7 +238,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     const eanMatches = !product?.ean || barcode === product.ean || (scaleDecoded && product.ean.endsWith(scaleDecoded.code))
 
     if (!eanMatches) {
-      toast.error(`EAN ${barcode} nao corresponde ao produto (${product?.ean})`)
+      toast.error(`EAN ${barcode} não corresponde ao produto (${product?.ean})`)
       setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })
       return
     }
@@ -279,12 +280,12 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       const isAdjusted = adjustQty !== requested
       const { data } = await pickerApi.pickItem(task.id, taskItem.id, {
         quantity: adjustQty,
-        notes: isAdjusted ? `Quantidade corrigida: ${adjustQty}/${requested}` : 'Marcacao manual',
+        notes: isAdjusted ? `Quantidade corrigida: ${qtd(adjustQty)} de ${qtd(requested)}` : 'Marcação manual',
         ...(isWeightedProduct(product) ? { finalWeight: adjustQty } : {}),
       })
       setTask(data)
       setOrder(data.order || null)
-      toast.success(isAdjusted ? `Item separado (${adjustQty}/${requested})` : 'Item separado')
+      toast.success(isAdjusted ? `Item separado (${qtd(adjustQty)} de ${qtd(requested)})` : 'Item separado')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Erro ao separar')
     } finally {
@@ -317,7 +318,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       const { data } = await pickerApi.resetItem(task.id, taskItemId)
       setTask(data)
       setOrder(data.order || null)
-      toast.success('Item reaberto para correcao')
+      toast.success('Item reaberto para correção')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Erro ao desfazer')
     } finally {
@@ -399,7 +400,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       const { data } = await pickerApi.finishTask(task.id)
       setTask(data)
       setOrder(data.order || null)
-      toast.success('Separacao finalizada')
+      toast.success('Separação finalizada')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Erro ao finalizar')
     } finally {
@@ -436,7 +437,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   if (!order) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3">
-        <p className="text-gray-500">Pedido nao encontrado</p>
+        <p className="text-gray-500">Pedido não encontrado</p>
         <button onClick={onBack} className="text-brand-500 font-medium">Voltar</button>
       </div>
     )
@@ -484,7 +485,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
               disabled={actionLoading}
               className="flex-1 h-11 rounded-xl bg-purple-600 text-white font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-60"
             >
-              {actionLoading ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Finalizar Separacao'}
+              {actionLoading ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Finalizar separação'}
             </button>
           )}
           {canSendToCashier && (
@@ -565,15 +566,15 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
         {done.length > 0 && (
           <>
             <p className="text-xs text-gray-400 uppercase tracking-wide pt-3 pb-1">
-              Concluidos ({done.length})
+              Concluídos ({done.length})
             </p>
             {done.map(item => (
               <DoneItemCard
                 key={item.id}
                 taskItem={item}
                 product={getProductForTaskItem(item)}
-                onReset={() => { if (window.confirm('Desfazer a separacao deste item?')) handleResetItem(item.id) }}
-                onRemove={() => { if (window.confirm('Remover este item ja separado?')) handleRemoveItem(item.id) }}
+                onReset={() => { if (window.confirm('Desfazer a separação deste item?')) handleResetItem(item.id) }}
+                onRemove={() => { if (window.confirm('Remover este item já separado?')) handleRemoveItem(item.id) }}
                 disabled={actionLoading || isSentToCashier}
               />
             ))}
@@ -637,7 +638,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             ref={eanInputRef}
             type="text"
             inputMode="numeric"
-            placeholder="Digite o codigo EAN"
+            placeholder="Digite o código EAN"
             value={confirm.ean}
             onChange={(e) => setConfirm(s => ({ ...s, ean: e.target.value }))}
             onKeyDown={(e) => e.key === 'Enter' && handleEanSubmit()}
@@ -678,12 +679,12 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             onDecrement={(step, minValue) => {
               const next = Math.max(minValue, Number((adjustQty - step).toFixed(3)))
               setAdjustQty(next)
-              setAdjustQtyText(String(next))
+              setAdjustQtyText(qtdInput(next))
             }}
             onIncrement={(step) => {
               const next = Number((adjustQty + step).toFixed(3))
               setAdjustQty(next)
-              setAdjustQtyText(String(next))
+              setAdjustQtyText(qtdInput(next))
             }}
             onConfirm={handleManualConfirm}
             onClose={() => setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })}
