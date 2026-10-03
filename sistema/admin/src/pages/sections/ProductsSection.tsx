@@ -23,15 +23,16 @@ const TABS: Array<{ key: CatalogTab; label: string; hint: string }> = [
   { key: 'site', label: 'No site', hint: 'O que o cliente encontra agora.' },
   { key: 'noPhoto', label: 'Sem foto', hint: 'No site, mas sem foto: aparece com a imagem padrão.' },
   { key: 'promo', label: 'Em promoção', hint: 'Promoção vigente vinda do ERP.' },
-  { key: 'offSite', label: 'Fora do site', hint: 'Ativos no ERP que o cliente não vê. O motivo está em cada produto.' },
+  { key: 'offSite', label: 'Fora do site', hint: 'Vêm da API, mas o cliente não vê. O motivo está em cada produto.' },
   { key: 'adjusted', label: 'Ajustados', hint: 'Produtos com algum ajuste feito aqui (visibilidade, categoria ou nome). O sync respeita.' },
-  { key: 'inactive', label: 'Inativos no ERP', hint: 'Fora do mix da loja. Para voltar, reative no cadastro do ERP.' },
+  { key: 'inactive', label: 'Fora do catálogo', hint: 'A API não manda para o site: inativos no ERP, ou sem mix e sem venda recente no caixa (ex.: vinhos de giro lento). O motivo está em cada produto.' },
   { key: 'all', label: 'Todos', hint: 'Catálogo inteiro vindo do ERP.' },
 ]
 
 const PAGE_SIZE = 50
 const BADGES = ['Mais Vendido', 'Importado', 'Premium', 'Luxo', 'Exclusivo', 'Especialidade']
-const SYNC_LABEL: Record<string, string> = { SEMPRE: 'Sempre', ESTOQUE: 'Só com estoque', ESTQOUE: 'Só com estoque', NUNCA: 'Nunca' }
+// O que a API manda no feed (calculo automatico, nao a coluna "Internet" do ERP).
+const SYNC_LABEL: Record<string, string> = { SEMPRE: 'Sempre', ESTOQUE: 'Só com estoque', ESTQOUE: 'Só com estoque', NUNCA: 'Fora: sem venda recente' }
 
 const brl = (v?: number | null) => (v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))
 const num = (v: number) => v.toLocaleString('pt-BR')
@@ -349,7 +350,7 @@ export default function ProductsSection() {
                     className="grid w-full grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-4 py-1.5 text-left hover:bg-gray-50/70 md:grid-cols-[minmax(0,1fr)_180px_110px_80px_130px]"
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <Thumb p={p} size={80} />
+                      <Thumb p={p} size={90} />
                       <span className="min-w-0">
                         <span className="block truncate text-sm text-gray-900">{p.displayName}</span>
                         <span className="block truncate text-xs text-gray-400">
@@ -538,7 +539,7 @@ function ProductPanel({
   const fractionInvalid = form.manualIsFractional && !(Number(form.manualFractionStep.replace(',', '.')) > 0)
 
   const visibilityEffect: Record<Visibility, string> = {
-    ERP: `Segue o ERP (${SYNC_LABEL[erpSync] ?? erpSync}${erpSync.startsWith('ESTQ') || erpSync === 'ESTOQUE' ? `, estoque ${qty(p.stock)}` : ''}).`,
+    ERP: `Segue a regra automática da API (${SYNC_LABEL[erpSync] ?? erpSync}${erpSync.startsWith('ESTQ') || erpSync === 'ESTOQUE' ? `, estoque ${qty(p.stock)}` : ''}).`,
     SEMPRE: p.erpActive
       ? 'Fica à venda mesmo sem estoque no ERP. Se faltar, o separador troca ou avisa o cliente.'
       : p.erpMissingSince
@@ -632,7 +633,7 @@ function ProductPanel({
               <div className="mt-1 grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
                 {(
                   [
-                    ['ERP', 'Seguir o ERP'],
+                    ['ERP', 'Automático'],
                     ['SEMPRE', 'Sempre à venda'],
                     ['OCULTO', 'Ocultar'],
                   ] as Array<[Visibility, string]>
@@ -791,8 +792,10 @@ function ProductPanel({
                 <Field label="Estoque">
                   {qty(p.stock)} {p.unit ? p.unit.toLowerCase() : ''}
                 </Field>
-                <Field label="Venda na internet">{SYNC_LABEL[erpSync] ?? erpSync}</Field>
-                <Field label="Situação no ERP">{p.erpActive ? 'Ativo' : 'Inativo'}</Field>
+                <Field label="Regra automática da API">{SYNC_LABEL[erpSync] ?? erpSync}</Field>
+                <Field label="Catálogo da API">
+                  {p.erpActive ? 'Vem para o site' : p.erpMissingSince ? `Fora desde ${new Date(p.erpMissingSince).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}` : 'Inativo no ERP'}
+                </Field>
                 <Field label="Fracionamento">{p.isFractional ? `a cada ${qty(p.fractionStep)} ${(p.unit || 'kg').toLowerCase()}` : 'não fracionado'}</Field>
               </div>
               <Field label="Códigos de barras">

@@ -1590,7 +1590,10 @@ export class ProductsService {
         reason = 'Oculto por você'
       } else if (p.syncOption === 'NUNCA') {
         status = 'OFF'
-        reason = 'Marcado "Nunca" no ERP'
+        // Desde 03/10/2026 o cadastro inteiro do ERP esta em "Estoque" (ORD-043):
+        // quem marca "Nunca" e o calculo automatico da API (Mostruario), para
+        // item sem venda recente. "Marcado no ERP" mandava procurar no lugar errado.
+        reason = 'Tirado pela API: sem venda recente'
       } else if (!isProductSellable(p)) {
         status = 'OFF'
         reason = erpSync === 'SEMPRE' ? 'Sem estoque (sem venda recente no PDV)' : 'Sem estoque'
