@@ -33,7 +33,7 @@ export class SeoController {
 
     try {
       const html = await this.seo.renderProductPage(product)
-      res.status(200).type('html').set('Cache-Control', 'public, max-age=300').send(html)
+      res.status(200).type('html').set('Cache-Control', 'public, max-age=60').send(html)
     } catch {
       return this.sendIndex(res, 200)
     }
@@ -54,7 +54,7 @@ export class SeoController {
     if (!recipe) return this.sendIndex(res, 404)
     try {
       const html = await this.seo.renderRecipePage(recipe)
-      res.status(200).type('html').set('Cache-Control', 'public, max-age=300').send(html)
+      res.status(200).type('html').set('Cache-Control', 'public, max-age=60').send(html)
     } catch {
       return this.sendIndex(res, 200)
     }

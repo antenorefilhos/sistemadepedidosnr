@@ -56,9 +56,15 @@ export class SeoService {
     return String(process.env.FRONTEND_URL || 'https://mercado.antenorefilhos.com.br').replace(/\/+$/, '')
   }
 
-  /** index.html do build do storefront (cache de 5 min; muda a cada deploy). */
+  /**
+   * index.html do build do storefront. Cache CURTO de proposito (03/10/2026):
+   * com 5 min, depois de cada deploy a pagina de produto seguia apontando para
+   * os .js do build anterior, que ja nao existem no container novo -- a pagina
+   * abria em branco ou com o codigo velho por ate 5 min. Buscar o arquivo na
+   * rede interna a cada 30 s custa nada.
+   */
   private async getIndexHtml(): Promise<string> {
-    if (this.indexCache && Date.now() - this.indexCache.at < 5 * 60_000) return this.indexCache.html
+    if (this.indexCache && Date.now() - this.indexCache.at < 30_000) return this.indexCache.html
     const res = await fetch(`${process.env.STOREFRONT_INTERNAL_URL || 'http://storefront'}/index.html`)
     if (!res.ok) throw new Error(`index.html do storefront respondeu ${res.status}`)
     const html = await res.text()
