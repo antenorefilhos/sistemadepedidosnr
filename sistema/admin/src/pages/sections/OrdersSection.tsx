@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { AlertCircle, Check, ChevronRight, Copy, ExternalLink, MessageCircle, Printer, RefreshCw, Search } from 'lucide-react'
 import { escapeHtml } from '@/lib/utils'
 import { WorkspaceDialog } from '../../components/WorkspaceDialog'
+import { orderAdjustment, signedBrl, signedPct } from '../../utils/orderAdjustment'
 import { fraudAPI, getApiErrorMessage, ordersAPI, type AdminOrder, type AdminOrderSummary } from '../../services/api'
 
 // Pedidos (refeito em 29/09/2026 com o Jonathan). Sobrio: lista por abas,
@@ -465,6 +466,7 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
         ? { label: 'Concluir pedido', status: 'COMPLETED' }
         : null
   const troco = order ? changeFor(order.notes) : null
+  const adjustment = order ? orderAdjustment(order) : null
   const addr = order?.addressSnapshot
   const mapsUrl = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([addr.street, addr.number, addr.neighborhood, addr.city].filter(Boolean).join(', '))}` : ''
   const wa = order ? whatsappUrl(order.customer?.whatsapp, whatsappText(order)) : ''
@@ -596,7 +598,18 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                   <div className="flex justify-between text-gray-600"><dt>Subtotal</dt><dd className="tabular-nums">{brl(order.subtotal)}</dd></div>
                   {order.discount > 0 && <div className="flex justify-between text-gray-600"><dt>Desconto</dt><dd className="tabular-nums">−{brl(order.discount)}</dd></div>}
                   <div className="flex justify-between text-gray-600"><dt>Frete</dt><dd className="tabular-nums">{order.delivery > 0 ? brl(order.delivery) : 'grátis'}</dd></div>
-                  <div className="flex justify-between font-semibold text-gray-900"><dt>Total</dt><dd className="tabular-nums">{brl(order.total)}</dd></div>
+                  {adjustment && Math.abs(adjustment.diff) >= 0.01 ? (
+                    <>
+                      <div className="flex justify-between border-t border-black/[0.05] pt-2 text-gray-600"><dt>Aprovado pelo cliente</dt><dd className="tabular-nums">{brl(adjustment.approved)}</dd></div>
+                      <div className="flex justify-between text-gray-600">
+                        <dt>Ajuste na separação</dt>
+                        <dd className="tabular-nums font-medium text-gray-900">{signedBrl(adjustment.diff)} ({signedPct(adjustment.pct)})</dd>
+                      </div>
+                      <div className="flex justify-between font-semibold text-gray-900"><dt>Total final</dt><dd className="tabular-nums">{brl(order.total)}</dd></div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between font-semibold text-gray-900"><dt>Total</dt><dd className="tabular-nums">{brl(order.total)}</dd></div>
+                  )}
                 </dl>
               </Block>
               </div>

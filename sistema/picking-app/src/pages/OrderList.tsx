@@ -4,6 +4,7 @@ import { pickerApi, Order } from '../services/api'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
 import { AvisoPush } from '../components/AvisoPush'
 import toast from 'react-hot-toast'
+import { brl } from '../utils/orderAdjustment'
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Pendente',
@@ -240,7 +241,7 @@ function OrderCard({ order, onTap }: { order: Order; onTap: () => void }) {
           <Package size={12} />
           {isInProgress || isSeparated ? `${pickedCount}/${itemCount}` : `${itemCount} itens`}
         </span>
-        <span>R$ {order.total?.toFixed(2)}</span>
+        <span className="tabular-nums">{brl(order.total)}</span>
         <span className="flex items-center gap-1">
           <Clock size={12} />
           {new Date(order.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}

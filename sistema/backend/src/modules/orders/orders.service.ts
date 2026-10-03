@@ -553,6 +553,8 @@ export class OrdersService {
         delivery: quotedDeliveryAmount,
         discount: discountAmount,
         total,
+        approvedSubtotal: subtotal,
+        approvedTotal: total,
         channel,
         fulfillmentType,
         scheduledFor: createOrderDto.scheduledFor ? new Date(createOrderDto.scheduledFor) : null,

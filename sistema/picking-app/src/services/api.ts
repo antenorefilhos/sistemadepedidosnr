@@ -48,6 +48,8 @@ export interface Order {
   id: string
   customerId: string
   status: string
+  /** O que o cliente aprovou no checkout; total muda conforme a separacao. */
+  approvedTotal?: number | null
   total: number
   subtotal: number
   notes: string | null

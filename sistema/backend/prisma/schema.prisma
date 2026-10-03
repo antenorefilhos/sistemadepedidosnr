@@ -684,6 +684,11 @@ model Order {
   discount  Float    @default(0)
   delivery  Float    @default(0)
   total     Float
+  // O que o cliente aprovou no checkout (03/10/2026). subtotal/total mudam na
+  // separacao (peso, corte, item incluido); estes ficam como referencia para
+  // mostrar o ajuste no admin e no app de separacao.
+  approvedSubtotal Float?
+  approvedTotal    Float?
   status    String   @default("PENDING")
   paymentStatus String @default("UNPAID")
   cancellationReason String?

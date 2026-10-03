@@ -4,6 +4,7 @@ import { pickerApi, PickingTask, PickingTaskItem, Order } from '../services/api'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
 import { deliveryLabel, paymentLabel } from '../utils/orderInfo'
 import { qtd, qtdInput } from '../utils/quantity'
+import { brl, orderAdjustment, signedBrl, signedPct } from '../utils/orderAdjustment'
 import toast from 'react-hot-toast'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { Modal, ItemCard, DoneItemCard } from '../components/PickingShared'
@@ -451,6 +452,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const isSentToCashier = order.status in PAST_CASHIER_LABEL
   const canFinish = allDone && task && !isSeparated && !isSentToCashier
   const canSendToCashier = (isSeparated || allDone) && !isSentToCashier
+  const adjustment = orderAdjustment(order)
 
   return (
     <div className="flex flex-col h-full">
@@ -464,6 +466,18 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             <p className="text-xs text-white/60">
               {hasPdvCode(order) ? `DAV ${getOrderPdvCode(order)}` : `#${getOrderPdvCode(order)}`} · {done.length}/{taskItems.length} itens
             </p>
+            {adjustment && (
+              <p className="mt-0.5 text-xs text-white/80 tabular-nums">
+                Pedido {brl(adjustment.approved)}
+                {Math.abs(adjustment.diff) >= 0.01 && (
+                  <>
+                    {' · agora '}
+                    <span className="font-semibold text-white">{brl(adjustment.final)}</span>
+                    {` (${signedBrl(adjustment.diff)} · ${signedPct(adjustment.pct)})`}
+                  </>
+                )}
+              </p>
+            )}
           </div>
         </div>
         {taskItems.length > 0 && (

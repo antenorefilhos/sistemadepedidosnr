@@ -644,6 +644,9 @@ export interface AdminOrder {
   discount: number
   delivery: number
   total: number
+  /** O que o cliente aprovou no checkout; total muda na separacao. */
+  approvedTotal?: number | null
+  approvedSubtotal?: number | null
   status: string
   paymentStatus?: string
   paymentMethod?: string

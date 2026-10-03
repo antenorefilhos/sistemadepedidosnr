@@ -3,6 +3,7 @@ import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
 import { deliveryLabel, paymentLabel } from '../utils/orderInfo'
 import { Order, PickingTaskItem } from '../services/api'
 import { noteLabel } from '../utils/quantity'
+import { brl, orderAdjustment, signedBrl, signedPct } from '../utils/orderAdjustment'
 
 export function ReviewScreen({
   order, doneItems, deliveryInstructions, sendConfirm, actionLoading,
@@ -21,6 +22,7 @@ export function ReviewScreen({
 }) {
   const pickedItems = doneItems.filter(i => i.status !== 'MISSING')
   const missingItems = doneItems.filter(i => i.status === 'MISSING')
+  const adjustment = orderAdjustment(order)
   const productFor = (taskItem: PickingTaskItem) => order.items?.find(i => i.id === taskItem.orderItemId)?.product
 
   return (
@@ -112,10 +114,27 @@ export function ReviewScreen({
               <span className="text-gray-500">Itens faltantes</span>
               <span className="font-medium text-red-600">{missingItems.length}</span>
             </div>
-            <div className="flex justify-between pt-1 border-t border-gray-100">
-              <span className="text-gray-500">Total</span>
-              <span className="font-semibold">R$ {order.total?.toFixed(2)}</span>
-            </div>
+            {adjustment && Math.abs(adjustment.diff) >= 0.01 ? (
+              <>
+                <div className="flex justify-between pt-1 border-t border-gray-100">
+                  <span className="text-gray-500">Aprovado pelo cliente</span>
+                  <span className="tabular-nums">{brl(adjustment.approved)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Ajuste na separação</span>
+                  <span className="font-medium tabular-nums">{signedBrl(adjustment.diff)} ({signedPct(adjustment.pct)})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Total final</span>
+                  <span className="font-semibold tabular-nums">{brl(order.total)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between pt-1 border-t border-gray-100">
+                <span className="text-gray-500">Total</span>
+                <span className="font-semibold tabular-nums">{brl(order.total)}</span>
+              </div>
+            )}
           </div>
         </div>
 
