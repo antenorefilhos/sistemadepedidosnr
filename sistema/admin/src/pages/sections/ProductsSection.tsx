@@ -518,7 +518,11 @@ function ProductPanel({
 
   const visibilityEffect: Record<Visibility, string> = {
     ERP: `Segue o ERP (${SYNC_LABEL[erpSync] ?? erpSync}${erpSync.startsWith('ESTQ') || erpSync === 'ESTOQUE' ? `, estoque ${qty(p.stock)}` : ''}).`,
-    SEMPRE: p.erpActive ? 'Fica à venda mesmo sem estoque no ERP. Se faltar, o separador troca ou avisa o cliente.' : 'Inativo no ERP: continua fora até ser reativado lá (o PDV não fatura produto inativo).',
+    SEMPRE: p.erpActive
+      ? 'Fica à venda mesmo sem estoque no ERP. Se faltar, o separador troca ou avisa o cliente.'
+      : p.erpMissingSince
+        ? 'Fora do catálogo que a API manda (sem mix da loja e sem venda recente no caixa): continua fora até voltar a vir nele.'
+        : 'Inativo no ERP: continua fora até ser reativado lá (o PDV não fatura produto inativo).',
     OCULTO: 'Some do site, da busca e das vitrines na hora, mesmo ativo e com estoque no ERP.',
   }
 

@@ -902,6 +902,8 @@ export interface CatalogProduct {
   categoryOverrideId: string | null
   /** Dias da semana em que vende (0 = domingo); vazio = todos. */
   saleWeekdays: number[]
+  /** Saiu do catalogo que a API manda (sem mix e sem venda recente no caixa). */
+  erpMissingSince: string | null
   categoryId: string | null
   categoryName: string | null
   hasPhoto: boolean

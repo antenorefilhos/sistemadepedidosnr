@@ -1557,7 +1557,7 @@ export class ProductsService {
         select: {
           id: true, ean: true, erpProductId: true, secondaryEans: true, name: true, titleMask: true, erpDescription: true, pdvDescription: true,
           price: true, promotionalPrice: true, promotionalPriceValidUntil: true, stock: true, unit: true,
-          active: true, erpActive: true, syncOption: true, erpSyncOption: true, siteVisibility: true, categoryOverrideId: true, updatedAt: true, saleWeekdays: true,
+          active: true, erpActive: true, syncOption: true, erpSyncOption: true, siteVisibility: true, categoryOverrideId: true, updatedAt: true, saleWeekdays: true, erpMissingSince: true,
           alternativeDescription: true, isFractional: true, fractionStep: true, manualIsFractional: true, manualFractionStep: true, badges: true, videoUrl: true,
           ecommerceCategory: true, classification01: true, classification02: true, classification03: true, classification04: true,
         },
@@ -1579,7 +1579,12 @@ export class ProductsService {
       let reason: string | null = null
       if (!p.erpActive) {
         status = 'INACTIVE'
-        reason = 'Inativo no ERP'
+        // Ativo no ERP mas fora do catalogo que a API manda (sem mix e sem venda
+        // recente no caixa) nao e "inativo no ERP": o lojista ia procurar o
+        // problema no cadastro errado (pizzas com assadeira, 03/10/2026).
+        reason = p.erpMissingSince
+          ? `Fora do catálogo da API desde ${p.erpMissingSince.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })}`
+          : 'Inativo no ERP'
       } else if (p.siteVisibility === 'OCULTO') {
         status = 'HIDDEN'
         reason = 'Oculto por você'
