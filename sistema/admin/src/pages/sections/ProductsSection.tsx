@@ -349,7 +349,7 @@ export default function ProductsSection() {
                     className="grid w-full grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-4 py-1.5 text-left hover:bg-gray-50/70 md:grid-cols-[minmax(0,1fr)_180px_110px_80px_130px]"
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <Thumb p={p} size={76} />
+                      <Thumb p={p} size={80} />
                       <span className="min-w-0">
                         <span className="block truncate text-sm text-gray-900">{p.displayName}</span>
                         <span className="block truncate text-xs text-gray-400">
