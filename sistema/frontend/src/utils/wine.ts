@@ -128,10 +128,33 @@ export const WINE_STYLE_LABEL: Record<NonNullable<WineFacts['estilo']>, string> 
   seco: 'Seco', 'meio-seco': 'Meio-seco', suave: 'Suave', brut: 'Brut', 'extra-brut': 'Extra-brut', nature: 'Nature', 'demi-sec': 'Demi-sec', 'sem álcool': 'Sem álcool',
 }
 
-/** "Malbec · Argentina" / "Blend · Itália" / "Espumante · Brasil". */
-export function wineSubtitle(f: WineFacts): string {
+/** Linha do card: "Tinto · Malbec · Argentina" / "Espumante · Brasil · 1L". */
+export function wineSubtitle(f: WineFacts, name = ''): string {
   const grape = f.uvas.length > 2 ? 'Blend' : f.uvas.join(' & ')
-  return [grape || (f.tipo ? WINE_TYPE_LABEL[f.tipo] : ''), f.regiao && f.pais ? `${f.regiao}, ${f.pais}` : f.pais].filter(Boolean).join(' · ')
+  const volume = wineVolumeTag(name)
+  return [f.tipo ? WINE_TYPE_LABEL[f.tipo] : '', grape, f.pais, volume].filter(Boolean).join(' · ')
+}
+
+// Os nomes da adega comecam por tipo e pais ("Vinho Tinto Argentino Luigi
+// Bosca Malbec 750ml") por causa da busca. No card da Adega isso repete a
+// linha de baixo e corta o rotulo no celular: o titulo e so o rotulo.
+const NAME_PREFIX = /^(vinho|espumante|frisante|sidra|champagne|prosecco)(\s+(tinto|branco|ros[eé]|licoroso|fortificado))?(\s+(nacional|brasileiro|argentino|chileno|italiano|portugu[eê]s|uruguaio|franc[eê]s|espanhol|sul[- ]africano|americano|australiano|alem[aã]o))?(\s+(seco|suave|meio[- ]seco|demi[- ]sec|brut|sem [aá]lcool))?\s+/i
+const VOLUME_SUFFIX = /\s+(\d+(?:[.,]\d+)?)\s*(ml|l|lt|litros?)\s*$/i
+
+export function wineCardTitle(name: string): string {
+  const stripped = name.replace(NAME_PREFIX, '').replace(VOLUME_SUFFIX, '').trim()
+  return stripped.length >= 3 ? stripped : name
+}
+
+/** Volume so quando foge da garrafa padrao (750 ml): "1L", "375ml". */
+export function wineVolumeTag(name: string): string {
+  const m = name.match(VOLUME_SUFFIX)
+  if (!m) return ''
+  const value = m[1].replace(',', '.')
+  const unit = m[2].toLowerCase()
+  const ml = unit === 'ml' ? Number(value) : Number(value) * 1000
+  if (ml === 750) return ''
+  return unit === 'ml' ? `${value}ml` : `${value.replace('.', ',')}L`
 }
 
 export const PRICE_BANDS = [

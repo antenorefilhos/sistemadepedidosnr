@@ -1,7 +1,7 @@
 import { useCart } from '../hooks/useCart'
 import { useQuery } from '@tanstack/react-query'
 import { productsAPI } from '../services/api'
-import { PRICE_BANDS, WINE_STYLE_LABEL, wineFacts, wineSubtitle, type WineFacts } from '../utils/wine'
+import { PRICE_BANDS, WINE_STYLE_LABEL, wineCardTitle, wineFacts, wineSubtitle, type WineFacts } from '../utils/wine'
 import { useAuth } from '../hooks/useAuth'
 import { useStoreBanners } from '../hooks/useCMS'
 import { productPath } from '../utils/productUrl'
@@ -232,7 +232,8 @@ export default function WinePage() {
 
       <main>
         {/* Luxury Hero Section */}
-        <section className="relative h-[60vh] flex items-end pb-12">
+        {/* Celular: a foto ocupava a tela inteira e os rotulos so apareciam depois de muita rolagem. */}
+        <section className="relative flex h-[38vh] min-h-[260px] items-end pb-8 md:h-[60vh] md:pb-12">
            <img
              src="/media/vinhos.jpg"
              alt="Luxury Wine Selection - Adega Antenor & Filhos"
@@ -255,8 +256,8 @@ export default function WinePage() {
               <span className="flex items-center gap-2 text-[#D2BB8A] text-xs font-bold tracking-widest uppercase mb-4">
                  <Sparkles size={14} /> Seleção Especial
               </span>
-              <h2 className="text-4xl md:text-6xl font-medium tracking-tight leading-tight luxury-text mb-8 bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">Cada taça conta <br/>uma história</h2>
-              <p className="max-w-lg text-white/70 text-sm italic leading-relaxed">
+              <h2 className="text-3xl md:text-6xl font-medium tracking-tight leading-tight luxury-text mb-4 md:mb-8 bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">Cada taça conta <br/>uma história</h2>
+              <p className="hidden max-w-lg text-white/70 text-sm italic leading-relaxed md:block">
                 Não é só vinho. É escolha, cuidado e sabor de verdade. Aqui você encontra rótulos para presentear bem ou aproveitar um momento especial.
               </p>
            </div>
@@ -490,11 +491,11 @@ function WineCard({ product, facts }: { product: Product; facts: WineFacts }) {
           <div className="mb-3">
              <Link to={productPath(product)} state={{ from: '/adega' }} className="block">
                <h3 className="luxury-text text-base text-white line-clamp-2 leading-tight min-h-[2.5rem] group-hover:text-[#D2BB8A] transition-colors">
-                 {formatWineTitle(product.name)}
+                 {wineCardTitle(formatWineTitle(product.name))}
                </h3>
              </Link>
              <p className="text-label text-white/60 mt-1 line-clamp-1">
-               {wineSubtitle(facts) || formatWineDescription(product.alternativeDescription)}
+               {wineSubtitle(facts, product.name) || formatWineDescription(product.alternativeDescription)}
                {facts.estilo && facts.estilo !== 'seco' && facts.tipo !== 'espumante' ? ` · ${WINE_STYLE_LABEL[facts.estilo]}` : ''}
              </p>
           </div>

@@ -30,3 +30,18 @@ describe('dias de venda', () => {
     expect(getFulfillmentWeekday(config, new Date('2026-10-07T22:00:00-03:00'))).toBe(4) // quarta depois de fechar -> quinta
   })
 })
+
+import { wineCardTitle, wineFacts, wineSubtitle, wineVolumeTag } from './wine'
+describe('card da adega', () => {
+  it('titulo e so o rotulo; volume fora do padrao vai para a linha de baixo', () => {
+    expect(wineCardTitle('Vinho Tinto Argentino Luigi Bosca Malbec 750ml')).toBe('Luigi Bosca Malbec')
+    expect(wineCardTitle('Espumante Nacional Chandon Réserve Brut 750ml')).toBe('Chandon Réserve Brut')
+    expect(wineCardTitle('Espumante Nacional Sem Álcool Salton Zero Moscato 750ml')).toBe('Salton Zero Moscato')
+    expect(wineCardTitle('Vinho Tinto Nacional Suave Galiotto Safra Especial 1L')).toBe('Galiotto Safra Especial')
+    expect(wineCardTitle('Vinho Tinto Português Esporão Pé Tinto 750ml')).toBe('Esporão Pé Tinto')
+    expect(wineVolumeTag('Vinho Tinto Nacional Suave Galiotto Safra Especial 1L')).toBe('1L')
+    expect(wineVolumeTag('Vinho Tinto Argentino Luigi Bosca Malbec 750ml')).toBe('')
+    const f = wineFacts({ name: 'Vinho Tinto Argentino Luigi Bosca Malbec 750ml', classification03: 'Vinho Tinto' })
+    expect(wineSubtitle(f, 'Vinho Tinto Argentino Luigi Bosca Malbec 750ml')).toBe('Tinto · Malbec · Argentina')
+  })
+})
