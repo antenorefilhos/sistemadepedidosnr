@@ -172,7 +172,9 @@ const STORAGE_BY_CATEGORY: Record<string, string> = {
 export const getProductDetailSections = (product: Product): ProductDetailSection[] => {
   const sections: ProductDetailSection[] = []
   if (isWine(product)) {
-    const wine = getWineFacts(product)
+    // Com a ficha curada (wineProfile), o bloco "Sobre este vinho" ja mostra
+    // tudo isso, com mais precisao: nao repete (03/10/2026).
+    const wine = product.wineProfile ? [] : getWineFacts(product)
     if (wine.length) sections.push({ id: 'wine', title: 'Ficha do vinho', facts: wine })
   } else if (product.category === 'ACOUGUE_CHURRASCO') {
     const meat = buildMeat(product)
