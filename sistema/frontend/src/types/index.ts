@@ -22,6 +22,9 @@ export interface Product {
   active: boolean
   /** Dias da semana em que e vendido (0 = domingo); vazio/ausente = todos. */
   saleWeekdays?: number[]
+  /** Ficha do vinho (curadoria por rotulo); ver utils/wine.ts. */
+  wineProfile?: import('../utils/wine').WineProfile | null
+  classification03?: string | null
 }
 
 export interface Customer {

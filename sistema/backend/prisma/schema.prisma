@@ -478,6 +478,10 @@ model Product {
   // Dias da semana em que o produto e vendido (0 = domingo ... 6 = sabado);
   // vazio = todos. Vale o dia da entrega/retirada. Ver common/sale-days.ts.
   saleWeekdays Int[] @default([])
+  // Ficha do vinho (03/10/2026): tipo, pais, uvas, produtor, descricao para
+  // iniciante, notas, harmonizacao... So do site; o sync nao mexe. Ver
+  // common/wine-profile.ts.
+  wineProfile Json?
   categoryOverrideId String? // categoria do site escolhida no admin (Category.id, raiz)
   // 22/09/2026: marcado no primeiro sync COMPLETO em que o produto nao veio
   // na resposta do ERP; limpo (null) assim que ele reaparecer. Deactivacao

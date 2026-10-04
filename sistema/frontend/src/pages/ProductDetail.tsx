@@ -8,6 +8,7 @@ import { formatProductTitle } from '../utils/format'
 import { getProductPricePresentation, formatProductQuantity } from '../utils/productPricing'
 import { getProductCardViewModel } from '../utils/productCard'
 import { useSaleWeekday } from '../hooks/useDeliveryOperation'
+import { WINE_STYLE_LABEL, WINE_TYPE_LABEL, wineFacts } from '../utils/wine'
 import { trackEvent } from '../utils/analytics'
 import { SEO, StructuredData } from '../components/SEO'
 import { getProductDetailSections } from '../utils/productDetailSchema'
@@ -406,6 +407,8 @@ export default function ProductDetail() {
           <ProductPurchasePanel product={product} />
           <DeliveryInfoCard />
 
+          {product.wineProfile && <WineSheet product={product} />}
+
           <div className="space-y-4 pt-2">
             {sections.map((section) => (
               <article key={section.id} className="rounded-lg border border-[#E8D7B0]/70 bg-[#FBFAF7] p-4">
@@ -488,6 +491,51 @@ export default function ProductDetail() {
       )}
       <MobileBottomNav />
     </div>
+  )
+}
+
+// Ficha do vinho (03/10/2026): para o novato, a descricao curta e o basico;
+// para quem conhece, as notas de degustacao abrem num toque.
+function WineSheet({ product }: { product: Product }) {
+  const p = product.wineProfile!
+  const f = wineFacts(product)
+  const facts = [
+    ['Tipo', [f.tipo ? WINE_TYPE_LABEL[f.tipo] : '', f.estilo ? WINE_STYLE_LABEL[f.estilo] : ''].filter(Boolean).join(' · ')],
+    ['Uvas', f.uvas.join(', ')],
+    ['Origem', [p.regiaoDenominacao, p.pais].filter(Boolean).join(', ')],
+    ['Produtor', p.produtor || ''],
+    ['Classificação', p.classificacao || ''],
+    ['Teor alcoólico', p.teorAlcoolico || ''],
+    ['Servir a', p.temperaturaServico || ''],
+    ['Guarda', p.guarda || ''],
+  ].filter(([, v]) => v)
+  return (
+    <article className="rounded-lg border border-[#E8D7B0]/70 bg-[#FBFAF7] p-4">
+      <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-[#5D082A]">Sobre este vinho</h2>
+      {p.descricaoCurta && <p className="mb-3 text-sm leading-relaxed text-[#231F20]">{p.descricaoCurta}</p>}
+      {facts.length > 0 && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+          {facts.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="font-semibold text-[#231F20]">{label}</dt>
+              <dd className="text-[#5d4f33]">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {p.harmonizacao && (
+        <p className="mt-3 text-sm leading-relaxed text-[#5d4f33]">
+          <span className="font-semibold text-[#231F20]">Combina com: </span>
+          {p.harmonizacao}
+        </p>
+      )}
+      {p.notasDegustacao && (
+        <details className="mt-3 text-sm">
+          <summary className="cursor-pointer font-semibold text-[#5D082A]">Notas de degustação</summary>
+          <p className="mt-1.5 leading-relaxed text-[#5d4f33]">{p.notasDegustacao}</p>
+        </details>
+      )}
+    </article>
   )
 }
 

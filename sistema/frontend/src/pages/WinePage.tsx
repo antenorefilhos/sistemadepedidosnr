@@ -1,4 +1,7 @@
-import { useProducts, useCart } from '../hooks/useCart'
+import { useCart } from '../hooks/useCart'
+import { useQuery } from '@tanstack/react-query'
+import { productsAPI } from '../services/api'
+import { PRICE_BANDS, WINE_STYLE_LABEL, wineFacts, wineSubtitle, type WineFacts } from '../utils/wine'
 import { useAuth } from '../hooks/useAuth'
 import { useStoreBanners } from '../hooks/useCMS'
 import { productPath } from '../utils/productUrl'
@@ -12,7 +15,7 @@ import type { Product } from '../types'
 import { getProductPricePresentation } from '../utils/productPricing'
 import { trackEvent } from '../utils/analytics'
 import { ArrowLeft, ShoppingCart, Loader2, Sparkles } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMemo, useEffect, useState } from 'react'
 import { SEO, StructuredData } from '../components/SEO'
 import { Badge } from '../components/ui/badge'
@@ -43,48 +46,49 @@ const formatWineDescription = (value?: string | null) => {
 
 const formatWineTitle = (value?: string | null) => normalizeUppercaseDisplayText(value)
 
-type WineSubcategory = 'all' | 'tinto' | 'branco' | 'rose' | 'suave' | 'espumante' | 'champagne'
+// Filtros pela ficha do vinho (03/10/2026): tipo, estilo, pais, uva e preco.
+// Antes era palavra no nome ("CHANDON" contava como champagne). O estado fica
+// na URL, entao o link filtrado pode ser compartilhado e o voltar funciona.
+type WineSubcategory = 'all' | 'tinto' | 'branco' | 'rose' | 'espumante' | 'suave'
 
 const WINE_CATEGORIES: Array<{ key: WineSubcategory; label: string }> = [
   { key: 'all', label: 'Todos' },
   { key: 'tinto', label: 'Tintos' },
   { key: 'branco', label: 'Brancos' },
   { key: 'rose', label: 'Rosés' },
-  { key: 'suave', label: 'Suaves' },
   { key: 'espumante', label: 'Espumantes' },
-  { key: 'champagne', label: 'Champagne' },
+  { key: 'suave', label: 'Suaves' },
 ]
 
-const normalizeWineText = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toUpperCase()
-
-const filterWineByCategory = (wine: Product, subcat: WineSubcategory): boolean => {
+const matchesSubcat = (f: WineFacts, subcat: WineSubcategory): boolean => {
   if (subcat === 'all') return true
-  const normalized = normalizeWineText(`${wine.name} ${wine.alternativeDescription || ''}`)
-
-  switch (subcat) {
-    case 'tinto':
-      return normalized.includes('TINTO')
-    case 'branco':
-      return normalized.includes('BRANCO') || normalized.includes('CHARDONNAY') || normalized.includes('SAUVIGNON BLANC')
-    case 'rose':
-      return normalized.includes('ROSE') || normalized.includes('ROSADO')
-    case 'suave':
-      return normalized.includes('SUAVE')
-    case 'espumante':
-      return normalized.includes('ESPUMANTE') || normalized.includes('PROSECCO') || normalized.includes('BRUT') || normalized.includes('MOSCATEL')
-    case 'champagne':
-      return normalized.includes('CHAMPAGNE') || normalized.includes('CHAMPANHE') || normalized.includes('CHANDON')
-    default:
-      return true
-  }
+  if (subcat === 'suave') return f.estilo === 'suave'
+  if (subcat === 'rose') return f.tipo === 'rosé'
+  return f.tipo === subcat
 }
 
+type WineSort = 'nome' | 'menor' | 'maior'
+const SORTS: Array<{ key: WineSort; label: string }> = [
+  { key: 'nome', label: 'Nome (A–Z)' },
+  { key: 'menor', label: 'Menor preço' },
+  { key: 'maior', label: 'Maior preço' },
+]
+const priceOf = (p: Product) => (p.promotionalPrice && p.promotionalPrice < p.price ? p.promotionalPrice : p.price)
+
+const selectClass =
+  'h-10 min-w-0 rounded-full border border-[#D2BB8A]/30 bg-[#1C1917] px-3 text-xs font-semibold text-[#F3E7C9] outline-none focus:border-[#D2BB8A]'
+
 export default function WinePage() {
-  const { data: products, isLoading } = useProducts(undefined, 'ADEGA_VINHOS_ESPUMANTES')
+  // Lista inteira da Adega (ate 100) para os filtros contarem tudo.
+  const { data: products, isLoading } = useQuery({
+    queryKey: ['adega', 100],
+    queryFn: async () => {
+      const r = await productsAPI.getAll(undefined, 1, 100, 'ADEGA_VINHOS_ESPUMANTES')
+      const body = r.data as { data?: Product[] } | Product[]
+      return (Array.isArray(body) ? body : body.data ?? []) as Product[]
+    },
+    staleTime: 1000 * 60 * 5,
+  })
   const { count } = useCart()
   const { user } = useAuth()
   // A Adega tem rota propria (/adega), sem ?cat= na URL, entao o banner e
@@ -92,28 +96,69 @@ export default function WinePage() {
   // categoria da Adega apontar pra ca (ver findWineCategoryBanner).
   const { data: storeBanners } = useStoreBanners()
   const wineBanner = useMemo(() => findWineCategoryBanner(storeBanners), [storeBanners])
-  const [selectedSubcat, setSelectedSubcat] = useState<WineSubcategory>('all')
+  const [params, setParams] = useSearchParams()
+  const selectedSubcat = (WINE_CATEGORIES.some((c) => c.key === params.get('tipo')) ? params.get('tipo') : 'all') as WineSubcategory
+  const country = params.get('pais') || ''
+  const grape = params.get('uva') || ''
+  const band = params.get('preco') || ''
+  const sort = (SORTS.some((s) => s.key === params.get('ordem')) ? params.get('ordem') : 'nome') as WineSort
+  const setFilter = (key: string, value: string) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (value && value !== 'all' && !(key === 'ordem' && value === 'nome')) next.set(key, value)
+        else next.delete(key)
+        return next
+      },
+      { replace: true },
+    )
+  const setSelectedSubcat = (v: WineSubcategory) => setFilter('tipo', v)
+  const hasFilters = Boolean(country || grape || band || selectedSubcat !== 'all')
 
   useEffect(() => {
     trackEvent('VIEW_CATEGORY', 'CATEGORY', 'VINHOS')
   }, [])
 
-  const vinhos = useMemo(() => {
-    return (products || []) as Product[]
-  }, [products])
+  const vinhos = useMemo(() => ((products || []) as Product[]).map((p) => ({ p, f: wineFacts(p) })), [products])
+
+  // Cada filtro conta sobre o resultado dos OUTROS filtros (faceta), para nunca
+  // oferecer uma opcao que leva a lista vazia.
+  const passes = (x: { p: Product; f: WineFacts }, skip?: string) => {
+    if (skip !== 'tipo' && !matchesSubcat(x.f, selectedSubcat)) return false
+    if (skip !== 'pais' && country && x.f.pais !== country) return false
+    if (skip !== 'uva' && grape && !x.f.uvas.includes(grape)) return false
+    if (skip !== 'preco' && band) {
+      const b = PRICE_BANDS.find((pb) => pb.key === band)
+      const v = priceOf(x.p)
+      if (b && !(v >= b.min && v < b.max)) return false
+    }
+    return true
+  }
 
   const subcatCounts = useMemo(() => {
-    const counts = new Map<WineSubcategory, number>()
-    for (const cat of WINE_CATEGORIES) {
-      counts.set(cat.key, cat.key === 'all' ? vinhos.length : vinhos.filter((w) => filterWineByCategory(w, cat.key)).length)
-    }
-    return counts
-  }, [vinhos])
+    const base = vinhos.filter((x) => passes(x, 'tipo'))
+    return new Map(WINE_CATEGORIES.map((c) => [c.key, base.filter((x) => matchesSubcat(x.f, c.key)).length]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vinhos, country, grape, band])
 
-  const filteredVinhos = useMemo(
-    () => vinhos.filter((wine) => filterWineByCategory(wine, selectedSubcat)),
-    [vinhos, selectedSubcat],
-  )
+  const facet = (key: 'pais' | 'uva') => {
+    const counts = new Map<string, number>()
+    for (const x of vinhos.filter((v) => passes(v, key))) {
+      const values = key === 'pais' ? (x.f.pais ? [x.f.pais] : []) : x.f.uvas
+      for (const v of values) counts.set(v, (counts.get(v) || 0) + 1)
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+  }
+  const countryOptions = useMemo(() => facet('pais'), [vinhos, selectedSubcat, grape, band]) // eslint-disable-line react-hooks/exhaustive-deps
+  const grapeOptions = useMemo(() => facet('uva'), [vinhos, selectedSubcat, country, band]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filteredVinhos = useMemo(() => {
+    const list = vinhos.filter((x) => passes(x))
+    const byName = (a: { p: Product }, b: { p: Product }) => a.p.name.localeCompare(b.p.name, 'pt-BR')
+    list.sort(sort === 'menor' ? (a, b) => priceOf(a.p) - priceOf(b.p) || byName(a, b) : sort === 'maior' ? (a, b) => priceOf(b.p) - priceOf(a.p) || byName(a, b) : byName)
+    return list
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vinhos, selectedSubcat, country, grape, band, sort])
 
   if (isLoading) {
     return (
@@ -247,6 +292,37 @@ export default function WinePage() {
               )
             })}
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" role="group" aria-label="Mais filtros">
+            <select aria-label="País" value={country} onChange={(e) => setFilter('pais', e.target.value)} className={selectClass}>
+              <option value="">Todos os países</option>
+              {countryOptions.map(([c, n]) => (
+                <option key={c} value={c}>{c} ({n})</option>
+              ))}
+            </select>
+            <select aria-label="Uva" value={grape} onChange={(e) => setFilter('uva', e.target.value)} className={selectClass}>
+              <option value="">Todas as uvas</option>
+              {grapeOptions.map(([g, n]) => (
+                <option key={g} value={g}>{g} ({n})</option>
+              ))}
+            </select>
+            <select aria-label="Faixa de preço" value={band} onChange={(e) => setFilter('preco', e.target.value)} className={selectClass}>
+              <option value="">Qualquer preço</option>
+              {PRICE_BANDS.map((b) => (
+                <option key={b.key} value={b.key}>{b.label}</option>
+              ))}
+            </select>
+            <select aria-label="Ordenar" value={sort} onChange={(e) => setFilter('ordem', e.target.value)} className={selectClass}>
+              {SORTS.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+            {hasFilters && (
+              <button type="button" onClick={() => setParams(new URLSearchParams(), { replace: true })} className="col-span-2 h-10 rounded-full px-3 text-xs font-semibold uppercase tracking-wider text-[#D2BB8A] underline-offset-4 hover:underline sm:col-span-1">
+                Limpar filtros
+              </button>
+            )}
+          </div>
+          <p className="mt-3 text-xs text-white/50">{filteredVinhos.length} {filteredVinhos.length === 1 ? 'rótulo' : 'rótulos'}</p>
         </section>
 
         {/* Banner de categoria (StoreBanner slot=category apontando pra Adega).
@@ -280,7 +356,7 @@ export default function WinePage() {
               <p className="luxury-text text-lg text-[#D2BB8A]">Nenhum rótulo encontrado nesta categoria</p>
               <p className="text-sm text-white/40">Explore outra seleção ou volte para "Todos".</p>
               <Button
-                onClick={() => setSelectedSubcat('all')}
+                onClick={() => setParams(new URLSearchParams(), { replace: true })}
                 variant="ghost"
                 className="mt-2 rounded-full border border-[#D2BB8A]/40 px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#D2BB8A] hover:bg-[#D2BB8A]/10"
               >
@@ -289,8 +365,8 @@ export default function WinePage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
-              {filteredVinhos.map((vinho) => (
-                <WineCard key={vinho.id} product={vinho} />
+              {filteredVinhos.map(({ p, f }) => (
+                <WineCard key={p.id} product={p} facts={f} />
               ))}
             </div>
           )}
@@ -322,7 +398,7 @@ export default function WinePage() {
 const WINE_QUANTITY_STEPS = [1, 6, 12] as const
 type WineQuantityStep = (typeof WINE_QUANTITY_STEPS)[number]
 
-function WineCard({ product }: { product: Product }) {
+function WineCard({ product, facts }: { product: Product; facts: WineFacts }) {
   const { cart, addItem, removeItem, updateQuantity } = useCart()
   const cartItem = cart.find(item => item.productId === product.id)
   const quantity = cartItem?.quantity || 0
@@ -417,8 +493,9 @@ function WineCard({ product }: { product: Product }) {
                  {formatWineTitle(product.name)}
                </h3>
              </Link>
-             <p className="text-label text-white/40 italic mt-1 line-clamp-1">
-               {formatWineDescription(product.alternativeDescription)}
+             <p className="text-label text-white/60 mt-1 line-clamp-1">
+               {wineSubtitle(facts) || formatWineDescription(product.alternativeDescription)}
+               {facts.estilo && facts.estilo !== 'seco' && facts.tipo !== 'espumante' ? ` · ${WINE_STYLE_LABEL[facts.estilo]}` : ''}
              </p>
           </div>
           

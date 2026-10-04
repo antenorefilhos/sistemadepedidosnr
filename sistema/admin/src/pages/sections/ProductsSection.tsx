@@ -507,6 +507,37 @@ type Visibility = 'ERP' | 'SEMPRE' | 'OCULTO'
 
 const WEEK: Array<[number, string]> = [[0, 'Dom'], [1, 'Seg'], [2, 'Ter'], [3, 'Qua'], [4, 'Qui'], [5, 'Sex'], [6, 'Sáb']]
 
+// Ficha do vinho (03/10/2026): o que aparece em "Sobre este vinho" na loja e
+// alimenta os filtros da Adega. Vazio = nao mostra (nada de inventar).
+const WINE_TEXT_FIELDS = [
+  ['pais', 'País'], ['regiaoDenominacao', 'Região / denominação'], ['produtor', 'Produtor'], ['marcaLinha', 'Linha'],
+  ['classificacao', 'Classificação'], ['teorAlcoolico', 'Teor alcoólico'], ['temperaturaServico', 'Servir a'], ['guarda', 'Guarda'],
+] as const
+const WINE_LONG_FIELDS = [
+  ['descricaoCurta', 'Descrição para quem está começando'], ['notasDegustacao', 'Notas de degustação (para quem conhece)'], ['harmonizacao', 'Harmonização'],
+] as const
+const WINE_TYPES = ['tinto', 'branco', 'rosé', 'espumante', 'fortificado', 'sobremesa']
+const WINE_STYLES = ['seco', 'meio-seco', 'suave', 'brut', 'extra-brut', 'nature', 'demi-sec', 'sem álcool']
+type WineForm = Record<string, string>
+function wineForm(profile?: Record<string, unknown> | null): WineForm {
+  const p = (profile || {}) as Record<string, unknown>
+  const out: WineForm = { tipo: String(p.tipo || ''), estilo: String(p.estilo || ''), uvas: Array.isArray(p.uvas) ? (p.uvas as string[]).join(', ') : '' }
+  for (const [k] of [...WINE_TEXT_FIELDS, ...WINE_LONG_FIELDS]) out[k] = String(p[k] || '')
+  return out
+}
+function wineProfileFrom(form: WineForm, previous?: Record<string, unknown> | null): Record<string, unknown> | null {
+  const out: Record<string, unknown> = { ...(previous || {}) }
+  for (const [k, v] of Object.entries(form)) {
+    if (k === 'uvas') {
+      const list = v.split(',').map((x) => x.trim()).filter(Boolean)
+      if (list.length) out.uvas = list
+      else delete out.uvas
+    } else if (v.trim()) out[k] = v.trim()
+    else delete out[k]
+  }
+  return Object.keys(out).filter((k) => k !== 'fontes' && k !== 'confianca' && k !== 'nomeRotulo').length ? out : null
+}
+
 function ProductPanel({
   product: p,
   categories,
@@ -527,8 +558,11 @@ function ProductPanel({
     manualIsFractional: Boolean(p.manualIsFractional),
     manualFractionStep: p.manualFractionStep != null ? String(p.manualFractionStep) : '',
     saleWeekdays: normalizeSaleWeekdays(p.saleWeekdays),
+    wine: wineForm(p.wineProfile),
   }
   const [form, setForm] = useState(initial)
+  const isWine = Boolean(p.wineProfile) || /vinho|espumante/i.test(`${p.classification02 || ''} ${p.classification03 || ''} ${p.ecommerceCategory || ''}`)
+  const setWine = (patch: WineForm) => setForm((f) => ({ ...f, wine: { ...f.wine, ...patch } }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }))
@@ -552,8 +586,9 @@ function ProductPanel({
     setSaving(true)
     setError('')
     try {
-      const site: { visibility?: Visibility; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[] } = {}
+      const site: { visibility?: Visibility; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[]; wineProfile?: Record<string, unknown> | null } = {}
       if (JSON.stringify(form.saleWeekdays) !== JSON.stringify(initial.saleWeekdays)) site.saleWeekdays = form.saleWeekdays
+      if (JSON.stringify(form.wine) !== JSON.stringify(initial.wine)) site.wineProfile = wineProfileFrom(form.wine, p.wineProfile)
       if (form.visibility !== initial.visibility) site.visibility = form.visibility
       if (form.categoryId !== initial.categoryId) site.categoryId = form.categoryId || null
       if (form.displayName.trim() !== initial.displayName) site.displayName = form.displayName.trim() || null
@@ -711,6 +746,55 @@ function ProductPanel({
                 )}
               </p>
             </div>
+
+            {isWine && (
+              <div className="mt-6 border-t border-black/[0.06] pt-5">
+                <h4 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Ficha do vinho</h4>
+                <p className="mt-1 text-xs text-gray-500">Aparece em "Sobre este vinho" na loja e alimenta os filtros da Adega. Campo vazio não aparece.</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <label className="block text-xs text-gray-500">
+                    Tipo
+                    <select value={form.wine.tipo} onChange={(e) => setWine({ tipo: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-gray-900">
+                      <option value="">—</option>
+                      {WINE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </label>
+                  <label className="block text-xs text-gray-500">
+                    Estilo
+                    <select value={form.wine.estilo} onChange={(e) => setWine({ estilo: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-gray-900">
+                      <option value="">—</option>
+                      {WINE_STYLES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </label>
+                  <label className="col-span-2 block text-xs text-gray-500">
+                    Uvas (separadas por vírgula)
+                    <input value={form.wine.uvas} onChange={(e) => setWine({ uvas: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-black/[0.08] px-3 text-sm text-gray-900" />
+                  </label>
+                  {WINE_TEXT_FIELDS.map(([k, label]) => (
+                    <label key={k} className="block text-xs text-gray-500">
+                      {label}
+                      <input value={form.wine[k]} onChange={(e) => setWine({ [k]: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-black/[0.08] px-3 text-sm text-gray-900" />
+                    </label>
+                  ))}
+                  {WINE_LONG_FIELDS.map(([k, label]) => (
+                    <label key={k} className="col-span-2 block text-xs text-gray-500">
+                      {label}
+                      <textarea rows={3} value={form.wine[k]} onChange={(e) => setWine({ [k]: e.target.value })} className="mt-1 w-full rounded-xl border border-black/[0.08] px-3 py-2 text-sm text-gray-900" />
+                    </label>
+                  ))}
+                </div>
+                {Array.isArray(p.wineProfile?.fontes) && (p.wineProfile!.fontes as string[]).length > 0 && (
+                  <p className="mt-2 text-xs text-gray-400">
+                    Fontes da pesquisa:{' '}
+                    {(p.wineProfile!.fontes as string[]).map((u, i) => (
+                      <a key={u} href={u} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-gray-700">
+                        {i + 1}
+                      </a>
+                    )).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ' · ', el] : [el]), [])}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block text-xs text-gray-500">

@@ -910,6 +910,8 @@ export interface CatalogProduct {
   saleWeekdays: number[]
   /** Saiu do catalogo que a API manda (sem mix e sem venda recente no caixa). */
   erpMissingSince: string | null
+  /** Ficha do vinho (so do site): tipo, pais, uvas, descricao... */
+  wineProfile?: Record<string, unknown> | null
   categoryId: string | null
   categoryName: string | null
   hasPhoto: boolean
@@ -953,7 +955,7 @@ export const productsAPI = {
   getMercadologicalTree: () => api.get<MercadologicalTreeResponse>('/products/admin/mercadological-tree'),
   catalog: (params: { tab?: CatalogTab; search?: string; category?: string; page?: number; limit?: number }) =>
     api.get<CatalogResponse>('/products/admin/catalog', { params }),
-  updateSite: (id: string, data: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[] }) =>
+  updateSite: (id: string, data: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[]; wineProfile?: Record<string, unknown> | null }) =>
     api.patch(`/products/admin/${id}/site`, data),
   createAdmin: (data: ProductPayload) => api.post('/products/admin', data),
   create: (data: ProductPayload) => api.post('/products', data),

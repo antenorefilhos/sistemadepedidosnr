@@ -18,6 +18,7 @@ import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-cont
 import { productIdsMatchingText } from '../../common/unaccent-search'
 import { applySiteVisibility, isProductSellable } from '../../common/product-availability'
 import { normalizeSaleWeekdays } from '../../common/sale-days'
+import { sanitizeWineProfile } from '../../common/wine-profile'
 import { eansWithPhoto, photoVersion } from '../../common/product-photos'
 import { notOfferedCategoryCodes } from '../../common/not-offered-categories'
 import { resolveEffectiveFractional, type FractionalSource } from '../../common/fractional.util'
@@ -1413,7 +1414,7 @@ export class ProductsService {
    */
   async updateSiteSettings(
     id: string,
-    dto: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[] },
+    dto: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[]; wineProfile?: unknown },
     adminId?: string,
   ) {
     const product = await this.prisma.product.findUnique({ where: { id } })
@@ -1454,6 +1455,11 @@ export class ProductsService {
     if (dto.saleWeekdays !== undefined) {
       if (!Array.isArray(dto.saleWeekdays)) throw new BadRequestException('Dias de venda invalidos.')
       Object.assign(data, { saleWeekdays: normalizeSaleWeekdays(dto.saleWeekdays) })
+    }
+
+    if (dto.wineProfile !== undefined) {
+      const profile = sanitizeWineProfile(dto.wineProfile)
+      Object.assign(data, { wineProfile: profile ?? Prisma.DbNull })
     }
 
     const updated = await this.prisma.product.update({ where: { id }, data })
@@ -1557,7 +1563,7 @@ export class ProductsService {
         select: {
           id: true, ean: true, erpProductId: true, secondaryEans: true, name: true, titleMask: true, erpDescription: true, pdvDescription: true,
           price: true, promotionalPrice: true, promotionalPriceValidUntil: true, stock: true, unit: true,
-          active: true, erpActive: true, syncOption: true, erpSyncOption: true, siteVisibility: true, categoryOverrideId: true, updatedAt: true, saleWeekdays: true, erpMissingSince: true,
+          active: true, erpActive: true, syncOption: true, erpSyncOption: true, siteVisibility: true, categoryOverrideId: true, updatedAt: true, saleWeekdays: true, erpMissingSince: true, wineProfile: true,
           alternativeDescription: true, isFractional: true, fractionStep: true, manualIsFractional: true, manualFractionStep: true, badges: true, videoUrl: true,
           ecommerceCategory: true, classification01: true, classification02: true, classification03: true, classification04: true,
         },
