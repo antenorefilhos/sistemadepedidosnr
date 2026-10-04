@@ -658,7 +658,9 @@ export class AntenorApiService {
 
     if (!ean || !name || !Number.isFinite(price)) return null
 
-    const active = row.Ativo !== false && row.excluidoEcommerce !== true
+    // 03/10/2026: vinho da adega veio no feed com preco 0 (sem preco de venda
+    // na loja 1) e ficou a venda por R$ 0,00. Sem preco nao se vende.
+    const active = row.Ativo !== false && row.excluidoEcommerce !== true && price > 0
     const stock = Number(row.QTD_PRODUTO) || 0
     const isFractional = row.Fracionado === true
     const fractionStep = Number(row.Fracionamento)

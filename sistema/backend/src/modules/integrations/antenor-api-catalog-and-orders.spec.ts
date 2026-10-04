@@ -117,6 +117,16 @@ describe('AntenorApiService — catalogo e criacao de pedido', () => {
       expect(result.data[0].stock).toBe(-1)
     })
 
+    it('preco zero no feed nao fica a venda (vinho a R$ 0,00 em 03/10/2026)', async () => {
+      cliente.get.mockResolvedValue({
+        data: { produtos: [{ ID_LOJA: 1, ID_PRODUTO: 1, CODIGO_EAN: '111', PRODUTO: 'VINHO', VL_PRODUTO: 0, VL_PRODUTO_NORMAL: 0, QTD_PRODUTO: 5, Ativo: true, TipoIntegracao: 'ESTOQUE' }] },
+      })
+
+      const result = await service.syncProducts()
+
+      expect(result.data[0].active).toBe(false)
+    })
+
     it('produto sem EAN ou nome e descartado', async () => {
       cliente.get.mockResolvedValue({
         data: { produtos: [{ ID_LOJA: 1, ID_PRODUTO: 1, CODIGO_EAN: '', PRODUTO: 'X', VL_PRODUTO: 1, VL_PRODUTO_NORMAL: 1 }] },
