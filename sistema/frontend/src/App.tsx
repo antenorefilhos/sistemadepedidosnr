@@ -84,6 +84,7 @@ interface ProtectedRouteProps {
 }
 
 function ProtectedRoute({ children, isAuthenticated, isLoading }: ProtectedRouteProps) {
+  const location = useLocation()
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -92,7 +93,9 @@ function ProtectedRoute({ children, isAuthenticated, isLoading }: ProtectedRoute
     )
   }
 
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+  // Volta para a pagina pedida depois do login (antes caia na Home: quem tocava
+  // em "Conta" ou abria o link do pedido tinha que achar o caminho de novo).
+  return isAuthenticated ? <>{children}</> : <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />
 }
 
 function AppRoutes() {

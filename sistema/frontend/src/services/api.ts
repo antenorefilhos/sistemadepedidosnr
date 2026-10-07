@@ -371,6 +371,8 @@ export const authAPI = {
   /** Cliente ja autenticado define a propria senha (conta de convidado nasce sem). */
   setPassword: (newPassword: string, currentPassword?: string) =>
     api.post('/auth/customer/set-password', { newPassword, ...(currentPassword ? { currentPassword } : {}) }),
+  /** Cliente muda nome, e-mail e WhatsApp da propria conta; volta token novo. */
+  updateProfile: (data: { name?: string; email?: string; whatsapp?: string }) => api.patch('/auth/customer/profile', data),
 }
 
 // Addresses

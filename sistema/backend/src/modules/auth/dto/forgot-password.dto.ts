@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator'
+import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
 
 export class ForgotPasswordDto {
   @IsEmail()
@@ -23,4 +23,23 @@ export class SetPasswordDto {
   @IsOptional()
   @IsString()
   currentPassword?: string
+}
+
+/** Dados que o proprio cliente muda na conta. CPF nao: e a identidade fiscal. */
+export class UpdateCustomerProfileDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string
+
+  /** Vazio apaga o e-mail (e opcional no cadastro). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  email?: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  whatsapp?: string
 }

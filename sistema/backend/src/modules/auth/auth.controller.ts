@@ -8,7 +8,7 @@ import { CreateAdminDto, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
 import { LoginDto, CustomerLoginDto } from './dto/login.dto'
-import { ForgotPasswordDto, ResetPasswordDto, SetPasswordDto } from './dto/forgot-password.dto'
+import { ForgotPasswordDto, ResetPasswordDto, SetPasswordDto, UpdateCustomerProfileDto } from './dto/forgot-password.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
@@ -152,6 +152,23 @@ export class AuthController {
       throw new UnauthorizedException('Rota exclusiva de cliente.')
     }
     return this.authService.customerSetPassword(customerId, dto.newPassword, dto.currentPassword)
+  }
+
+  @Patch('customer/profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Throttle({ auth: { limit: 10, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Atualizar os proprios dados (cliente)',
+    description: 'Nome, e-mail e WhatsApp da conta do cliente autenticado. CPF nao muda por aqui. Devolve token novo.',
+  })
+  customerUpdateProfile(@Req() req: { user?: { id?: string; role?: string } }, @Body() dto: UpdateCustomerProfileDto) {
+    // O id vem SEMPRE do token: aceitar do corpo deixaria um cliente mudar a conta de outro.
+    const customerId = req.user?.id
+    if (!customerId || req.user?.role !== 'customer') {
+      throw new UnauthorizedException('Rota exclusiva de cliente.')
+    }
+    return this.authService.customerUpdateProfile(customerId, dto)
   }
 
   @Post('customer/register')

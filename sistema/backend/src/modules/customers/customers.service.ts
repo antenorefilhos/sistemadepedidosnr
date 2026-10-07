@@ -21,7 +21,9 @@ type UpdateCustomerDto = Partial<CreateCustomerDto>
 // tambem caia aqui sem alguem lembrar de listar.
 function stripSecrets<T extends Record<string, unknown>>(customer: T): T {
   const { password, resetTokenHash, resetTokenExpiresAt, ...safe } = customer
-  return safe as unknown as T
+  // So o fato de ter senha (a conta do cliente mostra "Criar senha" ou
+  // "Trocar senha"); o hash nunca sai daqui.
+  return { ...safe, hasPassword: Boolean(password) } as unknown as T
 }
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hora, mesmo padrao do fluxo de auth

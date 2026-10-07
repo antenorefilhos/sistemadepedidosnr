@@ -201,6 +201,57 @@ export class AuthService {
     return { message: 'Senha definida com sucesso.', ...this.buildCustomerTokenResponse(updated) }
   }
 
+  /**
+   * Cliente muda nome, e-mail e WhatsApp da propria conta (07/10/2026: antes so
+   * o admin mudava). E-mail e WhatsApp sao unicos e entram no login, entao
+   * conferem conflito com outra conta e o bloqueio do antifraude. Devolve um
+   * token novo: nome e e-mail vao dentro dele.
+   */
+  async customerUpdateProfile(customerId: string, dto: { name?: string; email?: string; whatsapp?: string }) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } })
+    if (!customer) throw new UnauthorizedException('Sessao invalida.')
+    if (customer.blocked) throw new UnauthorizedException('Conta bloqueada.')
+
+    const data: { name?: string; email?: string | null; whatsapp?: string } = {}
+    if (dto.name !== undefined) {
+      const name = dto.name.trim().replace(/\s+/g, ' ')
+      if (name.length < 3) throw new BadRequestException('Informe seu nome completo.')
+      data.name = name
+    }
+    if (dto.email !== undefined) {
+      const email = dto.email.trim().toLowerCase() || null
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestException('E-mail inválido.')
+      if (email && email !== customer.email) {
+        const other = await this.prisma.customer.findFirst({ where: { email, NOT: { id: customer.id } }, select: { id: true } })
+        if (other) throw new ConflictException('Este e-mail já está em outra conta.')
+      }
+      data.email = email
+    }
+    if (dto.whatsapp !== undefined) {
+      const whatsapp = dto.whatsapp.replace(/\D/g, '')
+      if (whatsapp.length < 10 || whatsapp.length > 11) throw new BadRequestException('Informe o WhatsApp com DDD.')
+      if (whatsapp !== customer.whatsapp) {
+        const other = await this.prisma.customer.findFirst({ where: { whatsapp, NOT: { id: customer.id } }, select: { id: true } })
+        if (other) throw new ConflictException('Este WhatsApp já está em outra conta.')
+      }
+      data.whatsapp = whatsapp
+    }
+    if (Object.keys(data).length === 0) throw new BadRequestException('Nada para atualizar.')
+
+    // So os valores novos: o atual ja passou pelo antifraude no cadastro.
+    await this.assertIdentityAllowed(
+      {
+        email: data.email && data.email !== customer.email ? data.email : null,
+        whatsapp: data.whatsapp && data.whatsapp !== customer.whatsapp ? data.whatsapp : null,
+      },
+      undefined,
+      customer.id,
+    )
+
+    const updated = await this.prisma.customer.update({ where: { id: customer.id }, data })
+    return { message: 'Dados atualizados.', ...this.buildCustomerTokenResponse(updated) }
+  }
+
   async login(loginDto: LoginDto) {
     const admin = await this.prisma.admin.findUnique({
       where: { email: loginDto.email },

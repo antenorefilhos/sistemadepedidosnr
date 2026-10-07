@@ -18,6 +18,8 @@ export interface AuthContextData {
   login: (email: string, password: string, destino?: string) => Promise<void>
   register: (data: RegisterPayload) => Promise<void>
   logout: () => void
+  /** Troca token e dados da sessao (depois de editar o perfil ou a senha), sem sair da pagina. */
+  applySession: (accessToken: string, user: User) => void
 }
 
 export const AuthContext = createContext<AuthContextData>({} as AuthContextData)
@@ -124,8 +126,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate('/login')
   }, [navigate])
 
+  const applySession = useCallback((accessToken: string, userData: User) => {
+    setToken(accessToken)
+    setUser(userData)
+    localStorage.setItem('token', accessToken)
+    localStorage.setItem('user', JSON.stringify(userData))
+    api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, isAuthenticated: !!token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isAuthenticated: !!token, login, register, logout, applySession }}>
       {children}
     </AuthContext.Provider>
   )

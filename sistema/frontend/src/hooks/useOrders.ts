@@ -1,7 +1,13 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ordersAPI, customersAPI, type CreateOrderPayload } from '../services/api'
 
-const ACTIVE_STATUSES = ['PENDING', 'CONFIRMED']
+// Pedido em andamento: a lista se atualiza sozinha (30 s). Antes so PENDING e
+// CONFIRMED -- o cliente nao via "Saiu para entrega" sem recarregar (07/10/2026).
+export const ACTIVE_ORDER_STATUSES = [
+  'PENDING', 'CONFIRMED', 'PICKING_PENDING', 'PICKING', 'CONFERENCE_PENDING', 'PACKING',
+  'READY_FOR_CHECKOUT', 'READY_FOR_DELIVERY', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY',
+]
+const ACTIVE_STATUSES = ACTIVE_ORDER_STATUSES
 
 export function useOrders(customerId?: string) {
   return useQuery({

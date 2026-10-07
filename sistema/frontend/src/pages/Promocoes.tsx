@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, BellRing, Check, Clock, Flame, Search, ShoppingCart, Truck } from 'lucide-react'
+import { ArrowLeft, BellRing, Clock, Flame, Search, ShoppingCart, Truck } from 'lucide-react'
 import { productsAPI } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
 import { useCart } from '../hooks/useCart'
-import { useNotifications } from '../hooks/useNotifications'
 import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
 import { useHomeVitrines, usePromotionCampaigns, useTopSellingProducts, NEAR_EXPIRY_NOTE } from '../hooks/useCMS'
 import { stripEmoji } from '../utils/format'
@@ -19,7 +18,7 @@ import { SEO } from '../components/SEO'
 import type { Product } from '../types'
 import { buttonVariants } from '../components/ui/button'
 import { CMS_CATEGORY_TO_RULE_ID, HOME_CATEGORY_RULES, normalizeCategoryCode } from '../utils/homeCategories'
-import { pushStatusMessage } from '../utils/pushMessage'
+import { PushAlertsCard } from '../components/PushAlertsCard'
 import { useDragScroll } from '../hooks/useDragScroll'
 import { cn } from '../lib/cn'
 
@@ -296,30 +295,13 @@ function OfferAlertsCard() {
 }
 
 function OfferAlertsToggle() {
-  const { pushStatus, pushPermission, requestPushPermission, isSubscribingToPush } = useNotifications()
-  const enabled = pushStatus === 'enabled'
-  const blocked = pushStatus === 'denied' || pushPermission === 'denied'
   return (
-    <section className={cn('flex items-start gap-3 rounded-2xl border p-4', enabled ? 'border-emerald-200 bg-emerald-50/60' : 'border-[#E8D7B0] bg-white')}>
-      <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full', enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-[#F8F2E6] text-[#5D082A]')}>
-        {enabled ? <Check size={21} /> : <BellRing size={21} />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-[#231F20]">{enabled ? 'Aviso de ofertas ativado' : 'Saiba primeiro das ofertas'}</p>
-        <p className="text-xs text-gray-500">
-          {enabled ? 'Você recebe no celular quando um encarte entra no ar.' : pushStatusMessage(pushStatus, pushPermission, 'Receba no celular quando um encarte entrar no ar.')}
-        </p>
-      </div>
-      {!enabled && !blocked && (
-        <button
-          type="button"
-          onClick={() => requestPushPermission()}
-          disabled={isSubscribingToPush}
-          className={buttonVariants({ size: 'sm', className: 'shrink-0 rounded-full px-4' })}
-        >
-          {isSubscribingToPush ? 'Ativando…' : 'Avise-me'}
-        </button>
-      )}
-    </section>
+    <PushAlertsCard
+      title="Saiba primeiro das ofertas"
+      enabledTitle="Aviso de ofertas ativado"
+      idleText="Receba no celular quando um encarte entrar no ar."
+      enabledText="Você recebe no celular quando um encarte entra no ar."
+      actionLabel="Avise-me"
+    />
   )
 }

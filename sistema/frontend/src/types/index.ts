@@ -36,6 +36,8 @@ export interface Customer {
   whatsapp: string
   email?: string
   addresses?: Address[]
+  /** A conta ja tem senha (conta do checkout convidado nasce sem). */
+  hasPassword?: boolean
 }
 
 export interface Address {
@@ -48,6 +50,9 @@ export interface Address {
   state: string
   zipCode: string
   isDefault: boolean
+  /** Localidade do frete escolhida quando o CEP cobre mais de uma. */
+  locality?: string | null
+  deliveryPointCode?: string | null
 }
 
 export interface CartItem {
@@ -81,6 +86,8 @@ export interface Order {
     state: string
   } | null
   deliveryStops?: { status: string; deliveredAt: string | null }[]
+  /** Total que o cliente aprovou no checkout; `total` muda na separacao (peso, troca). */
+  approvedTotal?: number | null
 }
 
 export interface OrderItem {
