@@ -4,6 +4,7 @@ import { useNotifications } from '../hooks/useNotifications'
 import { Button } from './ui/button'
 import { surfaceClasses } from './ui/surface'
 import { cn } from '../lib/cn'
+import { pushStatusMessage } from '../utils/pushMessage'
 
 export default function NotificationBell() {
   const {
@@ -50,33 +51,9 @@ export default function NotificationBell() {
     }
   }, [open])
 
-  // Instrucao de desbloqueio muda de lugar entre desktop e Android; mandar o
-  // cliente procurar um "cadeado" no celular e mandar procurar o que nao existe.
-  const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent)
   const pushEnabled = pushStatus === 'enabled'
-  const pushGranted = pushPermission === 'granted'
   const pushDenied = pushStatus === 'denied' || pushPermission === 'denied'
-
-  const pushMessage = (() => {
-    if (pushEnabled) return 'Notificações ativas neste navegador.'
-    if (pushGranted) return 'Permissão concedida; conclua a ativação.'
-    if (pushDenied) return isAndroid
-      ? 'Permissão bloqueada neste navegador. Para reativar: toque no ícone à esquerda do endereço do site, depois em Permissões e mude "Notificações" para Permitir.'
-      : 'Permissão bloqueada no navegador. Para reativar: clique no cadeado/ícone ao lado do endereço do site e mude "Notificações" para Permitir.'
-    // Dispensou sem escolher -- da pra perguntar de novo, nao precisa mexer em
-    // configuracao nenhuma. No Android o aviso costuma vir como um sininho
-    // discreto na barra de endereco, entao vale dizer onde olhar.
-    if (pushStatus === 'dismissed') return isAndroid
-      ? 'O aviso foi fechado sem resposta. Toque em Ativar de novo e escolha Permitir — no Android, a pergunta pode aparecer como um sininho na barra de endereço.'
-      : 'O aviso foi fechado sem resposta. Toque em Ativar notificações de novo e escolha Permitir.'
-    if (pushStatus === 'ios-needs-install') return 'No iPhone/iPad, toque em Compartilhar e depois em "Adicionar à Tela de Início" para poder ativar notificações — o Safari não permite isso numa aba comum.'
-    if (pushStatus === 'ios-outdated') return 'Atualize o iOS para a versão 16.4 ou mais recente para ativar notificações.'
-    if (pushStatus === 'insecure-context') return 'Notificações só funcionam em conexão segura (https). Acesse o site pelo endereço oficial para ativar.'
-    if (pushStatus === 'unsupported') return 'Este navegador não tem suporte a notificações push. Tente pelo Chrome, Edge ou Firefox atualizados.'
-    if (pushStatus === 'missing-key') return 'Notificações push estão temporariamente desativadas neste site (configuração pendente). Não é um problema do seu navegador — tente novamente mais tarde.'
-    if (pushStatus === 'error') return 'Não foi possível ativar agora.'
-    return 'Receba avisos de pedido e campanhas.'
-  })()
+  const pushMessage = pushStatusMessage(pushStatus, pushPermission)
 
   return (
     <div className="relative" ref={containerRef}>

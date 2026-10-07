@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Newspaper } from 'lucide-react'
+import { ArrowLeft, Clock, Newspaper, ShoppingCart } from 'lucide-react'
+import { useCart } from '../hooks/useCart'
+import { NEAR_EXPIRY_NOTE } from '../hooks/useCMS'
 import { promotionsAPI } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
 import NotificationBell from '../components/NotificationBell'
@@ -40,6 +42,7 @@ type Campaign = {
 export default function Encarte() {
   const { erpCampaignId } = useParams<{ erpCampaignId: string }>()
   const { user } = useAuth()
+  const { count } = useCart()
 
   const { data: campaign, isLoading, isError } = useQuery({
     queryKey: ['campaign', erpCampaignId],
@@ -54,28 +57,30 @@ export default function Encarte() {
   const notFound = !isLoading && (isError || !campaign)
 
   return (
-    <div className="min-h-screen bg-white pb-24">
+    <div className="min-h-screen bg-[#FBFAF7] pb-24">
       <SEO
         title={campaign ? campaign.name : 'Encarte'}
         description="Ofertas do encarte selecionadas para você economizar."
       />
 
-      <header className="sticky top-0 z-40 bg-[#5D082A] text-white px-4 py-4 flex items-center gap-3">
-        <Link to="/" className="p-1 -ml-1 rounded-lg hover:bg-white/10 transition-colors">
-          <ArrowLeft size={22} />
-        </Link>
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Newspaper size={20} className="text-[#D2BB8A] shrink-0" />
-          <h1 className="text-base font-bold tracking-tight truncate">{campaign?.name || 'Encarte'}</h1>
+      {/* Mesmo cabecalho de Ofertas/Mercado (revisao de UI/UX, 07/10/2026). */}
+      <header className="sticky top-0 z-40 border-b border-[#E8D7B0]/60 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center gap-1.5 px-2 py-2 sm:px-4">
+          <Link to="/promocoes" aria-label="Voltar para Ofertas" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">
+            <ArrowLeft size={22} />
+          </Link>
+          <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-[#231F20]">{campaign?.name || 'Encarte'}</h1>
+          <Link to="/cart" aria-label={count > 0 ? `Carrinho com ${count} itens` : 'Carrinho vazio'} className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">
+            <ShoppingCart size={22} />
+            {count > 0 && (
+              <span className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#5D082A] px-1 text-[10px] font-bold text-white">{count > 9 ? '9+' : count}</span>
+            )}
+          </Link>
+          {user && <NotificationBell />}
         </div>
-        {user && (
-          <div className="[&_[data-bell-trigger]]:text-white [&_[data-bell-trigger]]:hover:bg-white/10">
-            <NotificationBell />
-          </div>
-        )}
       </header>
 
-      <main className="px-4 py-5">
+      <main className="mx-auto max-w-7xl px-4 py-4">
         {isLoading && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             <SkeletonCard count={10} />
@@ -95,12 +100,19 @@ export default function Encarte() {
 
         {campaign && campaign.items.length > 0 && (
           <>
-            <p className="text-sm text-gray-500 mb-4">
-              {campaign.items.length} {campaign.items.length === 1 ? 'produto em oferta' : 'produtos em oferta'} · válido até{' '}
-              {new Date(campaign.endDate).toLocaleDateString('pt-BR')}
-              {campaign.nearExpiry && ' · preço especial por validade próxima'}
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <section className="mb-5 rounded-2xl bg-gradient-to-br from-[#5D082A] via-[#741035] to-[#3d0519] px-5 py-5 text-white">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#D2BB8A]">Encarte</p>
+              <p className="mt-1 text-2xl font-black leading-tight">{campaign.name}</p>
+              <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/85">
+                <span className="inline-flex items-center gap-1 font-semibold text-[#D2BB8A]">
+                  <Clock size={14} /> até{' '}
+                  {new Date(campaign.endDate).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })}
+                </span>
+                <span>{campaign.items.length} {campaign.items.length === 1 ? 'produto' : 'produtos'}</span>
+              </p>
+              {campaign.nearExpiry && <p className="mt-1 text-xs text-white/70">{NEAR_EXPIRY_NOTE}</p>}
+            </section>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {[...campaign.items]
                 .sort((a, b) => Number(b.highlightCover || b.strongSuggestion) - Number(a.highlightCover || a.strongSuggestion))
                 .map((item) => {
