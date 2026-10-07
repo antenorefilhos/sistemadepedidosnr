@@ -95,6 +95,21 @@ type MercadologicalFilters = {
 
 type ProductTenantContext = Pick<TenantContext, 'tenantId' | 'storeId'>
 
+/**
+ * Refino da lista do Mercado (revisao de UI/UX, 07/10/2026): ordenar,
+ * "so ofertas" e secao do departamento (o `ecommerceCategory` da AntenorApi:
+ * Bovinos, Linguicas & Especiais, Aves...). Sem nada disso a lista segue o
+ * caminho de sempre (busca por relevancia no Meili, ou o sorteio do dia).
+ */
+export type ProductListOptions = { sort?: string; onSale?: boolean; section?: string }
+export const PRODUCT_LIST_SORTS = ['menor-preco', 'maior-preco', 'desconto', 'az'] as const
+type ProductListSort = (typeof PRODUCT_LIST_SORTS)[number]
+
+const effectivePrice = (p: { price: number; promotionalPrice: number | null }) =>
+  p.promotionalPrice && p.promotionalPrice > 0 && p.promotionalPrice < p.price ? p.promotionalPrice : p.price
+const discountOf = (p: { price: number; promotionalPrice: number | null }) =>
+  p.promotionalPrice && p.promotionalPrice > 0 && p.promotionalPrice < p.price ? 1 - p.promotionalPrice / p.price : 0
+
 type ClassificationTreeLeaf = {
   value: string
 }
@@ -825,7 +840,12 @@ export class ProductsService {
     classification04?: string,
     context?: Partial<ProductTenantContext>,
     tag?: string,
+    options: ProductListOptions = {},
   ) {
+    const sort = (PRODUCT_LIST_SORTS as readonly string[]).includes(options.sort || '') ? (options.sort as ProductListSort) : undefined
+    const section = options.section?.trim() || undefined
+    const onSale = Boolean(options.onSale)
+    const refined = Boolean(sort || section || onSale)
     const safePage = Math.max(1, page)
     const safeLimit = Math.max(1, Math.min(100, limit))
     const skip = (safePage - 1) * safeLimit
@@ -876,7 +896,7 @@ export class ProductsService {
     const useSearchBackend =
       String(process.env.USE_MEILISEARCH || '').toLowerCase() === 'true' &&
       this.productSearchService.isEnabled()
-    if (parsed.text && parsed.excludes.length === 0 && useSearchBackend && !tag && !deptCategories) {
+    if (parsed.text && parsed.excludes.length === 0 && useSearchBackend && !tag && !deptCategories && !refined) {
       const meili = await this.productSearchService.searchProducts(parsed.text, safePage, safeLimit, {
         tenantId: context?.tenantId,
         storeId: context?.storeId,
@@ -900,7 +920,7 @@ export class ProductsService {
     // case-insensitive mas NAO ignora acento: "moido" nao achava "Patinho
     // Bovino Moído". Fora de uma categoria mapeada, usa o match por regex (~*)
     // que trata as duas grafias e ja respeita a visibilidade do storefront.
-    if (parsed.text && categoryMappingFilter === undefined && !tag && !deptCategories) {
+    if (parsed.text && categoryMappingFilter === undefined && !tag && !deptCategories && !refined) {
       const accentAware = await this.findAllAccentTolerant(
         effectiveParsed,
         safePage,
@@ -915,8 +935,25 @@ export class ProductsService {
       }
     }
 
-    const where = this.buildPrismaWhere(effectiveParsed, effectiveCategory, mercadologicalFilters, await notOfferedCategoryCodes(this.prisma))
+    // Com refino e termo de busca, o texto casa sem acento (mesma regra do
+    // admin): "moido" acha "Moído". Cada palavra precisa aparecer.
+    const textIds = refined && parsed.text
+      ? await Promise.all(parsed.text.split(/\s+/).filter(Boolean).map((token) => productIdsMatchingText(this.prisma, token)))
+      : null
+    const where = this.buildPrismaWhere(
+      textIds ? { ...effectiveParsed, text: '' } : effectiveParsed,
+      effectiveCategory,
+      mercadologicalFilters,
+      textIds ? new Set() : await notOfferedCategoryCodes(this.prisma),
+    )
     Object.assign(where, tenantStoreWhere(context))
+    if (textIds) {
+      const [first = [], ...rest] = textIds
+      const matching = first.filter((id) => rest.every((ids) => ids.includes(id)))
+      where['AND'] = [...(where['AND'] || []), { id: { in: matching } }]
+    }
+    if (section) where['AND'] = [...(where['AND'] || []), { ecommerceCategory: section }]
+    if (onSale) where['AND'] = [...(where['AND'] || []), { promotionalPrice: { gt: 0 } }]
 
     // Enforce de visibilidade global por mapeamento (desktop + mobile)
     where['AND'] = [...(where['AND'] || []), storefrontVisibilityFilter]
@@ -949,12 +986,24 @@ export class ProductsService {
     // ponytail: ordena a lista inteira de ids em JS a cada pagina -- ok pro
     // tamanho atual do catalogo, trocar por coluna materializada
     // (ex.: sortRank recalculado 1x/dia num cron) se o catalogo crescer muito.
+    // 07/10/2026: produto sem foto ia para o topo da lista ("Fita Adesiva" com
+    // a imagem cinza logo no 2o card). No sorteio do dia, quem tem foto vem
+    // antes. Com `sort`, a ordem pedida pelo cliente.
     const daySeed = new Date().toISOString().slice(0, 10)
-    const idRows = await this.prisma.product.findMany({ where, select: { id: true } })
-    const orderedIds = idRows
-      .map((row) => ({ id: row.id, key: createHash('md5').update(row.id + daySeed).digest('hex') }))
-      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
-      .map((row) => row.id)
+    const withPhoto = eansWithPhoto()
+    const idRows = (
+      await this.prisma.product.findMany({ where, select: { id: true, ean: true, name: true, price: true, promotionalPrice: true } })
+    ).filter((row) => !onSale || discountOf(row) > 0)
+    const keyed = idRows.map((row) => ({ ...row, key: createHash('md5').update(row.id + daySeed).digest('hex'), photo: withPhoto.has(row.ean) ? 0 : 1 }))
+    const byDay = (a: (typeof keyed)[number], b: (typeof keyed)[number]) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
+    const comparators: Record<ProductListSort | 'recomendados', (a: (typeof keyed)[number], b: (typeof keyed)[number]) => number> = {
+      recomendados: (a, b) => a.photo - b.photo || byDay(a, b),
+      'menor-preco': (a, b) => effectivePrice(a) - effectivePrice(b) || a.photo - b.photo,
+      'maior-preco': (a, b) => effectivePrice(b) - effectivePrice(a) || a.photo - b.photo,
+      desconto: (a, b) => discountOf(b) - discountOf(a) || a.photo - b.photo || byDay(a, b),
+      az: (a, b) => a.name.localeCompare(b.name, 'pt-BR'),
+    }
+    const orderedIds = keyed.sort(comparators[sort || 'recomendados']).map((row) => row.id)
     const total = orderedIds.length
     const pageIds = orderedIds.slice(skip, skip + safeLimit)
 
@@ -971,6 +1020,26 @@ export class ProductsService {
       total,
       hasNextPage: safePage * safeLimit < total,
     }
+  }
+
+  /**
+   * Secoes de um departamento para os chips do Mercado (07/10/2026): o
+   * `ecommerceCategory` dos produtos que o site mostra naquele departamento,
+   * com a contagem. "Acougue" vira Bovinos, Linguicas & Especiais, Suinos...
+   */
+  async getSections(category?: string) {
+    const effectiveCategory = this.normalizeCategory(category)
+    if (!effectiveCategory) return []
+    const visibility = await this.buildStorefrontVisibilityFilterByMappings()
+    const mapping = await this.buildCategoryFilterFromMappings(effectiveCategory)
+    if (!visibility || mapping === null) return []
+    const where = this.buildPrismaWhere({ text: '', excludes: [] }, mapping === undefined ? effectiveCategory : undefined, undefined, new Set())
+    where['AND'] = [...(where['AND'] || []), visibility, ...(mapping ? [mapping] : [])]
+    const rows = await this.prisma.product.groupBy({ by: ['ecommerceCategory'], where, _count: { _all: true } })
+    return rows
+      .filter((row) => row.ecommerceCategory)
+      .map((row) => ({ name: row.ecommerceCategory as string, count: row._count._all }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'pt-BR'))
   }
 
   /**

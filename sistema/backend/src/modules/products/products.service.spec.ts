@@ -208,6 +208,44 @@ describe('ProductsService', () => {
       const whereArg = mockPrismaService.product.findMany.mock.calls[0][0].where;
       expect(JSON.stringify(whereArg)).toContain('churrasco-nobre');
     });
+
+    // Revisao do Mercado (07/10/2026): ordenar, so ofertas e secao do departamento.
+    describe('refino da lista do Mercado', () => {
+      const rows = [
+        { id: 'semfoto', ean: 'x1', name: 'Fita Adesiva', price: 9.8, promotionalPrice: null },
+        { id: 'caro', ean: 'f1', name: 'Azeite', price: 40, promotionalPrice: null },
+        { id: 'oferta', ean: 'f2', name: 'Leite', price: 8, promotionalPrice: 6 },
+        { id: 'barato', ean: 'f3', name: 'Sal', price: 3, promotionalPrice: null },
+      ]
+      const listar = async (options: Record<string, unknown>) => {
+        jest.spyOn(require('../../common/product-photos'), 'eansWithPhoto').mockReturnValue(new Set(['f1', 'f2', 'f3']))
+        mockPrismaService.product.findMany.mockImplementation(async (args: any) =>
+          args.select ? rows : rows.filter((r) => args.where.id.in.includes(r.id)),
+        )
+        const result = await service.findAll(undefined, 1, 80, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, options as never)
+        return result.data.map((p: { id: string }) => p.id)
+      }
+      afterEach(() => {
+        jest.restoreAllMocks()
+        mockPrismaService.product.findMany.mockReset().mockResolvedValue([])
+      })
+
+      it('sem pedido de ordem, produto sem foto vai para o fim', async () => {
+        expect((await listar({})).at(-1)).toBe('semfoto')
+      })
+      it('menor e maior preco usam o preco de oferta', async () => {
+        expect(await listar({ sort: 'menor-preco' })).toEqual(['barato', 'oferta', 'semfoto', 'caro'])
+        expect(await listar({ sort: 'maior-preco' })).toEqual(['caro', 'semfoto', 'oferta', 'barato'])
+      })
+      it('so ofertas deixa so quem tem preco promocional abaixo do normal', async () => {
+        expect(await listar({ onSale: true })).toEqual(['oferta'])
+      })
+      it('secao filtra pelo ecommerceCategory', async () => {
+        await listar({ section: 'Bovinos' })
+        const where = mockPrismaService.product.findMany.mock.calls[0][0].where
+        expect(where.AND).toContainEqual({ ecommerceCategory: 'Bovinos' })
+      })
+    });
   });
 
   describe('findOne', () => {

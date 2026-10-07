@@ -192,6 +192,9 @@ export class ProductsController {
     @Query('classification04') classification04?: string,
     @Query('tag') tag?: string,
     @Req() req?: TenantContextRequest,
+    @Query('sort') sort?: string,
+    @Query('onSale') onSale?: string,
+    @Query('section') section?: string,
   ) {
     return this.productsService.findAll(
       search,
@@ -206,7 +209,18 @@ export class ProductsController {
       classification04,
       req ? getTenantContext(req) : undefined,
       tag,
+      { sort, onSale: onSale === '1' || onSale === 'true', section },
     )
+  }
+
+  @Get('sections')
+  @ApiOperation({
+    summary: 'Secoes de um departamento (Publico)',
+    description: 'Secoes (categoria e-commerce) dos produtos que o site mostra no departamento, com a contagem -- chips do Mercado.',
+  })
+  @ApiQuery({ name: 'category', required: true, type: String })
+  async getSections(@Query('category') category?: string, @Query('cat') cat?: string) {
+    return this.productsService.getSections(category || cat)
   }
 
   @Get('mercadological-tree')
