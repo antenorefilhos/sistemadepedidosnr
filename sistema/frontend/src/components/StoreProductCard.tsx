@@ -35,7 +35,6 @@ export function StoreProductCard({
   const { cart, addItem, removeItem, updateQuantity } = useCart()
   const [imgError, setImgError] = useState(false)
   const [imageIndex, setImageIndex] = useState(0)
-  const [unitMode, setUnitMode] = useState<'unit' | 'weight'>('unit')
 
   const cartItem = cart.find((item) => item.productId === product.id)
   const quantity = cartItem?.quantity || 0
@@ -48,11 +47,9 @@ export function StoreProductCard({
   const saleWeekday = useSaleWeekday()
   const viewModel = useMemo(() => getProductCardViewModel(product, saleWeekday), [product, saleWeekday])
   const pricePresentation = useMemo(() => getProductPricePresentation(product), [product])
-  const displayQuantity = useMemo(() => {
-    if (!product.isFractional) return `${quantity}`
-    if (unitMode === 'unit') return `${quantity}`
-    return formatProductQuantity(product, quantity)
-  }, [product, quantity, unitMode])
+  // Pesavel mostra o peso no carrinho ("1,25 kg"). Ate 07/10/2026 havia um
+  // seletor "Unidade | Peso" no card que so trocava esse rotulo.
+  const displayQuantity = formatProductQuantity(product, quantity)
 
   const fireAddToCartEvent = () => {
     trackEvent('ADD_TO_CART', 'PRODUCT', product.id, {
@@ -211,28 +208,6 @@ export function StoreProductCard({
           </Button>
         )}
       </div>
-
-      {/* Unidade/Peso Toggle — reserva espaço fixo para alinhar cards (M11-D fix) */}
-      {product.isFractional && (
-        <div className="flex w-full justify-center gap-2 px-2 pt-2">
-          <Button
-            onClick={() => setUnitMode('unit')}
-            variant={unitMode === 'unit' ? 'primary' : 'subtle'}
-            size="sm"
-            className="relative h-6 flex-1 rounded-full px-2 before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']"
-          >
-            Unidade
-          </Button>
-          <Button
-            onClick={() => setUnitMode('weight')}
-            variant={unitMode === 'weight' ? 'primary' : 'subtle'}
-            size="sm"
-            className="relative h-6 flex-1 rounded-full px-2 before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']"
-          >
-            Peso
-          </Button>
-        </div>
-      )}
 
       {/* Informacoes do produto */}
       <div className="flex flex-1 flex-col p-3">

@@ -4,7 +4,11 @@ process.env.FRONTEND_URL = 'https://mercado.antenorefilhos.com.br'
 const INDEX = '<html><head>\n<meta name="description" content="x" />\n<title>Antenor</title>\n<meta property="og:title" content="t" />\n</head><body><div id="root"></div><script src="/a.js"></script></body></html>'
 
 const build = () => {
-  const prisma = { product: { findMany: jest.fn(), findFirst: jest.fn() }, recipe: { findMany: jest.fn().mockResolvedValue([]) } }
+  const prisma = {
+    product: { findMany: jest.fn(), findFirst: jest.fn() },
+    recipe: { findMany: jest.fn().mockResolvedValue([]) },
+    category: { findMany: jest.fn().mockResolvedValue([{ name: 'Queijos, Frios & Laticínios' }]) },
+  }
   const service = new SeoService(prisma as never)
   ;(service as any).indexCache = { html: INDEX, at: Date.now() }
   return { service, prisma }
@@ -29,6 +33,19 @@ describe('SeoService', () => {
     // JSON-LD nao pode fechar o <script> com um "<" do nome
     expect(html).not.toMatch(/ld\+json">[^<]*<Intacto/)
     expect(html).toContain('<script src="/a.js"></script>')
+  })
+
+  it('caminho usa o departamento e a descricao nunca e a nota de fracionamento do ERP (07/10/2026)', async () => {
+    const { service } = build()
+    const requeijao = {
+      ...vinho, name: 'Requeijão Cremoso Tradicional Catupiry Pouch 250g', category: 'QUEIJOS_FRIOS_LATICINIOS',
+      ecommerceCategory: 'Manteigas & Requeijão', alternativeDescription: 'Fracionamento: Preços de produtos pesáveis podem sofrer variação',
+    }
+    const html = await service.renderProductPage(requeijao as never)
+    expect(html).toContain('"name":"Queijos, Frios & Laticínios"')
+    expect(html).not.toContain('Manteigas')
+    expect(html).not.toContain('Fracionamento')
+    expect(html.match(/twitter:card/g)).toHaveLength(1)
   })
 
   it('sitemap lista produto pela URL limpa e as categorias', async () => {

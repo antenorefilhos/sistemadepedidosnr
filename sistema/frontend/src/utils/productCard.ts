@@ -164,7 +164,10 @@ export function getProductCardViewModel(product: Product, saleWeekday?: number):
     ctaLabel: missingFractionStep ? 'Indisponível' : (product.isFractional ? 'Adicionar porção' : 'Adicionar'),
     isFractional: Boolean(product.isFractional),
     isOnSale: hasPromotionalPrice,
-    outOfStock: missingFractionStep || (product.syncOption !== 'SEMPRE' && stockValue <= 0) || offDay,
+    // active=false: oculto no admin ou fora do catalogo da API. Ate 07/10/2026
+    // a pagina do produto oferecia "Adicionar ao carrinho" (Pao Frances oculto,
+    // SEMPRE) e o checkout recusava -- mesma regra do isProductSellable.
+    outOfStock: product.active === false || missingFractionStep || (product.syncOption !== 'SEMPRE' && stockValue <= 0) || offDay,
     /** Distingue o motivo de `outOfStock`: cadastro incompleto, nao falta de
      *  estoque. Exposto para a UI nao ter que comparar o texto do `ctaLabel`. */
     missingFractionStep: Boolean(missingFractionStep),

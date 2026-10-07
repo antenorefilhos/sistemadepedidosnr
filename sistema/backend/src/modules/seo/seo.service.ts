@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
 import { isProductSellable } from '../../common/product-availability'
+import { categoryCodeFromName } from '../../common/not-offered-categories'
 
 // O storefront e uma SPA: sem isto o Google e o preview de link do
 // WhatsApp/Facebook recebiam um <div id="root"></div> vazio e o sitemap tinha
@@ -49,6 +50,7 @@ const PRODUCT_SELECT = {
 export class SeoService {
   private readonly logger = new Logger(SeoService.name)
   private indexCache: { html: string; at: number } | null = null
+  private departmentCache: { names: Map<string, string>; at: number } | null = null
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -72,6 +74,21 @@ export class SeoService {
     return html
   }
 
+  /**
+   * Nome do departamento pelo codigo do produto ("Queijos, Frios & Laticinios").
+   * Ate 07/10/2026 o caminho mostrava o `ecommerceCategory` ("Manteigas &
+   * Requeijao") com link para o departamento inteiro: o nome nao batia com a
+   * pagina que abria. O site nao tem pagina de subsecao.
+   */
+  private async departmentName(code: string | null): Promise<string> {
+    if (!code) return ''
+    if (!this.departmentCache || Date.now() - this.departmentCache.at > 300_000) {
+      const rows = await this.prisma.category.findMany({ where: { parentId: null, active: true }, select: { name: true } })
+      this.departmentCache = { names: new Map(rows.map((r) => [categoryCodeFromName(r.name), r.name])), at: Date.now() }
+    }
+    return this.departmentCache.names.get(code) || ''
+  }
+
   async findProductByErpId(erpProductId: number) {
     return this.prisma.product.findFirst({ where: { erpProductId }, select: PRODUCT_SELECT })
   }
@@ -88,15 +105,16 @@ export class SeoService {
     const price = promo ?? product.price
     const unit = product.isFractional ? '/kg' : ''
     const sellable = isProductSellable(product)
-    const category = product.category === 'ADEGA_VINHOS_ESPUMANTES' ? 'Adega' : product.ecommerceCategory || ''
+    const category = product.category === 'ADEGA_VINHOS_ESPUMANTES' ? 'Adega' : await this.departmentName(product.category)
     const categoryUrl =
       product.category === 'ADEGA_VINHOS_ESPUMANTES'
         ? `${this.siteUrl}/adega`
         : `${this.siteUrl}/mercado?cat=${String(product.category || '').toLowerCase().replace(/_/g, '-')}`
     const title = `${product.name} | Antenor & Filhos`
-    const description =
-      product.alternativeDescription ||
-      `${product.name} por ${brl(price)}${unit} no Antenor & Filhos. Peça pelo site e receba em casa.`
+    // O alternativeDescription do ERP e nota de fracionamento ("Precos de
+    // produtos pesaveis podem sofrer variacao"), nao descricao: ia parar no
+    // Google e na previa do WhatsApp (07/10/2026).
+    const description = `${product.name} por ${brl(price)}${unit} no Antenor & Filhos. Peça pelo site e receba em casa.`
 
     const jsonLd = [
       {
@@ -155,6 +173,7 @@ export class SeoService {
       .replace(/<meta\s+name="description"[^>]*>/i, '')
       .replace(/<link\s+rel="canonical"[^>]*>/i, '')
       .replace(/<meta\s+property="og:[^"]+"[^>]*>/gi, '')
+      .replace(/<meta\s+name="twitter:card"[^>]*>/gi, '')
       .replace('</head>', `    ${head}\n  </head>`)
       .replace(/<div id="root">\s*<\/div>/, `<div id="root">${body}</div>`)
   }
@@ -229,6 +248,7 @@ export class SeoService {
       .replace(/<meta\s+name="description"[^>]*>/i, '')
       .replace(/<link\s+rel="canonical"[^>]*>/i, '')
       .replace(/<meta\s+property="og:[^"]+"[^>]*>/gi, '')
+      .replace(/<meta\s+name="twitter:card"[^>]*>/gi, '')
       .replace('</head>', `    ${head}\n  </head>`)
       .replace(/<div id="root">\s*<\/div>/, `<div id="root">${body}</div>`)
   }

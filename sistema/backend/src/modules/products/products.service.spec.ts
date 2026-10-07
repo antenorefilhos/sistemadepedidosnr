@@ -237,47 +237,73 @@ describe('ProductsService', () => {
     });
   });
 
-  describe('getRecommendations (compre junto)', () => {
-    it('vinho sugere queijo/frio antes de outro vinho e nunca categoria sem relacao', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({ category: 'ADEGA_VINHOS_ESPUMANTES', tags: ['queijos-e-vinhos'] })
-      mockPrismaService.product.findMany.mockResolvedValue([
-        { id: 'v2', name: 'Vinho B', category: 'ADEGA_VINHOS_ESPUMANTES', tags: ['queijos-e-vinhos'], price: 50, stock: 3 },
-        { id: 'y1', name: 'Iogurte', category: 'QUEIJOS_FRIOS_LATICINIOS', tags: ['cafe-da-manha'], price: 5, stock: 5 },
-        { id: 'q1', name: 'Queijo Brie', category: 'QUEIJOS_FRIOS_LATICINIOS', tags: ['queijos-e-vinhos'], price: 30, stock: 5 },
-      ])
-      mockPrismaService.orderItem.groupBy.mockResolvedValue([])
-
-      const result = await service.getRecommendations('v1', 6)
-
-      // queijo da mesma missao primeiro; iogurte so por categoria nao entra no vinho
-      expect(result.map((r: { id: string }) => r.id)).toEqual(['q1', 'v2', 'y1'])
+  describe('getRecommendations (pagina do produto, 07/10/2026)', () => {
+    const p = (id: string, category: string, tags: string[], extra: Record<string, unknown> = {}) => ({
+      id, ean: `ean-${id}`, erpProductId: null, name: id, category, tags, price: 10, stock: 5, ...extra,
     })
-  })
+    const comVitrine = (ids: string[]) => {
+      mockPrismaService.productCategoryMapping.findMany.mockResolvedValue(ids.map((id) => ({ ean: `ean-${id}` })))
+      jest.spyOn(require('../../common/product-photos'), 'eansWithPhoto').mockReturnValue(new Set(ids.map((id) => `ean-${id}`)))
+    }
+    afterEach(() => jest.restoreAllMocks())
 
-  describe('getRecommendations com a cesta do PDV', () => {
-    it('itens da cesta vem primeiro, na ordem da API (produto e categoria); completa com missao', async () => {
-      mockPrismaService.product.findUnique.mockResolvedValue({ category: 'ACOUGUE_CHURRASCO', tags: ['churrasco'], erpProductId: 4696 })
+    it('produto com missao recebe so itens da missao, outra categoria antes da propria', async () => {
+      mockPrismaService.product.findUnique.mockResolvedValue({ category: 'ADEGA_VINHOS_ESPUMANTES', tags: ['queijos-e-vinhos'], erpProductId: null })
+      mockPrismaService.product.findMany.mockResolvedValue([
+        p('v2', 'ADEGA_VINHOS_ESPUMANTES', ['queijos-e-vinhos']),
+        p('q1', 'QUEIJOS_FRIOS_LATICINIOS', ['queijos-e-vinhos']),
+        p('q2', 'QUEIJOS_FRIOS_LATICINIOS', ['queijos-e-vinhos']),
+        p('s1', 'ACOUGUE_CHURRASCO', ['queijos-e-vinhos', 'churrasco']),
+        p('y1', 'QUEIJOS_FRIOS_LATICINIOS', ['cafe-da-manha']),
+        p('semFoto', 'QUEIJOS_FRIOS_LATICINIOS', ['queijos-e-vinhos']),
+      ])
+      comVitrine(['v2', 'q1', 'q2', 's1', 'y1'])
+
+      const ids = (await service.getRecommendations('v1', 6)).map((r: { id: string }) => r.id)
+
+      expect(new Set(ids.slice(0, 3))).toEqual(new Set(['q1', 'q2', 's1']))
+      expect(ids[3]).toBe('v2')
+      expect(ids).not.toContain('y1')
+      expect(ids).not.toContain('semFoto')
+    })
+
+    it('da cesta so entra par observado (origem produto), primeiro; o recuo por categoria fica de fora', async () => {
+      mockPrismaService.product.findUnique.mockResolvedValue({ category: 'ACOUGUE_CHURRASCO', tags: [], erpProductId: 4696 })
       mockAntenorApiService.getCesta.mockResolvedValue({
-        versao: 2,
+        versao: 13,
         itens: [
           { cdProduto: 900, origem: 'produto', pontuacao: 9 },
           { cdProduto: 800, origem: 'produto', pontuacao: 8 },
-          { cdProduto: 64, origem: 'categoria', pontuacao: 1 },
+          { cdProduto: 1484, origem: 'categoria', pontuacao: 1 },
         ],
       })
-      mockPrismaService.product.findMany
-        .mockResolvedValueOnce([
-          { id: 'b', erpProductId: 800, name: 'Cerveja', category: 'CERVEJAS_CHOPP', tags: [], price: 5, stock: 9 },
-          { id: 'a', erpProductId: 900, name: 'Carvao', category: 'BAZAR_UTILIDADES', tags: [], price: 20, stock: 9 },
-        ])
-        .mockResolvedValueOnce([{ id: 'c', erpProductId: 1, name: 'Linguica', category: 'ACOUGUE_CHURRASCO', tags: ['churrasco'], price: 30, stock: 9 }])
-      mockPrismaService.orderItem.groupBy.mockResolvedValue([])
+      mockPrismaService.product.findMany.mockResolvedValue([
+        p('b', 'CERVEJAS_CHOPP', [], { erpProductId: 800 }),
+        p('a', 'BAZAR_UTILIDADES', [], { erpProductId: 900 }),
+        p('h', 'HORTIFRUTI_ORGANICOS', []),
+      ])
+      comVitrine(['a', 'b', 'h'])
 
-      const result = await service.getRecommendations('picanha', 3)
+      const ids = (await service.getRecommendations('picanha', 3)).map((r: { id: string }) => r.id)
 
-      expect(result.map((r: { id: string }) => r.id)).toEqual(['a', 'b', 'c'])
-      const basketWhere = mockPrismaService.product.findMany.mock.calls.at(-2)[0].where
-      expect(basketWhere.erpProductId.in).toEqual([900, 800, 64])
+      expect(ids).toEqual(['a', 'b', 'h'])
+      const where = mockPrismaService.product.findMany.mock.calls.at(-1)[0].where
+      expect(where.AND[0].OR).toContainEqual({ erpProductId: { in: [900, 800] } })
+    })
+
+    it('com menos de 4 itens da missao, cai no compre junto (e o item vem com as tags)', async () => {
+      mockPrismaService.product.findUnique.mockResolvedValue({ category: 'QUEIJOS_FRIOS_LATICINIOS', tags: ['cafe-da-manha'], erpProductId: null })
+      mockPrismaService.product.findMany.mockResolvedValue([
+        p('pao', 'PADARIA_CONFEITARIA_CAFE', ['cafe-da-manha']),
+        p('vinho', 'ADEGA_VINHOS_ESPUMANTES', []),
+        p('arroz', 'MERCEARIA_DESPENSA', []),
+      ])
+      comVitrine(['pao', 'vinho', 'arroz'])
+
+      const result = await service.getRecommendations('requeijao', 6)
+
+      expect(result.map((r: { id: string }) => r.id)).toEqual(['pao', 'vinho'])
+      expect(result[0].tags).toEqual(['cafe-da-manha'])
     })
   })
 

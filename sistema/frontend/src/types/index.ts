@@ -8,6 +8,8 @@ export interface Product {
   alternativeDescription?: string
   price: number
   promotionalPrice?: number
+  /** Fim da oferta (fim do ultimo dia, em Brasilia). */
+  promotionalPriceValidUntil?: string | null
   stock?: number
   isFractional?: boolean
   fractionStep?: number

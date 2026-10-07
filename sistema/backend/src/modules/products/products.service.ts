@@ -41,6 +41,20 @@ const COMPLEMENTARY_CATEGORIES: Record<string, string[]> = {
   HIGIENE_PERFUMARIA: ['BEBE_INFANTIL'],
 }
 
+// Missoes (tagsEcommerce da AntenorApi) que viram titulo da vitrine na pagina
+// do produto. Mesma ordem do MISSIONS de frontend/src/pages/ProductDetail.tsx.
+const MISSION_TAGS = ['churrasco', 'queijos-e-vinhos', 'boteco-em-casa', 'cafe-da-manha', 'lanche-rapido', 'sobremesa']
+
+/** Sorteio estavel (FNV-1a): mesma ordem no dia, outra no dia seguinte. */
+const dailyHash = (text: string) => {
+  let h = 2166136261
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
 const RECOMMENDATION_SELECT = {
   id: true,
   ean: true,
@@ -368,111 +382,124 @@ export class ProductsService {
   ) {}
 
   /**
-   * Motor de Recomendação — Co-purchase (Phase 17)
-   * Algoritmo: "Quem comprou X também comprou Y"
-   * Busca pedidos que contêm o produto e ranqueia os co-produtos por frequência.
+   * Vitrine da pagina do produto e do carrinho ("Compre junto" / missao).
+   *
+   * 07/10/2026 (revisao da pagina do produto): o requeijao mostrava "Cafe da
+   * manha completo" com acucar, farinha, arroz e sal. O titulo vinha da missao
+   * do produto (tag cafe-da-manha), mas os itens vinham do recuo "categoria"
+   * da cesta do PDV -- os basicos que entram em qualquer cupom. Agora:
+   * - da cesta, so pares observados (origem "produto");
+   * - produto com missao recebe itens DA MISSAO (outra categoria primeiro),
+   *   para o titulo dizer a verdade; com menos de 4, cai no compre-junto;
+   * - so o que o site ofereceria sozinho: vendavel, com departamento, com foto
+   *   e fora de departamento oculto/tabacaria (mesma regra das vitrines);
+   * - empate decidido por sorteio do dia, nao por ordem alfabetica (o acucar
+   *   ganhava sempre).
+   * As tags voltam no item: a loja so usa o titulo da missao quando todos os
+   * itens sao dela.
    */
   async getRecommendations(productId: string, limit = 6) {
-    // "Compre junto" por afinidade de categoria (vinho -> queijos/frios,
-    // carne -> hortifruti/cerveja...). Ate 27/09/2026 usava co-ocorrencia nos
-    // pedidos online (poucas dezenas) e caia em "mais vendidos" de qualquer
-    // categoria: banana e frango na pagina do vinho.
-    // Ordem: 1) pares reais da cesta do PDV (AntenorApi /cesta, so origem
-    // "produto"); 2) completa com missao/afinidade de categoria abaixo.
     const base = await this.prisma.product.findUnique({ where: { id: productId }, select: { category: true, tags: true, erpProductId: true } })
-    const fromBasket = base?.erpProductId ? await this.getBasketRecommendations(productId, base.erpProductId, limit) : []
-    if (fromBasket.length >= limit) return fromBasket
-    const baseTags = base?.tags ?? []
-    const categories = [...(COMPLEMENTARY_CATEGORIES[base?.category || ''] || []), base?.category].filter(
+    if (!base) return []
+    const baseTags = base.tags ?? []
+    const mission = MISSION_TAGS.find((tag) => baseTags.includes(tag))
+    const categories = [...(COMPLEMENTARY_CATEGORIES[base.category || ''] || []), base.category].filter(
       (c, i, all): c is string => Boolean(c) && all.indexOf(c) === i,
     )
-    if (categories.length === 0 && baseTags.length === 0) return []
+    const [pairIds, surfaceable] = await Promise.all([
+      base.erpProductId ? this.getBasketPairIds(base.erpProductId) : Promise.resolve([] as number[]),
+      this.autoSurfaceableFilter(),
+    ])
+    const reach = [
+      ...(mission ? [{ tags: { has: mission } }] : []),
+      ...(categories.length ? [{ category: { in: categories } }] : []),
+      ...(baseTags.length ? [{ tags: { hasSome: baseTags } }] : []),
+      ...(pairIds.length ? [{ erpProductId: { in: pairIds } }] : []),
+    ]
+    if (reach.length === 0) return []
 
-    const candidates = await this.prisma.product.findMany({
-      where: {
-        id: { not: productId },
-        // Missao em comum (tagsEcommerce da AntenorApi: queijos-e-vinhos,
-        // churrasco, cafe-da-manha...) ou categoria afim.
-        AND: [{ OR: [{ category: { in: categories } }, ...(baseTags.length ? [{ tags: { hasSome: baseTags } }] : [])] }],
-        active: true,
-        syncOption: { not: 'NUNCA' },
-        OR: [
-          { syncOption: 'SEMPRE' },
-          { AND: [{ syncOption: { in: ['ESTOQUE', 'ESTQOUE'] } }, { stock: { gt: 0 } }] },
-        ],
-      },
-      select: RECOMMENDATION_SELECT,
-      take: 300,
-    })
-    const sold = await this.prisma.orderItem.groupBy({
-      by: ['productId'],
-      _count: { _all: true },
-      where: { productId: { in: candidates.map((c) => c.id) } },
-    })
-    const soldCount = new Map(sold.map((s) => [s.productId, s._count._all]))
+    const candidates = (
+      await this.prisma.product.findMany({
+        where: {
+          id: { not: productId },
+          active: true,
+          syncOption: { not: 'NUNCA' },
+          AND: [
+            { OR: reach },
+            { OR: [{ syncOption: 'SEMPRE' }, { AND: [{ syncOption: { in: ['ESTOQUE', 'ESTQOUE'] } }, { stock: { gt: 0 } }] }] },
+          ],
+        },
+        select: RECOMMENDATION_SELECT,
+        take: 600,
+      })
+    ).filter(surfaceable)
 
-    // 1) mesma missao e OUTRA categoria (vinho -> queijo/salame: a combinacao
-    // real); 2) categoria complementar na ordem do mapa; 3) a propria; dentro
-    // de cada faixa, o que mais sai nos pedidos.
-    const rank = (c: (typeof candidates)[number]) => {
-      const sharesMission = c.tags.some((t) => baseTags.includes(t))
-      const categoryPos = categories.indexOf(c.category)
-      if (sharesMission && c.category !== base?.category) return 0
-      return 1 + (categoryPos === -1 ? categories.length : categoryPos)
-    }
-    const already = new Set(fromBasket.map((p) => p.id))
-    const byAffinity = candidates
-      .filter((c) => !already.has(c.id))
-      .sort((a, b) =>
-        rank(a) - rank(b) ||
-        (soldCount.get(b.id) || 0) - (soldCount.get(a.id) || 0) ||
-        a.name.localeCompare(b.name),
-      )
-      .slice(0, limit - fromBasket.length)
-      .map(({ category: _category, tags: _tags, ...item }) => this.toCustomerFacingProduct(item))
-    return [...fromBasket, ...byAffinity]
+    const pairPos = new Map(pairIds.map((id, i) => [id, i]))
+    const day = new Date().toISOString().slice(0, 10)
+    const draw = (id: string) => dailyHash(`${day}:${productId}:${id}`)
+    const isPair = (c: (typeof candidates)[number]) => c.erpProductId != null && pairPos.has(c.erpProductId)
+    const byTier = (tier: (c: (typeof candidates)[number]) => number) =>
+      candidates
+        .map((c) => ({ c, t: tier(c) }))
+        .filter(({ t }) => t >= 0)
+        .sort((a, b) =>
+          a.t - b.t ||
+          (pairPos.get(a.c.erpProductId ?? -1) ?? 999) - (pairPos.get(b.c.erpProductId ?? -1) ?? 999) ||
+          draw(a.c.id) - draw(b.c.id),
+        )
+        .map(({ c }) => c)
+
+    // Missao: par real da missao, depois outra categoria, depois a propria.
+    const missionItems = mission
+      ? byTier((c) => (!c.tags.includes(mission) ? -1 : isPair(c) ? 0 : c.category !== base.category ? 1 : 2))
+      : []
+    const picked =
+      missionItems.length >= 4
+        ? missionItems
+        : byTier((c) => {
+            if (isPair(c)) return 0
+            if (c.tags.some((t) => baseTags.includes(t)) && c.category !== base.category) return 1
+            const pos = categories.indexOf(c.category)
+            return pos === -1 ? -1 : 2 + pos
+          })
+
+    return picked.slice(0, limit).map(({ category: _category, ...item }) => this.toCustomerFacingProduct(item))
   }
 
   // ponytail: cache em memoria de 1 h por produto (o indice da cesta muda uma
   // vez por noite); por processo, some no restart -- suficiente para uma VPS.
   private basketCache = new Map<number, { at: number; ids: number[] }>()
 
-  private async getBasketRecommendations(productId: string, erpProductId: number, limit: number) {
+  /** Pares observados nos cupons do PDV (AntenorApi /cesta, origem "produto"), na ordem da API. */
+  private async getBasketPairIds(erpProductId: number): Promise<number[]> {
     let cached = this.basketCache.get(erpProductId)
     if (!cached || Date.now() - cached.at > 3_600_000) {
       try {
         const cesta = await this.antenorApiService.getCesta(erpProductId, 12)
-        // Indice v3 (27/09): "produto" (par observado) e "categoria" (recuo com
-        // evidencia no proprio SKU) -- ja vem ordenado pela API. Na v2 o recuo
-        // era ruido (ervilha na picanha) e ficava de fora.
-        cached = { at: Date.now(), ids: (cesta.itens || []).map((i) => i.cdProduto) }
+        // O recuo "categoria" traz os basicos de qualquer cesta (acucar, arroz,
+        // sal no requeijao): fica de fora, como ja ficava na v2.
+        cached = { at: Date.now(), ids: (cesta.itens || []).filter((i) => i.origem === 'produto').map((i) => i.cdProduto) }
       } catch (error) {
         this.logger.warn(`cesta_indisponivel produto=${erpProductId}: ${error instanceof Error ? error.message : error}`)
         cached = { at: Date.now(), ids: [] }
       }
       this.basketCache.set(erpProductId, cached)
     }
-    if (cached.ids.length === 0) return []
+    return cached.ids
+  }
 
-    const products = await this.prisma.product.findMany({
-      where: {
-        erpProductId: { in: cached.ids },
-        id: { not: productId },
-        active: true,
-        syncOption: { not: 'NUNCA' },
-        OR: [
-          { syncOption: 'SEMPRE' },
-          { AND: [{ syncOption: { in: ['ESTOQUE', 'ESTQOUE'] } }, { stock: { gt: 0 } }] },
-        ],
-      },
-      select: RECOMMENDATION_SELECT,
-    })
-    // Mantem a ordem da API (pontuacao ja pondera lift x margem).
-    const order = new Map(cached.ids.map((id, i) => [id, i]))
-    return products
-      .sort((a, b) => (order.get(a.erpProductId!) ?? 99) - (order.get(b.erpProductId!) ?? 99))
-      .slice(0, limit)
-      .map(({ category: _category, tags: _tags, ...item }) => this.toCustomerFacingProduct(item))
+  // ponytail: departamento e foto mudam pouco; 60 s por processo.
+  private surfaceCache: { at: number; mapped: Set<string>; photos: Set<string> } | null = null
+
+  /** O que o site oferece sozinho: com departamento, com foto e fora de departamento oculto. */
+  private async autoSurfaceableFilter() {
+    if (!this.surfaceCache || Date.now() - this.surfaceCache.at > 60_000) {
+      const rows = await this.prisma.productCategoryMapping.findMany({ select: { ean: true } })
+      this.surfaceCache = { at: Date.now(), mapped: new Set(rows.map((r) => r.ean)), photos: eansWithPhoto() }
+    }
+    const { mapped, photos } = this.surfaceCache
+    const notOffered = await notOfferedCategoryCodes(this.prisma)
+    return (p: { ean: string; category: string | null }) => mapped.has(p.ean) && photos.has(p.ean) && !notOffered.has(String(p.category || ''))
   }
 
   async findAllAdmin(

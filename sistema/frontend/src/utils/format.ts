@@ -42,10 +42,20 @@ const LOWERCASE_WORDS = new Set([
 
 const UNIT_WORDS = new Set(['kg', 'g', 'mg', 'ml', 'l', 'lt', 'un', 'pct', 'cx', 'bdj', 'pet', 'gf'])
 
+// O nome e-commerce agora vem curado do cadastro, com sigla e medida certas
+// ("UHT", "1L", "AeF", "DOCG"). Passar tudo para minusculo e capitalizar cada
+// palavra estragava o nome ("Uht", "1l", "Aef", "Docg") no titulo da pagina,
+// no card e no carrinho (07/10/2026). So o nome gritado do cadastro antigo
+// (quase tudo maiusculo) ainda e reescrito.
 export function formatProductTitle(name: string): string {
   if (!name) return ''
 
-  const normalized = name.toLocaleLowerCase('pt-BR').trim().replace(/\s+/g, ' ')
+  const clean = name.trim().replace(/\s+/g, ' ')
+  const letters = clean.replace(/[^\p{L}]/gu, '')
+  const upper = letters.replace(/[^\p{Lu}]/gu, '').length
+  if (!letters.length || upper / letters.length < 0.7) return clean
+
+  const normalized = clean.toLocaleLowerCase('pt-BR')
 
   return normalized
     .split(' ')

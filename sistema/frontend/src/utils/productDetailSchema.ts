@@ -150,12 +150,32 @@ const buildMeat = (product: Product): ProductFact[] => {
   return [...facts, ...buildInfo(product)]
 }
 
+/**
+ * Nota de fracionamento do ERP (alternativeDescription) em linguagem de
+ * cliente: "Fracionamento: Peso aproximado / 1und." -> "cerca de 1 unidade".
+ * O aviso generico ("Precos de produtos pesaveis podem sofrer variacao") fica
+ * de fora: a pagina ja explica a venda por peso. Ate 07/10/2026 o texto cru
+ * aparecia numa caixa abaixo do titulo.
+ */
+export const fractionNote = (text?: string | null): string => {
+  const raw = String(text || '').replace(/^\s*fracionamento\s*:\s*/i, '').trim().replace(/[.\s]+$/, '')
+  if (!raw || /sofrer varia/i.test(raw)) return ''
+  const approx = raw.match(/^peso aproximado\s*\/\s*(.+)$/i)
+  if (!approx && /^peso aproximado$/i.test(raw)) return ''
+  const body = (approx ? approx[1] : raw)
+    .toLocaleLowerCase('pt-BR')
+    .replace(/(\d+)\s*und?\b\.?/g, (_, n: string) => `${n} ${n === '1' ? 'unidade' : 'unidades'}`)
+  return approx && /^\d/.test(body) ? `cerca de ${body}` : body
+}
+
 const buildInfo = (product: Product): ProductFact[] => {
   const facts: ProductFact[] = []
+  // Venda por peso e tamanho da porcao ja aparecem junto do botao de comprar;
+  // aqui so entra o que a ficha acrescenta: quanto a porcao rende.
   if (product.isFractional) {
     const portion = formatPortionFromStep(getProductStep(product), getFractionDisplayUnit(product))
-    facts.push({ label: 'Venda', value: 'Por peso, pesado na hora da separação' })
-    facts.push({ label: 'Porção mínima', value: portion })
+    const note = fractionNote(product.alternativeDescription)
+    if (note) facts.push({ label: 'Cada porção', value: `${portion} (${note})` })
   }
   const content = product.name.match(/(\d+(?:[.,]\d+)?)\s?(kg|g|ml|l|un|unidades)\b/i)
   if (!product.isFractional && content) facts.push({ label: 'Conteúdo', value: `${content[1]} ${content[2]}` })
