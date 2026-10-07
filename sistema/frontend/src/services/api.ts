@@ -270,6 +270,7 @@ export const productsAPI = {
     classification03?: string,
     classification04?: string,
     tag?: string,
+    options?: { sort?: string; onSale?: boolean; section?: string },
   ) =>
     api.get('/products', {
       params: {
@@ -284,8 +285,13 @@ export const productsAPI = {
         classification03,
         classification04,
         tag,
+        sort: options?.sort || undefined,
+        onSale: options?.onSale ? 1 : undefined,
+        section: options?.section || undefined,
       },
     }),
+  /** Secoes do departamento (Bovinos, Aves...) com a contagem -- chips do Mercado. */
+  getSections: (category: string) => api.get<Array<{ name: string; count: number }>>('/products/sections', { params: { category } }),
   suggest: (q: string, limit = 6) => api.get('/products/suggest', { params: { q, limit } }),
   getPromotions: () => api.get('/products/promotions'),
   getMercadologicalTree: () => api.get('/products/mercadological-tree'),

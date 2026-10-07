@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useInfiniteProducts, useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
+import { useBrand } from '../hooks/useBrand'
 import { useCommercialTaxonomy, useStoreBanners } from '../hooks/useCMS'
 import {
+  CATEGORY_ICONS,
   CMS_CATEGORY_TO_RULE_ID,
   HOME_CATEGORY_RULES,
   HOME_COMMERCIAL_PRIORITY,
@@ -17,7 +20,7 @@ import { PromoBanner } from '../components/PromoBanner'
 import { productsAPI, resolveApiUrl } from '../services/api'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { trackEvent } from '../utils/analytics'
-import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X, ScanLine } from 'lucide-react'
+import { Search, ShoppingCart, ArrowLeft, Loader2, User, SlidersHorizontal, X, ScanLine, Check, Clock, MessageCircle, Tag, ChevronDown } from 'lucide-react'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { productPath } from '../utils/productUrl'
 import NotificationBell from '../components/NotificationBell'
@@ -29,11 +32,17 @@ import { SEO } from '../components/SEO'
 import { SkeletonCard } from '../components/Skeleton'
 import type { Product } from '../types'
 import { StoreProductCard } from '../components/StoreProductCard'
-import { Button, buttonVariants } from '../components/ui/button'
-import { Input } from '../components/ui/input'
-import { surfaceClasses } from '../components/ui/surface'
+import { buttonVariants } from '../components/ui/button'
 import { cn } from '../lib/cn'
 import { DesktopNavLinks } from '../components/DesktopNavLinks'
+
+// Mercado refeito em 07/10/2026 (revisao de UI/UX do storefront, padrao dos
+// apps lideres de supermercado, celular primeiro):
+// - sem busca: buscas recentes, grade de departamentos e buscas populares;
+// - com busca/departamento: titulo claro, secoes do departamento (Bovinos,
+//   Aves...), ordenar e filtrar numa folha que sobe de baixo, filtros ativos
+//   como chips que se tiram com um toque;
+// - busca sem resultado: o que tentar e o WhatsApp da loja.
 
 interface PaginatedProducts {
   data: Product[]
@@ -43,29 +52,53 @@ interface PaginatedProducts {
   hasNextPage: boolean
 }
 
-const FALLBACK_CATEGORIES = [
-  { key: '', label: 'Todos' },
-]
-
 // 29/09/2026: 4 dos 5 atalhos antigos ("ofertas da semana", "frescos para
 // hoje", "frango para churrasco", "carne moida") buscavam texto que nao casa
 // com nenhum produto e davam tela vazia. Atalho de intencao agora e LINK
 // (promocoes, categoria); os de busca sao termos conferidos contra o catalogo.
 const QUICK_LINKS: Array<{ label: string; to?: string; query?: string }> = [
   { label: 'Ofertas da semana', to: '/promocoes' },
-  { label: 'Hortifruti', to: '/mercado?cat=hortifruti-organicos' },
-  { label: 'Açougue', to: '/mercado?cat=acougue-churrasco' },
   { label: 'Pão francês', query: 'pão francês' },
   { label: 'Leite', query: 'leite' },
+  { label: 'Picanha', query: 'picanha' },
+  { label: 'Cerveja', query: 'cerveja' },
+  { label: 'Queijo', query: 'queijo' },
+  { label: 'Café', query: 'café' },
+  { label: 'Banana', query: 'banana' },
 ]
 
 const PRICE_FILTERS = [
-  { key: 'all', label: 'Qualquer preço' },
   { key: 'up-to-20', label: 'Até R$ 20', maxPrice: 20 },
   { key: 'up-to-30', label: 'Até R$ 30', maxPrice: 30 },
   { key: '30-to-60', label: 'R$ 30 a R$ 60', minPrice: 30, maxPrice: 60 },
   { key: '60-plus', label: 'Acima de R$ 60', minPrice: 60 },
+] as Array<{ key: string; label: string; minPrice?: number; maxPrice?: number }>
+
+const SORTS = [
+  { key: '', label: 'Recomendados' },
+  { key: 'menor-preco', label: 'Menor preço' },
+  { key: 'maior-preco', label: 'Maior preço' },
+  { key: 'desconto', label: 'Maiores descontos' },
+  { key: 'az', label: 'Nome (A–Z)' },
 ]
+
+// Missoes e vitrines que chegam pelo "Ver tudo" (?tag=): titulo em vez do slug.
+const TAG_LABELS: Record<string, string> = {
+  churrasco: 'Churrasco',
+  'churrasco-nobre': 'Churrasco nobre',
+  'queijos-e-vinhos': 'Queijos & vinhos',
+  'boteco-em-casa': 'Boteco em casa',
+  'cafe-da-manha': 'Café da manhã',
+  'lanche-rapido': 'Lanche rápido',
+  sobremesa: 'Hora da sobremesa',
+  'linha-economica': 'Linha econômica',
+  'linha-premium': 'Linha premium',
+  'diet-light': 'Diet & light',
+  integral: 'Integrais',
+  'fitness-proteina': 'Fitness & proteína',
+  'zero-lactose': 'Zero lactose',
+}
+const tagLabel = (tag: string) => TAG_LABELS[tag] || tag.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase())
 
 const QUERY_TERM_ALIASES: Record<string, string> = {
   refigerante: 'refrigerante',
@@ -92,13 +125,39 @@ const normalizeSearchText = (text: string) =>
     .join(' ')
     .trim()
 
+// Buscas recentes: conveniencia deste aparelho (localStorage pode faltar em
+// aba anonima -- tudo em try/catch, a pagina funciona sem).
+const RECENT_KEY = 'aef-buscas-recentes'
+const readRecent = (): string[] => {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]')
+    return Array.isArray(list) ? list.filter((s): s is string => typeof s === 'string').slice(0, 6) : []
+  } catch {
+    return []
+  }
+}
+const writeRecent = (list: string[]) => {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 6)))
+  } catch {
+    /* sem armazenamento: so nao lembra */
+  }
+}
+
+const chip = (active: boolean) =>
+  cn(
+    'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-colors',
+    active ? 'border-[#5D082A] bg-[#5D082A] text-white' : 'border-[#E8D7B0] bg-white text-[#231F20] hover:border-[#D2BB8A] hover:bg-[#FBF7F0]',
+  )
 
 export default function MercadoPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { count, total: cartTotal } = useCart()
   const { user } = useAuth()
+  const brand = useBrand()
   const categoriesScroll = useDragScroll<HTMLDivElement>()
-  const subcategoriesScroll = useDragScroll<HTMLDivElement>()
+  const sectionsScroll = useDragScroll<HTMLDivElement>()
+  const toolbarScroll = useDragScroll<HTMLDivElement>()
   const { data: categoriesCMS } = useCommercialTaxonomy()
   const navigate = useNavigate()
 
@@ -112,104 +171,96 @@ export default function MercadoPage() {
   const classification03 = searchParams.get('classification03') || ''
   const classification04 = searchParams.get('classification04') || ''
   const tag = searchParams.get('tag') || ''
+  const sort = searchParams.get('ordem') || ''
+  const onSale = searchParams.get('ofertas') === '1'
+  const section = searchParams.get('secao') || ''
+
+  /** Troca so as chaves passadas na URL (undefined/'' remove). */
+  const updateParams = useCallback(
+    (patch: Record<string, string | number | undefined | null>) => {
+      const next = new URLSearchParams(searchParams)
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === undefined || value === null || value === '') next.delete(key)
+        else next.set(key, String(value))
+      }
+      setSearchParams(next)
+    },
+    [searchParams, setSearchParams],
+  )
 
   // Banner de topo da categoria (StoreBanner slot=category). So quando a
   // pagina esta navegando uma categoria: com termo de busca (`q`) ela vira
-  // "resultados para X" e o banner empurraria os resultados pra baixo, que e
-  // justamente o que a pessoa veio ver.
+  // "resultados para X" e o banner empurraria os resultados pra baixo.
   const { data: storeBanners } = useStoreBanners()
   const categoryBanner = useMemo(
-    () => (q ? undefined : findCategoryBanner(storeBanners, cat)),
-    [storeBanners, cat, q],
+    () => (q || section ? undefined : findCategoryBanner(storeBanners, cat)),
+    [storeBanners, cat, q, section],
   )
 
   const [inputValue, setInputValue] = useState(q)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [isSuggesting, setIsSuggesting] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
   const [isInputFocused, setIsInputFocused] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [recent, setRecent] = useState<string[]>(() => readRecent())
   const sentinelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
-  const filterPanelRef = useRef<HTMLDivElement>(null)
   const trackedSearchRef = useRef('')
   const prevFiltersRef = useRef<string>('')
 
-  // Sync input with URL q param when navigating
+  // Sincroniza o campo com o ?q= ao navegar e lembra a busca feita.
   useEffect(() => {
     setInputValue(q)
-    setShowSuggestions(false)
     setIsInputFocused(false)
+    const term = q.trim()
+    if (!term) return
+    setRecent((prev) => {
+      const next = [term, ...prev.filter((item) => item.toLowerCase() !== term.toLowerCase())].slice(0, 6)
+      writeRecent(next)
+      return next
+    })
   }, [q])
 
-  // Reset pagination and scroll to top when filters change
+  // Filtro mudou: volta ao topo da lista.
   useEffect(() => {
-    const filterKey = `${cat}|${minPrice}|${maxPrice}|${classification01}|${classification02}|${classification03}|${classification04}`
-    if (prevFiltersRef.current !== '' && prevFiltersRef.current !== filterKey) {
-      // Filters changed, scroll to top
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    const filterKey = `${cat}|${tag}|${section}|${sort}|${onSale}|${minPrice}|${maxPrice}|${classification01}|${classification02}|${classification03}|${classification04}`
+    if (prevFiltersRef.current !== '' && prevFiltersRef.current !== filterKey) window.scrollTo({ top: 0, behavior: 'smooth' })
     prevFiltersRef.current = filterKey
-  }, [cat, minPrice, maxPrice, classification01, classification02, classification03, classification04])
+  }, [cat, tag, section, sort, onSale, minPrice, maxPrice, classification01, classification02, classification03, classification04])
 
   useEffect(() => {
     const value = inputValue.trim()
-    if (value.length < 2) {
+    if (value.length < 2 || value === q) {
       setSuggestions([])
       return
     }
-
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
         setIsSuggesting(true)
         const response = await productsAPI.suggest(value, 6)
-        if (!cancelled) {
-          // Dedup: o ERP tem SKUs distintos com nome identico, e o nome e a key
-          // da lista de sugestoes — repetido gera warning de chave duplicada.
-          const next = [...new Set((response.data?.data || []) as string[])]
-          setSuggestions(next)
-          setShowSuggestions(isInputFocused && next.length > 0)
-        }
+        // Dedup: o ERP tem SKUs distintos com nome identico, e o nome e a key.
+        if (!cancelled) setSuggestions([...new Set((response.data?.data || []) as string[])])
       } catch {
-        if (!cancelled) {
-          setSuggestions([])
-        }
+        if (!cancelled) setSuggestions([])
       } finally {
         if (!cancelled) setIsSuggesting(false)
       }
     }, 220)
-
     return () => {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [inputValue, isInputFocused])
+  }, [inputValue, q])
 
   useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
-      if (!suggestionsRef.current) return
-      if (!suggestionsRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false)
-      }
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) setIsInputFocused(false)
     }
-
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [])
-
-  useEffect(() => {
-    if (!showFilters) return
-    const onClickOutside = (event: MouseEvent) => {
-      if (!filterPanelRef.current) return
-      if (!filterPanelRef.current.contains(event.target as Node)) {
-        setShowFilters(false)
-      }
-    }
-    document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [showFilters])
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteProducts(
     q || undefined,
@@ -221,21 +272,29 @@ export default function MercadoPage() {
     classification03 || undefined,
     classification04 || undefined,
     tag || undefined,
+    { sort: sort || undefined, onSale, section: section || undefined },
   )
 
   const allProducts = data?.pages.flatMap((p) => (p as PaginatedProducts).data) ?? []
   const total = (data?.pages[0] as PaginatedProducts | undefined)?.total ?? 0
+
+  const { data: sections = [] } = useQuery({
+    queryKey: ['product-sections', cat],
+    queryFn: async () => (await productsAPI.getSections(cat)).data,
+    enabled: Boolean(cat) && !q,
+    staleTime: 5 * 60 * 1000,
+  })
+  // Secao com 1 produto so (cadastro fora do lugar) nao vira chip.
+  const sectionChips = sections.filter((s) => s.count >= 2)
 
   useEffect(() => {
     const query = q.trim()
     if (!query || isLoading) return
     const normalizedQuery = normalizeSearchText(query)
     const corrected = normalizedQuery.toLowerCase() !== query.toLowerCase()
-
     const key = `${query}|${cat}|${total}`
     if (trackedSearchRef.current === key) return
     trackedSearchRef.current = key
-
     trackEvent('SEARCH', 'PRODUCT', undefined, {
       query,
       category: cat || null,
@@ -251,17 +310,15 @@ export default function MercadoPage() {
     })
   }, [q, cat, minPrice, maxPrice, total, isLoading])
 
-  // Infinite scroll via IntersectionObserver
+  // Rolagem infinita
   useEffect(() => {
     const sentinel = sentinelRef.current
     if (!sentinel) return
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage()
-        }
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage()
       },
-      { rootMargin: '300px' },
+      { rootMargin: '400px' },
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
@@ -290,97 +347,46 @@ export default function MercadoPage() {
     setSearchParams({ q: ean })
   }, [navigate, setSearchParams])
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    const params: Record<string, string> = {}
-    if (inputValue.trim()) params.q = inputValue.trim()
-    if (cat) params.cat = toCategoryUrlParam(cat)
-    if (classification01) params.classification01 = classification01
-    if (classification02) params.classification02 = classification02
-    if (classification03) params.classification03 = classification03
-    if (classification04) params.classification04 = classification04
-    if (typeof minPrice === 'number') params.minPrice = String(minPrice)
-    if (typeof maxPrice === 'number') params.maxPrice = String(maxPrice)
-    inputRef.current?.blur()
+  /** Busca por texto: mantem departamento e filtros, sai da secao. */
+  const runSearch = (term: string, source: 'search_page' | 'suggestion_click' | 'recent' | 'popular') => {
+    const value = term.trim()
+    if (source !== 'search_page' && value) {
+      const typed = inputValue.trim()
+      const normalizedQuery = normalizeSearchText(value)
+      const normalizedTyped = typed ? normalizeSearchText(typed) : ''
+      const corrected = Boolean(typed) && normalizedTyped.toLowerCase() !== typed.toLowerCase()
+      trackEvent('SEARCH', 'PRODUCT', undefined, {
+        query: value,
+        category: cat || null,
+        minPrice: minPrice ?? null,
+        maxPrice: maxPrice ?? null,
+        originalQuery: typed || value,
+        normalizedQuery,
+        corrected,
+        correctedFrom: corrected ? typed : null,
+        correctedTo: corrected ? normalizedTyped : null,
+        source,
+        usedSuggestion: source === 'suggestion_click',
+      })
+    }
+    setInputValue(value)
     setIsInputFocused(false)
-    setSearchParams(params)
-    setShowSuggestions(false)
-  }
-
-  const chooseSuggestion = (value: string) => {
-    const typedQuery = inputValue.trim()
-    const formattedValue = formatProductTitle(value)
-    const normalizedQuery = normalizeSearchText(formattedValue)
-    const normalizedTyped = typedQuery ? normalizeSearchText(typedQuery) : ''
-    const corrected = Boolean(typedQuery) && normalizedTyped.toLowerCase() !== typedQuery.toLowerCase()
-
-    trackEvent('SEARCH', 'PRODUCT', undefined, {
-      query: formattedValue,
-      category: cat || null,
-      minPrice: minPrice ?? null,
-      maxPrice: maxPrice ?? null,
-      originalQuery: typedQuery || formattedValue,
-      normalizedQuery,
-      corrected,
-      correctedFrom: corrected ? typedQuery : null,
-      correctedTo: corrected ? normalizedTyped : null,
-      source: 'suggestion_click',
-      usedSuggestion: true,
-    })
-
-    setInputValue(formattedValue)
-  setIsInputFocused(false)
-    const params: Record<string, string> = { q: formattedValue }
-    if (cat) params.cat = toCategoryUrlParam(cat)
-    if (classification01) params.classification01 = classification01
-    if (classification02) params.classification02 = classification02
-    if (classification03) params.classification03 = classification03
-    if (classification04) params.classification04 = classification04
-    if (typeof minPrice === 'number') params.minPrice = String(minPrice)
-    if (typeof maxPrice === 'number') params.maxPrice = String(maxPrice)
-    setSearchParams(params)
-    setShowSuggestions(false)
     inputRef.current?.blur()
+    updateParams({ q: value || undefined, secao: undefined })
   }
 
-  const setCategory = (newCat: string) => {
-    const params: Record<string, string> = {}
-    // Ao selecionar categoria explicitamente, limpa q para não misturar busca textual com filtro de categoria
-    if (newCat) params.cat = toCategoryUrlParam(newCat)
-    if (classification01) params.classification01 = classification01
-    if (classification02) params.classification02 = classification02
-    if (classification03) params.classification03 = classification03
-    if (classification04) params.classification04 = classification04
-    if (typeof minPrice === 'number') params.minPrice = String(minPrice)
-    if (typeof maxPrice === 'number') params.maxPrice = String(maxPrice)
+  const setCategory = (code: string) => {
     setInputValue('')
-    setSearchParams(params)
+    // Departamento novo: tira a busca e a secao do anterior; ordem e filtros ficam.
+    updateParams({ cat: code ? toCategoryUrlParam(code) : undefined, q: undefined, secao: undefined, tag: undefined })
   }
 
-  const setPriceFilter = (nextMinPrice?: number, nextMaxPrice?: number) => {
-    const params: Record<string, string> = {}
-    if (q) params.q = q
-    if (cat) params.cat = toCategoryUrlParam(cat)
-    if (classification01) params.classification01 = classification01
-    if (classification02) params.classification02 = classification02
-    if (classification03) params.classification03 = classification03
-    if (classification04) params.classification04 = classification04
-    if (typeof nextMinPrice === 'number') params.minPrice = String(nextMinPrice)
-    if (typeof nextMaxPrice === 'number') params.maxPrice = String(nextMaxPrice)
-    setSearchParams(params)
-    setShowSuggestions(false)
-    setIsInputFocused(false)
-    inputRef.current?.blur()
-  }
-
-  // Barra de pilulas do /mercado: exclusivamente as 17 categorias comerciais
-  // oficiais (mesma fonte/filtro que a Home usa em useHomeShelves), nunca as
-  // classificacoes brutas do ERP que syncTaxonomyFromProducts reinsere em
-  // categories_cms com priority=0.
-  const categoryTree = useMemo(() => {
+  // Barra de departamentos: exclusivamente as categorias comerciais oficiais
+  // (mesma fonte da Home), nunca as classificacoes brutas do ERP.
+  const departments = useMemo(() => {
     const raw = Array.isArray(categoriesCMS) ? categoriesCMS : []
-    const seenRuleIds = new Set<string>()
-    const roots = raw
+    const seen = new Set<string>()
+    return raw
       .filter((item: any) => item?.active !== false)
       .map((item: any) => {
         const code = normalizeCategoryCode(String(item?.code || item?.name || ''))
@@ -391,211 +397,167 @@ export default function MercadoPage() {
           id: rule.id,
           key: code,
           label: String(item?.shortName || '').trim() || rule.shortLabel,
+          fullLabel: rule.label,
           priority: item?.priority ?? HOME_COMMERCIAL_PRIORITY[rule.id] ?? 999,
         }
       })
-      .filter((item): item is { id: string; key: string; label: string; priority: number } => Boolean(item))
-      .filter((item) => {
-        if (seenRuleIds.has(item.id)) return false
-        seenRuleIds.add(item.id)
-        return true
-      })
+      .filter((item): item is { id: string; key: string; label: string; fullLabel: string; priority: number } => Boolean(item))
+      .filter((item) => (seen.has(item.id) ? false : (seen.add(item.id), true)))
       .sort((a, b) => a.priority - b.priority)
-
-    return {
-      roots: roots.length > 0 ? roots : FALLBACK_CATEGORIES.filter((item) => item.key).map((item) => ({ ...item, id: '' })),
-      childrenByRootCode: new Map<string, Array<{ key: string; label: string }>>(),
-    }
   }, [categoriesCMS])
 
-  const categories = useMemo(() => [{ id: '', key: '', label: 'Todos' }, ...categoryTree.roots], [categoryTree.roots])
+  const openDepartment = (dept: { id: string; key: string }) => {
+    const href = getCategoryHref({ id: dept.id, code: dept.key })
+    if (href.startsWith('/adega')) return navigate(href)
+    setCategory(dept.key)
+  }
 
-  const selectedRoot = useMemo(() => {
-    if (!cat) return ''
-    if (categoryTree.roots.some((item) => item.key === cat)) return cat
-    for (const root of categoryTree.roots) {
-      const children = categoryTree.childrenByRootCode.get(root.key) || []
-      if (children.some((item) => item.key === cat)) return root.key
-    }
-    return ''
-  }, [cat, categoryTree])
+  const department = departments.find((d) => d.key === cat)
+  const priceFilter = PRICE_FILTERS.find((f) => f.minPrice === minPrice && f.maxPrice === maxPrice)
+  const hasPrice = typeof minPrice === 'number' || typeof maxPrice === 'number'
+  const sortLabel = SORTS.find((s) => s.key === sort)?.label || 'Recomendados'
+  const refineCount = [Boolean(sort), onSale, hasPrice].filter(Boolean).length
+  const isLanding = !q && !cat && !tag && !section && !onSale && !hasPrice && !sort && !classification01 && !classification02 && !classification03 && !classification04
+  const hasLegacyClassification = Boolean(classification01 || classification02 || classification03 || classification04)
 
-  const selectedSubcategories = useMemo(
-    () => (selectedRoot ? categoryTree.childrenByRootCode.get(selectedRoot) || [] : []),
-    [selectedRoot, categoryTree],
-  )
+  const title = q
+    ? `Resultados para “${q}”`
+    : tag
+      ? tagLabel(tag)
+      : department
+        ? department.fullLabel
+        : onSale
+          ? 'Ofertas'
+          : 'Todos os produtos'
 
-  const categoryLabel =
-    categories.find((c) => c.key === cat)?.label ||
-    selectedSubcategories.find((c) => c.key === cat)?.label ||
-    ''
-  const selectedPriceFilter = PRICE_FILTERS.find((filter) => filter.minPrice === minPrice && filter.maxPrice === maxPrice)
-  // "Qualquer preço" e o estado neutro (sem filtro) -- mostrar esse texto no
-  // resumo de resultados era o "preço duplicado" que a task pediu pra tirar.
-  const selectedPriceLabel = selectedPriceFilter && selectedPriceFilter.key !== 'all' ? selectedPriceFilter.label : ''
-  const hasActiveFilters = Boolean(
-    q ||
-      cat ||
-      typeof minPrice === 'number' ||
-      typeof maxPrice === 'number' ||
-      classification01 ||
-      classification02 ||
-      classification03 ||
-      classification04,
-  )
-
-  const activeFilterCount = [
-    Boolean(q),
-    Boolean(cat),
-    typeof minPrice === 'number' || typeof maxPrice === 'number',
-    Boolean(classification01),
-    Boolean(classification02),
-    Boolean(classification03),
-    Boolean(classification04),
-  ].filter(Boolean).length
-
-  const clearAllFilters = () => {
+  const clearAll = () => {
     setInputValue('')
-    setSuggestions([])
     setSearchParams({})
-    setShowSuggestions(false)
     setIsInputFocused(false)
-    setShowFilters(false)
     inputRef.current?.blur()
   }
 
+  const whatsappDigits = (brand.contactWhatsapp || '').replace(/\D/g, '')
+  const whatsappAskUrl = whatsappDigits
+    ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Olá! Procurei "${q}" no site e não achei. Vocês têm?`)}`
+    : null
+
+  const showDropdown = isInputFocused && (suggestions.length > 0 || (!inputValue.trim() && recent.length > 0))
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#FBFAF7]">
       <SEO
-        title={q ? `${q} — Mercado` : cat ? `${categoryLabel} — Mercado` : 'Mercado'}
+        title={q ? `${q} — Mercado` : department ? `${department.fullLabel} — Mercado` : tag ? `${tagLabel(tag)} — Mercado` : 'Mercado'}
         description={
           q
             ? `Resultados para "${q}" no Mercado Antenor & Filhos. Carnes, vinhos, padaria e muito mais.`
             : 'Encontre rapidinho o que você precisa na Antenor & Filhos, com ofertas, carnes, vinhos e muito mais.'
         }
         canonical="/mercado"
-        noindex={hasActiveFilters}
+        noindex={!isLanding}
       />
 
-      {/* Header */}
-      <header className="glass sticky top-0 z-50 border-b border-[#D2BB8A]/20">
-        {/* Linha 1: busca */}
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Button
-            type="button"
-            onClick={() => navigate('/')}
-            variant="ghost"
-            size="icon"
-            className="shrink-0 rounded-full text-[#231F20]"
-            aria-label="Voltar"
-          >
-            <ArrowLeft size={20} />
-          </Button>
+      <header className="sticky top-0 z-50 border-b border-[#E8D7B0]/60 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 px-2 py-2.5 sm:px-4">
+          <button type="button" onClick={() => navigate('/')} aria-label="Voltar ao início" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">
+            <ArrowLeft size={22} />
+          </button>
 
-          <div ref={suggestionsRef} className="flex-1 relative">
+          <div ref={suggestionsRef} className="relative min-w-0 flex-1">
             <form
-              onSubmit={handleSearch}
-              className={surfaceClasses({
-                className: 'flex h-12 items-center gap-2 bg-[#f5f5f5] px-4 ring-1 ring-black/10 transition-colors focus-within:ring-black/20',
-              })}
+              onSubmit={(e) => {
+                e.preventDefault()
+                runSearch(inputValue, 'search_page')
+              }}
+              className="flex h-11 items-center gap-2 rounded-xl border border-[#E8D7B0] bg-[#FBF7F0] px-3.5 transition-colors focus-within:border-[#D2BB8A] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#D2BB8A]/40"
             >
-              <Search size={18} className="text-gray-500 shrink-0" />
-              <Input
+              <Search size={18} className="shrink-0 text-[#5d4f33]" />
+              <input
                 ref={inputRef}
-                type="text"
-                autoFocus
+                type="search"
+                // So abre o teclado sozinho quando a pessoa veio para buscar
+                // (aba Buscar); vindo de um departamento ele cobria a lista.
+                autoFocus={isLanding}
                 value={inputValue}
-                onFocus={() => {
-                  setIsInputFocused(true)
-                  setShowSuggestions(suggestions.length > 0)
-                }}
-                onBlur={() => {
-                  setIsInputFocused(false)
-                  setShowSuggestions(false)
-                }}
+                enterKeyHint="search"
+                onFocus={() => setIsInputFocused(true)}
                 onChange={(e) => {
                   setInputValue(e.target.value)
                   setIsInputFocused(true)
                 }}
-                placeholder="Digite o que você quer levar hoje"
+                placeholder="Buscar no mercado"
                 aria-label="Buscar produtos"
-                className="h-auto border-0 bg-transparent p-0 text-title shadow-none ring-0 placeholder:text-[#6B7280] focus-visible:ring-0"
+                className="min-w-0 flex-1 bg-transparent text-[15px] text-[#231F20] outline-none placeholder:text-[#6B7280] [&::-webkit-search-cancel-button]:hidden"
               />
               {isSuggesting && <Loader2 size={14} className="animate-spin text-[#5D082A]" />}
-              {!inputValue && (
-                <Button
-                  type="button"
-                  onClick={() => setScannerOpen(true)}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-[#5D082A]"
-                  aria-label="Buscar pelo código de barras (câmera)"
-                  title="Ler código de barras"
-                >
-                  <ScanLine size={18} />
-                </Button>
-              )}
-              {inputValue && (
-                <Button
+              {inputValue ? (
+                <button
                   type="button"
                   onClick={() => {
                     setInputValue('')
                     setSuggestions([])
-                    const params: Record<string, string> = {}
-                    if (cat) params.cat = cat
-                    if (classification01) params.classification01 = classification01
-                    if (classification02) params.classification02 = classification02
-                    if (classification03) params.classification03 = classification03
-                    if (classification04) params.classification04 = classification04
-                    setSearchParams(params)
+                    if (q) updateParams({ q: undefined })
+                    inputRef.current?.focus()
                   }}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-gray-400 hover:text-gray-600"
                   aria-label="Limpar busca"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:text-gray-600"
                 >
-                  <X size={16} />
-                </Button>
+                  <X size={17} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setScannerOpen(true)}
+                  aria-label="Buscar pelo código de barras (câmera)"
+                  title="Ler código de barras"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center text-[#5D082A]"
+                >
+                  <ScanLine size={19} />
+                </button>
               )}
             </form>
 
-            {scannerOpen && (
-              <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={() => setScannerOpen(false)}>
-                <div className="w-full max-w-md rounded-2xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
-                  <p className="mb-3 text-sm font-semibold text-[#231F20]">Aponte a câmera para o código de barras do produto</p>
-                  <BarcodeScanner onResult={handleBarcode} onClose={() => setScannerOpen(false)} />
-                </div>
-              </div>
-            )}
-
-            {showSuggestions && suggestions.length > 0 && (
-              <div className={surfaceClasses({ className: 'absolute left-0 right-0 top-[50px] z-50 overflow-hidden shadow-xl' })}>
-                {suggestions.map((suggestion) => (
-                  <Button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => chooseSuggestion(suggestion)}
-                    variant="ghost"
-                    className="h-auto w-full justify-start rounded-none border-b border-[#f1e8d6] px-4 py-3 text-left text-title text-[#231F20] last:border-b-0"
-                  >
-                    {formatProductTitle(suggestion)}
-                  </Button>
-                ))}
+            {showDropdown && (
+              <div className="absolute left-0 right-0 top-[50px] z-50 overflow-hidden rounded-2xl border border-[#E8D7B0]/70 bg-white shadow-xl">
+                {inputValue.trim()
+                  ? suggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => runSearch(formatProductTitle(suggestion), 'suggestion_click')}
+                        className="flex w-full items-center gap-3 border-b border-[#f1e8d6] px-4 py-3 text-left text-sm text-[#231F20] last:border-b-0 hover:bg-[#FBF7F0]"
+                      >
+                        <Search size={15} className="shrink-0 text-gray-400" />
+                        <span className="line-clamp-1">{formatProductTitle(suggestion)}</span>
+                      </button>
+                    ))
+                  : recent.map((term) => (
+                      <button
+                        key={term}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => runSearch(term, 'recent')}
+                        className="flex w-full items-center gap-3 border-b border-[#f1e8d6] px-4 py-3 text-left text-sm text-[#231F20] last:border-b-0 hover:bg-[#FBF7F0]"
+                      >
+                        <Clock size={15} className="shrink-0 text-gray-400" />
+                        <span className="line-clamp-1">{term}</span>
+                      </button>
+                    ))}
               </div>
             )}
           </div>
 
           <DesktopNavLinks tone="light" />
 
-          {/* JON-163 (Auditoria 360): link so com icone, sem nome acessivel. */}
           <Link
             to="/cart"
             aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
-            className="relative flex min-h-11 min-w-11 shrink-0 items-center justify-center text-[#231F20] transition-colors hover:text-[#5D082A]"
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]"
           >
             <ShoppingCart size={22} aria-hidden="true" />
             {count > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#5D082A] px-1 text-[10px] font-bold text-white">
                 {count > 9 ? '9+' : count}
               </span>
             )}
@@ -603,300 +565,278 @@ export default function MercadoPage() {
 
           {user && <NotificationBell />}
 
-          <Link to={user ? '/account' : '/login'} className="shrink-0 hidden sm:flex items-center gap-1 hover:bg-black/5 p-1 rounded-full transition-all">
-            <div className="w-8 h-8 rounded-full bg-[#D2BB8A]/20 flex items-center justify-center border border-[#D2BB8A]/40">
+          <Link to={user ? '/account' : '/login'} className="hidden shrink-0 items-center gap-1 rounded-full p-1 hover:bg-black/5 sm:flex">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D2BB8A]/40 bg-[#D2BB8A]/20">
               <User size={16} className="text-[#5D082A]" />
-            </div>
-            <span className="text-xs font-semibold text-[#231F20] pr-1">
-              {user?.name?.split(' ')[0] || 'Entrar'}
             </span>
+            <span className="pr-1 text-xs font-semibold text-[#231F20]">{user?.name?.split(' ')[0] || 'Entrar'}</span>
           </Link>
         </div>
 
-        {/* Linha 3: categorias + botão filtros */}
-        <div className="px-4 pb-3 flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <div
-              ref={categoriesScroll.ref}
-              className="min-w-0 flex-1 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth"
-              {...categoriesScroll.dragProps}
-            >
-              {categories.map((c) => (
-                <Button
-                  key={c.key}
-                  type="button"
-                  onClick={() => {
-                    if (c.id) {
-                      const href = getCategoryHref({ id: c.id, code: c.key })
-                      if (href.startsWith('/adega')) {
-                        navigate(href)
-                        return
-                      }
-                    }
-                    setCategory(c.key)
-                  }}
-                  variant={cat === c.key ? 'primary' : 'subtle'}
-                  size="sm"
-                  className={cn(
-                    'h-auto min-h-9 shrink-0 rounded-full px-4 py-2 text-xs font-semibold',
-                    cat !== c.key && 'bg-[#f0f0f0] text-[#231F20] hover:bg-[#D2BB8A]/30',
-                  )}
-                >
-                  {c.label}
-                </Button>
-              ))}
-            </div>
-            <div ref={filterPanelRef} className="relative shrink-0">
-              <Button
-                type="button"
-                onClick={() => setShowFilters((v) => !v)}
-                variant={showFilters || activeFilterCount > 0 ? 'primary' : 'outline'}
-                size="sm"
-                className={cn(
-                  // JON-168 (Auditoria 360): min-h-9 (36px) ficava abaixo do alvo minimo.
-                  'h-auto min-h-11 rounded-full px-3 py-2 text-xs',
-                  !(showFilters || activeFilterCount > 0) && 'text-[#231F20]',
-                )}
-                aria-label="Filtros"
-                aria-expanded={showFilters}
-                aria-controls="filter-panel"
-              >
-                <SlidersHorizontal size={13} />
-                {activeFilterCount > 0 ? (
-                  <span>{activeFilterCount}</span>
-                ) : (
-                  <span>Filtros</span>
-                )}
-              </Button>
-
-              {/* Painel de filtros (expansível) — ancorado no botão, não mais um bloco full-width */}
-              {showFilters && (
-                <div
-                  id="filter-panel"
-                  role="region"
-                  aria-label="Painel de filtros"
-                  className={surfaceClasses({
-                    className: 'absolute right-0 top-[calc(100%+8px)] z-40 flex w-[min(90vw,340px)] flex-col gap-3 bg-white px-4 py-4 shadow-xl',
-                  })}
-                >
-                  {/* Preço */}
-                  <div>
-                    <p className="text-label uppercase tracking-widest text-[#8A6A3A] font-bold mb-2">Preço</p>
-                    <div className="flex flex-wrap gap-2">
-                      {PRICE_FILTERS.map((filter) => {
-                        const isActive = filter.minPrice === minPrice && filter.maxPrice === maxPrice
-                        return (
-                          <Button
-                            key={filter.key}
-                            type="button"
-                            onClick={() => setPriceFilter(filter.minPrice, filter.maxPrice)}
-                            variant={isActive ? 'primary' : 'outline'}
-                            size="sm"
-                            className="h-auto min-h-9 rounded-full px-3 py-1.5 text-xs"
-                          >
-                            {filter.label}
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  {/* JON-192 (Auditoria 360, 18/09/2026): o filtro de
-                      "Classificação" (Nível 1-4) removido daqui expunha a
-                      arvore mercadologica crua do ERP direto pro cliente
-                      final (ex: "01-MERCEARIA SALGADA | 01-CEREAIS") --
-                      jargao interno, nao filtro de loja. Os chips de
-                      categoria (topo da pagina) ja cobrem a navegacao real.
-                      classification01-04 continuam lidos/aceitos na URL (nao
-                      remove suporte a link antigo), so a UI que oferecia
-                      escolher esses valores saiu. */}
-
-                  {/* Limpar filtros */}
-                  {hasActiveFilters && (
-                    <Button
-                      type="button"
-                      onClick={clearAllFilters}
-                      variant="ghost"
-                      size="sm"
-                      className="self-start text-xs underline underline-offset-2"
-                    >
-                      Limpar tudo
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {selectedRoot && selectedSubcategories.length > 0 && (
-            <div
-              ref={subcategoriesScroll.ref}
-              className="flex gap-2 overflow-x-auto no-scrollbar"
-              {...subcategoriesScroll.dragProps}
-            >
-              <Button
-                type="button"
-                onClick={() => setCategory(selectedRoot)}
-                variant={cat === selectedRoot ? 'primary' : 'outline'}
-                size="sm"
-                className={cn(
-                  'h-auto min-h-10 shrink-0 px-3 py-2 text-xs',
-                  cat !== selectedRoot && 'border-[#E8E0CE] bg-[#f7f7f7] text-[#231F20] hover:bg-[#D2BB8A]/20',
-                )}
-              >
-                Todas as seções
-              </Button>
-              {selectedSubcategories.map((sub) => (
-                <Button
-                  key={sub.key}
-                  type="button"
-                  onClick={() => setCategory(sub.key)}
-                  variant={cat === sub.key ? 'primary' : 'outline'}
-                  size="sm"
-                  className={cn(
-                    'h-auto min-h-10 shrink-0 px-3 py-2 text-xs',
-                    cat !== sub.key && 'border-[#E8E0CE] bg-[#f7f7f7] text-[#231F20] hover:bg-[#D2BB8A]/20',
-                  )}
-                >
-                  {sub.label}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
-        {categoryBanner && (
-          <div className="mb-5">
-            <PromoBanner
-              bannerId={categoryBanner.id}
-              image={resolveApiUrl(categoryBanner.desktopImageUrl)}
-              alt={categoryBanner.title || categoryBanner.name || 'Destaque da categoria'}
-              badge={categoryBanner.badgeText || undefined}
-              title={categoryBanner.title || categoryBanner.name || 'Destaque'}
-              description={categoryBanner.description || undefined}
-              ctaLabel={categoryBanner.ctaLabel || undefined}
-              ctaTo={resolveBannerLink(categoryBanner.linkValue, categoryBanner.linkType)}
-              align={categoryBanner.align || 'left'}
-              overlayColor={categoryBanner.overlayColor || undefined}
-              sponsorName={categoryBanner.sponsorName || undefined}
-            />
-          </div>
-        )}
-
-        {/* Contagem de resultados */}
-        {!isLoading && (
-          <p className="text-sm text-gray-500 mb-4">
-            {q ? (
-              <>
-                <span className="font-semibold text-[#231F20]">{total}</span> resultado{total !== 1 ? 's' : ''} para &quot;
-                <span className="text-[#5D082A]">{q}</span>&quot;
-                {cat && <> em <span className="font-medium">{categoryLabel}</span></>}
-                {selectedPriceLabel && <> · <span className="font-medium">{selectedPriceLabel}</span></>}
-              </>
-            ) : (
-              <>
-                <span className="font-semibold text-[#231F20]">{total}</span> produto{total !== 1 ? 's' : ''}
-                {cat && <> em <span className="font-medium">{categoryLabel}</span></>}
-                {selectedPriceLabel && <> · <span className="font-medium">{selectedPriceLabel}</span></>}
-              </>
-            )}
-          </p>
-        )}
-
-        {/* Categoria/preço/classificação ja aparecem destacados nas pilulas e no
-            resumo de resultados acima -- repeti-los aqui como chips era o
-            container duplicado que a task pediu pra tirar. So sobra o atalho
-            de limpar, quando ha algo pra limpar. */}
-        {hasActiveFilters && (
-          <div className="mb-5 flex items-center justify-end">
-            <Button
-              type="button"
-              onClick={clearAllFilters}
-              variant="outline"
-              size="sm"
-              className="h-auto shrink-0 px-3 py-2 text-xs font-bold"
-            >
-              Limpar filtros
-            </Button>
-          </div>
-        )}
-
-        {/* Sugestões rápidas — só quando sem filtro ativo */}
-        {!hasActiveFilters && !isLoading && (
-          <div className="flex flex-wrap gap-2 mb-5">
-            {QUICK_LINKS.map((item) => (
-              <Button
-                key={item.label}
-                type="button"
-                onClick={() => (item.to ? navigate(item.to) : chooseSuggestion(item.query!))}
-                variant="subtle"
-                size="sm"
-                // JON-168 (Auditoria 360): altura 28 ficava abaixo do alvo minimo de 44.
-                className="h-auto min-h-11 px-3 py-1.5 text-xs"
-              >
-                {item.label}
-              </Button>
+        {/* Departamentos: so fora da tela inicial (la eles sao a grade). */}
+        {!isLanding && departments.length > 0 && (
+          <div ref={categoriesScroll.ref} className="no-scrollbar mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 pb-2.5" {...categoriesScroll.dragProps}>
+            <button type="button" onClick={() => setCategory('')} className={chip(!cat)}>Todos</button>
+            {departments.map((dept) => (
+              <button key={dept.key} type="button" onClick={() => openDepartment(dept)} className={chip(cat === dept.key)}>
+                {dept.label}
+              </button>
             ))}
           </div>
         )}
+      </header>
 
-        {/* Grade de produtos */}
-        {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 py-2">
-            <SkeletonCard count={10} />
+      {scannerOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={() => setScannerOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
+            <p className="mb-3 text-sm font-semibold text-[#231F20]">Aponte a câmera para o código de barras do produto</p>
+            <BarcodeScanner onResult={handleBarcode} onClose={() => setScannerOpen(false)} />
           </div>
-        ) : allProducts.length === 0 ? (
-          // JON-161 (Auditoria 360): text-gray-400 media 2,54:1 contra branco,
-          // abaixo do 4,5:1 de texto -- Casca (#5D4F33) mede 7,98:1.
-          <div className="text-center py-24 text-[#5D4F33]">
-            <Search size={48} className="mx-auto mb-4 opacity-30" />
-            <p className="font-semibold text-gray-500">Não achamos esse produto por aqui</p>
-            <p className="text-sm mt-1">Tente outra palavra, escolha uma categoria ou ajuste o preço</p>
-            <Button
-              type="button"
-              onClick={() => navigate('/promocoes')}
-              className="mt-4"
-            >
-              Ver ofertas da semana
-            </Button>
+        </div>
+      )}
+
+      <main className="mx-auto max-w-7xl px-4 pb-6 pt-4">
+        {isLanding ? (
+          <div className="space-y-6">
+            {recent.length > 0 && (
+              <section>
+                <div className="mb-2.5 flex items-center justify-between">
+                  <h2 className="text-base font-bold text-[#231F20]">Buscas recentes</h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecent([])
+                      writeRecent([])
+                    }}
+                    className="text-xs font-semibold text-[#5D082A]"
+                  >
+                    Limpar
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {recent.map((term) => (
+                    <button key={term} type="button" onClick={() => runSearch(term, 'recent')} className={chip(false)}>
+                      <Clock size={14} className="text-gray-400" /> {term}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <h2 className="mb-3 text-base font-bold text-[#231F20]">Departamentos</h2>
+              {/* 4 por linha no celular: 18 departamentos em 5 linhas, nao 6 (a grade empurrava tudo para baixo). */}
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-9">
+                {departments.map((dept) => {
+                  const Icon = CATEGORY_ICONS[dept.id] || CATEGORY_ICONS.default
+                  return (
+                    <button
+                      key={dept.key}
+                      type="button"
+                      onClick={() => openDepartment(dept)}
+                      className="flex flex-col items-center gap-1.5 rounded-2xl border border-[#EFE6D2] bg-white px-1 py-3 text-center transition-colors hover:border-[#D2BB8A] active:scale-[0.98]"
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F8F2E6] text-[#5D082A]">
+                        <Icon size={21} strokeWidth={1.8} />
+                      </span>
+                      <span className="line-clamp-2 text-[11px] font-semibold leading-tight text-[#231F20]">{dept.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="mb-2.5 text-base font-bold text-[#231F20]">Buscas populares</h2>
+              <div className="flex flex-wrap gap-2">
+                {QUICK_LINKS.map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => (item.to ? navigate(item.to) : runSearch(item.query!, 'popular'))}
+                    className={chip(false)}
+                  >
+                    {item.to ? <Tag size={14} className="text-[#5D082A]" /> : <Search size={14} className="text-gray-400" />} {item.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <div className="flex items-end justify-between gap-3 pt-1">
+              <div>
+                <h2 className="text-lg font-bold text-[#231F20]">Todos os produtos</h2>
+                {!isLoading && <p className="text-xs text-gray-500">{total} produtos</p>}
+              </div>
+              <button type="button" onClick={() => setSheetOpen(true)} className={chip(false)}>
+                <SlidersHorizontal size={14} /> Ordenar e filtrar
+              </button>
+            </div>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-              {allProducts.map((product) => (
-                <StoreProductCard
-                  key={product.id}
-                  product={product}
-                  source="SEARCH"
-                  variant="grid"
-                  analyticsMeta={{
-                    query: q || null,
-                    normalizedQuery: q ? normalizeSearchText(q) : null,
-                  }}
+            {categoryBanner && (
+              <div className="mb-4">
+                <PromoBanner
+                  bannerId={categoryBanner.id}
+                  image={resolveApiUrl(categoryBanner.desktopImageUrl)}
+                  alt={categoryBanner.title || categoryBanner.name || 'Destaque da categoria'}
+                  badge={categoryBanner.badgeText || undefined}
+                  title={categoryBanner.title || categoryBanner.name || 'Destaque'}
+                  description={categoryBanner.description || undefined}
+                  ctaLabel={categoryBanner.ctaLabel || undefined}
+                  ctaTo={resolveBannerLink(categoryBanner.linkValue, categoryBanner.linkType)}
+                  align={categoryBanner.align || 'left'}
+                  overlayColor={categoryBanner.overlayColor || undefined}
+                  sponsorName={categoryBanner.sponsorName || undefined}
                 />
-              ))}
-            </div>
-
-            <div ref={sentinelRef} className="h-10 flex items-center justify-center mt-4">
-              {isFetchingNextPage && <Loader2 className="animate-spin text-[#5D082A]" size={24} />}
-            </div>
-
-            {!hasNextPage && allProducts.length > 0 && (
-              <p className="text-center text-xs text-[#6B7280] mt-2">
-                {allProducts.length} produto{allProducts.length !== 1 ? 's' : ''} carregado{allProducts.length !== 1 ? 's' : ''}
-              </p>
+              </div>
             )}
+
+            <div className="mb-3">
+              <h1 className="text-xl font-bold leading-tight text-[#231F20] sm:text-2xl">{title}</h1>
+              {!isLoading && (
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {total} {total === 1 ? 'produto' : 'produtos'}
+                  {q && department ? ` em ${department.fullLabel}` : ''}
+                </p>
+              )}
+            </div>
+
+            {/* Secoes do departamento (Bovinos, Aves...): o que o cliente procura dentro do Acougue. */}
+            {sectionChips.length >= 2 && (
+              <div ref={sectionsScroll.ref} className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4" {...sectionsScroll.dragProps}>
+                <button type="button" onClick={() => updateParams({ secao: undefined })} className={chip(!section)}>Tudo</button>
+                {sectionChips.map((s) => (
+                  <button key={s.name} type="button" onClick={() => updateParams({ secao: s.name })} className={chip(section === s.name)}>
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Ordenar e filtros ativos: um toque tira cada um. */}
+            <div ref={toolbarScroll.ref} className="no-scrollbar -mx-4 mb-4 flex items-center gap-2 overflow-x-auto px-4" {...toolbarScroll.dragProps}>
+              <button type="button" onClick={() => setSheetOpen(true)} className={chip(refineCount > 0)}>
+                <SlidersHorizontal size={14} /> {refineCount > 0 ? `Filtros · ${refineCount}` : 'Filtrar'}
+              </button>
+              <button type="button" onClick={() => setSheetOpen(true)} className={chip(false)}>
+                {sortLabel} <ChevronDown size={14} />
+              </button>
+              <button type="button" onClick={() => updateParams({ ofertas: onSale ? undefined : '1' })} className={chip(onSale)}>
+                {onSale && <Check size={14} />} Só ofertas
+              </button>
+              {hasPrice && (
+                <button type="button" onClick={() => updateParams({ minPrice: undefined, maxPrice: undefined })} className={chip(true)}>
+                  {priceFilter?.label || 'Preço'} <X size={14} />
+                </button>
+              )}
+              {hasLegacyClassification && (
+                <button type="button" onClick={() => updateParams({ classification01: undefined, classification02: undefined, classification03: undefined, classification04: undefined })} className={chip(true)}>
+                  Seleção <X size={14} />
+                </button>
+              )}
+              {(refineCount > 0 || section || hasLegacyClassification) && (
+                <button type="button" onClick={() => updateParams({ ordem: undefined, ofertas: undefined, minPrice: undefined, maxPrice: undefined, secao: undefined, classification01: undefined, classification02: undefined, classification03: undefined, classification04: undefined })} className="shrink-0 px-2 text-xs font-semibold text-[#5D082A] underline underline-offset-2">
+                  Limpar
+                </button>
+              )}
+            </div>
           </>
         )}
+
+        {/* Grade de produtos */}
+        <div className={isLanding ? 'mt-3' : ''}>
+          {isLoading ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              <SkeletonCard count={10} />
+            </div>
+          ) : allProducts.length === 0 ? (
+            <div className="mx-auto max-w-md py-14 text-center text-[#5D4F33]">
+              <span className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F8F2E6] text-[#8a6a3a]">
+                <Search size={28} />
+              </span>
+              <p className="text-base font-bold text-[#231F20]">{q ? `Não achamos “${q}”` : 'Nenhum produto com esses filtros'}</p>
+              <p className="mt-1 text-sm">
+                {q ? 'Confira a grafia ou tente uma palavra mais simples, como “queijo” ou “arroz”.' : 'Tire algum filtro para ver mais produtos.'}
+              </p>
+              <div className="mt-5 flex flex-col items-center gap-2.5">
+                {(refineCount > 0 || section || cat || tag) && (
+                  <button type="button" onClick={clearAll} className={buttonVariants({ variant: 'outline', size: 'md' })}>
+                    Tirar os filtros
+                  </button>
+                )}
+                {q && whatsappAskUrl && (
+                  <a href={whatsappAskUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-sm font-semibold text-[#0d5c36]">
+                    <MessageCircle size={16} /> Não achou? Pergunte no WhatsApp
+                  </a>
+                )}
+                <Link to="/promocoes" className="text-sm font-semibold text-[#5D082A] underline underline-offset-2">
+                  Ver ofertas da semana
+                </Link>
+              </div>
+              {q && (
+                <div className="mt-6">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8a6a3a]">Mais procurados</p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {QUICK_LINKS.filter((item) => item.query).map((item) => (
+                      <button key={item.label} type="button" onClick={() => runSearch(item.query!, 'popular')} className={chip(false)}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                {allProducts.map((product) => (
+                  <StoreProductCard
+                    key={product.id}
+                    product={product}
+                    source="SEARCH"
+                    variant="grid"
+                    analyticsMeta={{
+                      query: q || null,
+                      normalizedQuery: q ? normalizeSearchText(q) : null,
+                    }}
+                  />
+                ))}
+              </div>
+
+              <div ref={sentinelRef} className="mt-4 flex h-10 items-center justify-center">
+                {isFetchingNextPage && <Loader2 className="animate-spin text-[#5D082A]" size={24} />}
+              </div>
+
+              {!hasNextPage && (
+                <p className="mt-2 text-center text-xs text-[#6B7280]">
+                  {allProducts.length === total ? `Você viu os ${total} produtos.` : `${allProducts.length} produtos`}
+                </p>
+              )}
+            </>
+          )}
+        </div>
       </main>
+
+      {sheetOpen && (
+        <FilterSheet
+          total={total}
+          isLoading={isLoading}
+          sort={sort}
+          onSale={onSale}
+          minPrice={minPrice}
+          maxPrice={maxPrice}
+          onChange={updateParams}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
+
       <Footer />
       {count > 0 && (
-        <div className="fixed inset-x-0 bottom-[var(--mobile-nav-height,4rem)] z-50 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur md:hidden">
+        <div className="fixed inset-x-0 bottom-[var(--mobile-nav-height,4rem)] z-40 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-2.5 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur md:hidden">
           <Link
             to="/cart"
-            className={buttonVariants({ className: 'flex min-h-14 w-full justify-between px-4 text-white shadow-lg' })}
+            className={buttonVariants({ className: 'flex h-12 w-full justify-between rounded-xl px-4 text-white shadow-lg' })}
             aria-label={`Ver carrinho com ${count} itens`}
           >
             <span className="text-sm font-bold">
@@ -909,6 +849,120 @@ export default function MercadoPage() {
       )}
       <MobileBottomNav />
       <BackToTopButton />
+    </div>
+  )
+}
+
+/**
+ * Ordenar e filtrar: folha que sobe de baixo no celular, painel no
+ * computador. Cada toque ja aplica (a contagem do botao acompanha).
+ */
+function FilterSheet({
+  total,
+  isLoading,
+  sort,
+  onSale,
+  minPrice,
+  maxPrice,
+  onChange,
+  onClose,
+}: {
+  total: number
+  isLoading: boolean
+  sort: string
+  onSale: boolean
+  minPrice?: number
+  maxPrice?: number
+  onChange: (patch: Record<string, string | number | undefined>) => void
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    document.addEventListener('keydown', onKey)
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = overflow
+    }
+  }, [onClose])
+
+  const option = (active: boolean) =>
+    cn(
+      'flex min-h-[48px] w-full items-center justify-between rounded-xl px-3 text-left text-sm transition-colors',
+      active ? 'bg-[#F8F2E6] font-bold text-[#5D082A]' : 'text-[#231F20] hover:bg-[#FBF7F0]',
+    )
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/45 sm:items-center sm:p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label="Ordenar e filtrar">
+      <div
+        className="flex max-h-[85vh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:max-w-md sm:rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[#EFE6D2] px-5 py-4">
+          <h2 className="text-base font-bold text-[#231F20]">Ordenar e filtrar</h2>
+          <button type="button" onClick={onClose} aria-label="Fechar" className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-[#F8F4EA]">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+          <div>
+            <p className="mb-1.5 px-1 text-xs font-bold uppercase tracking-wider text-[#8a6a3a]">Ordenar por</p>
+            {SORTS.map((s) => (
+              <button key={s.key || 'rec'} type="button" onClick={() => onChange({ ordem: s.key || undefined })} className={option(sort === s.key)}>
+                {s.label}
+                {sort === s.key && <Check size={18} />}
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <p className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-[#8a6a3a]">Preço</p>
+            <div className="flex flex-wrap gap-2 px-1">
+              {PRICE_FILTERS.map((f) => {
+                const active = f.minPrice === minPrice && f.maxPrice === maxPrice
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => onChange(active ? { minPrice: undefined, maxPrice: undefined } : { minPrice: f.minPrice, maxPrice: f.maxPrice })}
+                    className={chip(active)}
+                  >
+                    {f.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <label className="flex min-h-[48px] cursor-pointer items-center justify-between rounded-xl px-3 hover:bg-[#FBF7F0]">
+            <span>
+              <span className="block text-sm font-semibold text-[#231F20]">Só ofertas</span>
+              <span className="block text-xs text-gray-500">Produtos com preço promocional agora</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={onSale}
+              onChange={(e) => onChange({ ofertas: e.target.checked ? '1' : undefined })}
+              className="h-5 w-5 accent-[#5D082A]"
+            />
+          </label>
+        </div>
+
+        <div className="flex gap-2 border-t border-[#EFE6D2] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
+          <button
+            type="button"
+            onClick={() => onChange({ ordem: undefined, ofertas: undefined, minPrice: undefined, maxPrice: undefined })}
+            className={buttonVariants({ variant: 'outline', className: 'h-12 rounded-xl px-4' })}
+          >
+            Limpar
+          </button>
+          <button type="button" onClick={onClose} className={buttonVariants({ className: 'h-12 flex-1 rounded-xl' })}>
+            {isLoading ? 'Ver produtos' : `Ver ${total} ${total === 1 ? 'produto' : 'produtos'}`}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

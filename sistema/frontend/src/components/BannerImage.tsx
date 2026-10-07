@@ -71,7 +71,8 @@ export function BannerImage({
         className={className}
         style={{ objectPosition: objectPosition ?? POSITION_BY_ALIGN[align] }}
         loading={loading}
-        fetchPriority={fetchPriority}
+        // React 18 so conhece o atributo em minusculo (camelCase gerava aviso no console).
+        {...(fetchPriority ? { fetchpriority: fetchPriority } : {})}
         draggable={draggable}
       />
     </picture>

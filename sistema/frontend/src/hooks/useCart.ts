@@ -53,10 +53,14 @@ export function useInfiniteProducts(
   classification03?: string,
   classification04?: string,
   tag?: string,
+  options: { sort?: string; onSale?: boolean; section?: string } = {},
 ) {
   return useInfiniteQuery({
     queryKey: [
       'products-infinite',
+      options.sort,
+      options.onSale,
+      options.section,
       search,
       category,
       minPrice,
@@ -80,6 +84,7 @@ export function useInfiniteProducts(
         classification03,
         classification04,
         tag,
+        options,
       )
       return response.data as PaginatedProducts
     },
