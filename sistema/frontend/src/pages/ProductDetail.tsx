@@ -114,7 +114,38 @@ function usePurchase(product: Product | undefined) {
       else if (quantity === 1) removeItem(product.id)
       else setPending((n) => Math.max(1, n - 1))
     },
+    /** Quantidade direta (meia caixa / caixa do vinho): antes de comprar so escolhe; no carrinho, ajusta. */
+    setQuantity(n: number) {
+      if (!product) return
+      if (quantity > 0) updateQuantity(product.id, n)
+      else setPending(n)
+    },
   }
+}
+
+// Vinho: garrafa, meia caixa e caixa (o "1un/6un/12un" que ficava no card da
+// Adega e punha 6 garrafas no carrinho com um toque, 07/10/2026). Aqui so
+// escolhe a quantidade; quem compra e o botao.
+const WINE_QUANTITIES: Array<[number, string]> = [[1, '1 garrafa'], [6, 'Meia caixa · 6'], [12, 'Caixa · 12']]
+function WineQuantityPicker({ purchase }: { purchase: Purchase }) {
+  return (
+    <div role="group" aria-label="Quantidade de garrafas" className="flex flex-wrap gap-2">
+      {WINE_QUANTITIES.map(([n, label]) => {
+        const active = purchase.shown === n
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={() => purchase.setQuantity(n)}
+            aria-pressed={active}
+            className={`h-9 rounded-full border px-3.5 text-xs font-bold transition-colors ${active ? 'border-[#5D082A] bg-[#5D082A] text-white' : 'border-[#E8D7B0] bg-white text-[#231F20] hover:border-[#D2BB8A]'}`}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 type Purchase = ReturnType<typeof usePurchase>
 
@@ -669,6 +700,8 @@ export default function ProductDetail() {
                 </span>
               </p>
             )}
+
+            {product.category === 'ADEGA_VINHOS_ESPUMANTES' && !viewModel.outOfStock && <WineQuantityPicker purchase={purchase} />}
 
             {/* Computador: caixa de compra na coluna; no celular quem compra e a barra fixa. */}
             <div className="hidden lg:block">

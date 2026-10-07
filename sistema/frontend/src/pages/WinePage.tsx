@@ -12,43 +12,32 @@ import NotificationBell from '../components/NotificationBell'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { BackToTopButton } from '../components/BackToTopButton'
 import type { Product } from '../types'
-import { getProductPricePresentation } from '../utils/productPricing'
+import { formatProductQuantity, getProductPricePresentation } from '../utils/productPricing'
+import { getProductCardViewModel } from '../utils/productCard'
+import { formatPrice } from '../utils/format'
 import { trackEvent } from '../utils/analytics'
-import { ArrowLeft, ShoppingCart, Loader2, Sparkles } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { useMemo, useEffect, useState } from 'react'
+import { useDragScroll } from '../hooks/useDragScroll'
+import { ArrowLeft, Check, ChevronDown, Loader2, Minus, Plus, ShoppingCart, SlidersHorizontal, Sparkles, X } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Fragment, useMemo, useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { SEO, StructuredData } from '../components/SEO'
-import { Badge } from '../components/ui/badge'
-import { Button } from '../components/ui/button'
+import { cn } from '../lib/cn'
 
-const normalizeUppercaseDisplayText = (value?: string | null) => {
-  const text = String(value || '').trim()
-  if (!text) return ''
-
-  const letters = text.match(/[A-Za-zÀ-ÖØ-öø-ÿ]/g) || []
-  if (letters.length === 0) return text
-
-  const upperCount = letters.filter((char) => char === char.toUpperCase()).length
-  const upperRatio = upperCount / letters.length
-
-  // Converte quando o texto vier predominantemente em caixa alta do ERP.
-  if (upperRatio < 0.6) return text
-
-  return text
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
-const formatWineDescription = (value?: string | null) => {
-  const normalized = normalizeUppercaseDisplayText(value)
-  return normalized || 'Reserva Especial Antenor'
-}
-
-const formatWineTitle = (value?: string | null) => normalizeUppercaseDisplayText(value)
+// Adega revista em 07/10/2026 (revisao de UI/UX do storefront, celular
+// primeiro), mantendo a identidade escura e dourada:
+// - o primeiro rotulo aparece logo (foto do topo menor; pais, uva, preco e
+//   ordem numa folha que sobe de baixo, em vez de 4 caixas de selecao);
+// - card com preco antes do nome e "+" que vira seletor de quantidade;
+// - tocar na foto ABRE o vinho: havia um botao invisivel sobre a foto (feito
+//   para o mouse) que, no celular, punha a garrafa no carrinho;
+// - "6un"/"12un" saiu do card: um toque punha 6 garrafas no carrinho sem
+//   aviso. Meia caixa e caixa ficaram na pagina do vinho, so escolhendo a
+//   quantidade.
 
 // Filtros pela ficha do vinho (03/10/2026): tipo, estilo, pais, uva e preco.
-// Antes era palavra no nome ("CHANDON" contava como champagne). O estado fica
-// na URL, entao o link filtrado pode ser compartilhado e o voltar funciona.
+// O estado fica na URL, entao o link filtrado pode ser compartilhado e o
+// voltar funciona.
 type WineSubcategory = 'all' | 'tinto' | 'branco' | 'rose' | 'espumante' | 'suave'
 
 const WINE_CATEGORIES: Array<{ key: WineSubcategory; label: string }> = [
@@ -67,16 +56,25 @@ const matchesSubcat = (f: WineFacts, subcat: WineSubcategory): boolean => {
   return f.tipo === subcat
 }
 
-type WineSort = 'nome' | 'menor' | 'maior'
+// "Recomendados" = a ordem da API (rotulo com foto primeiro, sorteio do dia).
+type WineSort = 'rec' | 'menor' | 'maior' | 'nome'
 const SORTS: Array<{ key: WineSort; label: string }> = [
-  { key: 'nome', label: 'Nome (A–Z)' },
+  { key: 'rec', label: 'Recomendados' },
   { key: 'menor', label: 'Menor preço' },
   { key: 'maior', label: 'Maior preço' },
+  { key: 'nome', label: 'Nome (A–Z)' },
 ]
 const priceOf = (p: Product) => (p.promotionalPrice && p.promotionalPrice < p.price ? p.promotionalPrice : p.price)
 
-const selectClass =
-  'h-10 min-w-0 rounded-full border border-[#D2BB8A]/30 bg-[#1C1917] px-3 text-xs font-semibold text-[#F3E7C9] outline-none focus:border-[#D2BB8A]'
+const goldChip = (active: boolean, disabled = false) =>
+  cn(
+    'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs font-bold tracking-wide transition-colors',
+    active
+      ? 'border-[#D2BB8A] bg-[#D2BB8A] text-[#231F20]'
+      : disabled
+        ? 'cursor-not-allowed border-white/10 text-white/25'
+        : 'border-[#D2BB8A]/35 bg-[#1C1917] text-[#F3E7C9] hover:border-[#D2BB8A]',
+  )
 
 export default function WinePage() {
   // Lista inteira da Adega (ate 100) para os filtros contarem tudo.
@@ -91,9 +89,11 @@ export default function WinePage() {
   })
   const { count } = useCart()
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const typesScroll = useDragScroll<HTMLDivElement>()
+  const [sheetOpen, setSheetOpen] = useState(false)
   // A Adega tem rota propria (/adega), sem ?cat= na URL, entao o banner e
-  // achado pelo nome da categoria -- mesma regra que manda um banner de
-  // categoria da Adega apontar pra ca (ver findWineCategoryBanner).
+  // achado pelo nome da categoria (ver findWineCategoryBanner).
   const { data: storeBanners } = useStoreBanners()
   const wineBanner = useMemo(() => findWineCategoryBanner(storeBanners), [storeBanners])
   const [params, setParams] = useSearchParams()
@@ -101,25 +101,25 @@ export default function WinePage() {
   const country = params.get('pais') || ''
   const grape = params.get('uva') || ''
   const band = params.get('preco') || ''
-  const sort = (SORTS.some((s) => s.key === params.get('ordem')) ? params.get('ordem') : 'nome') as WineSort
+  const sort = (SORTS.some((s) => s.key === params.get('ordem')) ? params.get('ordem') : 'rec') as WineSort
   const setFilter = (key: string, value: string) =>
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev)
-        if (value && value !== 'all' && !(key === 'ordem' && value === 'nome')) next.set(key, value)
+        if (value && value !== 'all' && !(key === 'ordem' && value === 'rec')) next.set(key, value)
         else next.delete(key)
         return next
       },
       { replace: true },
     )
-  const setSelectedSubcat = (v: WineSubcategory) => setFilter('tipo', v)
-  const hasFilters = Boolean(country || grape || band || selectedSubcat !== 'all')
+  const refineCount = [country, grape, band, sort !== 'rec' ? sort : ''].filter(Boolean).length
+  const hasFilters = Boolean(refineCount || selectedSubcat !== 'all')
 
   useEffect(() => {
     trackEvent('VIEW_CATEGORY', 'CATEGORY', 'VINHOS')
   }, [])
 
-  const vinhos = useMemo(() => ((products || []) as Product[]).map((p) => ({ p, f: wineFacts(p) })), [products])
+  const vinhos = useMemo(() => ((products || []) as Product[]).map((p, order) => ({ p, f: wineFacts(p), order })), [products])
 
   // Cada filtro conta sobre o resultado dos OUTROS filtros (faceta), para nunca
   // oferecer uma opcao que leva a lista vazia.
@@ -155,70 +155,59 @@ export default function WinePage() {
   const filteredVinhos = useMemo(() => {
     const list = vinhos.filter((x) => passes(x))
     const byName = (a: { p: Product }, b: { p: Product }) => a.p.name.localeCompare(b.p.name, 'pt-BR')
-    list.sort(sort === 'menor' ? (a, b) => priceOf(a.p) - priceOf(b.p) || byName(a, b) : sort === 'maior' ? (a, b) => priceOf(b.p) - priceOf(a.p) || byName(a, b) : byName)
+    list.sort(
+      sort === 'menor'
+        ? (a, b) => priceOf(a.p) - priceOf(b.p) || byName(a, b)
+        : sort === 'maior'
+          ? (a, b) => priceOf(b.p) - priceOf(a.p) || byName(a, b)
+          : sort === 'nome'
+            ? byName
+            : (a, b) => a.order - b.order,
+    )
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vinhos, selectedSubcat, country, grape, band, sort])
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#231F20]">
-        <Loader2 className="animate-spin text-[#D2BB8A]" size={48} />
-      </div>
-    )
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Início', item: window.location.origin },
+      { '@type': 'ListItem', position: 2, name: 'Adega', item: `${window.location.origin}/adega` },
+    ],
   }
 
-  // Schema for Breadcrumbs
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      {
-        "@type": "ListItem",
-        "position": 1,
-        "name": "Home",
-        "item": window.location.origin
-      },
-      {
-        "@type": "ListItem",
-        "position": 2,
-        "name": "Adega",
-        "item": `${window.location.origin}/vinhos`
-      }
-    ]
-  }
+  const activeChips = [
+    country && { key: 'pais', label: country },
+    grape && { key: 'uva', label: grape },
+    band && { key: 'preco', label: PRICE_BANDS.find((b) => b.key === band)?.label || band },
+  ].filter(Boolean) as Array<{ key: string; label: string }>
+
+  // Banner da Adega depois da 1a fileira de rotulos (2 no celular, 4 no computador):
+  // antes dele, o cliente ainda nao tinha visto vinho nenhum.
+  const bannerAfter = 4
 
   return (
     <div className="min-h-screen bg-[#231F20] text-white">
-      <SEO 
-        title="Adega Antenor | Vinhos de Luxo" 
-        description="Vinhos escolhidos para presentear, comemorar e surpreender. Descubra rótulos que valem a pena levar para casa."
-      />
+      <SEO title="Adega Antenor | Vinhos e espumantes" description="Vinhos escolhidos para presentear, comemorar e surpreender. Descubra rótulos que valem a pena levar para casa." />
       <StructuredData data={breadcrumbSchema} />
-      {/* Header Specialized -- glassmorphism escuro com acabamento dourado */}
-      <header className="fixed top-0 w-full z-50 border-b border-[#D2BB8A]/20 bg-[#120e0e]/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          {/* JON-168 (Auditoria 360): 24x24 ficava abaixo do alvo minimo de 44x44. */}
-          <Link
-            to="/"
-            className="-ml-2.5 flex min-h-11 min-w-11 items-center justify-center text-[#D2BB8A] transition-transform hover:scale-110"
-            aria-label="Voltar para Home"
-          >
-            <ArrowLeft size={24} />
-          </Link>
-          <div className="text-center flex-1">
-             <h1 className="luxury-text text-xl font-extrabold tracking-wide uppercase bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">
-               Adega Antenor & Filhos
-             </h1>
-             <p className="text-label font-normal text-[#D2BB8A]/60 -mt-1 tracking-widest uppercase">Since 1979</p>
+
+      <header className="fixed top-0 z-50 w-full border-b border-[#D2BB8A]/20 bg-[#120e0e]/85 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-2 py-2 sm:px-4">
+          <button type="button" onClick={() => navigate('/')} aria-label="Voltar ao início" className="flex h-11 w-11 items-center justify-center rounded-full text-[#D2BB8A] hover:bg-white/5">
+            <ArrowLeft size={22} />
+          </button>
+          <div className="flex-1 text-center">
+            <h1 className="luxury-text bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-lg font-extrabold uppercase tracking-wide text-transparent">
+              Adega Antenor & Filhos
+            </h1>
+            <p className="-mt-0.5 text-[10px] uppercase tracking-[0.25em] text-[#D2BB8A]/60">Desde 1979</p>
           </div>
-          <div className="flex items-center gap-1">
-            <Link to="/cart" className="relative p-2 text-[#D2BB8A]" aria-label={`Carrinho com ${count} itens`}>
-              <ShoppingCart size={24} />
+          <div className="flex items-center">
+            <Link to="/cart" className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#D2BB8A] hover:bg-white/5" aria-label={count > 0 ? `Carrinho com ${count} itens` : 'Carrinho vazio'}>
+              <ShoppingCart size={22} />
               {count > 0 && (
-                <span className="absolute -top-1 -right-1 bg-white text-[#231F20] text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {count}
-                </span>
+                <span className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#D2BB8A] px-1 text-[10px] font-bold text-[#231F20]">{count > 9 ? '9+' : count}</span>
               )}
             </Link>
             {user && (
@@ -231,160 +220,158 @@ export default function WinePage() {
       </header>
 
       <main>
-        {/* Luxury Hero Section */}
-        {/* Celular: a foto ocupava a tela inteira e os rotulos so apareciam depois de muita rolagem. */}
-        <section className="relative flex h-[38vh] min-h-[260px] items-end pb-8 md:h-[60vh] md:pb-12">
-           <img
-             src="/media/vinhos.jpg"
-             alt="Luxury Wine Selection - Adega Antenor & Filhos"
-             className="absolute inset-0 w-full h-full object-cover opacity-60"
-             loading="eager"
-             onError={(e) => {
-               // Rede instavel derruba o carregamento sem avisar -- sem isso
-               // a secao inteira fica com fundo vazio ate o usuario recarregar
-               // a pagina inteira. Uma tentativa com cache-buster resolve o
-               // caso comum (resposta parcial/corrompida em cache); se falhar
-               // de novo, desiste -- sem loop.
-               const img = e.currentTarget
-               if (img.dataset.retried) return
-               img.dataset.retried = '1'
-               img.src = `/media/vinhos.jpg?retry=${Date.now()}`
-             }}
-           />
-           <div className="absolute inset-0 bg-gradient-to-t from-[#231F20] via-transparent to-[#231F20]/30" />
-           <div className="relative z-10 max-w-7xl mx-auto px-6 w-full fade-in-section">
-              <span className="flex items-center gap-2 text-[#D2BB8A] text-xs font-bold tracking-widest uppercase mb-4">
-                 <Sparkles size={14} /> Seleção Especial
-              </span>
-              <h2 className="text-3xl md:text-6xl font-medium tracking-tight leading-tight luxury-text mb-4 md:mb-8 bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">Cada taça conta <br/>uma história</h2>
-              <p className="hidden max-w-lg text-white/70 text-sm italic leading-relaxed md:block">
-                Não é só vinho. É escolha, cuidado e sabor de verdade. Aqui você encontra rótulos para presentear bem ou aproveitar um momento especial.
-              </p>
-           </div>
+        {/* Foto do topo: identidade da Adega, mas baixa no celular (a lista vem logo). */}
+        <section className="relative flex h-[30vh] min-h-[220px] items-end pb-6 md:h-[52vh] md:pb-12">
+          <img
+            src="/media/vinhos.jpg"
+            alt="Adega Antenor & Filhos"
+            className="absolute inset-0 h-full w-full object-cover opacity-60"
+            loading="eager"
+            onError={(e) => {
+              // Rede instavel derruba o carregamento sem avisar: uma tentativa
+              // com cache-buster resolve o caso comum; se falhar, desiste.
+              const img = e.currentTarget
+              if (img.dataset.retried) return
+              img.dataset.retried = '1'
+              img.src = `/media/vinhos.jpg?retry=${Date.now()}`
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#231F20] via-[#231F20]/20 to-[#231F20]/40" />
+          <div className="relative z-10 mx-auto w-full max-w-7xl px-4 md:px-6">
+            <span className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[#D2BB8A]">
+              <Sparkles size={13} /> Seleção especial
+            </span>
+            <h2 className="luxury-text bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-[28px] font-medium leading-tight tracking-tight text-transparent md:text-6xl">
+              Cada taça conta <br />uma história
+            </h2>
+            <p className="mt-3 hidden max-w-lg text-sm italic leading-relaxed text-white/70 md:block">
+              Não é só vinho. É escolha, cuidado e sabor de verdade. Aqui você encontra rótulos para presentear bem ou aproveitar um momento especial.
+            </p>
+          </div>
         </section>
 
-        {/* Wine Subcategory Filter */}
-        <section className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2" role="group" aria-label="Filtrar por tipo de vinho">
-            {WINE_CATEGORIES.map((cat) => {
-              const isActive = selectedSubcat === cat.key
-              const count = subcatCounts.get(cat.key) || 0
-              return (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => setSelectedSubcat(cat.key)}
-                  disabled={count === 0}
-                  aria-pressed={isActive}
-                  className={`shrink-0 flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${
-                    isActive
-                      ? 'border-[#D2BB8A] bg-[#D2BB8A] text-[#231F20]'
-                      : count === 0
-                        ? 'border-white/10 text-white/20 cursor-not-allowed'
-                        : 'border-[#D2BB8A]/30 bg-[#1C1917] text-[#F3E7C9] hover:border-[#D2BB8A] hover:bg-[#D2BB8A]/10'
-                  }`}
-                >
-                  {cat.label}
-                  {/* JON-161 (Auditoria 360): as duas variantes com opacidade
-                      reduzida mediam 3,30:1/3,42:1, abaixo do 4,5:1 de texto
-                      pequeno -- cor solida (sem /50 ou /60) resolve as duas. */}
-                  <span className={isActive ? 'text-[#231F20]' : 'text-[#D2BB8A]'}>({count})</span>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="animate-spin text-[#D2BB8A]" size={40} />
+          </div>
+        ) : (
+          <>
+            {/* Tipo (com contagem) + filtros: fica preso no topo enquanto rola a lista. */}
+            <section className="sticky top-[60px] z-30 border-b border-[#D2BB8A]/10 bg-[#231F20]/95 py-3 backdrop-blur">
+              <div ref={typesScroll.ref} className="no-scrollbar mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4" role="group" aria-label="Filtrar por tipo de vinho" {...typesScroll.dragProps}>
+                <button type="button" onClick={() => setSheetOpen(true)} className={goldChip(refineCount > 0)} aria-label="Filtrar e ordenar">
+                  <SlidersHorizontal size={14} /> {refineCount > 0 ? `Filtros · ${refineCount}` : 'Filtrar'}
                 </button>
-              )
-            })}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" role="group" aria-label="Mais filtros">
-            <select aria-label="País" value={country} onChange={(e) => setFilter('pais', e.target.value)} className={selectClass}>
-              <option value="">Todos os países</option>
-              {countryOptions.map(([c, n]) => (
-                <option key={c} value={c}>{c} ({n})</option>
-              ))}
-            </select>
-            <select aria-label="Uva" value={grape} onChange={(e) => setFilter('uva', e.target.value)} className={selectClass}>
-              <option value="">Todas as uvas</option>
-              {grapeOptions.map(([g, n]) => (
-                <option key={g} value={g}>{g} ({n})</option>
-              ))}
-            </select>
-            <select aria-label="Faixa de preço" value={band} onChange={(e) => setFilter('preco', e.target.value)} className={selectClass}>
-              <option value="">Qualquer preço</option>
-              {PRICE_BANDS.map((b) => (
-                <option key={b.key} value={b.key}>{b.label}</option>
-              ))}
-            </select>
-            <select aria-label="Ordenar" value={sort} onChange={(e) => setFilter('ordem', e.target.value)} className={selectClass}>
-              {SORTS.map((s) => (
-                <option key={s.key} value={s.key}>{s.label}</option>
-              ))}
-            </select>
-            {hasFilters && (
-              <button type="button" onClick={() => setParams(new URLSearchParams(), { replace: true })} className="col-span-2 h-10 rounded-full px-3 text-xs font-semibold uppercase tracking-wider text-[#D2BB8A] underline-offset-4 hover:underline sm:col-span-1">
-                Limpar filtros
-              </button>
-            )}
-          </div>
-          <p className="mt-3 text-xs text-white/50">{filteredVinhos.length} {filteredVinhos.length === 1 ? 'rótulo' : 'rótulos'}</p>
-        </section>
+                {WINE_CATEGORIES.map((cat) => {
+                  const n = subcatCounts.get(cat.key) || 0
+                  const active = selectedSubcat === cat.key
+                  return (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      onClick={() => setFilter('tipo', cat.key)}
+                      disabled={n === 0 && !active}
+                      aria-pressed={active}
+                      className={goldChip(active, n === 0 && !active)}
+                    >
+                      {cat.label} <span className={active ? 'text-[#231F20]/70' : 'text-[#D2BB8A]'}>{n}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
 
-        {/* Banner de categoria (StoreBanner slot=category apontando pra Adega).
-            Fica abaixo do hero e do filtro, nao no topo: o hero da Adega ja e
-            a peca de identidade da pagina, e um segundo bloco grande logo
-            acima dele disputaria a mesma atencao. Aqui ele le como destaque
-            comercial dentro da Adega, antes dos rotulos. */}
-        {wineBanner && (
-          <section className="max-w-7xl mx-auto px-4 pt-8">
-            <PromoBanner
-              bannerId={wineBanner.id}
-              image={resolveApiUrl(wineBanner.desktopImageUrl)}
-              alt={wineBanner.title || wineBanner.name || 'Destaque da Adega'}
-              badge={wineBanner.badgeText || undefined}
-              title={wineBanner.title || wineBanner.name || 'Destaque'}
-              description={wineBanner.description || undefined}
-              ctaLabel={wineBanner.ctaLabel || undefined}
-              ctaTo={resolveBannerLink(wineBanner.linkValue, wineBanner.linkType)}
-              align={wineBanner.align || 'left'}
-              overlayColor={wineBanner.overlayColor || undefined}
-              sponsorName={wineBanner.sponsorName || undefined}
-            />
-          </section>
+            <section className="mx-auto max-w-7xl px-4 pb-16 pt-4">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <p className="mr-1 text-xs text-white/55">
+                  {filteredVinhos.length} {filteredVinhos.length === 1 ? 'rótulo' : 'rótulos'}
+                  {sort !== 'rec' && ` · ${SORTS.find((s) => s.key === sort)?.label}`}
+                </p>
+                {activeChips.map((c) => (
+                  <button key={c.key} type="button" onClick={() => setFilter(c.key, '')} className={goldChip(true)}>
+                    {c.label} <X size={13} />
+                  </button>
+                ))}
+                {hasFilters && (
+                  <button type="button" onClick={() => setParams(new URLSearchParams(), { replace: true })} className="px-1 text-xs font-semibold text-[#D2BB8A] underline underline-offset-4">
+                    Limpar
+                  </button>
+                )}
+              </div>
+
+              {filteredVinhos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+                  <span className="text-4xl opacity-40 grayscale">🍷</span>
+                  <p className="luxury-text text-lg text-[#D2BB8A]">Nenhum rótulo com esses filtros</p>
+                  <p className="text-sm text-white/50">Tire algum filtro para ver mais vinhos.</p>
+                  <button
+                    type="button"
+                    onClick={() => setParams(new URLSearchParams(), { replace: true })}
+                    className="mt-2 rounded-full border border-[#D2BB8A]/40 px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#D2BB8A] hover:bg-[#D2BB8A]/10"
+                  >
+                    Ver todos os vinhos
+                  </button>
+                </div>
+              ) : (
+                // 2 colunas no celular e 4 no computador: o banner depois do 4o rotulo fecha a fileira nos dois.
+                <div className="grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">
+                  {filteredVinhos.map(({ p, f }, index) => (
+                    <Fragment key={p.id}>
+                      {index === bannerAfter && wineBanner && !hasFilters && (
+                        <div className="col-span-full my-2">
+                          <PromoBanner
+                            bannerId={wineBanner.id}
+                            image={resolveApiUrl(wineBanner.desktopImageUrl)}
+                            alt={wineBanner.title || wineBanner.name || 'Destaque da Adega'}
+                            badge={wineBanner.badgeText || undefined}
+                            title={wineBanner.title || wineBanner.name || 'Destaque'}
+                            description={wineBanner.description || undefined}
+                            ctaLabel={wineBanner.ctaLabel || undefined}
+                            ctaTo={resolveBannerLink(wineBanner.linkValue, wineBanner.linkType)}
+                            align={wineBanner.align || 'left'}
+                            overlayColor={wineBanner.overlayColor || undefined}
+                            sponsorName={wineBanner.sponsorName || undefined}
+                          />
+                        </div>
+                      )}
+                      <WineCard product={p} facts={f} />
+                    </Fragment>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
         )}
-
-        {/* Wine Grid */}
-        <section className="max-w-7xl mx-auto px-4 py-16">
-          {filteredVinhos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-              <span className="text-4xl grayscale opacity-40">🍷</span>
-              <p className="luxury-text text-lg text-[#D2BB8A]">Nenhum rótulo encontrado nesta categoria</p>
-              <p className="text-sm text-white/40">Explore outra seleção ou volte para "Todos".</p>
-              <Button
-                onClick={() => setParams(new URLSearchParams(), { replace: true })}
-                variant="ghost"
-                className="mt-2 rounded-full border border-[#D2BB8A]/40 px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#D2BB8A] hover:bg-[#D2BB8A]/10"
-              >
-                Ver todos os vinhos
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
-              {filteredVinhos.map(({ p, f }) => (
-                <WineCard key={p.id} product={p} facts={f} />
-              ))}
-            </div>
-          )}
-        </section>
       </main>
 
-      {/* Footer exclusivo da Adega -- paleta mais escura que o resto da pagina, acabamento dourado nobre */}
-      <footer className="border-t border-[#D2BB8A]/20 bg-[#1C1917]">
-        <div className="mx-auto max-w-7xl px-6 py-16 text-center">
-          <p className="luxury-text text-3xl font-extrabold tracking-[0.15em] uppercase bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-transparent">
+      {sheetOpen && (
+        <WineFilterSheet
+          total={filteredVinhos.length}
+          country={country}
+          grape={grape}
+          band={band}
+          sort={sort}
+          countryOptions={countryOptions}
+          grapeOptions={grapeOptions}
+          onChange={setFilter}
+          onClear={() => setParams((prev) => {
+            const next = new URLSearchParams(prev)
+            ;['pais', 'uva', 'preco', 'ordem'].forEach((k) => next.delete(k))
+            return next
+          }, { replace: true })}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
+
+      {/* Rodape da Adega -- paleta mais escura, acabamento dourado. */}
+      <footer className="border-t border-[#D2BB8A]/20 bg-[#1C1917] pb-24 md:pb-0">
+        <div className="mx-auto max-w-7xl px-6 py-12 text-center">
+          <p className="luxury-text bg-gradient-to-r from-[#D2BB8A] via-[#F3E7C9] to-[#D2BB8A] bg-clip-text text-2xl font-extrabold uppercase tracking-[0.15em] text-transparent">
             Adega Antenor & Filhos
           </p>
           <p className="mt-2 text-label uppercase tracking-widest text-[#D2BB8A]/50">Desde 1979</p>
           <div className="mx-auto mt-6 h-px w-16 bg-[#D2BB8A]/30" />
-          <p className="mt-6 text-sm text-white/40">
-            Estrada União e Indústria, Pedro do Rio, Petrópolis - RJ
-          </p>
+          <p className="mt-6 text-sm text-white/40">Estrada União e Indústria, Pedro do Rio, Petrópolis - RJ</p>
           <Link to="/" className="mt-6 inline-block text-xs font-semibold uppercase tracking-widest text-[#D2BB8A] hover:underline">
             Voltar ao mercado
           </Link>
@@ -396,176 +383,204 @@ export default function WinePage() {
   )
 }
 
-const WINE_QUANTITY_STEPS = [1, 6, 12] as const
-type WineQuantityStep = (typeof WINE_QUANTITY_STEPS)[number]
+function WineFilterSheet({
+  total,
+  country,
+  grape,
+  band,
+  sort,
+  countryOptions,
+  grapeOptions,
+  onChange,
+  onClear,
+  onClose,
+}: {
+  total: number
+  country: string
+  grape: string
+  band: string
+  sort: WineSort
+  countryOptions: Array<[string, number]>
+  grapeOptions: Array<[string, number]>
+  onChange: (key: string, value: string) => void
+  onClear: () => void
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    document.addEventListener('keydown', onKey)
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = overflow
+    }
+  }, [onClose])
+  const [showAllGrapes, setShowAllGrapes] = useState(false)
+  const grapes = showAllGrapes ? grapeOptions : grapeOptions.slice(0, 10)
+
+  const group = (title: string, children: React.ReactNode) => (
+    <div>
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-[#D2BB8A]">{title}</p>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 sm:items-center sm:p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label="Filtrar vinhos">
+      <div className="flex max-h-[85vh] w-full flex-col rounded-t-3xl border border-[#D2BB8A]/20 bg-[#1C1917] text-white shadow-2xl sm:max-w-lg sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-[#D2BB8A]/15 px-5 py-4">
+          <h2 className="text-base font-bold text-[#F3E7C9]">Filtrar vinhos</h2>
+          <button type="button" onClick={onClose} aria-label="Fechar" className="flex h-9 w-9 items-center justify-center rounded-full text-[#D2BB8A] hover:bg-white/5">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          {group(
+            'Ordenar por',
+            SORTS.map((s) => (
+              <button key={s.key} type="button" onClick={() => onChange('ordem', s.key)} className={goldChip(sort === s.key)}>
+                {sort === s.key && <Check size={13} />} {s.label}
+              </button>
+            )),
+          )}
+          {group(
+            'Preço',
+            PRICE_BANDS.map((b) => (
+              <button key={b.key} type="button" onClick={() => onChange('preco', band === b.key ? '' : b.key)} className={goldChip(band === b.key)}>
+                {b.label}
+              </button>
+            )),
+          )}
+          {countryOptions.length > 0 &&
+            group(
+              'País',
+              countryOptions.map(([c, n]) => (
+                <button key={c} type="button" onClick={() => onChange('pais', country === c ? '' : c)} className={goldChip(country === c)}>
+                  {c} <span className={country === c ? 'text-[#231F20]/60' : 'text-[#D2BB8A]/70'}>{n}</span>
+                </button>
+              )),
+            )}
+          {grapeOptions.length > 0 &&
+            group(
+              'Uva',
+              <>
+                {grapes.map(([g, n]) => (
+                  <button key={g} type="button" onClick={() => onChange('uva', grape === g ? '' : g)} className={goldChip(grape === g)}>
+                    {g} <span className={grape === g ? 'text-[#231F20]/60' : 'text-[#D2BB8A]/70'}>{n}</span>
+                  </button>
+                ))}
+                {grapeOptions.length > 10 && !showAllGrapes && (
+                  <button type="button" onClick={() => setShowAllGrapes(true)} className="inline-flex h-9 items-center gap-1 px-2 text-xs font-semibold text-[#D2BB8A]">
+                    Ver todas <ChevronDown size={14} />
+                  </button>
+                )}
+              </>,
+            )}
+        </div>
+        <div className="flex gap-2 border-t border-[#D2BB8A]/15 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
+          <button type="button" onClick={onClear} className="h-12 rounded-xl border border-[#D2BB8A]/40 px-4 text-sm font-semibold text-[#D2BB8A]">
+            Limpar
+          </button>
+          <button type="button" onClick={onClose} className="h-12 flex-1 rounded-xl bg-[#D2BB8A] text-sm font-bold text-[#231F20]">
+            Ver {total} {total === 1 ? 'rótulo' : 'rótulos'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function WineCard({ product, facts }: { product: Product; facts: WineFacts }) {
   const { cart, addItem, removeItem, updateQuantity } = useCart()
-  const cartItem = cart.find(item => item.productId === product.id)
-  const quantity = cartItem?.quantity || 0
+  const quantity = cart.find((item) => item.productId === product.id)?.quantity || 0
   const [imageIndex, setImageIndex] = useState(0)
   const [imgError, setImgError] = useState(false)
-  const [step, setStep] = useState<WineQuantityStep>(1)
+  const viewModel = useMemo(() => getProductCardViewModel(product), [product])
+  const price = getProductPricePresentation(product)
+  const title = wineCardTitle(product.name)
 
   const imageBaseUrl = `/uploads/products/${product.ean}`
-  const imageCandidates = [`/thumbs/products/${product.ean}.webp`, `${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`]
-    .map((url) => `${url}?v=3`)
-  const imageUrl = imageCandidates[imageIndex]
+  const imageCandidates = [`/thumbs/products/${product.ean}.webp`, `${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`].map((url) => `${url}?v=3`)
 
-  const handleDecrease = () => {
-    if (quantity > step) {
-      updateQuantity(product.id, quantity - step)
-    } else {
-      removeItem(product.id)
-    }
+  const add = () => {
+    addItem(product, 1)
+    trackEvent('ADD_TO_CART', 'PRODUCT', product.id, { name: product.name, price: product.price, source: 'HOME', shelf: 'adega' })
+    if (quantity === 0) toast.success(`${title} no carrinho`, { id: `add-${product.id}`, duration: 1500, position: 'top-center' })
   }
-
-  const handleIncrease = () => {
-    addItem(product, step)
-    trackEvent('ADD_TO_CART', 'PRODUCT', product.id, { name: product.name, price: product.price })
-  }
-
-  const handleSelectStep = (nextStep: WineQuantityStep) => {
-    setStep(nextStep)
-    if (quantity > 0) {
-      updateQuantity(product.id, nextStep)
-    } else {
-      addItem(product, nextStep)
-      trackEvent('ADD_TO_CART', 'PRODUCT', product.id, { name: product.name, price: product.price })
-    }
-  }
+  const decrease = () => (quantity > 1 ? updateQuantity(product.id, quantity - 1) : removeItem(product.id))
+  const subtitle = [
+    wineSubtitle(facts, product.name),
+    facts.estilo && facts.estilo !== 'seco' && facts.tipo !== 'espumante' ? WINE_STYLE_LABEL[facts.estilo] : '',
+  ].filter(Boolean).join(' · ')
 
   return (
-    <div className="group flex flex-col fade-in-section h-full">
-       {/* 1:1 Photo Container */}
-       <div className="relative aspect-square overflow-hidden mb-4 shadow-2xl rounded-xl bg-gradient-to-b from-[#FAF7F2] to-[#F2EDE4] border border-[#D2BB8A]/30 transition-colors duration-300 hover:border-[#D2BB8A]">
-         <Link
-            to={productPath(product)}
-            state={{ from: '/adega' }}
-          className="absolute inset-0 z-[1]"
-          aria-label={`Ver detalhes de ${product.name}`}
-         />
-          <div className="absolute inset-0 flex items-center justify-center text-6xl grayscale opacity-20 group-hover:opacity-40 transition-all duration-700 group-hover:scale-110">
-             🍷
-          </div>
-          {!imgError && (
+    <article className="group flex flex-col overflow-hidden rounded-2xl border border-[#D2BB8A]/15 bg-[#2A2420] transition-colors hover:border-[#D2BB8A]/50">
+      {/* Fundo branco: as fotos sao recortadas em branco, o creme deixava um quadrado visivel. */}
+      <div className="relative aspect-[4/5] bg-white">
+        <Link to={productPath(product)} state={{ from: '/adega' }} className="absolute inset-0 flex items-center justify-center" aria-label={`Ver ${title}`}>
+          {!imgError ? (
             <img
-              src={imageUrl}
+              src={imageCandidates[imageIndex]}
               alt={product.name}
-              className="absolute inset-0 w-full h-full object-contain p-2.5 group-hover:scale-105 transition-transform duration-300"
+              className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
               decoding="async"
-              onError={() => {
-                if (imageIndex < imageCandidates.length - 1) {
-                  setImageIndex((prev) => prev + 1)
-                  return
-                }
-                setImgError(true)
-              }}
+              onError={() => (imageIndex < imageCandidates.length - 1 ? setImageIndex((i) => i + 1) : setImgError(true))}
             />
+          ) : (
+            <span className="text-5xl opacity-25 grayscale">🍷</span>
           )}
-          
-          {/* Badge Overlay */}
-          <div className="absolute top-3 left-3 flex flex-col gap-1">
-            {product.badges && (
-              <Badge tone="gold" className="h-5 bg-[#D2BB8A] text-[#231F20] text-label shadow-lg">
-                {product.badges}
-              </Badge>
-            )}
-          </div>
+        </Link>
 
-          <Button
-            onClick={handleIncrease}
-            variant="ghost"
-            className="absolute inset-0 z-[2] h-auto rounded-lg bg-black/0 p-0 opacity-0 transition-all group-hover:bg-black/20 group-hover:opacity-100"
-            aria-label={`Adicionar ${product.name} ao carrinho`}
+        <div className="pointer-events-none absolute left-2 top-2 flex flex-col items-start gap-1">
+          {viewModel.isOnSale && viewModel.discountPct >= 1 && (
+            <span className="rounded-md bg-[#5D082A] px-1.5 py-0.5 text-[11px] font-black text-white">-{viewModel.discountPct}%</span>
+          )}
+          {product.badges && (
+            <span className="rounded-md bg-[#D2BB8A] px-1.5 py-0.5 text-[11px] font-bold text-[#231F20]">{product.badges}</span>
+          )}
+        </div>
+
+        {viewModel.outOfStock ? (
+          <span className="pointer-events-none absolute inset-x-0 bottom-2 mx-auto w-fit rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#3f3f46]">
+            {viewModel.unavailableLabel}
+          </span>
+        ) : quantity === 0 ? (
+          <button
+            type="button"
+            onClick={add}
+            aria-label={`Adicionar ${title} ao carrinho`}
+            className="absolute bottom-2 right-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-[#D2BB8A] text-[#231F20] shadow-lg transition-transform hover:scale-110 active:scale-95"
           >
-            <div className="bg-[#D2BB8A] text-[#231F20] p-3 rounded-full scale-50 group-hover:scale-100 transition-transform">
-              <ShoppingCart size={20} />
-            </div>
-          </Button>
-       </div>
-
-       {/* Info Below */}
-       <div className="flex flex-col flex-1 px-1">
-          <div className="mb-3">
-             <Link to={productPath(product)} state={{ from: '/adega' }} className="block">
-               <h3 className="luxury-text text-base text-white line-clamp-2 leading-tight min-h-[2.5rem] group-hover:text-[#D2BB8A] transition-colors">
-                 {wineCardTitle(formatWineTitle(product.name))}
-               </h3>
-             </Link>
-             <p className="text-label text-white/60 mt-1 line-clamp-1">
-               {wineSubtitle(facts, product.name) || formatWineDescription(product.alternativeDescription)}
-               {facts.estilo && facts.estilo !== 'seco' && facts.tipo !== 'espumante' ? ` · ${WINE_STYLE_LABEL[facts.estilo]}` : ''}
-             </p>
+            <Plus size={20} strokeWidth={2.8} />
+          </button>
+        ) : (
+          <div className="absolute inset-x-2 bottom-2 z-10 flex h-10 items-center justify-between rounded-full bg-[#D2BB8A] text-[#231F20] shadow-lg">
+            <button type="button" onClick={decrease} aria-label="Diminuir quantidade" className="flex h-10 w-10 items-center justify-center active:scale-90">
+              <Minus size={16} strokeWidth={2.6} />
+            </button>
+            <span className="text-sm font-black tabular-nums">{formatProductQuantity(product, quantity)}</span>
+            <button type="button" onClick={add} aria-label="Aumentar quantidade" className="flex h-10 w-10 items-center justify-center active:scale-90">
+              <Plus size={16} strokeWidth={2.6} />
+            </button>
           </div>
-          
-          <div className="mt-auto pt-3 border-t border-white/5">
-             <div className="flex items-center gap-1 mb-2" role="group" aria-label="Quantidade por lote">
-               {WINE_QUANTITY_STEPS.map((n) => (
-                 <button
-                   key={n}
-                   type="button"
-                   onClick={() => handleSelectStep(n)}
-                   className={`text-[10px] font-bold px-2 py-1.5 rounded-full border transition-colors ${
-                     step === n
-                       ? 'bg-[#D2BB8A] text-[#231F20] border-[#D2BB8A]'
-                       : 'border-[#D2BB8A]/30 text-[#D2BB8A]/70 hover:border-[#D2BB8A]'
-                   }`}
-                   aria-pressed={step === n}
-                 >
-                   {n}un
-                 </button>
-               ))}
-             </div>
-             <div className="flex flex-wrap items-center gap-y-1">
-                <span className="text-lg font-bold text-[#D2BB8A] whitespace-nowrap">
-                 {getProductPricePresentation(product).fullLabel}
-                </span>
+        )}
+      </div>
 
-                {/* Altura E largura fixas reservadas: alterna add/stepper sem mudar o tamanho do card.
-                    ml-auto + flex-wrap: em cards estreitos o controle cai pra linha de baixo
-                    (sempre, independente da quantidade) em vez do preco quebrar no meio do texto. */}
-                <div className="ml-auto flex h-8 w-20 shrink-0 items-center justify-end">
-                  {quantity === 0 ? (
-                     <Button
-                       onClick={handleIncrease}
-                       variant="ghost"
-                       size="icon"
-                       className="relative h-8 w-8 rounded-full border border-[#D2BB8A]/20 bg-white/5 text-[#D2BB8A] hover:bg-[#D2BB8A] hover:text-[#231F20] before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
-                       aria-label="Adicionar ao carrinho"
-                     >
-                       +
-                     </Button>
-                  ) : (
-                     <div className="flex h-8 items-center gap-1 bg-white/5 rounded-lg border border-[#D2BB8A]/20 p-0.5">
-                       <Button
-                         onClick={handleDecrease}
-                         variant="ghost"
-                         size="icon"
-                         className="relative h-6 w-6 text-[#D2BB8A] hover:bg-white/10 before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
-                         aria-label="Diminuir quantidade"
-                       >
-                         -
-                       </Button>
-                       <span className="text-xs font-bold text-white min-w-[15px] text-center">
-                         {quantity}
-                       </span>
-                       <Button
-                         onClick={handleIncrease}
-                         variant="ghost"
-                         size="icon"
-                         className="relative h-6 w-6 text-[#D2BB8A] hover:bg-white/10 before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
-                         aria-label="Aumentar quantidade"
-                       >
-                         +
-                       </Button>
-                     </div>
-                  )}
-                </div>
-             </div>
-          </div>
-       </div>
-    </div>
+      <div className="flex flex-1 flex-col gap-1.5 px-3 pb-3.5 pt-2.5">
+        <div className="leading-none">
+          {viewModel.originalPrice && <p className="mb-0.5 text-[11px] text-white/45 line-through">{formatPrice(viewModel.originalPrice)}</p>}
+          <p className="flex items-baseline gap-0.5 text-[#D2BB8A]">
+            <span className="text-[11px] font-bold">{price.currencySymbol}</span>
+            <span className="text-xl font-black tracking-tight">{price.value}</span>
+          </p>
+        </div>
+        <Link to={productPath(product)} state={{ from: '/adega' }} className="block">
+          <h3 className="luxury-text line-clamp-2 min-h-[2.5em] text-[14px] leading-snug text-white transition-colors group-hover:text-[#F3E7C9]">{title}</h3>
+        </Link>
+        {subtitle && <p className="line-clamp-1 text-[11px] text-white/55">{subtitle}</p>}
+      </div>
+    </article>
   )
 }
