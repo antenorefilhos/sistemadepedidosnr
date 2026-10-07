@@ -1,7 +1,7 @@
 import { createContext, useState, useCallback, useEffect, ReactNode, useContext } from 'react'
 import type { Product } from '../types'
 import { getProductLineTotal, getProductStep, hasConfiguredFractionStep } from '../utils/productPricing'
-import { cartSnapshotAPI, couponsAPI } from '../services/api'
+import { cartSnapshotAPI, couponsAPI, productsAPI } from '../services/api'
 import { CouponNoticeDialog, type CouponNotice } from '../components/CouponNoticeDialog'
 
 export interface CartItem {
@@ -25,6 +25,11 @@ export interface CartContextData {
   removeCoupon: () => void
   /** Aviso de cupom no meio da tela (aplicado, recusado ou retirado). */
   showCouponNotice: (notice: CouponNotice) => void
+  /**
+   * Troca a copia de cada produto guardada no carrinho pela atual (preco,
+   * oferta, disponibilidade). Devolve os itens cujo preco mudou.
+   */
+  refreshProducts: () => Promise<Array<{ name: string; before: number; after: number }>>
   total: number
   count: number
 }
@@ -114,6 +119,40 @@ export function CartProvider({ children }: { children: ReactNode }) {
         item.productId === productId ? { ...item, allowSubstitution } : item,
       ),
     )
+  }, [])
+
+  // O carrinho guarda uma copia do produto da hora em que entrou (localStorage)
+  // e nunca atualizava: preco novo, oferta vencida ou produto tirado do site so
+  // apareciam no checkout, como erro (07/10/2026). O carrinho chama isto ao abrir.
+  const refreshProducts = useCallback(async () => {
+    const current = JSON.parse(localStorage.getItem('cart') || '[]') as CartItem[]
+    if (current.length === 0) return []
+    const fresh = await Promise.all(
+      current.map(async (item) => {
+        try {
+          const key = item.product?.erpProductId ?? item.productId
+          return (await productsAPI.getOne(String(key))).data as Product
+        } catch (error) {
+          // 404: saiu do catalogo -- fica no carrinho como indisponivel.
+          const status = (error as { response?: { status?: number } })?.response?.status
+          return status === 404 ? ({ ...item.product, active: false } as Product) : null
+        }
+      }),
+    )
+    const unitPrice = (p: Product) => (p.promotionalPrice && p.promotionalPrice > 0 && p.promotionalPrice < p.price ? p.promotionalPrice : p.price)
+    const changes: Array<{ name: string; before: number; after: number }> = []
+    const byId = new Map(current.map((item, i) => [item.productId, fresh[i]]))
+    current.forEach((item, i) => {
+      const next = fresh[i]
+      if (next && Math.abs(unitPrice(next) - unitPrice(item.product)) >= 0.01) {
+        changes.push({ name: next.name, before: unitPrice(item.product), after: unitPrice(next) })
+      }
+    })
+    setCart((prev) => prev.map((item) => {
+      const next = byId.get(item.productId)
+      return next ? { ...item, product: { ...item.product, ...next } } : item
+    }))
+    return changes
   }, [])
 
   const clear = useCallback(() => {
@@ -216,6 +255,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         applyCoupon,
         removeCoupon,
         showCouponNotice: setCouponNotice,
+        refreshProducts,
         total,
         count,
       }}
