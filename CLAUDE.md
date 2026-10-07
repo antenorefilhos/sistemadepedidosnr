@@ -1172,3 +1172,13 @@ As fichas vieram de duas pesquisas juntas, a nossa e a do agente SOL, com a regr
 ## Armadilha: conferência do cupom lida cedo demais
 
 O PDV grava o cabeçalho do cupom antes dos itens. A conferência que roda no faturamento lia o cupom vazio e gravava "nenhum item saiu no cupom" de vez (102121 e 102122, em 30/09). Agora, cupom sem item registrado não grava nada, e o `PdvPaymentScheduler` tenta de novo em 15 minutos.
+
+## Página do produto (revisão de 07/10/2026)
+
+Primeira página da revisão do storefront. Regras que valem além dela:
+
+- **Nome do produto é o do cadastro.** `formatProductTitle` só reescreve nome quase todo em maiúsculas (cadastro antigo). Antes ele capitalizava tudo e estragava sigla e medida ("Uht", "1l", "Aef", "Docg") na página, no card e no carrinho.
+- **`active=false` é indisponível no site inteiro** (`getProductCardViewModel.outOfStock`), igual ao `isProductSellable`. O Pão Francês, oculto no admin e marcado SEMPRE, mostrava "Adicionar ao carrinho", e o checkout recusava.
+- **`alternativeDescription` do ERP é nota de fracionamento, não descrição.** Não mostrar cru nem usar como meta description. `fractionNote()` transforma em "Cada porção: 1,25 kg (cerca de 1 unidade)" e descarta o aviso genérico.
+- **Vitrine da página (`getRecommendations`):** da cesta do PDV entra só par observado (origem `produto`); o recuo `categoria` trazia açúcar, arroz e sal. Produto com missão (tag) recebe itens da missão. A loja só usa o título da missão quando todos os itens são dela. Só entra item com foto, com departamento e fora de departamento oculto.
+- O caminho e o "Ver mais em" usam o nome do departamento. O site não tem página de seção, e o `ecommerceCategory` ("Manteigas & Requeijão") abria o departamento inteiro.
