@@ -1145,3 +1145,30 @@ em 80/443; aceitar o cabecalho de qualquer um deixaria forjar o IP).
   preflight de CORS em cada listagem do catalogo.
 - Politica de privacidade cita aparelho, assinatura do navegador e IP (LGPD,
   art. 7, IX). Mexeu no que e coletado, atualiza la.
+
+## Disponibilidade no site: quem decide (atualizado em 04/10/2026)
+
+**A coluna "Internet" do ERP (SEMPRE/ESTOQUE/NUNCA) não decide mais nada para produto do mix.** Desde 03/10 o cadastro inteiro está em ESTOQUE (ORD-043). Quem manda o `TipoIntegracao` do feed é o **Mostruário da AntenorApi**: venda no PDV em 30 dias vira SEMPRE, e as regras TIER_3 tiram item sem giro (NUNCA com estoque zerado). Por isso o admin diz "Tirado pela API: sem venda recente" e não "Marcado Nunca no ERP" (falso desde a ORD-043). A aba "Inativos no ERP" virou "Fora do catálogo": a maioria não está inativa no ERP, só não vem no feed.
+
+**O "mix" do feed (`inMixNovaReal`) não é o mix do Jonathan.** O ERP não guarda mix por produto: para ele, mix é "está na loja". O flag do feed é uma projeção do e-commerce que não acompanha o sortimento. Vinho e importado de giro lento ficavam fora do site por isso (40 vinhos com saldo, em 03/10).
+
+Regras de giro lento na AntenorApi (rollback por chave, sem deploy):
+- **Adega (ORD-045, `ADEGA_GIRO_LENTO`):** em v3 Adega e Cervejas > Vinhos, entra quem tem **saldo histórico (entradas − saídas desde o primeiro movimento) > 0 E saldo ERP > 0**, sem olhar o mix nem o tempo sem venda. Sai como ESTOQUE, com o menor dos dois saldos. Validada contra a contagem física do Jonathan (45 rótulos; a regra acertou 42 de 43). A janela de 12 meses foi testada e descartada: 904 de 968 vinhos não giram em um ano.
+- **Mercearia gourmet (ORD-050, `MERCEARIA_GIRO_LENTO`):** em 18 tipos da v3, é a mesma A ∩ C como **porta de entrada adicional** (quem já está no site fica), com a guarda de compra nos últimos 18 meses e saldo ≥ 1. Na mercearia, a regra sozinha tiraria 37 itens que vendem no PDV com saldo ERP errado.
+- **Produto sem preço (≤ 0) no feed vira inativo no nosso sync** (`antenor-api.service.ts`). Dois vinhos ficaram à venda por R$ 0,00 em 03/10.
+
+## Ficha do vinho e Adega (03-04/10/2026)
+
+`products.wineProfile` (JSONB, só do site; o sync não mexe) guarda tipo, estilo, uvas, país, região/denominação, produtor, linha, teor, temperatura, guarda, descrição para iniciante, notas de degustação, harmonização e fontes. Sanitizado em `common/wine-profile.ts` e editável no admin, na seção Ficha do vinho do painel do produto. A loja usa a ficha nos filtros da `/adega` (tipo, país, uva e preço, com contagem por faceta e estado na URL), no card ("Tinto · Malbec · Argentina") e no bloco "Sobre este vinho" da página do produto. Sem ficha, `utils/wine.ts` deduz o básico da classificação v3 e do nome.
+
+As fichas vieram de duas pesquisas juntas, a nossa e a do agente SOL, com a regra de **não inventar**. Os arquivos estão em `braincoletivo/adega/`. Os nomes e-commerce dos 42 da adega foram gravados no ERP (ORD-047) **lendo a frente do rótulo**: Novo Mundo é produtor, linha e uva; Velho Mundo é denominação e marca como estão na frente; o produtor do contrarrótulo vai para a ficha. O card da Adega mostra só o rótulo (`wineCardTitle`), porque o nome completo começa por tipo e país, por causa da busca.
+
+## Pedido: dias de venda, valor aprovado, fim pelo app de separação (03/10/2026)
+
+- **Dias de venda** (`products.saleWeekdays`, 0 = domingo; vazio = todos). Vale o dia da entrega ou retirada (`promoDayFor`), não o do clique. O checkout bloqueia (`FORA_DO_DIA`) e a loja mostra "Só qui a dom" sem botão de comprar. Uso real: a pizza com assadeira, só de quinta a domingo. Regra em `common/sale-days.ts`.
+- **Valor aprovado** (`orders.approvedSubtotal/approvedTotal`) é gravado no checkout. `total` muda na separação (peso, corte, item incluído). O admin e o app de separação mostram o ajuste em R$ e %.
+- **App de separação finaliza o pedido** depois do caixa (`POST /picker/orders/:id/finish`: entrega → entregue; retirada ou entregue → concluído), enquanto o motoboy não tem celular da loja.
+
+## Armadilha: conferência do cupom lida cedo demais
+
+O PDV grava o cabeçalho do cupom antes dos itens. A conferência que roda no faturamento lia o cupom vazio e gravava "nenhum item saiu no cupom" de vez (102121 e 102122, em 30/09). Agora, cupom sem item registrado não grava nada, e o `PdvPaymentScheduler` tenta de novo em 15 minutos.
