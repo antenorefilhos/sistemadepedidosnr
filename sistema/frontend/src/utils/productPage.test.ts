@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Product } from '../types'
 import { formatProductTitle } from './format'
+import { getUnitReference } from './productPricing'
 import { getProductCardViewModel } from './productCard'
 import { fractionNote, getProductDetailSections } from './productDetailSchema'
 
@@ -48,5 +49,19 @@ describe('nota de fracionamento do ERP', () => {
     const portion = sections.flatMap((s) => s.facts).find((f) => f.label === 'Cada porção')
     expect(portion?.value).toMatch(/\(cerca de 1 limão\)$/)
     expect(JSON.stringify(sections)).not.toMatch(/Venda/)
+  })
+})
+
+describe('preco por unidade de medida', () => {
+  it('embalagem em g e ml vira R$/kg e R$/L', () => {
+    expect(getUnitReference(p({ name: 'Requeijão Cremoso Tradicional Catupiry Pouch 250g', price: 22.9 }))).toBe('R$\u00a091,60/kg')
+    expect(getUnitReference(p({ name: 'Cerveja Pilsen Brahma Lata 350ml', price: 4.99 }))).toBe('R$\u00a014,26/L')
+    expect(getUnitReference(p({ name: 'Refrigerante Coca Cola 2L', price: 12, promotionalPrice: 10 }))).toBe('R$\u00a05,00/L')
+  })
+  it('embalagem de 1 kg/1 L, multipla ou sem medida nao mostra', () => {
+    expect(getUnitReference(p({ name: 'Leite Longa Vida UHT Integral Elege Caixinha 1L', price: 7.99 }))).toBe('')
+    expect(getUnitReference(p({ name: 'Sobremesa Danette Pack 4x90g', price: 12 }))).toBe('')
+    expect(getUnitReference(p({ name: 'Ovo Branco Cart 12 Unidades', price: 10 }))).toBe('')
+    expect(getUnitReference(p({ name: 'Vassoura Pelo', price: 10 }))).toBe('')
   })
 })

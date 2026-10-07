@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Loader2, Minus, Plus, ShoppingCart, Film } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { ArrowLeft, Check, ChevronRight, Clock, Film, Loader2, Minus, Plus, Scale, Search, Share2, ShoppingCart, Store, Truck } from 'lucide-react'
 import { useProduct, useCart, useProductRecommendations, useSmartSubstitutes } from '../hooks/useCart'
 import type { Product } from '../types'
 import { formatPrice, formatProductTitle } from '../utils/format'
-import { getProductPricePresentation, formatProductQuantity } from '../utils/productPricing'
+import { formatProductQuantity, getProductPricePresentation, getUnitReference } from '../utils/productPricing'
 import { getProductCardViewModel, type ProductCardViewModel } from '../utils/productCard'
-import { useSaleWeekday } from '../hooks/useDeliveryOperation'
+import { useDeliveryOperation, useSaleWeekday } from '../hooks/useDeliveryOperation'
+import { useFreeShipping } from '../hooks/useFreeShipping'
+import { useKnownZoneFreeAbove } from '../hooks/useKnownZoneFreeAbove'
 import { WINE_STYLE_LABEL, WINE_TYPE_LABEL, wineFacts } from '../utils/wine'
 import { trackEvent } from '../utils/analytics'
 import { SEO, StructuredData } from '../components/SEO'
@@ -22,9 +23,13 @@ import { useAuth } from '../hooks/useAuth'
 import { NEAR_EXPIRY_NOTE, useNearExpiryProductIds } from '../hooks/useCMS'
 import NotificationBell from '../components/NotificationBell'
 import { ProductRecipeShelf } from '../components/RecipeShelf'
-import { MobileBottomNav } from '../components/MobileBottomNav'
 import { Button, buttonVariants } from '../components/ui/button'
-import { surfaceClasses } from '../components/ui/surface'
+
+// Pagina do produto refeita em 07/10/2026 (revisao de UI/UX do storefront,
+// padrao dos apps lideres de supermercado, celular primeiro): foto em
+// destaque, barra de compra sempre fixa embaixo com quantidade e total, preco
+// por kg/L, prazo de entrega, "Compre junto" logo depois do preco e
+// compartilhar no WhatsApp.
 
 // Missoes (tagsEcommerce da AntenorApi) que viram o titulo do bloco de
 // sugestoes -- "Monte seu churrasco" vende mais que "Compre junto".
@@ -39,7 +44,8 @@ const MISSIONS: Array<[string, string]> = [
   ['sobremesa', 'Hora da sobremesa'],
 ]
 
-const brl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const IMAGE_VERSION = '3' // 01/10/2026: URL nova na borda, com o cache de 5 min no navegador.
+const imageCandidates = (base: string) => ['webp', 'jpg', 'jpeg', 'png'].map((ext) => `${base}.${ext}?v=${IMAGE_VERSION}`)
 
 /** "sex., 10/10": ultimo dia da oferta, em Brasilia (o fim vem como 23:59:59 de la). */
 const promoEndLabel = (iso?: string | null) => {
@@ -52,8 +58,7 @@ const promoEndLabel = (iso?: string | null) => {
 /**
  * Departamento do produto, com o nome da pagina que o link abre. Ate
  * 07/10/2026 o caminho mostrava a secao do ERP ("Manteigas & Requeijao") com
- * link para o departamento inteiro (Queijos, Frios & Laticinios): o site nao
- * tem pagina de secao.
+ * link para o departamento inteiro: o site nao tem pagina de secao.
  */
 const departmentCrumb = (product: Product) => {
   if (product.category === 'ADEGA_VINHOS_ESPUMANTES') return { label: 'Adega', to: '/adega' }
@@ -62,76 +67,441 @@ const departmentCrumb = (product: Product) => {
   return label && product.category ? { label, to: `/mercado?cat=${toCategoryUrlParam(product.category)}` } : null
 }
 
-/** Frete do bairro do cliente (o que ele ja informou no site) ou convite para informar o CEP. */
-function DeliveryInfoCard() {
-  const { openModal } = useDeliveryVerificationModal()
-  const [verification, setVerification] = useState(() => readDeliveryVerification())
-  useEffect(() => subscribeDeliveryVerification(() => setVerification(readDeliveryVerification())), [])
-  const calc = verification?.calc
-  const place = calc?.locality || calc?.zoneName || verification?.address?.neighborhood
+/**
+ * Estado de compra compartilhado entre a barra fixa do celular e a caixa de
+ * compra do computador. Antes de por no carrinho o cliente escolhe a
+ * quantidade e ve o total no botao; depois, o seletor mexe direto no carrinho.
+ */
+function usePurchase(product: Product | undefined) {
+  const { cart, addItem, updateQuantity, removeItem, subtotal, count } = useCart()
+  const [pending, setPending] = useState(1)
+  const [justAdded, setJustAdded] = useState(false)
+  const timer = useRef<number>()
+  const quantity = product ? cart.find((item) => item.productId === product.id)?.quantity || 0 : 0
 
-  let body: React.ReactNode
-  if (!calc) {
-    body = <>Veja se entregamos no seu endereço: <button type="button" onClick={() => openModal()} className="font-semibold text-[#5D082A] underline">Informe seu CEP</button> e veja o frete.</>
-  } else if (calc.outOfArea) {
-    body = <>Ainda não entregamos {place ? `em ${place}` : 'no seu endereço'}, mas você pode <strong>retirar na loja</strong>. <button type="button" onClick={() => openModal()} className="font-semibold text-[#5D082A] underline">Trocar endereço</button></>
-  } else {
-    const fee = calc.fee ?? 0
-    body = (
-      <>
-        <strong>Entrega {place ? `em ${place}` : 'no seu endereço'}</strong>: {fee > 0 ? brl(fee) : 'grátis'}
-        {fee > 0 && calc.freeAbove ? <> · grátis acima de {brl(calc.freeAbove)}</> : null}
-        {' '}<button type="button" onClick={() => openModal()} className="text-[#5D082A] underline">trocar</button>
-      </>
-    )
+  useEffect(() => setPending(1), [product?.id])
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  const track = (qty: number) => {
+    if (!product) return
+    trackEvent('ADD_TO_CART', 'PRODUCT', product.id, { name: product.name, price: product.price, quantity: qty, source: 'SEARCH' })
   }
-  return <p className="rounded-lg border border-[#E8D7B0]/70 bg-[#FBFAF7] px-4 py-3 text-sm text-[#5d4f33]">{body}</p>
-}
 
-function ProductHeader({ onBack, backLabel }: { onBack: () => void; backLabel: string }) {
+  return {
+    quantity,
+    shown: quantity > 0 ? quantity : pending,
+    justAdded,
+    subtotal,
+    count,
+    add() {
+      if (!product) return
+      addItem(product, pending)
+      track(pending)
+      setJustAdded(true)
+      window.clearTimeout(timer.current)
+      timer.current = window.setTimeout(() => setJustAdded(false), 1600)
+    },
+    increase() {
+      if (!product) return
+      if (quantity > 0) {
+        addItem(product, 1)
+        track(1)
+      } else setPending((n) => n + 1)
+    },
+    decrease() {
+      if (!product) return
+      if (quantity > 1) updateQuantity(product.id, quantity - 1)
+      else if (quantity === 1) removeItem(product.id)
+      else setPending((n) => Math.max(1, n - 1))
+    },
+  }
+}
+type Purchase = ReturnType<typeof usePurchase>
+
+function ProductHeader({ onBack, product }: { onBack: () => void; product?: Product }) {
   const { count } = useCart()
   const { user } = useAuth()
+
+  // O cliente chega pelo WhatsApp: compartilhar o produto e o caminho de volta.
+  const share = async () => {
+    if (!product) return
+    const url = `${window.location.origin}${productPath(product)}`
+    const title = formatProductTitle(product.name)
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url })
+      } catch {
+        /* cancelado pelo cliente */
+      }
+      return
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}`, '_blank', 'noopener')
+  }
+
   return (
-    <header className="glass sticky top-0 z-50 border-b border-[#D2BB8A]/20">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        <Button onClick={onBack} variant="ghost" size="sm" className="px-0 hover:bg-transparent">
-          <ArrowLeft size={18} />
-          {backLabel}
-        </Button>
-        <div className="flex items-center gap-1">
-          <Link to="/cart" aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'} className="relative flex min-h-11 min-w-11 items-center justify-center text-[#231F20] transition-colors hover:text-[#5D082A]">
-            <ShoppingCart size={22} aria-hidden="true" />
-            {count > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#5D082A] text-white text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {count > 9 ? '9+' : count}
-              </span>
-            )}
-          </Link>
-          {user && <NotificationBell />}
-        </div>
+    <header className="sticky top-0 z-50 border-b border-[#E8D7B0]/60 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center gap-1.5 px-2 py-2 sm:px-4">
+        <button type="button" onClick={onBack} aria-label="Voltar" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">
+          <ArrowLeft size={22} />
+        </button>
+        <Link
+          to="/mercado"
+          className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-[#E8D7B0] bg-[#FBF7F0] px-3.5 text-sm text-gray-500 transition-colors hover:border-[#D2BB8A]"
+        >
+          <Search size={17} className="shrink-0 text-[#5d4f33]" />
+          <span className="truncate">Buscar no mercado</span>
+        </Link>
+        {product && (
+          <button type="button" onClick={share} aria-label="Compartilhar produto" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">
+            <Share2 size={20} />
+          </button>
+        )}
+        <Link
+          to="/cart"
+          aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]"
+        >
+          <ShoppingCart size={22} aria-hidden="true" />
+          {count > 0 && (
+            <span className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#5D082A] px-1 text-[10px] font-bold text-white">
+              {count > 9 ? '9+' : count}
+            </span>
+          )}
+        </Link>
+        {user && <NotificationBell />}
       </div>
     </header>
   )
 }
 
-function ProductCarousel({ title, products, link }: { title: string; products: Product[]; link?: { to: string; label: string } }) {
+/** Foto em destaque; com duas fotos, desliza com o dedo (pontos embaixo). */
+function ProductGallery({ product, viewModel }: { product: Product; viewModel: ProductCardViewModel }) {
+  const main = useMemo(() => imageCandidates(`/uploads/products/${product.ean}`), [product.ean])
+  const second = useMemo(() => imageCandidates(`/uploads/products/${product.ean}_2`), [product.ean])
+  const [mainIndex, setMainIndex] = useState(0)
+  const [mainFailed, setMainFailed] = useState(false)
+  const [secondIndex, setSecondIndex] = useState(0)
+  const [secondState, setSecondState] = useState<'probing' | 'ok' | 'none'>('probing')
+  const [active, setActive] = useState(0)
+  const scroller = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setMainIndex(0)
+    setMainFailed(false)
+    setSecondIndex(0)
+    setSecondState('probing')
+    setActive(0)
+    scroller.current?.scrollTo({ left: 0 })
+  }, [product.ean])
+
+  const photos = [main[mainIndex], ...(secondState === 'ok' ? [second[secondIndex]] : [])]
+  const title = formatProductTitle(product.name)
+
+  return (
+    <div className="relative bg-white lg:overflow-hidden lg:rounded-2xl lg:border lg:border-[#E8D7B0]/70">
+      {mainFailed ? (
+        <div className="flex h-[40vh] max-h-[380px] min-h-[260px] items-center justify-center lg:aspect-square lg:h-auto lg:max-h-none">
+          <ProductImagePlaceholder size="lg" className="rounded-xl py-12" />
+        </div>
+      ) : (
+        <div
+          ref={scroller}
+          onScroll={(e) => {
+            const el = e.currentTarget
+            setActive(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+          }}
+          className="hide-scrollbar flex snap-x snap-mandatory overflow-x-auto"
+        >
+          {photos.map((src, i) => (
+            <div key={i} className="flex h-[40vh] max-h-[380px] min-h-[260px] w-full shrink-0 snap-center items-center justify-center lg:aspect-square lg:h-auto lg:max-h-none">
+              <img
+                src={src}
+                alt={i === 0 ? title : `${title}, foto ${i + 1}`}
+                loading={i === 0 ? 'eager' : 'lazy'}
+                className="h-full w-full object-contain p-6"
+                onError={() => {
+                  if (i > 0) return setSecondState('none')
+                  if (mainIndex < main.length - 1) setMainIndex((n) => n + 1)
+                  else setMainFailed(true)
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Sonda a foto 2 fora da tela: o nginx responde 200 com o SVG "produto
+          sem foto" quando o arquivo nao existe, entao confere o tipo real. */}
+      {secondState === 'probing' && !mainFailed && (
+        <img
+          src={second[secondIndex]}
+          alt=""
+          aria-hidden="true"
+          className="hidden"
+          onLoad={() => {
+            fetch(second[secondIndex], { method: 'HEAD' })
+              .then((res) => {
+                if (!/svg/i.test(res.headers.get('content-type') || '')) return setSecondState('ok')
+                if (secondIndex < second.length - 1) setSecondIndex((n) => n + 1)
+                else setSecondState('none')
+              })
+              .catch(() => setSecondState('none'))
+          }}
+          onError={() => (secondIndex < second.length - 1 ? setSecondIndex((n) => n + 1) : setSecondState('none'))}
+        />
+      )}
+
+      <div className="pointer-events-none absolute left-3 top-3 flex flex-col items-start gap-1.5">
+        {viewModel.isOnSale && viewModel.discountPct >= 1 && (
+          <span className="rounded-lg bg-[#5D082A] px-2.5 py-1 text-sm font-black text-white shadow-sm">-{viewModel.discountPct}%</span>
+        )}
+        {viewModel.saleDaysText && (
+          <span className="rounded-lg bg-[#D2BB8A] px-2.5 py-1 text-xs font-bold text-[#231F20] shadow-sm">Só {viewModel.saleDaysText}</span>
+        )}
+      </div>
+
+      {photos.length > 1 && (
+        <div className="absolute inset-x-0 bottom-3 flex justify-center gap-1.5">
+          {photos.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Ver foto ${i + 1}`}
+              onClick={() => scroller.current?.scrollTo({ left: i * scroller.current.clientWidth, behavior: 'smooth' })}
+              className={`h-2 rounded-full transition-all ${active === i ? 'w-5 bg-[#5D082A]' : 'w-2 bg-[#D2BB8A]'}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PriceBlock({ product, viewModel }: { product: Product; viewModel: ProductCardViewModel }) {
+  const price = getProductPricePresentation(product)
+  // Vinho por litro so atrapalha quem escolhe garrafa; o resto mostra o R$/kg ou R$/L.
+  const unitReference = product.category === 'ADEGA_VINHOS_ESPUMANTES' ? '' : getUnitReference(product)
+  const promoUntil = viewModel.isOnSale ? promoEndLabel(product.promotionalPriceValidUntil) : ''
+  const nearExpiryIds = useNearExpiryProductIds()
+
+  return (
+    <div className="space-y-1">
+      {viewModel.originalPrice && (
+        <p className="text-sm text-gray-500">
+          de <span className="line-through">{formatPrice(viewModel.originalPrice)}</span> por
+        </p>
+      )}
+      <p className="flex items-baseline gap-1 text-[#5D082A]">
+        <span className="text-base font-bold">{price.currencySymbol}</span>
+        <span className="text-[34px] font-black leading-none tracking-tight">{price.value}</span>
+        {price.suffix && <span className="ml-0.5 text-sm font-medium text-gray-500">{price.suffix}</span>}
+      </p>
+      {unitReference && <p className="text-xs text-gray-500">Equivale a {unitReference}</p>}
+      {promoUntil && (
+        <p className="inline-flex items-center gap-1 text-xs font-semibold text-[#5D082A]">
+          <Clock size={13} /> Oferta válida até {promoUntil}
+        </p>
+      )}
+      {nearExpiryIds.has(product.id) && <p className="text-xs text-gray-500">{NEAR_EXPIRY_NOTE}</p>}
+    </div>
+  )
+}
+
+/** Prazo e frete: o que mais pesa na decisao de comprar no app (entrega hoje?). */
+function ServiceRows() {
+  const status = useDeliveryOperation()
+  const { openModal } = useDeliveryVerificationModal()
+  const [verification, setVerification] = useState(() => readDeliveryVerification())
+  useEffect(() => subscribeDeliveryVerification(() => setVerification(readDeliveryVerification())), [])
+  const calc = verification?.calc
+  const place = calc?.locality || calc?.zoneName || verification?.address?.neighborhood
+  const change = (label: string) => (
+    <button type="button" onClick={() => openModal()} className="font-semibold text-[#5D082A] underline underline-offset-2">
+      {label}
+    </button>
+  )
+
+  let fee: React.ReactNode
+  if (!calc) fee = <>{change('Informe seu CEP')} e veja o frete</>
+  else if (calc.outOfArea) fee = <>Ainda não entregamos {place ? `em ${place}` : 'no seu endereço'} · {change('trocar')}</>
+  else {
+    const value = calc.fee ?? 0
+    fee = (
+      <>
+        {value > 0 ? `Frete ${formatPrice(value)}` : 'Frete grátis'}
+        {place ? ` em ${place}` : ''}
+        {value > 0 && calc.freeAbove ? ` · grátis acima de ${formatPrice(calc.freeAbove)}` : ''} · {change('trocar')}
+      </>
+    )
+  }
+
+  return (
+    <ul className="divide-y divide-[#E8D7B0]/60 rounded-2xl border border-[#E8D7B0]/70 bg-[#FBFAF7] text-sm">
+      <li className="flex gap-3 px-4 py-3">
+        <Truck size={20} className="mt-0.5 shrink-0 text-[#5D082A]" />
+        <div className="min-w-0">
+          <p className="font-semibold text-[#231F20]">{status.message}</p>
+          <p className="text-[#5d4f33]">{fee}</p>
+          {status.note && <p className="text-xs text-[#8a6a3a]">{status.note}</p>}
+        </div>
+      </li>
+      <li className="flex gap-3 px-4 py-3">
+        <Store size={20} className="mt-0.5 shrink-0 text-[#5D082A]" />
+        <p className="text-[#5d4f33]"><span className="font-semibold text-[#231F20]">Retirada grátis</span> na loja</p>
+      </li>
+    </ul>
+  )
+}
+
+function QuantityStepper({ label, onDecrease, onIncrease, size = 'lg' }: { label: string; onDecrease: () => void; onIncrease: () => void; size?: 'md' | 'lg' }) {
+  const box = size === 'lg' ? 'h-12' : 'h-11'
+  return (
+    <div className={`flex ${box} shrink-0 items-center rounded-xl border border-[#E8D7B0] bg-white`}>
+      <button type="button" onClick={onDecrease} aria-label="Diminuir quantidade" className={`flex ${box} w-11 items-center justify-center text-[#5D082A] active:scale-90`}>
+        <Minus className="h-4 w-4" strokeWidth={2.6} />
+      </button>
+      <span className="min-w-[44px] text-center text-base font-black tabular-nums text-[#231F20]">{label}</span>
+      <button type="button" onClick={onIncrease} aria-label="Aumentar quantidade" className={`flex ${box} w-11 items-center justify-center text-[#5D082A] active:scale-90`}>
+        <Plus className="h-4 w-4" strokeWidth={2.6} />
+      </button>
+    </div>
+  )
+}
+
+/** Botao principal: "Adicionar · R$ 45,80" antes, "Ver carrinho · subtotal" depois. */
+function PurchaseActions({ product, purchase, size = 'lg' }: { product: Product; purchase: Purchase; size?: 'md' | 'lg' }) {
+  const price = getProductPricePresentation(product)
+  const label = formatProductQuantity(product, purchase.shown)
+  const height = size === 'lg' ? 'h-12' : 'h-11'
+  return (
+    <div className="flex items-center gap-2.5">
+      <QuantityStepper label={label} onDecrease={purchase.decrease} onIncrease={purchase.increase} size={size} />
+      {purchase.quantity === 0 ? (
+        <Button onClick={purchase.add} className={`${height} flex-1 justify-between gap-2 rounded-xl px-4 text-[15px]`}>
+          <span className="inline-flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Adicionar</span>
+          <span className="font-black tabular-nums">{formatPrice(price.displayPrice * purchase.shown)}</span>
+        </Button>
+      ) : (
+        <Link to="/cart" className={buttonVariants({ variant: 'primary', className: `${height} flex-1 justify-between gap-2 rounded-xl px-4 text-[15px]` })}>
+          {purchase.justAdded ? (
+            <span className="inline-flex items-center gap-2"><Check className="h-5 w-5" /> Adicionado</span>
+          ) : (
+            <span>Ver carrinho</span>
+          )}
+          <span className="font-black tabular-nums">{formatPrice(purchase.subtotal)}</span>
+        </Link>
+      )}
+    </div>
+  )
+}
+
+function UnavailableNote({ product, viewModel }: { product: Product; viewModel: ProductCardViewModel }) {
+  return (
+    <p className="text-sm font-semibold text-[#8a6a3a]">
+      {viewModel.offDay
+        ? `Vendido só ${viewModel.saleDaysText}`
+        : product.active === false || viewModel.missingFractionStep
+          ? 'Indisponível no momento'
+          : 'Sem estoque no momento'}
+    </p>
+  )
+}
+
+/**
+ * Barra de compra do celular, sempre visivel (como iFood/Rappi): a pagina do
+ * produto nao tem o menu de baixo. Mostra quanto falta para o frete gratis --
+ * o empurrao para mais um item na hora em que o cliente decide.
+ */
+function MobilePurchaseBar({ product, viewModel, purchase, hasAlike }: { product: Product; viewModel: ProductCardViewModel; purchase: Purchase; hasAlike: boolean }) {
+  const zoneFreeAbove = useKnownZoneFreeAbove()
+  const freeShipping = useFreeShipping(purchase.subtotal, zoneFreeAbove)
+  const showFreeShipping = purchase.count > 0 && freeShipping.enabled && !freeShipping.achieved
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E8D7B0] bg-white/95 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur lg:hidden">
+      {showFreeShipping && (
+        <div className="border-b border-[#E8D7B0]/70 bg-[#FDF8F0] px-4 py-1.5">
+          <p className="text-[11px] font-medium text-[#5d4f33]">
+            Faltam <strong className="text-[#5D082A]">{formatPrice(freeShipping.remaining)}</strong> para frete grátis
+          </p>
+          <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#E8D7B0]/70">
+            <div className="h-full rounded-full bg-[#5D082A] transition-all duration-500" style={{ width: `${freeShipping.pct}%` }} />
+          </div>
+        </div>
+      )}
+      <div className="px-3 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5">
+        {viewModel.outOfStock ? (
+          hasAlike ? (
+            <a href="#parecidos" className={buttonVariants({ variant: 'primary', className: 'h-11 w-full rounded-xl' })}>Ver parecidos disponíveis</a>
+          ) : (
+            <Link to="/mercado" className={buttonVariants({ variant: 'primary', className: 'h-11 w-full rounded-xl' })}>Continuar comprando</Link>
+          )
+        ) : (
+          <PurchaseActions product={product} purchase={purchase} size="md" />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ProductCarousel({ id, title, products, link, className = '' }: { id?: string; title: string; products: Product[]; link?: { to: string; label: string }; className?: string }) {
   if (products.length === 0) return null
   return (
-    <section className="max-w-6xl mx-auto px-4 pb-10">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-[#231F20]">{title}</h2>
+    <section id={id} className={`scroll-mt-20 ${className}`}>
+      <div className="mb-3 flex items-center justify-between px-4 lg:px-0">
+        <h2 className="text-lg font-bold text-[#231F20]">{title}</h2>
         {link && (
-          <Link to={link.to} className="text-xs text-[#5D082A] font-bold hover:underline">
-            {link.label}
+          <Link to={link.to} className="inline-flex items-center text-xs font-bold text-[#5D082A] hover:underline">
+            {link.label} <ChevronRight size={14} />
           </Link>
         )}
       </div>
-      <div className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar snap-x">
+      <div className="hide-scrollbar flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 lg:scroll-px-0 lg:px-0">
         {products.map((item) => (
           <StoreProductCard key={item.id} product={item} source="SEARCH" variant="carousel" />
         ))}
       </div>
     </section>
+  )
+}
+
+function DetailsCard({ product }: { product: Product }) {
+  const sections = getProductDetailSections(product)
+  const facts = sections.filter((s) => s.facts.some((f) => f.label))
+  const notes = sections.filter((s) => !s.facts.some((f) => f.label))
+  const code = product.ean ? (
+    <p className="text-xs text-gray-500">
+      {/^\d{8,14}$/.test(product.ean) ? 'Código de barras (EAN)' : 'Código'}: <span className="font-mono">{product.ean}</span>
+    </p>
+  ) : null
+  if (sections.length === 0) return code
+  return (
+    <article className="space-y-4 rounded-2xl border border-[#E8D7B0]/70 bg-white p-4">
+      {facts.map((section) => (
+        <div key={section.id}>
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-[#5D082A]">{section.title}</h2>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+            {section.facts.map((fact) => (
+              <div key={fact.label} className="contents">
+                <dt className="font-semibold text-[#231F20]">{fact.label}</dt>
+                <dd className="text-[#5d4f33]">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ))}
+      {notes.map((section) => (
+        <div key={section.id}>
+          <h2 className="mb-1 text-xs font-bold uppercase tracking-wider text-[#5D082A]">{section.title}</h2>
+          {section.facts.map((fact) => (
+            <p key={fact.value} className="text-sm leading-relaxed text-[#5d4f33]">{fact.value}</p>
+          ))}
+        </div>
+      ))}
+      {/* Peso e producao propria tem codigo interno curto (ex.: 2701), nao
+          codigo de barras: aparece como "Codigo" (pedido do Jonathan, 01/10/2026). */}
+      {code}
+    </article>
   )
 }
 
@@ -142,14 +512,10 @@ export default function ProductDetail() {
   const navigate = useNavigate()
   const location = useLocation()
   const { data: product, isLoading } = useProduct(id)
-  const { data: recommendations = [] } = useProductRecommendations(product?.id ?? '', 6)
-  const { data: substitutes = [] } = useSmartSubstitutes(product?.id ?? '', 6)
-  const nearExpiryIds = useNearExpiryProductIds()
+  const { data: recommendations = [] } = useProductRecommendations(product?.id ?? '', 8)
+  const { data: substitutes = [] } = useSmartSubstitutes(product?.id ?? '', 8)
   const saleWeekday = useSaleWeekday()
-  const [imageIndex, setImageIndex] = useState(0)
-  const [imgError, setImgError] = useState(false)
-  // 3 (01/10/2026): URL nova na borda, com o cache de 5 min no navegador.
-  const imageVersion = '3'
+  const purchase = usePurchase(product)
 
   // Link antigo ou slug desatualizado (nome mudou) -> troca pela URL canonica
   // sem criar entrada nova no historico.
@@ -165,42 +531,17 @@ export default function ProductDetail() {
     if (product?.id) trackEvent('VIEW_PRODUCT', 'PRODUCT', product.id, { name: product.name, price: product.price })
   }, [product?.id])
 
-  const imageBaseUrl = `/uploads/products/${product?.ean ?? ''}`
-  const imageCandidates = useMemo(
-    () => [
-      `${imageBaseUrl}.webp?v=${imageVersion}`,
-      `${imageBaseUrl}.jpg?v=${imageVersion}`,
-      `${imageBaseUrl}.jpeg?v=${imageVersion}`,
-      `${imageBaseUrl}.png?v=${imageVersion}`,
-    ],
-    [imageBaseUrl, imageVersion],
-  )
-
-  const imageBaseUrl2 = `/uploads/products/${product?.ean ?? ''}_2`
-  const imageCandidates2 = useMemo(
-    () => [
-      `${imageBaseUrl2}.webp?v=${imageVersion}`,
-      `${imageBaseUrl2}.jpg?v=${imageVersion}`,
-      `${imageBaseUrl2}.jpeg?v=${imageVersion}`,
-      `${imageBaseUrl2}.png?v=${imageVersion}`,
-    ],
-    [imageBaseUrl2, imageVersion],
-  )
-
-  const [imageIndex2, setImageIndex2] = useState(0)
-  const [imgError2, setImgError2] = useState<boolean | 'loading'>('loading')
-  const [activePhoto, setActivePhoto] = useState<'1' | '2'>('1')
+  // Abrir outro produto pela vitrine comeca do topo.
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [product?.id])
 
   const backTo = (location.state as { from?: string } | null)?.from || '/mercado'
-  const backLabel = backTo === '/adega' ? 'Voltar para Adega' : 'Voltar ao Mercado'
   // ponytail: navigate(-1) volta pra pagina real de origem (preserva scroll/filtros);
   // so cai no backTo fixo quando nao ha historico dentro do site (link direto/aba nova)
   const goBack = () => {
-    if (window.history.state?.idx > 0) {
-      navigate(-1)
-    } else {
-      navigate(backTo)
-    }
+    if (window.history.state?.idx > 0) navigate(-1)
+    else navigate(backTo)
   }
 
   if (isLoading) {
@@ -214,32 +555,24 @@ export default function ProductDetail() {
   if (!product) {
     return (
       <div className="min-h-screen bg-white pb-16">
-        <ProductHeader onBack={goBack} backLabel={backLabel} />
-        <main className="max-w-4xl mx-auto px-4 py-12 text-center">
-          <h1 className="text-3xl font-bold text-[#231F20]">Produto não encontrado</h1>
-          <p className="text-[#5d4f33] mt-2">Esse item pode ter sido removido ou está indisponível no momento.</p>
+        <ProductHeader onBack={goBack} />
+        <main className="mx-auto max-w-4xl px-4 py-12 text-center">
+          <h1 className="text-2xl font-bold text-[#231F20]">Produto não encontrado</h1>
+          <p className="mt-2 text-[#5d4f33]">Esse item pode ter sido removido ou está indisponível no momento.</p>
           <Link to={backTo} className={buttonVariants({ variant: 'primary', size: 'md', className: 'mt-6' })}>
             {backTo === '/adega' ? 'Voltar para a Adega' : 'Voltar para o Mercado'}
           </Link>
         </main>
-        <MobileBottomNav />
       </div>
     )
   }
 
-  const imageUrl = imageCandidates[imageIndex] || imageCandidates[0]
-  const currentImageUrl = activePhoto === '1'
-    ? (imageCandidates[imageIndex] || imageCandidates[0])
-    : (imageCandidates2[imageIndex2] || imageCandidates2[0])
-  const currentImgError = activePhoto === '1' ? imgError : imgError2 === true
-
   const title = formatProductTitle(product.name)
   const price = getProductPricePresentation(product)
   const viewModel = getProductCardViewModel(product, saleWeekday)
-  const promoUntil = viewModel.isOnSale ? promoEndLabel(product.promotionalPriceValidUntil) : ''
-  const sections = getProductDetailSections(product)
   const categoryCrumb = departmentCrumb(product)
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const imageUrl = imageCandidates(`/uploads/products/${product.ean}`)[0]
   const unitSuffix = product.isFractional && price.unitLabel !== 'un' ? `/${price.unitLabel}` : ''
   // O alternativeDescription do ERP e nota de fracionamento, nao descricao
   // (ia parar no Google e na previa do WhatsApp). Mesmo texto do servidor.
@@ -280,8 +613,16 @@ export default function ProductDetail() {
     ],
   }
 
+  const buyTogether = (
+    <ProductCarousel
+      title={missionShelf && mission ? mission[1] : 'Compre junto'}
+      products={shelf}
+      link={missionShelf && mission ? { to: `/mercado?tag=${mission[0]}`, label: 'Ver tudo' } : undefined}
+    />
+  )
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F8F4EA] via-[#FBFAF7] to-white pb-24 lg:pb-16">
+    <div className="min-h-screen bg-[#FBFAF7] pb-40 lg:pb-16">
       <SEO
         title={title}
         description={description}
@@ -293,193 +634,100 @@ export default function ProductDetail() {
       <StructuredData data={productSchema} />
       <StructuredData data={breadcrumbSchema} />
 
-      <ProductHeader onBack={goBack} backLabel={backLabel} />
+      <ProductHeader onBack={goBack} product={product} />
 
-      <main className="max-w-6xl mx-auto px-4 py-4 sm:py-8 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-4 sm:gap-6">
-        <section className={surfaceClasses({ tone: 'warm', className: 'self-start p-3 sm:p-5' })}>
-          {/* Celular: foto em 4:3 para o preco e o botao de comprar caberem na
-              primeira tela (em 1:1 o botao ficava atras da barra de baixo). */}
-          <div className="aspect-[4/3] sm:aspect-square rounded-lg bg-[#FBFAF7] border border-[#E8D7B0]/60 overflow-hidden flex items-center justify-center">
-            {!currentImgError ? (
-              <img
-                src={currentImageUrl}
-                alt={title}
-                className="w-full h-full object-contain p-3 transition-all duration-300"
-                loading="eager"
-                onError={() => {
-                  if (activePhoto === '1') {
-                    if (imageIndex < imageCandidates.length - 1) {
-                      setImageIndex((prev) => prev + 1)
-                      return
-                    }
-                    setImgError(true)
-                  } else {
-                    if (imageIndex2 < imageCandidates2.length - 1) {
-                      setImageIndex2((prev) => prev + 1)
-                      return
-                    }
-                    setImgError2(true)
-                  }
-                }}
-              />
-            ) : (
-              <ProductImagePlaceholder size="lg" className="rounded-xl py-12" />
-            )}
-          </div>
-
-          {/* Sonda a foto 2 fora da tela ate confirmar que existe -- so entao
-              mostra as miniaturas, evita miniatura clicavel em branco/quebrada
-              enquanto os candidatos (webp/jpg/jpeg/png) ainda estao testando. */}
-          {imgError2 === 'loading' && (
-            <img
-              src={imageCandidates2[imageIndex2]}
-              alt=""
-              className="hidden"
-              aria-hidden="true"
-              onLoad={() => {
-                // O nginx responde 200 com o SVG "produto sem foto" quando o
-                // arquivo nao existe -- o onLoad sozinho mostrava a miniatura
-                // do placeholder como se fosse a 2a foto. Confere o tipo real.
-                const src = imageCandidates2[imageIndex2]
-                fetch(src, { method: 'HEAD' })
-                  .then((res) => {
-                    if (!/svg/i.test(res.headers.get('content-type') || '')) return setImgError2(false)
-                    if (imageIndex2 < imageCandidates2.length - 1) setImageIndex2((prev) => prev + 1)
-                    else setImgError2(true)
-                  })
-                  .catch(() => setImgError2(true))
-              }}
-              onError={() => {
-                if (imageIndex2 < imageCandidates2.length - 1) {
-                  setImageIndex2(prev => prev + 1)
-                } else {
-                  setImgError2(true)
-                }
-              }}
-            />
-          )}
-
-          {/* Miniaturas so com duas fotos: uma miniatura sozinha so repetia a foto grande. */}
-          {imgError2 === false && !imgError && (
-            <div className="mt-3 flex gap-2">
-              {([['1', imageCandidates[imageIndex] || imageCandidates[0]], ['2', imageCandidates2[imageIndex2]]] as const).map(([n, src]) => (
-                <Button
-                  key={n}
-                  onClick={() => setActivePhoto(n)}
-                  variant="outline"
-                  size="icon"
-                  aria-label={`Ver foto ${n}`}
-                  className={`w-16 h-16 overflow-hidden flex-shrink-0 border-2 p-0 transition-all duration-200 ${
-                    activePhoto === n ? 'border-[#5D082A] ring-2 ring-[#5D082A]/20' : 'border-[#E8D7B0] hover:border-[#5D082A]/60'
-                  }`}
-                >
-                  <img src={src} alt="" className="w-full h-full object-contain p-1" />
-                </Button>
-              ))}
-            </div>
-          )}
-
-          {/* Vídeo (YouTube / Instagram / TikTok) */}
+      <main className="mx-auto max-w-6xl lg:grid lg:grid-cols-[1fr_1.05fr] lg:items-start lg:gap-10 lg:px-4 lg:pt-8">
+        <div className="lg:sticky lg:top-24">
+          <ProductGallery product={product} viewModel={viewModel} />
           {product.videoUrl && (
-            <div className="mt-4">
+            <div className="mt-4 px-4 lg:px-0">
               <ProductVideoEmbed url={product.videoUrl} />
             </div>
           )}
-        </section>
+        </div>
 
-        <section className={surfaceClasses({ tone: 'warm', className: 'p-4 sm:p-6 space-y-4' })}>
-          {categoryCrumb && (
-            <nav aria-label="Você está em" className="text-xs text-[#5d4f33]">
-              <ol className="flex flex-wrap items-center gap-1">
-                <li><Link to="/" className="hover:text-[#5D082A] hover:underline">Início</Link></li>
-                <li aria-hidden="true">›</li>
-                <li><Link to={categoryCrumb.to} className="hover:text-[#5D082A] hover:underline">{categoryCrumb.label}</Link></li>
-              </ol>
-            </nav>
-          )}
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#231F20] leading-tight">{title}</h1>
+        <div className="space-y-5">
+          <section className="relative -mt-4 space-y-4 rounded-t-3xl bg-[#FBFAF7] px-4 pt-5 lg:mt-0 lg:rounded-none lg:px-0 lg:pt-0">
+            <div className="space-y-2">
+              {categoryCrumb && (
+                <nav aria-label="Você está em">
+                  <Link to={categoryCrumb.to} className="inline-flex items-center gap-0.5 text-xs font-semibold uppercase tracking-wide text-[#8a6a3a] hover:text-[#5D082A]">
+                    {categoryCrumb.label} <ChevronRight size={13} />
+                  </Link>
+                </nav>
+              )}
+              <h1 className="text-[22px] font-bold leading-snug text-[#231F20] lg:text-3xl">{title}</h1>
+            </div>
 
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-              <div className="rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] px-4 py-3 inline-flex items-end gap-1.5">
-                <span className="text-sm font-semibold text-[#5D082A]">{price.currencySymbol}</span>
-                <span className="text-3xl font-black text-[#5D082A] leading-none">{price.value}</span>
-                {price.suffix && <span className="text-xs font-medium text-gray-500">{price.suffix}</span>}
-              </div>
-              {(viewModel.originalPrice || price.referenceText) && (
-                <div className="flex flex-col gap-1 pb-1 text-xs">
-                  {viewModel.originalPrice && (
-                    <span className="flex items-center gap-2">
-                      {viewModel.discountPct >= 1 && (
-                        <span className="rounded-sm bg-[#F3E3EC] px-1.5 py-0.5 font-semibold leading-none text-[#5D082A]">{viewModel.discountPct}% OFF</span>
-                      )}
-                      <span className="font-medium text-gray-500 line-through">de {formatPrice(viewModel.originalPrice)}</span>
-                    </span>
-                  )}
-                  {price.referenceText && <span className="font-medium text-gray-500">{price.referenceText}</span>}
+            <PriceBlock product={product} viewModel={viewModel} />
+
+            {product.isFractional && !viewModel.missingFractionStep && (
+              <p className="flex gap-2 rounded-xl bg-[#F8F4EA] px-3 py-2.5 text-xs leading-relaxed text-[#5d4f33]">
+                <Scale size={16} className="mt-0.5 shrink-0 text-[#8a6a3a]" />
+                <span>
+                  Vendido por peso, em porções de {price.portionLabel}. O valor final segue o peso conferido na separação.
+                </span>
+              </p>
+            )}
+
+            {/* Computador: caixa de compra na coluna; no celular quem compra e a barra fixa. */}
+            <div className="hidden lg:block">
+              {viewModel.outOfStock ? (
+                <div className="rounded-2xl border border-[#E8D7B0] bg-[#FBF7F0] px-4 py-4">
+                  <UnavailableNote product={product} viewModel={viewModel} />
+                  <p className="mt-1 text-xs text-[#8a6a3a]">
+                    {viewModel.offDay ? 'Volte para pedir num desses dias.' : alike.length ? 'Veja abaixo opções parecidas disponíveis.' : 'Volte mais tarde ou procure no Mercado.'}
+                  </p>
                 </div>
+              ) : (
+                <PurchaseActions product={product} purchase={purchase} />
               )}
             </div>
-            {promoUntil && <p className="text-xs font-semibold text-[#5D082A]">Oferta válida até {promoUntil}</p>}
-            {nearExpiryIds.has(product.id) && <p className="text-xs text-gray-500">{NEAR_EXPIRY_NOTE}</p>}
-          </div>
 
-          <ProductPurchasePanel product={product} viewModel={viewModel} hasAlike={alike.length > 0} />
-          <DeliveryInfoCard />
+            {viewModel.outOfStock && (
+              <div className="rounded-2xl border border-[#E8D7B0] bg-[#FBF7F0] px-4 py-3 lg:hidden">
+                <UnavailableNote product={product} viewModel={viewModel} />
+                <p className="mt-0.5 text-xs text-[#8a6a3a]">
+                  {viewModel.offDay ? 'Volte para pedir num desses dias.' : alike.length ? 'Veja abaixo opções parecidas disponíveis.' : 'Volte mais tarde ou procure no Mercado.'}
+                </p>
+              </div>
+            )}
 
-          {product.wineProfile && <WineSheet product={product} />}
+            <ServiceRows />
+          </section>
 
-          {sections.length > 0 && (
-            <div className="space-y-4 pt-2">
-              {sections.map((section) => (
-                <article key={section.id} className="rounded-lg border border-[#E8D7B0]/70 bg-[#FBFAF7] p-4">
-                  <h2 className="text-sm uppercase tracking-wider font-bold text-[#5D082A] mb-2">{section.title}</h2>
-                  {section.facts.some((fact) => fact.label) ? (
-                    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
-                      {section.facts.map((fact) => (
-                        <div key={fact.label} className="contents">
-                          <dt className="font-semibold text-[#231F20]">{fact.label}</dt>
-                          <dd className="text-[#5d4f33]">{fact.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  ) : (
-                    section.facts.map((fact) => (
-                      <p key={fact.value} className="text-sm text-[#5d4f33] leading-relaxed">{fact.value}</p>
-                    ))
-                  )}
-                </article>
-              ))}
+          {/* Indisponivel: o que da para levar no lugar vem antes de tudo. */}
+          {viewModel.outOfStock && <ProductCarousel id="parecidos" title="Parecidos disponíveis" products={alike} className="lg:hidden" />}
+
+          {/* Vinho: quem compra decide pela ficha, entao ela vem antes da vitrine. */}
+          {product.wineProfile && (
+            <div className="px-4 lg:hidden">
+              <WineSheet product={product} />
             </div>
           )}
 
-          {/* Peso e producao propria tem codigo interno curto (ex.: 2701), nao
-              codigo de barras: aparece como "Codigo" (pedido do Jonathan, 01/10/2026). */}
-          {product.ean && (
-            <p className="text-xs text-[#5d4f33]">{/^\d{8,14}$/.test(product.ean) ? 'Código de barras (EAN)' : 'Código'}: <span className="font-mono">{product.ean}</span></p>
-          )}
+          {/* Celular: o "Compre junto" logo depois do preco (impulso); no computador vai embaixo, largo. */}
+          <div className="lg:hidden">{buyTogether}</div>
 
-          {categoryCrumb && (
-            <Link to={categoryCrumb.to} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-              Ver mais em {categoryCrumb.label}
-            </Link>
-          )}
-        </section>
+          <div className="space-y-4 px-4 lg:px-0">
+            {product.wineProfile && (
+              <div className="hidden lg:block">
+                <WineSheet product={product} />
+              </div>
+            )}
+            <DetailsCard product={product} />
+          </div>
+        </div>
       </main>
 
-      {/* Indisponivel: o que da para levar no lugar vem antes de tudo. */}
-      {viewModel.outOfStock && <ProductCarousel title="Parecidos disponíveis" products={alike} />}
+      <div className="mx-auto mt-8 max-w-6xl space-y-8 lg:px-4">
+        {viewModel.outOfStock && <ProductCarousel id="parecidos-desktop" title="Parecidos disponíveis" products={alike} className="hidden lg:block" />}
+        <div className="hidden lg:block">{buyTogether}</div>
+        <ProductRecipeShelf productId={product.id} className="px-4 lg:px-0" />
+        {!viewModel.outOfStock && <ProductCarousel title="Parecidos com este" products={alike} />}
+      </div>
 
-      <ProductRecipeShelf productId={product.id} className="max-w-6xl mx-auto px-4 pb-10" />
-
-      <ProductCarousel
-        title={missionShelf && mission ? mission[1] : 'Compre junto'}
-        products={shelf}
-        link={missionShelf && mission ? { to: `/mercado?tag=${mission[0]}`, label: 'Ver tudo' } : undefined}
-      />
-
-      {!viewModel.outOfStock && <ProductCarousel title="Parecidos com este" products={alike} />}
-      <MobileBottomNav />
+      <MobilePurchaseBar product={product} viewModel={viewModel} purchase={purchase} hasAlike={alike.length > 0} />
     </div>
   )
 }
@@ -500,8 +748,8 @@ function WineSheet({ product }: { product: Product }) {
     ['Guarda', p.guarda || ''],
   ].filter(([, v]) => v)
   return (
-    <article className="rounded-lg border border-[#E8D7B0]/70 bg-[#FBFAF7] p-4">
-      <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-[#5D082A]">Sobre este vinho</h2>
+    <article className="rounded-2xl border border-[#E8D7B0]/70 bg-white p-4">
+      <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-[#5D082A]">Sobre este vinho</h2>
       {p.descricaoCurta && <p className="mb-3 text-sm leading-relaxed text-[#231F20]">{p.descricaoCurta}</p>}
       {facts.length > 0 && (
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
@@ -529,140 +777,6 @@ function WineSheet({ product }: { product: Product }) {
   )
 }
 
-function QuantityStepper({ label, onDecrease, onIncrease, compact = false }: { label: string; onDecrease: () => void; onIncrease: () => void; compact?: boolean }) {
-  return (
-    <div className="flex items-center rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] p-1">
-      <Button onClick={onDecrease} variant="ghost" size="icon" className={`${compact ? 'h-9 w-9' : 'h-11 w-11'} hover:bg-white`} aria-label="Diminuir quantidade">
-        <Minus className="h-4 w-4" strokeWidth={2.4} />
-      </Button>
-      <div className={`flex ${compact ? 'min-w-[56px]' : 'min-w-[68px]'} flex-col items-center justify-center px-2`}>
-        <span className="text-base font-black leading-none text-[#231F20]">{label}</span>
-        {!compact && <span className="text-label uppercase tracking-[0.14em] text-gray-500">no carrinho</span>}
-      </div>
-      <Button onClick={onIncrease} variant="ghost" size="icon" className={`${compact ? 'h-9 w-9' : 'h-11 w-11'} hover:bg-white`} aria-label="Aumentar quantidade">
-        <Plus className="h-4 w-4" strokeWidth={2.4} />
-      </Button>
-    </div>
-  )
-}
-
-function ProductPurchasePanel({ product, viewModel, hasAlike }: { product: Product; viewModel: ProductCardViewModel; hasAlike: boolean }) {
-  const { cart, addItem, updateQuantity, removeItem } = useCart()
-  const pricing = useMemo(() => getProductPricePresentation(product), [product])
-  const cartItem = cart.find((item) => item.productId === product.id)
-  const quantity = cartItem?.quantity || 0
-  // Pesavel: o carrinho guarda numero de porcoes; o cliente ve o peso ("1,25 kg").
-  // Ate 07/10/2026 havia um seletor "Unidade | Peso" que so trocava esse rotulo.
-  const quantityLabel = formatProductQuantity(product, quantity)
-
-  // Barra fixa de compra no celular depois que o botao principal sai da tela
-  // (rolando para ler a ficha, o cliente perdia o botao de comprar).
-  const ctaRef = useRef<HTMLDivElement>(null)
-  const [ctaScrolledAway, setCtaScrolledAway] = useState(false)
-  useEffect(() => {
-    const el = ctaRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(([entry]) => setCtaScrolledAway(!entry.isIntersecting && entry.boundingClientRect.top < 0))
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [viewModel.outOfStock])
-
-  const fireAddToCartEvent = () => {
-    trackEvent('ADD_TO_CART', 'PRODUCT', product.id, {
-      name: product.name,
-      price: product.price,
-      source: 'SEARCH',
-    })
-  }
-
-  const handleAdd = () => {
-    addItem(product, 1)
-    fireAddToCartEvent()
-    toast.success(`${formatProductTitle(product.name)} no carrinho`, { id: `add-${product.id}`, duration: 1500, position: 'top-center' })
-  }
-
-  const handleDecrease = () => {
-    if (quantity > 1) {
-      updateQuantity(product.id, quantity - 1)
-      return
-    }
-    removeItem(product.id)
-  }
-
-  const handleIncrease = () => {
-    addItem(product, 1)
-    fireAddToCartEvent()
-  }
-
-  if (viewModel.outOfStock) {
-    return (
-      <div className="rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] px-4 py-4 text-center">
-        <p className="text-sm font-semibold text-[#8a6a3a]">
-          {viewModel.offDay
-            ? `Vendido só ${viewModel.saleDaysText}`
-            : product.active === false || viewModel.missingFractionStep
-              ? 'Indisponível no momento'
-              : 'Sem estoque no momento'}
-        </p>
-        <p className="mt-1 text-xs text-[#8a6a3a]">
-          {viewModel.offDay ? 'Volte para pedir num desses dias.' : hasAlike ? 'Veja abaixo opções parecidas disponíveis.' : 'Volte mais tarde ou procure no Mercado.'}
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      {viewModel.saleDaysText && (
-        <p className="rounded-lg border border-[#E8D7B0] bg-[#FBF7F0] px-3 py-2 text-xs font-medium text-[#8a6a3a]">
-          Vendido só {viewModel.saleDaysText}.
-        </p>
-      )}
-
-      <div ref={ctaRef}>
-        {quantity === 0 ? (
-          <Button onClick={handleAdd} size="lg" className="w-full gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            {viewModel.isFractional ? `Adicionar ${pricing.portionLabel}` : 'Adicionar ao carrinho'}
-          </Button>
-        ) : (
-          <div className="flex items-center gap-3">
-            <QuantityStepper label={quantityLabel} onDecrease={handleDecrease} onIncrease={handleIncrease} />
-            <Link to="/cart" className={buttonVariants({ variant: 'primary', size: 'lg', className: 'flex-1 gap-2' })}>
-              Ver carrinho <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {product.isFractional && (
-        <p className="text-xs leading-relaxed text-[#5d4f33]">
-          Vendido por peso, em porções de {pricing.portionLabel}. O valor final segue o peso conferido na separação.
-        </p>
-      )}
-
-      {ctaScrolledAway && (
-        <div className="fixed inset-x-0 bottom-[var(--mobile-nav-height,4rem)] md:bottom-0 z-40 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-2.5 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur lg:hidden">
-          <div className="mx-auto flex max-w-6xl items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs text-[#5d4f33]">{formatProductTitle(product.name)}</p>
-              <p className="text-base font-black leading-tight text-[#5D082A]">{pricing.fullLabel}</p>
-            </div>
-            {quantity === 0 ? (
-              <Button onClick={handleAdd} size="md" className="gap-2">
-                <ShoppingCart className="h-4 w-4" />
-                Adicionar
-              </Button>
-            ) : (
-              <QuantityStepper compact label={quantityLabel} onDecrease={handleDecrease} onIncrease={handleIncrease} />
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 function ProductVideoEmbed({ url }: { url: string }) {
   const embedUrl = useMemo(() => {
     // YouTube: https://youtu.be/xxx ou https://www.youtube.com/watch?v=xxx
@@ -685,15 +799,15 @@ function ProductVideoEmbed({ url }: { url: string }) {
   if (!embedUrl) return null
 
   return (
-    <div className={surfaceClasses({ tone: 'warm', className: 'overflow-hidden' })}>
-      <div className="bg-[#FBF7F0] px-4 py-2 flex items-center gap-2 border-b border-[#E8D7B0]/60">
+    <div className="overflow-hidden rounded-2xl border border-[#E8D7B0]/70 bg-white">
+      <div className="flex items-center gap-2 border-b border-[#E8D7B0]/60 bg-[#FBF7F0] px-4 py-2">
         <Film size={16} className="text-[#5D082A]" />
-        <span className="text-xs font-bold text-[#5d4f33] tracking-wide uppercase">Demonstração do Produto</span>
+        <span className="text-xs font-bold uppercase tracking-wide text-[#5d4f33]">Demonstração do Produto</span>
       </div>
-      <div className="bg-black aspect-video relative">
+      <div className="relative aspect-video bg-black">
         <iframe
           src={embedUrl}
-          className="w-full h-full"
+          className="h-full w-full"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           loading="lazy"

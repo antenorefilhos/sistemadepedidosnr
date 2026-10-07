@@ -147,3 +147,23 @@ export function getProductPricePresentation(product: Product) {
     unitPrice,
   }
 }
+
+/**
+ * Preco por unidade de medida ("R$ 91,60/kg", "R$ 5,99/L") para comparar
+ * embalagens, como a gondola e os apps de supermercado mostram (Decreto
+ * 5.903/2006). Pesavel ja tem o preco do kg. Embalagem multipla ("4x90g",
+ * "Pack", "Kit", "6 Unidades") fica de fora: o conteudo do nome nao e o total.
+ * Embalagem de 1 kg / 1 L tambem: o preco ja e o da unidade de medida.
+ */
+export function getUnitReference(product: Product): string {
+  if (product.isFractional) return getProductPricePresentation(product).referenceText
+  const name = product.name || ''
+  if (/\d\s*x\s*\d|\bpack\b|\bkit\b|\bleve\s*\d|\d+\s*unidades\b/i.test(name)) return ''
+  const match = [...name.matchAll(/(\d+(?:[.,]\d+)?)\s?(kg|g|ml|l|lt|litros?)\b/gi)].pop()
+  if (!match) return ''
+  const amount = Number(match[1].replace(',', '.'))
+  const unit = match[2].toLowerCase()
+  const base = unit === 'kg' || unit.startsWith('l') ? amount : amount / 1000
+  if (!(base > 0) || base === 1) return ''
+  return `${formatPrice(getProductUnitPrice(product) / base)}/${unit === 'kg' || unit === 'g' ? 'kg' : 'L'}`
+}
