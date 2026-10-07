@@ -31,9 +31,10 @@ import { cn } from '../lib/cn'
 // - card com preco antes do nome e "+" que vira seletor de quantidade;
 // - tocar na foto ABRE o vinho: havia um botao invisivel sobre a foto (feito
 //   para o mouse) que, no celular, punha a garrafa no carrinho;
-// - "6un"/"12un" saiu do card: um toque punha 6 garrafas no carrinho sem
-//   aviso. Meia caixa e caixa ficaram na pagina do vinho, so escolhendo a
-//   quantidade.
+// - multiplicador 1/6/12 no card: garrafa, meia caixa e caixa -- e o jeito
+//   de quem e do mundo do vinho comprar (Jonathan, 07/10/2026: "o melhor
+//   gatilho que existe no mundo das vendas de vinho"). Tocar em 6 poe 6 no
+//   carrinho de uma vez, o +/- anda de 6 em 6, com confirmacao na tela.
 
 // Filtros pela ficha do vinho (03/10/2026): tipo, estilo, pais, uva e preco.
 // O estado fica na URL, entao o link filtrado pode ser compartilhado e o
@@ -491,9 +492,16 @@ function WineFilterSheet({
   )
 }
 
+// Garrafa, meia caixa e caixa: o multiplicador do vinho (d06a4dfa, 19/08/2026).
+const WINE_QUANTITY_STEPS = [1, 6, 12] as const
+type WineQuantityStep = (typeof WINE_QUANTITY_STEPS)[number]
+const bottles = (n: number) => `${n} ${n === 1 ? 'garrafa' : 'garrafas'}`
+
 function WineCard({ product, facts }: { product: Product; facts: WineFacts }) {
   const { cart, addItem, removeItem, updateQuantity } = useCart()
   const quantity = cart.find((item) => item.productId === product.id)?.quantity || 0
+  // Multiplo ativo: o que ja esta no carrinho, se for 6 ou 12 (volta certo ao recarregar).
+  const [step, setStep] = useState<WineQuantityStep>(() => (quantity > 0 && quantity % 12 === 0 ? 12 : quantity > 0 && quantity % 6 === 0 ? 6 : 1))
   const [imageIndex, setImageIndex] = useState(0)
   const [imgError, setImgError] = useState(false)
   const viewModel = useMemo(() => getProductCardViewModel(product), [product])
@@ -503,12 +511,28 @@ function WineCard({ product, facts }: { product: Product; facts: WineFacts }) {
   const imageBaseUrl = `/uploads/products/${product.ean}`
   const imageCandidates = [`/thumbs/products/${product.ean}.webp`, `${imageBaseUrl}.webp`, `${imageBaseUrl}.jpg`, `${imageBaseUrl}.jpeg`, `${imageBaseUrl}.png`].map((url) => `${url}?v=3`)
 
+  const track = (n: number) =>
+    trackEvent('ADD_TO_CART', 'PRODUCT', product.id, { name: product.name, price: product.price, quantity: n, source: 'HOME', shelf: 'adega' })
+  const confirm = (total: number) =>
+    toast.success(`${bottles(total)} de ${title} no carrinho`, { id: `add-${product.id}`, duration: 1600, position: 'top-center' })
+
   const add = () => {
-    addItem(product, 1)
-    trackEvent('ADD_TO_CART', 'PRODUCT', product.id, { name: product.name, price: product.price, source: 'HOME', shelf: 'adega' })
-    if (quantity === 0) toast.success(`${title} no carrinho`, { id: `add-${product.id}`, duration: 1500, position: 'top-center' })
+    addItem(product, step)
+    track(step)
+    confirm(quantity + step)
   }
-  const decrease = () => (quantity > 1 ? updateQuantity(product.id, quantity - 1) : removeItem(product.id))
+  const decrease = () => (quantity > step ? updateQuantity(product.id, quantity - step) : removeItem(product.id))
+  // Escolher 6 ou 12 poe essa quantidade no carrinho de uma vez.
+  const chooseStep = (n: WineQuantityStep) => {
+    setStep(n)
+    if (quantity === n) return
+    if (quantity > 0) updateQuantity(product.id, n)
+    else {
+      addItem(product, n)
+      track(n)
+    }
+    confirm(n)
+  }
   const subtitle = [
     wineSubtitle(facts, product.name),
     facts.estilo && facts.estilo !== 'seco' && facts.tipo !== 'espumante' ? WINE_STYLE_LABEL[facts.estilo] : '',
@@ -560,7 +584,7 @@ function WineCard({ product, facts }: { product: Product; facts: WineFacts }) {
             <button type="button" onClick={decrease} aria-label="Diminuir quantidade" className="flex h-10 w-10 items-center justify-center active:scale-90">
               <Minus size={16} strokeWidth={2.6} />
             </button>
-            <span className="text-sm font-black tabular-nums">{formatProductQuantity(product, quantity)}</span>
+            <span className="text-sm font-black tabular-nums">{formatProductQuantity(product, quantity)} un</span>
             <button type="button" onClick={add} aria-label="Aumentar quantidade" className="flex h-10 w-10 items-center justify-center active:scale-90">
               <Plus size={16} strokeWidth={2.6} />
             </button>
@@ -580,6 +604,29 @@ function WineCard({ product, facts }: { product: Product; facts: WineFacts }) {
           <h3 className="luxury-text line-clamp-2 min-h-[2.5em] text-[14px] leading-snug text-white transition-colors group-hover:text-[#F3E7C9]">{title}</h3>
         </Link>
         {subtitle && <p className="line-clamp-1 text-[11px] text-white/55">{subtitle}</p>}
+        {!viewModel.outOfStock && (
+          <div role="group" aria-label="Quantidade de garrafas" className="mt-auto grid grid-cols-3 gap-1 pt-1.5">
+            {WINE_QUANTITY_STEPS.map((n) => {
+              // O multiplo ativo: e de quanto em quanto o +/- anda.
+              const active = step === n
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => chooseStep(n)}
+                  aria-pressed={active}
+                  aria-label={n === 1 ? '1 garrafa' : n === 6 ? 'Meia caixa, 6 garrafas' : 'Caixa, 12 garrafas'}
+                  className={cn(
+                    'h-8 rounded-full border text-[11px] font-bold transition-colors',
+                    active ? 'border-[#D2BB8A] bg-[#D2BB8A] text-[#231F20]' : 'border-[#D2BB8A]/35 text-[#F3E7C9] hover:border-[#D2BB8A]',
+                  )}
+                >
+                  {n}un
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
     </article>
   )
