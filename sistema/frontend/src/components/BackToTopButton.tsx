@@ -27,7 +27,8 @@ export function BackToTopButton() {
       type="button"
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       aria-label="Voltar ao topo"
-      className="fixed bottom-24 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[#5D082A] text-white shadow-lg transition-transform hover:scale-105 md:bottom-8"
+      // Celular: canto esquerdo e discreto -- no direito cobria o "+" dos cards (07/10/2026).
+      className="fixed bottom-[calc(var(--mobile-nav-height,4rem)+0.75rem)] left-3 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-[#E8D7B0] bg-white/95 text-[#5D082A] shadow-lg transition-transform hover:scale-105 md:bottom-8 md:left-auto md:right-4 md:h-11 md:w-11 md:border-0 md:bg-[#5D082A] md:text-white"
     >
       <ArrowUp size={20} />
     </button>

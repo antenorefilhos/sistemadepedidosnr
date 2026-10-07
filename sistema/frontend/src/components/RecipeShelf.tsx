@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ChefHat, Clock, Users } from 'lucide-react'
+import { ChefHat, ChevronRight, Clock, Users } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { recipesAPI } from '../services/api'
 import { useDragScroll } from '../hooks/useDragScroll'
@@ -56,19 +56,17 @@ function Shelf({ eyebrow, title, recipes, className }: { eyebrow: string; title:
   if (!recipes.length) return null
   return (
     <section className={cn('fade-in-section min-w-0', className)}>
-      <div className="mb-3 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <span className="block text-label font-bold uppercase tracking-[0.04em] text-[#8A6A3A]">{eyebrow}</span>
-          <h2 className="mt-1 flex items-start gap-2 text-base font-bold text-[#231F20]">
-            <ChefHat size={18} className="mt-0.5 shrink-0 text-[#5D082A]" />
-            <span className="line-clamp-2">{title}</span>
-          </h2>
-        </div>
-        <Link to="/receitas" className="relative z-10 -my-3.5 flex shrink-0 items-center gap-0.5 py-3.5 text-xs font-semibold text-[#5D082A] hover:underline">
-          Ver receitas <ArrowRight size={13} />
+      {/* Mesmo cabecalho das vitrines de produto (07/10/2026): titulo + "Ver", sem linha extra em cima. */}
+      <div className="mb-3 flex items-end justify-between gap-3" title={eyebrow}>
+        <h2 className="flex min-w-0 items-center gap-2 text-lg font-bold leading-tight text-[#231F20]">
+          <ChefHat size={19} className="shrink-0 text-[#5D082A]" />
+          <span className="line-clamp-2">{title}</span>
+        </h2>
+        <Link to="/receitas" className="relative z-10 -my-3.5 flex shrink-0 items-center gap-0.5 py-3.5 text-xs font-bold text-[#5D082A] hover:underline">
+          Ver receitas <ChevronRight size={14} />
         </Link>
       </div>
-      <div ref={scrollRef} className="no-scrollbar flex snap-x gap-3 overflow-x-auto pb-3" {...drag.dragProps}>
+      <div ref={scrollRef} className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-3 [overflow-anchor:none] md:mx-0 md:scroll-px-0 md:px-0" {...drag.dragProps}>
         {recipes.map((r) => (
           <RecipeCard key={r.id} recipe={r} className="w-[72vw] max-w-[280px] md:w-[280px]" />
         ))}

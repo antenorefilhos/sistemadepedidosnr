@@ -18,6 +18,8 @@ import { PromoBanner, type PromoBannerView } from '../components/PromoBanner'
 import { BannerImage } from '../components/BannerImage'
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress'
 import { DeliveryHoursBar } from '../components/DeliveryHoursBar'
+import { useDeliveryOperation } from '../hooks/useDeliveryOperation'
+import { cn } from '../lib/cn'
 import { useBrand } from '../hooks/useBrand'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useDragScroll } from '../hooks/useDragScroll'
@@ -35,7 +37,7 @@ import { stripEmoji } from '../utils/format'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin,
   Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight, X, Megaphone,
-  ScanLine,
+  ScanLine, ChevronDown,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SEO, StructuredData } from '../components/SEO'
@@ -92,6 +94,21 @@ export default function Home() {
   const homeHidden = brand.homeHidden
   const showsBlock = (key: string) => homeHidden !== null && !homeHidden.has(key)
   const { openModal: openDeliveryVerificationModal } = useDeliveryVerificationModal()
+  const deliveryStatus = useDeliveryOperation()
+  // Cabecalho do celular recolhe endereco/prazo ao rolar (fica so a busca).
+  const [headerCompact, setHeaderCompact] = useState(false)
+  useEffect(() => {
+    let frame = 0
+    const onScroll = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => setHeaderCompact((prev) => (prev ? window.scrollY > 60 : window.scrollY > 140)))
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [])
   const { data: rebuyProducts = [] } = useRebuyRecommendations(user?.id, 10)
   const { data: marginShowcase = [] } = useRecommendationShowcase(undefined, 12)
   // Endpoint dedicado (nao pagina em 80 como o catalogo geral) -- sem isso a
@@ -194,18 +211,26 @@ export default function Home() {
    * ProductShelf ja consome. `vitrinesData` null (endpoint fora do ar ou
    * ainda carregando) cai no `homeSections` calculado localmente, abaixo.
    */
+  // Embaralha uma vez por resposta da API: recalcular junto com homeHidden
+  // (que chega depois) reordenava as vitrines ja na tela.
+  const shuffledVitrines = useMemo(
+    () => vitrinesData?.carrosseis.map((carrossel) => ({ ...carrossel, produtos: shuffle(carrossel.produtos) })) ?? null,
+    [vitrinesData],
+  )
   const vitrinesSections = useMemo(() => {
-    if (!vitrinesData) return null
-    return vitrinesData.carrosseis
+    if (!vitrinesData || !shuffledVitrines) return null
+    return shuffledVitrines
       .filter((carrossel) => !homeHidden?.has(`vitrine:${carrossel.id}`))
       .map((carrossel) => ({
         key: carrossel.id,
-        eyebrow: stripEmoji(vitrinesData.personalidadeAtiva.titulo),
+        // A "personalidade" do dia (ex.: "Abastecimento do lar & economia da
+        // semana") ia em cima de TODA vitrine -- ruido repetido (07/10/2026).
+        eyebrow: undefined,
         title: stripEmoji(carrossel.titulo),
         icon: iconForCarrossel(carrossel.id),
         // JON-201: mesma vitrine sempre com os mesmos produtos, na mesma
         // ordem -- embaralha a cada carregamento da pagina.
-        products: shuffle(carrossel.produtos),
+        products: carrossel.produtos,
         // JON-198 (reaberto 22/09/2026): so 'tag' tinha link calculado aqui;
         // 'departamento'/'categoria' caiam no /mercado generico porque o
         // frontend nao tem o mapeamento departamento->categoria. Calculado
@@ -213,7 +238,7 @@ export default function Home() {
         to: carrossel.linkVerTudo || '/mercado',
       }))
       .filter((shelf) => shelf.products.length > 0)
-  }, [vitrinesData, homeHidden])
+  }, [vitrinesData, shuffledVitrines, homeHidden])
 
   const homeSectionsFallback = useMemo(() => ([
     {
@@ -333,12 +358,12 @@ export default function Home() {
     const offers = promotionalProducts.filter(
       (p) => typeof p.promotionalPrice === 'number' && p.promotionalPrice > 0 && p.promotionalPrice < p.price,
     )
-    const list: Array<{ key: string; eyebrow: string; title: string; icon: typeof ShoppingCart; products: Product[]; to: string }> = []
+    const list: Array<{ key: string; eyebrow?: string; title: string; icon: typeof ShoppingCart; products: Product[]; to: string }> = []
     if (user && rebuyProducts.length > 0) {
-      list.push({ key: 'rebuy', eyebrow: 'Do seu histórico', title: 'Compre de novo', icon: ShoppingCart, products: rebuyProducts.slice(0, 12), to: '/account' })
+      list.push({ key: 'rebuy', title: 'Compre de novo', icon: ShoppingCart, products: rebuyProducts.slice(0, 12), to: '/account' })
     }
     if (offers.length > 0) {
-      list.push({ key: 'offers', eyebrow: 'Preço de oferta', title: 'Ofertas de hoje', icon: Sparkles, products: offers.slice(0, 12), to: '/promocoes' })
+      list.push({ key: 'offers', title: 'Ofertas de hoje', icon: Sparkles, products: offers.slice(0, 12), to: '/promocoes' })
     }
     return list.filter((shelf) => !homeHidden?.has(`vitrine:${shelf.key}`))
   }, [user, rebuyProducts, promotionalProducts, homeHidden])
@@ -560,73 +585,70 @@ export default function Home() {
         <PopupBanner banner={popupBanner} onDismiss={() => popupBanner.id && dismissPopup(popupBanner.id)} />
       )}
 
-      {/* ── MOBILE HEADER (< md) ── */}
+      {/* ── MOBILE HEADER (< md) ──
+          Refeito em 07/10/2026 (revisao de UI/UX): o cabecalho fixo ocupava
+          30% da tela (faixa de horario + endereco + busca + categorias). Agora
+          so a busca e o carrinho ficam fixos; endereco e prazo recolhem ao
+          rolar, e os atalhos de departamento rolam junto com a pagina. */}
       {!isDesktop && (
-      <header className="md:hidden sticky top-0 z-50">
-        <DeliveryHoursBar variant="strip" />
-        <div className="bg-[#5D082A] px-4 pt-4 pb-3">
-          <div className="flex items-center justify-between mb-3">
-            {/* Logo + endereço */}
-            <Button
+      <>
+      <header className="md:hidden sticky top-0 z-50 bg-[#5D082A] shadow-[0_2px_12px_rgba(35,31,32,0.18)]">
+        <div className={cn('overflow-hidden px-4 transition-[max-height,opacity] duration-200 ease-out', headerCompact ? 'max-h-0 opacity-0' : 'max-h-20 opacity-100')}>
+          <div className="flex items-center justify-between gap-2 pt-3">
+            <button
               type="button"
               onClick={handleHeaderAddressClick}
               onTouchStart={handleHeaderAddressTouchStart}
               style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-              variant="ghost"
-              className="mr-2 h-auto min-h-[44px] min-w-0 flex-1 justify-start rounded-none p-0 text-left hover:bg-transparent"
+              className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2.5 text-left"
             >
               {brand.logoMobileUrl ? (
                 <img
                   src={resolveApiUrl(brand.logoMobileUrl) ?? brand.logoMobileUrl}
                   alt={brand.storeName}
-                  className="h-7 w-7 object-contain shrink-0 pointer-events-none"
+                  className="pointer-events-none h-8 w-8 shrink-0 object-contain"
                 />
               ) : (
-                <span className="text-lg shrink-0 pointer-events-none">🏦</span>
+                <MapPin size={20} className="pointer-events-none shrink-0 text-[#D2BB8A]" />
               )}
-              <span className="flex items-center gap-1 text-white/85 text-xs min-w-0 pointer-events-none">
-                <MapPin size={12} className="text-[#D2BB8A] shrink-0" />
-                <span className="truncate">
-                  {deliveryAddressLabel || 'Escolher endereço de entrega'}
+              <span className="pointer-events-none min-w-0">
+                <span className="flex items-center gap-1 text-sm font-semibold text-white">
+                  <span className="truncate">{deliveryAddressLabel ? `Entregar em ${deliveryAddressLabel}` : 'Escolher endereço de entrega'}</span>
+                  <ChevronDown size={15} className="shrink-0 text-[#D2BB8A]" />
+                </span>
+                <span className={cn('block truncate text-[11px] font-medium', deliveryStatus.isOpen ? 'text-[#BFE8C9]' : 'text-[#E8D7B0]')}>
+                  {deliveryStatus.message}
                 </span>
               </span>
-            </Button>
-            <div className="flex items-center gap-2 shrink-0">
-              <Link to="/cart" className="relative p-1.5" aria-label={`Carrinho com ${count} itens`}>
-                <ShoppingCart size={22} className="text-white" />
-                {count > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-[#D2BB8A] text-[#5D082A] text-label font-black rounded-full w-4 h-4 flex items-center justify-center">{count}</span>
-                )}
-                {freeShipping.enabled && freeShipping.achieved && (
-                  <span className="absolute -bottom-0.5 -right-0.5 bg-emerald-500 rounded-full w-2.5 h-2.5 border border-white" title="Frete grátis conquistado!" />
-                )}
-              </Link>
+            </button>
+            <div className="flex shrink-0 items-center gap-1">
               {user && (
                 <div className="[&_[data-bell-trigger]]:text-white [&_[data-bell-trigger]]:hover:bg-white/10 [&_[data-bell-trigger]_svg]:text-white [&_[data-bell-trigger]_span]:bg-[#D2BB8A] [&_[data-bell-trigger]_span]:text-[#5D082A]">
                   <NotificationBell />
                 </div>
               )}
-              <Link to={user ? '/account' : '/login'} className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-                <User size={17} className="text-white" />
+              <Link to={user ? '/account' : '/login'} aria-label={user ? 'Minha conta' : 'Entrar'} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
+                <User size={18} className="text-white" />
               </Link>
             </div>
           </div>
-          {/* Mobile Search Bar */}
+        </div>
+        <div className="flex items-center gap-2 px-4 pb-3 pt-2.5">
           <form
             role="search"
             onSubmit={handleSearchSubmit}
-            className="flex items-center gap-3 bg-white rounded-lg px-4 h-11 focus-within:ring-2 focus-within:ring-[#D2BB8A]"
+            className="flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-xl bg-white px-3.5 focus-within:ring-2 focus-within:ring-[#D2BB8A]"
           >
             <button type="submit" aria-label="Buscar" className="shrink-0 text-[#5D082A]">
-              <Search size={16} />
+              <Search size={18} />
             </button>
             <input
               type="search"
               name="q"
               aria-label="Buscar produto"
-              placeholder="Buscar produto aqui..."
+              placeholder="O que você precisa hoje?"
               enterKeyHint="search"
-              className="min-w-0 flex-1 bg-transparent text-sm text-[#231F20] outline-none placeholder:text-[#6B7280]"
+              className="min-w-0 flex-1 bg-transparent text-[15px] text-[#231F20] outline-none placeholder:text-[#6B7280]"
             />
             <button
               type="button"
@@ -635,37 +657,44 @@ export default function Home() {
               title="Ler código de barras"
               className="shrink-0 text-[#5D082A]"
             >
-              <ScanLine size={18} />
+              <ScanLine size={19} />
             </button>
           </form>
+          <Link to="/cart" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15" aria-label={`Carrinho com ${count} itens`}>
+            <ShoppingCart size={22} className="text-white" />
+            {count > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#D2BB8A] px-1 text-[11px] font-black text-[#5D082A]">{count > 9 ? '9+' : count}</span>
+            )}
+            {freeShipping.enabled && freeShipping.achieved && (
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-white bg-emerald-500" title="Frete grátis conquistado!" />
+            )}
+          </Link>
         </div>
-        {/* Mobile Category Chips */}
-        {homeCategories.length > 0 && (
-          <div className="bg-white border-b border-gray-100 px-4">
-            <div
-              className="flex overflow-x-auto no-scrollbar py-3 gap-3 snap-x"
-              style={{ touchAction: 'pan-x' }}
-            >
-              {homeCategories.map((category) => {
-                const IconComponent = CATEGORY_ICONS[category.id] || CATEGORY_ICONS.default
-                return (
-                  <Link
-                    key={category.id}
-                    to={getCategoryHref(category)}
-                    style={{ touchAction: 'manipulation' }}
-                    className="snap-start shrink-0 flex flex-col items-center gap-1 min-w-[64px] text-center cursor-pointer group"
-                  >
-                    <div className="w-14 h-14 rounded-full bg-[#F3ECE0] flex items-center justify-center border border-[#E8D7B0]/60 text-[#5D082A] group-active:scale-95 transition-transform duration-150">
-                      <IconComponent size={24} strokeWidth={1.8} />
-                    </div>
-                    <span className="text-label font-semibold text-[#231F20] leading-tight line-clamp-2">{category.shortLabel}</span>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </header>
+      {/* Departamentos: rolam com a pagina (fixos, roubavam espaco das vitrines). */}
+      {homeCategories.length > 0 && (
+        <nav aria-label="Departamentos" className="md:hidden border-b border-[#EFE6D2] bg-white">
+          <div className="no-scrollbar flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-3" style={{ touchAction: 'pan-x' }}>
+            {homeCategories.map((category) => {
+              const IconComponent = CATEGORY_ICONS[category.id] || CATEGORY_ICONS.default
+              return (
+                <Link
+                  key={category.id}
+                  to={getCategoryHref(category)}
+                  style={{ touchAction: 'manipulation' }}
+                  className="group flex w-[68px] shrink-0 snap-start flex-col items-center gap-1.5 text-center"
+                >
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#E8D7B0]/70 bg-[#F8F2E6] text-[#5D082A] transition-transform duration-150 group-active:scale-95">
+                    <IconComponent size={24} strokeWidth={1.8} />
+                  </span>
+                  <span className="line-clamp-2 text-[11px] font-semibold leading-tight text-[#231F20]">{category.shortLabel}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </nav>
+      )}
+      </>
       )}
 
       {/* ── DESKTOP TOP BAR + HEADER (md+) ── */}
@@ -1017,7 +1046,7 @@ export default function Home() {
              <h3 className="text-xl font-bold text-[#5d4f33] flex items-center gap-2 mb-8 border-b pb-4">
                <ShoppingBag size={20} className="text-[#5D082A]" /> Tudo do Mercado
              </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
                {categorized.outros.map(product => (
                  <StoreProductCard key={product.id} product={product} source="HOME" variant="grid" analyticsMeta={{ shelf: 'tudo' }} />
                ))}

@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Product } from '../types'
 import { StoreProductCard } from './StoreProductCard'
 import { useAutoScroll } from '../hooks/useAutoScroll'
@@ -13,8 +13,8 @@ export type ProductShelfLayout = 'carousel' | 'grid'
 type ProductShelfProps = {
   /** Titulo principal da vitrine. */
   title: string
-  /** Linha pequena acima do titulo. */
-  eyebrow: string
+  /** Linha pequena acima do titulo (opcional: a Home nao repete mais o mesmo texto em toda vitrine). */
+  eyebrow?: string
   icon: CategoryIconComponent
   products: Product[]
   /** Destino do link "ver mais". */
@@ -57,7 +57,10 @@ export function ProductShelf({
 
   if (products.length === 0) return null
 
-  const isCarousel = layout === 'carousel'
+  // Vitrine com 1 ou 2 produtos vira destaque largo: um card sozinho num
+  // carrossel parecia vitrine quebrada ("Ofertas de hoje" com 1 item, 07/10/2026).
+  const isFew = layout === 'carousel' && products.length <= 2
+  const isCarousel = layout === 'carousel' && !isFew
   const scrollByCard = (direction: 'left' | 'right') => {
     scrollRef.current?.scrollBy({ left: direction === 'left' ? -460 : 460, behavior: 'smooth' })
   }
@@ -66,33 +69,34 @@ export function ProductShelf({
     <section className={cn('fade-in-section min-w-0', className)}>
       <div className="mb-3 flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <span className="block text-label font-bold uppercase tracking-[0.04em] text-[#8A6A3A]">
-            {eyebrow}
-          </span>
-          <h2
-            className={cn(
-              'mt-1 flex items-start gap-2 font-bold text-[#231F20]',
-              isCarousel ? 'text-base' : 'text-xl',
-            )}
-          >
-            <Icon size={isCarousel ? 18 : 20} className="shrink-0 mt-0.5 text-[#5D082A]" />
+          {eyebrow && (
+            <span className="block text-label font-bold uppercase tracking-[0.04em] text-[#8A6A3A]">
+              {eyebrow}
+            </span>
+          )}
+          <h2 className={cn('flex items-center gap-2 text-lg font-bold leading-tight text-[#231F20]', eyebrow && 'mt-1')}>
+            <Icon size={19} className="shrink-0 text-[#5D082A]" />
             <span className="line-clamp-2">{title}</span>
           </h2>
         </div>
         <Link
           to={to}
-          className="relative z-10 -my-3.5 flex shrink-0 items-center gap-0.5 py-3.5 text-xs font-semibold text-[#5D082A] hover:underline"
+          className="relative z-10 -my-3.5 flex shrink-0 items-center gap-0.5 py-3.5 text-xs font-bold text-[#5D082A] hover:underline"
         >
           {linkLabel}
-          {isCarousel && <ArrowRight size={13} />}
+          <ChevronRight size={14} />
         </Link>
       </div>
 
       {isCarousel ? (
         <div className="group/shelf relative">
+          {/* Celular: o carrossel vai ate a borda da tela (-mx-4) e encaixa respeitando o recuo.
+              overflow-anchor:none -- quando a lista se reordena (embaralhada de novo ao
+              chegar a config da loja), o navegador seguia o 1o card e abria a vitrine
+              no meio (scrollLeft 555, 1850, 4995... em producao, 07/10/2026). */}
           <div
             ref={scrollRef}
-            className="no-scrollbar flex snap-x gap-3 overflow-x-auto pb-3"
+            className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-3 [overflow-anchor:none] md:mx-0 md:scroll-px-0 md:px-0"
             {...dragScroll.dragProps}
           >
             {products.map((product) => (
@@ -124,6 +128,12 @@ export function ProductShelf({
           >
             <ChevronRight size={18} />
           </button>
+        </div>
+      ) : isFew ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          {products.map((product) => (
+            <StoreProductCard key={product.id} product={product} source="HOME" variant="row" analyticsMeta={shelf ? { shelf } : undefined} />
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">

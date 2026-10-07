@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Minus, Plus, Info, Flame } from 'lucide-react'
+import { Minus, Plus, Flame } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ProductImagePlaceholder } from './ProductImagePlaceholder'
 import { useCart } from '../hooks/useCart'
@@ -8,23 +8,39 @@ import type { Product } from '../types'
 import { productPath } from '../utils/productUrl'
 import { formatPrice, formatProductTitle } from '../utils/format'
 import { getProductCardViewModel } from '../utils/productCard'
+import { fractionNote } from '../utils/productDetailSchema'
 import { useSaleWeekday } from '../hooks/useDeliveryOperation'
 import { formatProductQuantity, getProductPricePresentation } from '../utils/productPricing'
 import { trackEvent } from '../utils/analytics'
-import { Badge } from './ui/badge'
-import { Button } from './ui/button'
-import { surfaceClasses } from './ui/surface'
 import { cn } from '../lib/cn'
 
 type StoreProductCardProps = {
   product: Product
   source: 'HOME' | 'SEARCH'
-  variant?: 'carousel' | 'grid'
+  /** carousel: vitrine horizontal | grid: lista em colunas | row: destaque largo (vitrine com 1 ou 2 itens). */
+  variant?: 'carousel' | 'grid' | 'row'
   analyticsMeta?: Record<string, unknown>
 }
 
-const FRACTIONAL_INFO_TEXT =
-  'Vendido por peso: você paga a porção mínima agora e o valor final é ajustado pela nossa equipe conforme o peso real, na separação do pedido.'
+// Card refeito em 07/10/2026 (revisao de UI/UX do storefront, padrao dos apps
+// lideres de supermercado): preco antes do nome (o cliente escaneia preco),
+// "+" que vira seletor de quantidade em cima da foto (o card nao cresce ao
+// comprar), selo "-25%" no lugar de "Promocao", e no carrossel 2 cards e meio
+// por tela no celular -- o pedaco do terceiro mostra que a vitrine rola.
+// Sai o selo "Pesavel" e o texto cru do ERP ("Precos de produtos pesaveis
+// podem sofrer variacao"): o preco ja diz "/500 g" e a linha de baixo da o kg.
+
+const BADGE_CLASS: Record<string, string> = {
+  urgent: 'bg-[#E53E3E] text-white',
+  promo: 'bg-[#5D082A] text-white',
+  frozen: 'bg-sky-500 text-white',
+  pet: 'bg-violet-600 text-white',
+  tobacco: 'bg-zinc-700 text-white',
+  top: 'bg-orange-500 text-white',
+  // Etiqueta do admin (Importado, Premium, Luxo...): o dourado da adega.
+  label: 'bg-[#D2BB8A] text-[#231F20]',
+  default: 'bg-[#5D082A] text-white',
+}
 
 export function StoreProductCard({
   product,
@@ -46,10 +62,14 @@ export function StoreProductCard({
   const imageUrl = imageCandidates[imageIndex]
   const saleWeekday = useSaleWeekday()
   const viewModel = useMemo(() => getProductCardViewModel(product, saleWeekday), [product, saleWeekday])
-  const pricePresentation = useMemo(() => getProductPricePresentation(product), [product])
-  // Pesavel mostra o peso no carrinho ("1,25 kg"). Ate 07/10/2026 havia um
-  // seletor "Unidade | Peso" no card que so trocava esse rotulo.
+  const price = useMemo(() => getProductPricePresentation(product), [product])
+  const title = formatProductTitle(product.name)
+  // Pesavel mostra o peso no carrinho ("1,25 kg").
   const displayQuantity = formatProductQuantity(product, quantity)
+  // Linha de apoio do pesavel: preco do kg e quanto a porcao rende.
+  const note = product.isFractional ? fractionNote(product.alternativeDescription) : ''
+  const detail = [viewModel.referenceText, note].filter(Boolean).join(' · ')
+  const badge = viewModel.badgeVariant === 'promo' && viewModel.discountPct >= 1 ? `-${viewModel.discountPct}%` : viewModel.badgeText
 
   const fireAddToCartEvent = () => {
     trackEvent('ADD_TO_CART', 'PRODUCT', product.id, {
@@ -66,7 +86,7 @@ export function StoreProductCard({
     toast.success(
       (t) => (
         <span className="flex items-center gap-3">
-          <span className="line-clamp-2">{formatProductTitle(product.name)} no carrinho</span>
+          <span className="line-clamp-2">{title} no carrinho</span>
           <button
             type="button"
             onClick={() => {
@@ -96,210 +116,161 @@ export function StoreProductCard({
     fireAddToCartEvent()
   }
 
-  const badgeColorClass = ({
-    urgent: 'border-[#E53E3E] bg-[#E53E3E] text-white font-black',
-    promo: 'border-[#5D082A] bg-[#5D082A] text-white',
-    frozen: 'border-sky-500 bg-sky-500 text-white',
-    pet: 'border-violet-600 bg-violet-600 text-white',
-    tobacco: 'border-zinc-700 bg-zinc-700 text-white',
-    top: 'border-orange-500 bg-orange-500 text-white',
-    // Etiqueta do admin (Importado, Premium, Luxo...): o dourado da adega.
-    label: 'border-[#D2BB8A] bg-[#D2BB8A] text-[#231F20]',
-    default: 'border-[#5D082A] bg-[#5D082A] text-white',
-  } as Record<string, string>)[viewModel.badgeVariant] ?? 'border-[#5D082A] bg-[#5D082A] text-white'
+  const isRow = variant === 'row'
 
-  const isCarousel = variant === 'carousel'
+  const image = (
+    <div className={cn('relative shrink-0 overflow-hidden bg-white', isRow ? 'h-28 w-28 rounded-xl' : 'aspect-square w-full')}>
+      <Link to={productPath(product)} className="absolute inset-0 flex items-center justify-center" aria-label={`Ver detalhes de ${title}`}>
+        {!imgError ? (
+          <img
+            src={imageUrl}
+            alt={product.name}
+            width={200}
+            height={200}
+            className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.04]"
+            onError={() => {
+              if (imageIndex < imageCandidates.length - 1) {
+                setImageIndex((prev) => prev + 1)
+                return
+              }
+              setImgError(true)
+            }}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <ProductImagePlaceholder size="md" />
+        )}
+      </Link>
+
+      {viewModel.outOfStock ? (
+        <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-white/40 pb-2">
+          <span className="whitespace-nowrap rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#3f3f46] shadow-sm">
+            {viewModel.unavailableLabel}
+          </span>
+        </div>
+      ) : (
+        badge && (
+          <span
+            className={cn(
+              'pointer-events-none absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black leading-none',
+              BADGE_CLASS[viewModel.badgeVariant] ?? BADGE_CLASS.default,
+            )}
+          >
+            {viewModel.badgeVariant === 'urgent' && <Flame className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />}
+            {badge}
+          </span>
+        )
+      )}
+
+      {/* "+" vira seletor de quantidade no mesmo lugar: o card nao muda de altura ao comprar. */}
+      {!viewModel.outOfStock && !isRow && (
+        quantity === 0 ? (
+          <button
+            type="button"
+            onClick={handleAdd}
+            aria-label={`Adicionar ${title} ao carrinho`}
+            className="absolute bottom-1.5 right-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-[#5D082A] text-white shadow-md transition-transform hover:scale-110 active:scale-95 before:absolute before:-inset-1 before:content-['']"
+          >
+            <Plus className="h-5 w-5" strokeWidth={2.8} />
+          </button>
+        ) : (
+          <QuantityPill label={displayQuantity} onDecrease={handleDecrease} onIncrease={handleIncrease} className="absolute inset-x-1.5 bottom-1.5 z-10" />
+        )
+      )}
+    </div>
+  )
+
+  const priceBlock = (
+    <div className="leading-none">
+      {viewModel.originalPrice && (
+        <p className="mb-0.5 text-[11px] font-medium text-gray-400 line-through">{formatPrice(viewModel.originalPrice)}</p>
+      )}
+      <p className="flex items-baseline gap-0.5 text-[#5D082A]">
+        <span className="text-[11px] font-bold">{price.currencySymbol}</span>
+        <span className="text-[19px] font-black tracking-tight">{price.value}</span>
+        {price.suffix && <span className="ml-0.5 text-[11px] font-medium text-gray-500">{price.suffix}</span>}
+      </p>
+    </div>
+  )
+
+  if (isRow) {
+    return (
+      <article className="group flex w-full items-center gap-3 rounded-2xl border border-[#EFE6D2] bg-white p-2.5 pr-3 transition-shadow hover:shadow-md">
+        {image}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {priceBlock}
+          <Link to={productPath(product)} className="block">
+            <h3 className="line-clamp-2 text-[13px] font-medium leading-snug text-[#231F20] hover:text-[#5D082A]">{title}</h3>
+          </Link>
+          {detail && <p className="truncate text-[11px] text-gray-500">{detail}</p>}
+        </div>
+        {!viewModel.outOfStock &&
+          (quantity === 0 ? (
+            <button
+              type="button"
+              onClick={handleAdd}
+              aria-label={`Adicionar ${title} ao carrinho`}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#5D082A] text-white shadow-md active:scale-95"
+            >
+              <Plus className="h-5 w-5" strokeWidth={2.8} />
+            </button>
+          ) : (
+            <QuantityPill vertical label={displayQuantity} onDecrease={handleDecrease} onIncrease={handleIncrease} />
+          ))}
+      </article>
+    )
+  }
 
   return (
     <article
-      className={surfaceClasses({
-        interactive: true,
-        className: cn(
-          'group flex flex-col overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-[2.5px] hover:border-[#D2BB8A]',
-          // JON-201: largura calculada pro gap-3 (12px) do carrossel em
-          // ProductShelf.tsx -- 2 cards por tela no mobile (2 cards, 1 gap:
-          // (100%-12px)/2), 5 no desktop (5 cards, 4 gaps: (100%-48px)/5).
-          // Se o gap mudar la, os dois calc() aqui tem que mudar junto.
-          isCarousel ? 'w-[calc(50%-6px)] md:w-[calc(20%-9.6px)] shrink-0 snap-start' : 'w-full',
-        ),
-      })}
+      className={cn(
+        'group flex flex-col overflow-hidden rounded-2xl border border-[#EFE6D2] bg-white transition-shadow hover:shadow-md',
+        // Carrossel: 2 cards e meio por tela no celular (o pedaco do 3o mostra que
+        // rola), 4 no tablet e 6 no computador -- gap-3 (12px) do ProductShelf.
+        variant === 'carousel' ? 'w-[40%] min-w-[140px] max-w-[190px] shrink-0 snap-start md:w-[calc(25%-9px)] md:max-w-none lg:w-[calc(16.666%-10px)]' : 'w-full',
+      )}
     >
-      {/* Imagem + botao + badges */}
-      <div className="relative aspect-square overflow-hidden bg-gray-50 border-b border-[#E8D7B0]/30">
-        <Link
-          to={productPath(product)}
-          className="absolute inset-0 flex items-center justify-center"
-          aria-label={`Ver detalhes de ${formatProductTitle(product.name)}`}
-        >
-          {!imgError ? (
-            <img
-              src={imageUrl}
-              alt={product.name}
-              width={200}
-              height={200}
-              className="w-full h-full object-contain p-1.5 group-hover:scale-[1.03] transition-transform duration-300"
-              onError={() => {
-                if (imageIndex < imageCandidates.length - 1) {
-                  setImageIndex((prev) => prev + 1)
-                  return
-                }
-                setImgError(true)
-              }}
-              loading="lazy"
-              decoding="async"
-            />
-          ) : (
-            <ProductImagePlaceholder size="md" />
-          )}
+      {image}
+      <div className="flex flex-1 flex-col gap-1.5 px-2.5 pb-3 pt-2">
+        {priceBlock}
+        <Link to={productPath(product)} className="block">
+          <h3 className="line-clamp-2 min-h-[2.5em] text-[13px] font-medium leading-snug text-[#231F20] transition-colors hover:text-[#5D082A]">{title}</h3>
         </Link>
-
-        {/* Overlay indisponivel */}
-        {viewModel.outOfStock && (
-          <div className="absolute inset-0 flex items-end justify-center bg-black/10 pb-3 pointer-events-none">
-            <span className="whitespace-nowrap rounded-md border border-white/45 bg-white/45 px-3 py-1 text-label font-bold uppercase tracking-[0.04em] text-[#3f3f46] backdrop-blur-md">
-              {viewModel.unavailableLabel}
-            </span>
-          </div>
-        )}
-
-        {/* Badge top-left -- mobile +20% (text-xs/px-2 py-0.5), desktop mais contido (md:px-2 md:py-0.5 md:text-xs) */}
-        {!viewModel.outOfStock && viewModel.badgeText && (
-          <div className="absolute left-2 top-2 flex flex-col gap-1 pointer-events-none">
-            <Badge className={cn('h-auto w-fit gap-1 whitespace-nowrap px-2 py-0.5 text-xs leading-none tracking-[0.04em] md:px-2 md:py-0.5 md:text-[11px] md:font-bold md:tracking-[0.03em]', badgeColorClass)}>
-              {viewModel.badgeVariant === 'promo' && (
-                <img src="/icons/icon-promo-menu.gif" alt="" width={12} height={12} className="h-3 w-3 object-contain" />
-              )}
-              {viewModel.badgeVariant === 'urgent' && <Flame className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />}
-              {viewModel.badgeText}
-            </Badge>
-          </div>
-        )}
-
-        {/* Badge top-right */}
-        {!viewModel.outOfStock && viewModel.isFractional && (
-          <div className="absolute right-2 top-2 pointer-events-none">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                toast(FRACTIONAL_INFO_TEXT, { id: `fractional-info-${product.id}`, icon: '⚖️', duration: 5200 })
-              }}
-              className="relative flex w-fit pointer-events-auto before:absolute before:-inset-2.5 before:content-['']"
-              title={FRACTIONAL_INFO_TEXT}
-              aria-label={`Pesável. ${FRACTIONAL_INFO_TEXT}`}
-            >
-              <Badge tone="neutral" className="h-4 w-fit gap-1 px-1.5 text-[8px] leading-none normal-case tracking-normal">
-                Pesável
-                <Info className="h-2.5 w-2.5 text-[#8A6A3A]" aria-hidden="true" />
-              </Badge>
-            </button>
-          </div>
-        )}
-
-        {/* Botao + flutuante */}
-        {!viewModel.outOfStock && quantity === 0 && (
-          <Button
-            onClick={handleAdd}
-            size="icon"
-            className="absolute bottom-2 right-2 z-10 h-11 w-11 rounded-full hover:scale-110"
-            aria-label={`Adicionar ${formatProductTitle(product.name)} ao carrinho`}
-          >
-            <Plus className="h-5 w-5" strokeWidth={2.8} />
-          </Button>
-        )}
-      </div>
-
-      {/* Informacoes do produto */}
-      <div className="flex flex-1 flex-col p-3">
-        <div className="space-y-0.5">
-          {viewModel.eyebrow && (
-            <p
-              className="text-label font-semibold uppercase leading-tight tracking-[0.04em] text-[#8A6A3A]"
-              title={viewModel.isFractional && !viewModel.missingFractionStep ? FRACTIONAL_INFO_TEXT : undefined}
-            >
-              {viewModel.eyebrow}
-            </p>
-          )}
-
-          <Link to={productPath(product)} className="block">
-            <h3 className="font-sans text-body font-semibold leading-snug text-[#231F20] line-clamp-3 hover:text-[#5D082A] transition-colors">
-              {formatProductTitle(viewModel.title)}
-            </h3>
-          </Link>
-
-          {viewModel.helperText && (
-            <p className="line-clamp-1 text-caption leading-relaxed text-gray-400">
-              {viewModel.helperText}
-            </p>
-          )}
-        </div>
-
-        <div className="mt-auto flex flex-col justify-end pt-3">
-          {/* Bloco de preco */}
-          <div className="px-0.5 py-0">
-            {viewModel.referenceText && (
-              <p className="mb-0.5 text-label font-medium leading-none text-gray-500">
-                {viewModel.referenceText}
-              </p>
-            )}
-
-            <div className="flex items-baseline gap-0.5 leading-none">
-              <span className="text-caption font-semibold text-[#5D082A]">{pricePresentation.currencySymbol}</span>
-              <p className="text-display font-bold leading-none text-[#5D082A] tracking-[-0.02em]">
-                {pricePresentation.value}
-              </p>
-              {pricePresentation.suffix && (
-                <span className="text-caption font-medium leading-none text-gray-600">
-                  {pricePresentation.suffix}
-                </span>
-              )}
-            </div>
-
-            {viewModel.originalPrice && (
-              <div className="mt-1.5 flex items-center gap-2">
-                {viewModel.discountPct >= 5 && (
-                  <span className="rounded-sm bg-[#F3E3EC] px-1.5 py-0.5 text-label font-semibold leading-none text-[#5D082A]">
-                    {viewModel.discountPct}% OFF
-                  </span>
-                )}
-                <p className="text-caption font-medium leading-none text-gray-400 line-through">
-                  {formatPrice(viewModel.originalPrice)}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Controles - qty + */}
-          {!viewModel.outOfStock && quantity > 0 && (
-            <div className="mt-1 flex items-center rounded-lg border border-[#E8D7B0]/80 bg-[#FBF7F0] p-1">
-              <Button
-                onClick={handleDecrease}
-                variant="ghost"
-                size="icon"
-                className="relative h-9 w-7 shrink-0 hover:bg-white before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
-                aria-label="Diminuir quantidade"
-              >
-                <Minus className="h-4 w-4" strokeWidth={2.4} />
-              </Button>
-
-              <div className="pointer-events-none flex flex-1 flex-col items-center justify-center text-center">
-                <span className="text-sm font-black leading-none text-[#231F20]">{displayQuantity}</span>
-                <span className="whitespace-nowrap text-label uppercase leading-tight tracking-[0.04em] text-gray-500">no carrinho</span>
-              </div>
-
-              <Button
-                onClick={handleIncrease}
-                variant="ghost"
-                size="icon"
-                className="relative h-9 w-7 shrink-0 hover:bg-white before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
-                aria-label="Aumentar quantidade"
-              >
-                <Plus className="h-4 w-4" strokeWidth={2.4} />
-              </Button>
-            </div>
-          )}
-        </div>
+        {detail && <p className="truncate text-[11px] leading-tight text-gray-500">{detail}</p>}
       </div>
     </article>
+  )
+}
+
+function QuantityPill({
+  label,
+  onDecrease,
+  onIncrease,
+  className,
+  vertical = false,
+}: {
+  label: string
+  onDecrease: () => void
+  onIncrease: () => void
+  className?: string
+  vertical?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between rounded-full bg-[#5D082A] text-white shadow-md',
+        vertical ? 'h-auto shrink-0 flex-col-reverse py-0.5' : 'h-9',
+        className,
+      )}
+    >
+      <button type="button" onClick={onDecrease} aria-label="Diminuir quantidade" className="flex h-9 w-9 items-center justify-center active:scale-90">
+        <Minus className="h-4 w-4" strokeWidth={2.6} />
+      </button>
+      <span className="min-w-[28px] text-center text-sm font-black tabular-nums">{label}</span>
+      <button type="button" onClick={onIncrease} aria-label="Aumentar quantidade" className="flex h-9 w-9 items-center justify-center active:scale-90">
+        <Plus className="h-4 w-4" strokeWidth={2.6} />
+      </button>
+    </div>
   )
 }
