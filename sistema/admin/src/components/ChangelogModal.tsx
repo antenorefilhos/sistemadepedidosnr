@@ -14,6 +14,14 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.21.5',
+    date: '08/10/2026',
+    title: 'Mensagem das Trocas em Lista',
+    highlights: [
+      { type: 'fix', description: 'Na mensagem das trocas pelo WhatsApp, os itens que faltaram e as trocas aparecem em lista com marcador; cada troca traz produto e preço em negrito e o item que ela substitui em letra diferente, na mesma linha. O link de Minha conta fica numa linha própria.' },
+    ],
+  },
+  {
     version: '1.21.4',
     date: '08/10/2026',
     title: 'Fotos de Banner e Receita no Tamanho Certo',

@@ -22,6 +22,10 @@ const firstName = (name?: string | null) => {
   return first ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() : ''
 }
 
+// Nome de produto entra entre marcadores do WhatsApp (*negrito*, `codigo`):
+// um asterisco ou crase no proprio nome quebraria a formatacao da linha.
+const plain = (text: string) => text.replace(/[*`_~]/g, '').trim()
+
 export function buildSubstitutionMessage(input: {
   customerName?: string | null
   /** O numero que o cliente conhece: o DAV, ou o codigo curto sem DAV. */
@@ -32,9 +36,11 @@ export function buildSubstitutionMessage(input: {
   /** Minha conta no site, onde o cliente tambem pode escolher (etapa 2). */
   accountUrl?: string | null
 }): string {
-  // Texto do Jonathan (08/10/2026): direto, sem apresentacao. Cada troca numa
-  // linha so, em negrito no WhatsApp, sem numero (parecia quantidade) e sem
-  // hifen antes do preco.
+  // Texto do Jonathan (08/10/2026): direto, sem apresentacao. Itens em lista
+  // ("* " vira marcador no WhatsApp); cada troca numa linha so, produto e
+  // preco em negrito, o item substituido em `codigo` (fonte diferente) -- sem
+  // numero, que parecia quantidade, e sem hifen antes do preco. O link do
+  // site fica numa linha propria.
   const cliente = firstName(input.customerName)
   const comTroca = input.lines.filter((line) => line.suggestion)
   const umItem = input.lines.length === 1
@@ -44,14 +50,14 @@ export function buildSubstitutionMessage(input: {
   const abertura = `durante a separação do seu pedido ${input.orderCode} não encontramos ${umItem ? 'o seguinte item' : 'os seguintes itens'}:`
   out.push(cliente ? `${cliente}, ${abertura}` : abertura.charAt(0).toUpperCase() + abertura.slice(1))
   out.push('')
-  for (const line of input.lines) out.push(`• ${line.originalName}`)
+  for (const line of input.lines) out.push(`* ${plain(line.originalName)}`)
 
   if (comTroca.length) {
     out.push('')
     out.push('Podemos trocar por:')
     for (const line of comTroca) {
       const s = line.suggestion!
-      out.push(`*${s.name}${s.quantityLabel ? ` (${s.quantityLabel})` : ''} ${brl(s.subtotal)}* no lugar de ${line.originalName}`)
+      out.push(`* *${plain(s.name)}${s.quantityLabel ? ` (${s.quantityLabel})` : ''} ${brl(s.subtotal)}* \`no lugar de ${plain(line.originalName)}\``)
     }
     out.push('')
     out.push(`Com ${umaTroca ? 'a troca' : 'as trocas'}, o pedido fica em ${brl(input.totalWith)}`)
@@ -64,7 +70,8 @@ export function buildSubstitutionMessage(input: {
   out.push('Aguardo sua resposta para darmos continuidade.')
   if (comTroca.length && input.accountUrl) {
     out.push('')
-    out.push(`Se preferir, escolha pelo site, em Minha conta: ${input.accountUrl}`)
+    out.push('Se preferir, escolha pelo site, em Minha conta:')
+    out.push(input.accountUrl)
   }
   return out.join('\n')
 }
