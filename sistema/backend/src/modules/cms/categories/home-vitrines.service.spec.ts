@@ -302,3 +302,22 @@ describe('carrossel de departamento filtra pela categoria do site (29/09/2026)',
     expect(ids).not.toContain('talharim')
   })
 })
+
+describe('vitrines com a AntenorApi lenta (08/10/2026)', () => {
+  afterEach(() => jest.useRealTimers())
+
+  it('cache vazio: depois de 2,5 s responde null e continua montando por tras', async () => {
+    jest.useFakeTimers()
+    let resolveRemota: (v: unknown) => void = () => undefined
+    const antenorApi = { getVitrines: jest.fn(() => new Promise((r) => { resolveRemota = r })) }
+    const prisma = { product: { findMany: jest.fn().mockResolvedValue([]) }, category: { findMany: jest.fn().mockResolvedValue([]) } }
+    const service = new HomeVitrinesService(prisma as never, antenorApi as never)
+    const pending = service.getHomeVitrines({})
+    jest.advanceTimersByTime(2600)
+    await expect(pending).resolves.toBeNull()
+    // A segunda visita reaproveita a mesma montagem em andamento (nao chama de novo).
+    service.getHomeVitrines({}).catch(() => undefined)
+    expect(antenorApi.getVitrines).toHaveBeenCalledTimes(1)
+    resolveRemota({ carrosseis: [] })
+  })
+})

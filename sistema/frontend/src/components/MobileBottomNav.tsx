@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { PromoIcon } from './PromoIcon'
 import { Home as HomeIcon, Search, ShoppingCart, User } from 'lucide-react'
 import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
@@ -77,7 +78,7 @@ export function MobileBottomNav() {
                   // fill quebra o contorno interno (porta da casa, cabo da lupa) — cor basta, igual ShoppingCart/User
                   <Icon size={21} strokeWidth={active ? 2.5 : 2} />
                 ) : (
-                  <img src="/icons/icon-promo-menu.gif" alt="" width={34} height={34} className="-my-1.5 h-[34px] w-[34px] object-contain" />
+                  <PromoIcon size={34} className="-my-1.5 h-[34px] w-[34px] object-contain" />
                 )}
                 <span className={`text-label ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
               </Link>

@@ -13,6 +13,7 @@ import { useFreeShipping } from '../hooks/useFreeShipping'
 import { useAuth } from '../hooks/useAuth'
 import { useCommercialTaxonomy, useStoreBanners, useTopSellingProducts, usePromotionCampaigns, useHomeVitrines, useSponsoredShelves, type SponsoredShelfCMS } from '../hooks/useCMS'
 import { HeroSlider, type HeroSlideCMS } from '../components/HeroSlider'
+import { PromoIcon } from '../components/PromoIcon'
 import { DynamicVitrineBanner } from '../components/DynamicVitrineBanner'
 import { PromoBanner, type PromoBannerView } from '../components/PromoBanner'
 import { BannerImage } from '../components/BannerImage'
@@ -70,7 +71,7 @@ export default function Home() {
   const isDesktop = useIsDesktop()
 
   const { data: products, isLoading: productsLoading } = useProducts()
-  const { data: storeBanners } = useStoreBanners()
+  const { data: storeBanners, isLoading: bannersLoading } = useStoreBanners()
   const { data: promotionCampaigns } = usePromotionCampaigns()
   const { data: sponsoredShelves } = useSponsoredShelves()
   // JON-203 (22/09/2026): so a primeira campanha marcada "destacar na Home"
@@ -552,18 +553,22 @@ export default function Home() {
     "logo": `${window.location.origin}/branding/logo-bordo.png`,
   }
 
-  if ((productsLoading && !productsList.length) || showVitrinesSkeleton) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
-          <SkeletonHero />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            <SkeletonCard count={10} />
+  // 08/10/2026: a Home inteira ficava num esqueleto ate a lista de produtos e
+  // as vitrines chegarem (1,3 s+ com a API disputada) -- nem o topo, os
+  // departamentos ou o banner apareciam. Agora so as vitrines esperam.
+  const shelvesLoading = (productsLoading && !productsList.length) || showVitrinesSkeleton
+  const shelvesSkeleton = (className: string) => (
+    <div className={className} aria-busy="true" aria-label="Carregando produtos">
+      {[0, 1].map((i) => (
+        <div key={i} className="pt-5">
+          <div className="mb-3 h-5 w-44 animate-pulse rounded bg-gray-200" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            <SkeletonCard count={4} />
           </div>
         </div>
-      </div>
-    )
-  }
+      ))}
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-white">
@@ -820,11 +825,15 @@ export default function Home() {
           uma versao desktop-only aqui e outra em HeroSlider.tsx pro mobile;
           unificado pra nao ter que corrigir bug de bolinha/flash/alinhamento
           em dois lugares). */}
-      {activeHeroSlides.length > 0 && (
+      {activeHeroSlides.length > 0 ? (
         <div className="max-w-7xl mx-auto px-4 pt-4 md:pt-6">
           <HeroSlider slides={activeHeroSlides} />
         </div>
-      )}
+      ) : bannersLoading ? (
+        <div className="max-w-7xl mx-auto px-4 pt-4 md:pt-6">
+          <SkeletonHero />
+        </div>
+      ) : null}
 
       {/* JON-192 (AEF-037): faixa dinamica por dia da semana/sazonalidade --
           nunca substitui o Hero manual acima, sempre aparece junto (decisao
@@ -856,7 +865,7 @@ export default function Home() {
                 to="/promocoes"
                 className="snap-start shrink-0 flex flex-col items-center gap-1.5 px-4 py-3 rounded-lg bg-[#FBF7F0] border border-[#E8D7B0]/40 hover:bg-[#F3E7C9] hover:border-[#D2BB8A] hover:scale-105 transition-all duration-200 min-w-[90px] text-center group cursor-pointer"
               >
-                <img src="/icons/icon-promo-menu.gif" alt="" width={28} height={28} className="-my-1 h-7 w-7 object-contain" />
+                <PromoIcon size={28} className="-my-1 h-7 w-7 object-contain" />
                 <span className="text-caption font-semibold text-[#5d4f33] group-hover:text-[#5D082A] transition-colors leading-tight">Promo</span>
               </Link>
               {homeCategories.map((category) => {
@@ -892,7 +901,7 @@ export default function Home() {
       <>
       {/* Hero ja renderizado acima (fora do bloco mobile/desktop) -- esse
           fallback so aparece quando nao ha nenhum banner de hero cadastrado. */}
-      {activeHeroSlides.length === 0 && featuredCommercialSection && (
+      {!bannersLoading && activeHeroSlides.length === 0 && featuredCommercialSection && (
         <section className="md:hidden mx-4 mt-4 mb-4">
           <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-0 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-5 shadow-xl' })}>
             <div className="flex flex-col gap-4">
@@ -934,7 +943,8 @@ export default function Home() {
           (coluna unica + banners intercalados a cada ~3 vitrines, em vez de
           carrossel lado a lado) -- mobile parou de ser uma lista solta com
           ordem propria e passou a ter a MESMA prioridade comercial. */}
-      {homeSections.map((shelf, index) => (
+      {shelvesLoading && shelvesSkeleton('md:hidden px-4 pb-2')}
+      {!shelvesLoading && homeSections.map((shelf, index) => (
         <Fragment key={shelf.key}>
           <ProductShelf
             className="md:hidden px-4 pt-5 pb-2"
@@ -959,8 +969,8 @@ export default function Home() {
         </Fragment>
       ))}
 
-      {homeSections.length < 2 && showsBlock('receitas') && <HomeRecipeShelf className="md:hidden px-4 pt-5 pb-2" />}
-      {showsBlock('tudo') && (
+      {!shelvesLoading && homeSections.length < 2 && showsBlock('receitas') && <HomeRecipeShelf className="md:hidden px-4 pt-5 pb-2" />}
+      {!shelvesLoading && showsBlock('tudo') && (
         <ProductShelf
           className="md:hidden px-4 pb-2"
           title="Tudo do Mercado"
@@ -981,7 +991,7 @@ export default function Home() {
         
         {/* Hero principal ja aparece na tira do topo (StoreBanner slot=hero,
             logo abaixo do header) -- este bloco so cobre a ausencia dele. */}
-        {activeHeroSlides.length === 0 && featuredCommercialSection && (
+        {!bannersLoading && activeHeroSlides.length === 0 && featuredCommercialSection && (
           <section className="fade-in-section">
             <div className={surfaceClasses({ tone: 'dark', className: 'overflow-hidden border-0 bg-gradient-to-r from-[#5D082A] via-[#7B1038] to-[#231F20] p-6 shadow-xl md:p-8' })}>
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
@@ -1026,7 +1036,8 @@ export default function Home() {
             ProductShelf (cada um com seu proprio header, sem consistencia
             de hierarquia visual entre eles). Banners intercalados a cada
             ~4 vitrines, nos mesmos indices relativos usados no mobile. */}
-        {homeSections.map((shelf, index) => (
+        {shelvesLoading && shelvesSkeleton('')}
+        {!shelvesLoading && homeSections.map((shelf, index) => (
           <Fragment key={shelf.key}>
             <ProductShelf layout="carousel" eyebrow={shelf.eyebrow} title={shelf.title} icon={shelf.icon} products={shelf.products} to={shelf.to} shelf={`vitrine:${shelf.key}`} />
             {index === 1 && showsBlock('receitas') && <HomeRecipeShelf />}
@@ -1036,12 +1047,12 @@ export default function Home() {
           </Fragment>
         ))}
 
-        {homeSections.length < 2 && showsBlock('receitas') && <HomeRecipeShelf />}
+        {!shelvesLoading && homeSections.length < 2 && showsBlock('receitas') && <HomeRecipeShelf />}
 
           {/* General Grid -- catalogo completo, sem curadoria comercial:
               fica de fora do schema das vitrines de proposito, sempre por
               ultimo (a posicao "editorial"/diretorio do pedido do ticket). */}
-          {showsBlock('tudo') && (
+          {!shelvesLoading && showsBlock('tudo') && (
           <section className="pt-8">
              <h3 className="text-xl font-bold text-[#5d4f33] flex items-center gap-2 mb-8 border-b pb-4">
                <ShoppingBag size={20} className="text-[#5D082A]" /> Tudo do Mercado

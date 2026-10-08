@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma.service';
 import { AntenorApiService } from '../../integrations/antenor-api.service';
 import { isProductSellable } from '../../../common/product-availability';
@@ -122,8 +122,17 @@ export type HomeVitrinesQuery = {
  * entao cada carrossel e resolvido contra o NOSSO Product por erpProductId e
  * filtrado por isProductSellable -- a mesma regra da vitrine normal.
  */
+/**
+ * Quanto a Home espera a primeira montagem das vitrines (08/10/2026). A
+ * AntenorApi passou a levar ~23,5 s por chamada; com o cache vazio (toda
+ * publicacao da API, ou departamento alterado no admin) a Home ficava esse
+ * tempo todo no esqueleto. Passou disso, responde null -- o site monta as
+ * vitrines dele mesmo -- e a montagem segue por tras, enchendo o cache.
+ */
+const COLD_WAIT_MS = 2500;
+
 @Injectable()
-export class HomeVitrinesService {
+export class HomeVitrinesService implements OnApplicationBootstrap {
   private readonly logger = new Logger(HomeVitrinesService.name);
 
   constructor(
@@ -136,6 +145,12 @@ export class HomeVitrinesService {
   // (7,7 s com a AntenorApi fria) em TODA visita; as vitrines mudam por dia/
   // perfil, nao por minuto. Some no restart -- aceitavel para uma VPS.
   private cache = new Map<string, { at: number; value: Promise<Awaited<ReturnType<HomeVitrinesService['build']>>> }>();
+
+  /** API no ar: ja monta as vitrines padrao, antes do primeiro cliente pedir. */
+  onApplicationBootstrap() {
+    if (process.env.NODE_ENV === 'test') return;
+    this.getHomeVitrines({}).catch(() => undefined);
+  }
 
   async getHomeVitrines(query: HomeVitrinesQuery) {
     const key = JSON.stringify(query ?? {});
@@ -151,7 +166,16 @@ export class HomeVitrinesService {
     }
     this.cache.set(key, { at: Date.now(), value });
     value.catch(() => this.cache.delete(key));
-    return value;
+    let timer: NodeJS.Timeout | undefined;
+    const giveUp = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), COLD_WAIT_MS);
+      timer.unref?.();
+    });
+    try {
+      return await Promise.race([value, giveUp]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   /** Departamento oculto/reexibido no admin vale na hora na Home. */

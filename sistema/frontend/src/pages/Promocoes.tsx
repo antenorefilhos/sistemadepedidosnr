@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
+import { PromoIcon } from '../components/PromoIcon'
 import { ArrowLeft, BellRing, Clock, Flame, Search, ShoppingCart, Truck } from 'lucide-react'
 import { productsAPI } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
@@ -138,7 +139,7 @@ export default function Promocoes() {
             <ArrowLeft size={22} />
           </button>
           <h1 className="flex flex-1 items-center gap-2 text-lg font-bold text-[#231F20]">
-            <img src="/icons/icon-promo-menu.gif" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />
+            <PromoIcon size={22} className="h-[22px] w-[22px] object-contain" />
             Ofertas
           </h1>
           <Link to="/mercado" aria-label="Buscar no mercado" className="flex h-11 w-11 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">

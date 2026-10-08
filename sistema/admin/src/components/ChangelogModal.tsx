@@ -14,6 +14,17 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.21.3',
+    date: '08/10/2026',
+    title: 'Home Mais Rápida',
+    highlights: [
+      { type: 'fix', description: 'A Home não espera mais a lista de produtos para aparecer: topo, departamentos e banner surgem na hora, e só as vitrines mostram o carregamento.' },
+      { type: 'fix', description: 'Vitrines inteligentes: a AntenorApi passou a levar cerca de 23 segundos para responder, e depois de cada atualização do sistema a Home ficava esse tempo esperando. Agora as vitrines são preparadas assim que o sistema sobe e a Home nunca espera mais de 2,5 segundos; se elas ainda não estiverem prontas, a loja mostra as vitrines montadas pelo próprio site.' },
+      { type: 'fix', description: 'Departamentos, lista de produtos e ofertas ficam guardados por alguns segundos no servidor: de mais de 1,3 s por pedido caíram para menos de 0,15 s.' },
+      { type: 'fix', description: 'Imagens mais leves: banners do celular na largura da tela (800 px em vez de 1600 px), logo de 75 KB para 5 KB e ícone animado do Promo carregando parado primeiro e animando depois que a página termina.' },
+    ],
+  },
+  {
     version: '1.21.2',
     date: '08/10/2026',
     title: 'Tela de Busca Direto nos Produtos',

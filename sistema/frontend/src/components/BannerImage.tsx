@@ -39,6 +39,27 @@ const POSITION_BY_ALIGN: Record<'left' | 'center' | 'right', string> = {
   center: 'center',
   right: 'left center',
 }
+
+/**
+ * Foto do Unsplash na largura que a tela usa (08/10/2026). Os banners vinham
+ * com `w=1600` (~200 KB cada) e o celular mostra ~360 px: o banner principal
+ * era o maior elemento da Home e o ultimo a aparecer. No celular pede 800 px
+ * (nitido em tela 2x); no computador fica como cadastrado. Outra origem passa
+ * direto.
+ */
+export function sizedImageUrl(url: string | null | undefined, width: number): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname !== 'images.unsplash.com') return url
+    parsed.searchParams.set('w', String(width))
+    parsed.searchParams.set('q', '70')
+    if (!parsed.searchParams.has('auto')) parsed.searchParams.set('auto', 'format')
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
 export function BannerImage({
   desktopUrl,
   mobileUrl,
@@ -62,9 +83,11 @@ export function BannerImage({
   fetchPriority?: 'high' | 'low' | 'auto'
   draggable?: boolean
 }) {
+  // Sem arte mobile, o celular ainda recebe a de desktop -- mas na largura dele.
+  const mobileSrc = sizedImageUrl(mobileUrl || desktopUrl, 800)
   return (
     <picture>
-      {mobileUrl && <source media="(max-width: 767px)" srcSet={mobileUrl} />}
+      {mobileSrc && mobileSrc !== desktopUrl && <source media="(max-width: 767px)" srcSet={mobileSrc} />}
       <img
         src={desktopUrl}
         alt={alt}
