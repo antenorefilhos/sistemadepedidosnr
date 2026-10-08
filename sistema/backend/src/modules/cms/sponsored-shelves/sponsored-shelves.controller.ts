@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { cached, invalidateCached } from '../../../common/memory-cache'
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
@@ -14,7 +15,8 @@ export class SponsoredShelvesController {
   /** Publico: consumido pela Home do storefront. */
   @Get()
   async listPublic(@Req() req?: TenantContextRequest) {
-    return this.service.listPublic(req ? getTenantContext(req) : undefined);
+    const context = req ? getTenantContext(req) : undefined
+    return cached(`sponsored:${context?.tenantId}:${context?.storeId}`, 60_000, () => this.service.listPublic(context))
   }
 
   /** Publico: a vitrine entrou na tela (mesmo padrao do banner). */
@@ -39,16 +41,16 @@ export class AdminSponsoredShelvesController {
 
   @Post()
   async create(@Body() body: any, @Req() req?: TenantContextRequest) {
-    return this.service.create(req ? getTenantContext(req) : undefined, body);
+    return this.service.create(req ? getTenantContext(req) : undefined, body).finally(() => invalidateCached('sponsored:'));
   }
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() body: any) {
-    return this.service.update(id, body);
+    return this.service.update(id, body).finally(() => invalidateCached('sponsored:'));
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string) {
-    return this.service.remove(id);
+    return this.service.remove(id).finally(() => invalidateCached('sponsored:'));
   }
 }

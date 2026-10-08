@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
+import { cached } from '../../common/memory-cache'
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
@@ -44,11 +45,9 @@ export class RecommendationsController {
   @ApiQuery({ name: 'segmentKey', required: false })
   @ApiQuery({ name: 'limit', required: false })
   getShowcase(@Query('segmentKey') segmentKey?: string, @Query('limit') limit?: string, @Req() req?: TenantContextRequest) {
-    return this.recommendations.getShowcase({
-      ...(req ? getTenantContext(req) : {}),
-      segmentKey,
-      limit: Number(limit) || 12,
-    })
+    const params = { ...(req ? getTenantContext(req) : {}), segmentKey, limit: Number(limit) || 12 }
+    // Igual para todo cliente: 60 s em memoria (08/10/2026).
+    return cached(`showcase:${JSON.stringify(params)}`, 60_000, () => this.recommendations.getShowcase(params))
   }
 
   // JON-155 (Auditoria 360, Medium): customerId vinha do body sem prova --

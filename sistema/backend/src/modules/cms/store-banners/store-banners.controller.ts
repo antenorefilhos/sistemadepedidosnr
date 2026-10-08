@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Header } from '@nestjs/common';
+import { cached, invalidateCached } from '../../../common/memory-cache';
 import { StoreBannersService, StoreBannerPayload } from './store-banners.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
@@ -27,13 +28,19 @@ export class StoreBannersController {
   @Get()
   @Header('Cache-Control', PUBLIC_CACHE_HEADER)
   findActive(@Query('slot') slot?: string, @Query('category') category?: string, @Query('page') page?: string) {
-    return this.storeBannersService.findActive({ slot, category, page });
+    return this.activeCached(slot, category, page);
+  }
+
+  // A Home espera os banners para mostrar o principal (o maior elemento da
+  // tela): 30 s em memoria (08/10/2026); mexer no admin zera na hora.
+  private activeCached(slot?: string, category?: string, page?: string) {
+    return cached(`banners:${slot || ''}:${category || ''}:${page || ''}`, 30_000, () => this.storeBannersService.findActive({ slot, category, page }));
   }
 
   @Get('active')
   @Header('Cache-Control', PUBLIC_CACHE_HEADER)
   findActiveExplicit(@Query('slot') slot?: string, @Query('category') category?: string, @Query('page') page?: string) {
-    return this.storeBannersService.findActive({ slot, category, page });
+    return this.activeCached(slot, category, page);
   }
 
   @Get('all')
@@ -47,14 +54,14 @@ export class StoreBannersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   create(@Body() data: StoreBannerPayload) {
-    return this.storeBannersService.create(data);
+    return this.storeBannersService.create(data).finally(() => invalidateCached('banners:'));
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   update(@Param('id') id: string, @Body() data: Partial<StoreBannerPayload>) {
-    return this.storeBannersService.update(id, data);
+    return this.storeBannersService.update(id, data).finally(() => invalidateCached('banners:'));
   }
 
   @Post(':id/click')
@@ -73,6 +80,6 @@ export class StoreBannersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   remove(@Param('id') id: string) {
-    return this.storeBannersService.deleteWithCleanup(id);
+    return this.storeBannersService.deleteWithCleanup(id).finally(() => invalidateCached('banners:'));
   }
 }

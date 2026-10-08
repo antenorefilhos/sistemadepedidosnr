@@ -5,6 +5,7 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
+import { cached, invalidateCached } from '../../common/memory-cache';
 import { BrandService, BrandConfigDto } from './brand.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -16,15 +17,16 @@ import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decora
 export class BrandController {
   constructor(private readonly brandService: BrandService) {}
 
+  // Lida em toda pagina da loja: 30 s em memoria (08/10/2026); salvar no admin zera.
   @Get()
   get() {
-    return this.brandService.get();
+    return cached('brand:public', 30_000, () => this.brandService.get());
   }
 
   @Put()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   update(@Body() dto: BrandConfigDto) {
-    return this.brandService.upsert(dto);
+    return this.brandService.upsert(dto).finally(() => invalidateCached('brand:'));
   }
 }

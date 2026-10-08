@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common'
+import { cached } from '../../common/memory-cache'
 import { PromotionsService } from './promotions.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -10,9 +11,10 @@ import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decora
 export class PromotionsController {
   constructor(private readonly promotionsService: PromotionsService) {}
 
+  // 30 s em memoria (08/10/2026): o sync dos encartes roda a cada 5 min.
   @Get('active')
   findActive() {
-    return this.promotionsService.findActiveForStorefront()
+    return cached('campaigns:active', 30_000, () => this.promotionsService.findActiveForStorefront())
   }
 
   /**
