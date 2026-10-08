@@ -174,7 +174,7 @@ export const pickerApi = {
     api.post<PickingTask>(`/picker/orders/${orderId}/add-item`, data),
 
   searchProducts: (q: string) =>
-    api.get<Array<{ id: string; name: string; ean: string | null; price: number; promotionalPrice: number | null; unit: string | null }>>('/picker/products/search', { params: { q } }),
+    api.get<Array<{ id: string; name: string; ean: string | null; price: number; promotionalPrice: number | null; unit: string | null; isFractional?: boolean | null }>>('/picker/products/search', { params: { q } }),
 
   suggestSubstitution: (taskId: string, itemId: string, data: { productId: string; quantity?: number; method?: 'CAMERA' | 'TYPED' | 'MANUAL'; barcode?: string }) =>
     api.post<PickingTask>(`/picker/tasks/${taskId}/items/${itemId}/suggestion`, data),

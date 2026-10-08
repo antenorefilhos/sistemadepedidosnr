@@ -1,9 +1,14 @@
-import { Camera, Check, ChevronDown, ChevronUp, Edit3, Keyboard, RotateCcw, Trash2, X } from 'lucide-react'
+import { Camera, Check, ChevronDown, ChevronUp, Edit3, Keyboard, Repeat, RotateCcw, Scale, Trash2, X } from 'lucide-react'
 import { OrderItem, PickingTaskItem, SubstitutionSuggestion } from '../services/api'
 import { SuggestionRow } from './SubstitutionPanel'
 import { noteLabel, qtd } from '../utils/quantity'
 import { PICK_METHOD_LABEL } from '../utils/orderInfo'
 import { itemChange, signedBrl } from '../utils/orderAdjustment'
+import { weightLong, weightOnScale, weightShort } from '../utils/weight'
+
+/** Item de balanca: peso em gramas/quilos, nao "0,22 kg". */
+export const isWeighed = (product?: { unit?: string | null; isFractional?: boolean | null } | null) =>
+  Boolean(product?.isFractional) || ['kg', 'quilo', 'g'].includes(String(product?.unit || '').toLowerCase())
 import { ProductPhoto } from './ProductPhoto'
 
 export const ITEM_STATUS_LABEL: Record<string, string> = {
@@ -29,9 +34,9 @@ export function Modal({ children, onClose }: { children: React.ReactNode; onClos
 }
 
 export function ItemCard({
-  product, orderItem, expanded, onToggle, onScan, onEan, onManual, onMissing, disabled,
+  product, orderItem, expanded, onToggle, onScan, onEan, onManual, onMissing, onSubstitute, disabled,
 }: {
-  product?: { id: string; name: string; ean: string | null; imageUrl: string | null; unit: string | null } | null
+  product?: { id: string; name: string; ean: string | null; imageUrl: string | null; unit: string | null; isFractional?: boolean | null } | null
   orderItem?: { quantity: number; requestedQuantity: number | null; substitutionPolicy?: string } | null
   expanded: boolean
   onToggle: () => void
@@ -39,9 +44,12 @@ export function ItemCard({
   onEan: () => void
   onManual: () => void
   onMissing: () => void
+  /** Nao tem, mas tem parecido: marca a falta e ja abre a busca do substituto. */
+  onSubstitute: () => void
   disabled: boolean
 }) {
   const qty = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)
+  const weighed = isWeighed(product)
   // So a EXCECAO aparece: ALLOW e o padrao e viraria ruido em todo item. O
   // backend ja respeita a escolha (picking.service decide requestSubstitution
   // a partir dela), mas o separador nao via -- e quem fala com o cliente e ele.
@@ -53,9 +61,16 @@ export function ItemCard({
         <ProductPhoto ean={product?.ean} />
         <div className="flex-1 min-w-0">
           <p className="font-medium text-gray-900 text-sm">{product?.name || 'Produto'}</p>
-          <p className="text-xs text-gray-500">
-            <strong className="text-gray-800">{qtd(qty)} {(product?.unit || 'un').toLowerCase()}</strong>
-          </p>
+          {weighed ? (
+            <p className="text-sm text-gray-800">
+              <strong>{weightLong(qty)}</strong>
+              <span className="ml-1.5 text-xs text-gray-400">na balança: {weightOnScale(qty)}</span>
+            </p>
+          ) : (
+            <p className="text-sm text-gray-800">
+              <strong>{qtd(qty)} {qty === 1 ? 'unidade' : 'unidades'}</strong>
+            </p>
+          )}
           {product?.ean && <p className="font-mono text-[11px] tracking-wide text-gray-400">EAN {product.ean}</p>}
           {naoAceitaTroca && (
             <span className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
@@ -93,19 +108,29 @@ export function ItemCard({
           <button
             onClick={onManual}
             disabled={disabled}
-            className="h-12 rounded-xl bg-amber-600 text-white text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40"
+            className="col-span-2 h-12 rounded-xl bg-amber-600 text-white text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40"
           >
-            <Check size={16} />
-            Marcar
+            {weighed ? <Scale size={16} /> : <Check size={16} />}
+            {weighed ? 'Informar o peso' : 'Confirmar sem ler o código'}
           </button>
           <button
             onClick={onMissing}
             disabled={disabled}
-            className="h-12 rounded-xl bg-red-100 text-red-700 text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40"
+            className={`${naoAceitaTroca ? 'col-span-2' : ''} h-12 rounded-xl bg-red-100 text-red-700 text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40`}
           >
             <X size={16} />
             Faltante
           </button>
+          {!naoAceitaTroca && (
+            <button
+              onClick={onSubstitute}
+              disabled={disabled}
+              className="h-12 rounded-xl border-2 border-brand-500 bg-white text-brand-600 text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40"
+            >
+              <Repeat size={16} />
+              Substituir
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -131,7 +156,8 @@ export function DoneItemCard({
   const isMissing = taskItem.status === 'MISSING'
   const picked = Number(taskItem.pickedQuantity ?? 0)
   const requested = Number(taskItem.requestedQuantity ?? 0)
-  const isAdjusted = taskItem.status === 'PICKED' && picked > 0 && picked !== requested
+  const isAdjusted = taskItem.status === 'PICKED' && picked > 0 && Math.abs(picked - requested) > 0.0005
+  const weighed = isWeighed(product)
   const isAddedDuringPicking = Boolean(orderItem?.addedByPicker) || Boolean(taskItem.notes?.includes('Incluido durante separacao'))
   const change = orderItem ? itemChange(orderItem, allItems) : null
   // Substituto de troca aceita pelo cliente: mostra de qual item veio.
@@ -160,8 +186,13 @@ export function DoneItemCard({
             <span className="mt-0.5 inline-flex rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800">Incluído pelo separador · não estava no pedido</span>
           )}
           <p className="text-xs text-gray-500">
-            {isAdjusted ? `Separado ${qtd(picked)} de ${qtd(requested)} ${(product?.unit || 'un').toLowerCase()} pedidos` : (ITEM_STATUS_LABEL[taskItem.status] || taskItem.status)}
-            {noteLabel(taskItem.notes) && !isAdjusted && !isAddedDuringPicking && <span className="ml-1">· {noteLabel(taskItem.notes)}</span>}
+            {isAdjusted
+              ? weighed
+                ? `Separado ${weightShort(picked)} · pedido ${weightShort(requested)}`
+                : `Separado ${qtd(picked)} de ${qtd(requested)} pedidos`
+              : (ITEM_STATUS_LABEL[taskItem.status] || taskItem.status)}
+            {!isAdjusted && taskItem.status === 'PICKED' && weighed && picked > 0 && <span className="ml-1">· {weightShort(picked)}</span>}
+            {noteLabel(taskItem.notes) && !isAdjusted && !isAddedDuringPicking && !/Quantidade corrigida|Produto em falta/.test(taskItem.notes || '') && <span className="ml-1">· {noteLabel(taskItem.notes)}</span>}
           </p>
           {(method || product?.ean) && !isMissing && (
             <p className="text-[11px] text-gray-500">

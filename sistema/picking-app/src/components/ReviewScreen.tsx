@@ -4,6 +4,8 @@ import { addressLines, deliveryLabel, paymentLabel } from '../utils/orderInfo'
 import { Order, PickingTaskItem } from '../services/api'
 import { noteLabel } from '../utils/quantity'
 import { AdjustmentSummary } from './AdjustmentSummary'
+import { isWeighed } from './PickingShared'
+import { weightShort } from '../utils/weight'
 
 export function ReviewScreen({
   order, doneItems, deliveryInstructions, sendConfirm, actionLoading,
@@ -78,7 +80,8 @@ export function ReviewScreen({
                 const product = productFor(item)
                 const picked = Number(item.pickedQuantity ?? 0)
                 const requested = Number(item.requestedQuantity ?? 0)
-                const isAdjusted = picked > 0 && picked !== requested
+                const isAdjusted = picked > 0 && Math.abs(picked - requested) > 0.0005
+                const weighed = isWeighed(product)
                 return (
                   <div key={item.id} className="flex items-start gap-3 py-1">
                     {isAdjusted
@@ -89,7 +92,9 @@ export function ReviewScreen({
                       {orderItemFor(item)?.addedByPicker && <span className="ml-1 rounded bg-blue-100 px-1 py-px text-[10px] font-bold text-blue-800">incluído</span>}
                     </span>
                     <span className={`text-sm flex-shrink-0 ${isAdjusted ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
-                      {isAdjusted ? `${picked}/${requested}` : (picked || requested)} {product?.unit || 'un'}
+                      {weighed
+                        ? isAdjusted ? `${weightShort(picked)} (pedido ${weightShort(requested)})` : weightShort(picked || requested)
+                        : isAdjusted ? `${picked} de ${requested} un` : `${picked || requested} un`}
                     </span>
                   </div>
                 )

@@ -58,5 +58,6 @@ describe('mensagem de troca sugerida', () => {
     expect(quantityLabel(1, false)).toBe('')
     expect(quantityLabel(2, false)).toBe('2 un')
     expect(quantityLabel(1.25, true)).toBe('1,25 kg')
+    expect(quantityLabel(0.22, true)).toBe('220 g')
   })
 })

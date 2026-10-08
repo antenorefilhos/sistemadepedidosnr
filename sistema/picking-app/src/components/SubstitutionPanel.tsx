@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Check, Clock, Loader2, MessageCircle, RotateCcw, Trash2, X } from 'lucide-react'
+import { Check, Clock, MessageCircle, RotateCcw, Trash2, X } from 'lucide-react'
 import type { Order, SubstitutionSuggestion } from '../services/api'
 import { brl } from '../utils/orderAdjustment'
 import { qtd } from '../utils/quantity'
 import { ProductPhoto } from './ProductPhoto'
+import { weightShort } from '../utils/weight'
 
 // Troca sugerida pelo separador (08/10/2026, etapa 1): o separador sugere o
 // produto que tem na gondola, manda tudo de uma vez pelo WhatsApp da loja e
@@ -66,7 +67,7 @@ export function SuggestionRow({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-gray-900">{suggestion.product?.name || 'Produto'}</p>
           <p className="text-xs text-gray-500 tabular-nums">
-            {qtd(suggestion.quantity)} {(suggestion.product?.unit || 'un').toLowerCase()} · {brl(subtotal)}
+            {suggestion.product?.isFractional ? weightShort(suggestion.quantity) : `${qtd(suggestion.quantity)} ${suggestion.quantity === 1 ? 'unidade' : 'unidades'}`} · {brl(subtotal)}
           </p>
         </div>
       </div>
@@ -95,7 +96,7 @@ export function SuggestionRow({
   )
 }
 
-/** Quadro do topo: enviar as trocas, esperar a resposta, seguir sem elas. */
+/** Quadro do fim da lista: trocas a enviar, esperar a resposta, seguir sem elas. */
 export function SubstitutionPanel({
   order, busy, now, onSend, onDecideAll, onExpire,
 }: {
@@ -118,14 +119,8 @@ export function SubstitutionPanel({
           <p className="font-semibold">
             {unsent.length === 1 ? '1 troca para enviar ao cliente' : `${unsent.length} trocas para enviar ao cliente`}
           </p>
-          <p className="mt-0.5 text-xs text-green-800">Termine o resto da separação e mande tudo de uma vez. A mensagem já sai pronta, com os preços e o total.</p>
-          <button
-            onClick={onSend}
-            disabled={busy}
-            className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] font-semibold text-white active:scale-[0.98] disabled:opacity-60"
-          >
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <><MessageCircle size={18} /> Enviar trocas pelo WhatsApp</>}
-          </button>
+          {/* O botao de enviar fica so na barra de baixo (08/10/2026): um caminho, no fim da separacao. */}
+          <p className="mt-0.5 text-xs text-green-800">Quando terminar de separar, toque em <strong>Enviar trocas ao cliente</strong>, lá embaixo. A mensagem já sai pronta, com os preços e o total.</p>
         </>
       )}
       {waiting.length > 0 && (

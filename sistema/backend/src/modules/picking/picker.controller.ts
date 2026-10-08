@@ -225,7 +225,7 @@ export class PickerController {
     if (term.length < 2) return []
 
     const prisma = this.pickingService['prisma']
-    const select = { id: true, name: true, ean: true, price: true, promotionalPrice: true, unit: true }
+    const select = { id: true, name: true, ean: true, price: true, promotionalPrice: true, unit: true, isFractional: true }
     const LIMIT = 15
 
     // Prioriza correspondencias no inicio do nome ou EAN exato, depois preenche com "contem"

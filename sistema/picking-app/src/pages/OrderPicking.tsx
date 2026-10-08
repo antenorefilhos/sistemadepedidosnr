@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ArrowLeft, Check, ClipboardList, Loader2, MapPin, Package, Plus } from 'lucide-react'
+import { ArrowLeft, Check, ClipboardList, Loader2, MapPin, MessageCircle, Package, Plus } from 'lucide-react'
 import { pickerApi, PickingTask, PickingTaskItem, Order } from '../services/api'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
 import { addressLines, deliveryLabel, paymentLabel } from '../utils/orderInfo'
@@ -9,7 +9,9 @@ import { AdjustmentSummary } from '../components/AdjustmentSummary'
 import { SubstitutionPanel, minutesLeft, suggestionsOf, useMinuteTicker } from '../components/SubstitutionPanel'
 import toast from 'react-hot-toast'
 import BarcodeScanner from '../components/BarcodeScanner'
-import { Modal, ItemCard, DoneItemCard } from '../components/PickingShared'
+import { Modal, ItemCard, DoneItemCard, isWeighed } from '../components/PickingShared'
+import { WeightConfirmModal } from '../components/WeightConfirmModal'
+import { weightShort } from '../utils/weight'
 import { ManualConfirmModal } from '../components/ManualConfirmModal'
 import { AddItemScreen } from '../components/AddItemScreen'
 import { ReviewScreen } from '../components/ReviewScreen'
@@ -70,7 +72,8 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   // minValue no instante em que o campo fica vazio, antes do usuario
   // conseguir digitar o valor certo.
   const [adjustQtyText, setAdjustQtyText] = useState<string>('0')
-  const [missingItem, setMissingItem] = useState<{ taskItemId: string; reason: string } | null>(null)
+  // Peso do item de balanca (08/10/2026): pedido, leitura da etiqueta e confirmacao.
+  const [weightFor, setWeightFor] = useState<{ taskItemId: string; prefillKg?: number | null; barcode?: string; method: 'CAMERA' | 'TYPED' | 'MANUAL' } | null>(null)
   const [addItemModal, setAddItemModal] = useState(false)
   const [addItemScanner, setAddItemScanner] = useState(false)
   const [productSearch, setProductSearch] = useState('')
@@ -205,6 +208,10 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   }
 
   const handleManualMode = (taskItem: PickingTaskItem) => {
+    if (isWeighed(getProductForTaskItem(taskItem))) {
+      setWeightFor({ taskItemId: taskItem.id, method: 'MANUAL' })
+      return
+    }
     const orderItem = getOrderItemForTaskItem(taskItem)
     const inicial = Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1)
     setAdjustQty(inicial)
@@ -255,6 +262,15 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     if (!eanMatches) {
       toast.error(`EAN ${barcode} não corresponde ao produto (${product?.ean})`)
       setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })
+      return
+    }
+
+    // Item de balanca: o peso e confirmado pelo separador, mesmo lendo a
+    // etiqueta -- o codigo de barras pode trazer o peso ou o preco, conforme a
+    // balanca; a tela mostra o que leu e ele confere com o numero impresso.
+    if (isWeighed(product)) {
+      setConfirm({ mode: null, itemId: null, taskItemId: null, ean: '' })
+      setWeightFor({ taskItemId: taskItem.id, prefillKg: scaleDecoded?.weightKg ?? null, barcode, method: confirm.mode === 'ean' ? 'TYPED' : 'CAMERA' })
       return
     }
 
@@ -312,21 +328,52 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     }
   }
 
-  const handleMissing = async () => {
-    if (!task || !missingItem) return
+  const handleWeightConfirm = async (kg: number) => {
+    if (!task || !weightFor) return
+    const taskItem = task.items.find((i) => i.id === weightFor.taskItemId)
+    if (!taskItem) return
     setActionLoading(true)
     try {
-      await pickerApi.markMissing(task.id, missingItem.taskItemId, {
-        reason: missingItem.reason,
+      const { data } = await pickerApi.pickItem(task.id, taskItem.id, {
+        quantity: kg,
+        finalWeight: kg,
+        method: weightFor.method,
+        ...(weightFor.barcode ? { barcode: weightFor.barcode } : {}),
       })
-      await refreshTask()
-      toast.success('Item marcado como faltante')
-      setMissingItem(null)
+      setTask(data)
+      setOrder(data.order || null)
+      toast.success(`Separado: ${weightShort(kg)}`)
+      setWeightFor(null)
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Erro')
+      toast.error(err.response?.data?.message || 'Erro ao separar')
     } finally {
       setActionLoading(false)
     }
+  }
+
+  // Faltante em um toque (08/10/2026): antes pedia o motivo por escrito.
+  const markMissing = async (taskItem: PickingTaskItem) => {
+    if (!task) return false
+    setActionLoading(true)
+    try {
+      await pickerApi.markMissing(task.id, taskItem.id, { reason: 'Produto em falta' })
+      await refreshTask()
+      return true
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Erro ao marcar faltante')
+      return false
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleMissingDirect = async (taskItem: PickingTaskItem) => {
+    if (await markMissing(taskItem)) toast.success('Marcado como faltante')
+  }
+
+  // Substituir: o item fica em falta e a busca do substituto ja abre.
+  const handleSubstituteStart = async (taskItem: PickingTaskItem) => {
+    if (await markMissing(taskItem)) openSuggest(taskItem)
   }
 
   const handleResetItem = async (taskItemId: string) => {
@@ -392,11 +439,11 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     }, 300)
   }
 
-  const handleAddItem = async (productId: string) => {
+  const handleAddItem = async (productId: string, weightKg?: number) => {
     if (!order) return
     setActionLoading(true)
     try {
-      const { data } = await pickerApi.addItemToOrder(order.id, { productId, quantity: addQty })
+      const { data } = await pickerApi.addItemToOrder(order.id, { productId, quantity: weightKg ?? addQty })
       setTask(data)
       setOrder(data.order || null)
       toast.success('Item incluido no pedido')
@@ -437,7 +484,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     setLastScan(null)
   }
 
-  const handleSuggest = async (productId: string) => {
+  const handleSuggest = async (productId: string, weightKg?: number) => {
     if (!task || !suggestFor) return
     const product = productResults.find((p) => p.id === productId)
     const scanned = Boolean(lastScan && product?.ean === lastScan)
@@ -445,7 +492,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     try {
       const { data } = await pickerApi.suggestSubstitution(task.id, suggestFor, {
         productId,
-        quantity: addQty,
+        quantity: weightKg ?? addQty,
         ...(scanned ? { method: 'CAMERA' as const, barcode: lastScan! } : {}),
       })
       applyTask(data)
@@ -498,21 +545,6 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Não foi possível registrar a resposta')
       await refreshTask()
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleFinishPicking = async () => {
-    if (!task) return
-    setActionLoading(true)
-    try {
-      const { data } = await pickerApi.finishTask(task.id)
-      setTask(data)
-      setOrder(data.order || null)
-      toast.success('Separação finalizada')
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Erro ao finalizar')
     } finally {
       setActionLoading(false)
     }
@@ -574,18 +606,11 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const allDone = taskItems.length > 0 && pending.length === 0
   const isSeparated = ['CONFERENCE_PENDING', 'PACKING', 'COMPLETED'].includes(task?.status || '')
   const isSentToCashier = order.status in PAST_CASHIER_LABEL
-  const canFinish = allDone && task && !isSeparated && !isSentToCashier
   const canSendToCashier = (isSeparated || allDone) && !isSentToCashier
   const finishNext = FINISH_NEXT[order.status] || null
   const adjustment = orderAdjustment(order)
   const subs = suggestionsOf(order)
   const replyLeft = minutesLeft(subs.lastSent, now)
-  // Caixa so depois das trocas enviadas e respondidas (ou do prazo de 15 min).
-  const substitutionBlock = subs.unsent.length
-    ? 'Envie as trocas ao cliente antes'
-    : subs.waiting.length && replyLeft > 0
-      ? `Aguardando o cliente (${replyLeft} min)`
-      : null
   const address = order.fulfillmentType === 'PICKUP' ? null : addressLines(order.addressSnapshot)
 
   return (
@@ -624,47 +649,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
         )}
       </header>
 
-      {/* Action buttons */}
-      {(canFinish || canSendToCashier || isSentToCashier) && (
-        <div className="px-4 py-2 bg-white border-b flex flex-wrap gap-2">
-          {canFinish && (
-            <button
-              onClick={handleFinishPicking}
-              disabled={actionLoading}
-              className="flex-1 h-11 rounded-xl bg-purple-600 text-white font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-60"
-            >
-              {actionLoading ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Finalizar separação'}
-            </button>
-          )}
-          {canSendToCashier && (
-            <button
-              onClick={() => setReviewMode(true)}
-              disabled={actionLoading || Boolean(substitutionBlock)}
-              className="flex-1 h-11 rounded-xl bg-green-600 text-white font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              <ClipboardList size={14} />
-              {substitutionBlock || 'Revisar e Enviar'}
-            </button>
-          )}
-          {isSentToCashier && (
-            <div className="flex-1 basis-full h-11 rounded-xl bg-green-50 border border-green-200 text-green-700 font-semibold text-sm flex items-center justify-center gap-2">
-              <Check size={16} />
-              {PAST_CASHIER_LABEL[order.status]}
-            </div>
-          )}
-          {finishNext && (
-            <button
-              onClick={handleFinishOrder}
-              disabled={actionLoading}
-              className="flex-1 basis-full h-11 rounded-xl bg-gray-900 text-white font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <><Check size={16} /> {finishNext.label}</>}
-            </button>
-          )}
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-32 space-y-2">
         {lockedByOther && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
             <p>Em separação por <strong>{task?.assignedToName || 'outro membro da equipe'}</strong>.</p>
@@ -693,16 +678,6 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             </a>
           )}
         </div>
-        {!isSentToCashier && (
-          <SubstitutionPanel
-            order={order}
-            busy={actionLoading}
-            now={now}
-            onSend={handleSendSuggestions}
-            onDecideAll={handleDecideAll}
-            onExpire={() => runSuggestion(() => pickerApi.expireSuggestions(order.id), 'Seguimos sem as trocas')}
-          />
-        )}
         {order.riskLevel === 'HIGH' && !order.riskReviewedAt && (
           <div role="alert" className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
             <strong>Ligue para o cliente antes de separar.</strong>
@@ -734,7 +709,8 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 onScan={() => handleScan(item)}
                 onEan={() => handleEanMode(item)}
                 onManual={() => handleManualMode(item)}
-                onMissing={() => setMissingItem({ taskItemId: item.id, reason: '' })}
+                onMissing={() => handleMissingDirect(item)}
+                onSubstitute={() => handleSubstituteStart(item)}
                 disabled={actionLoading || isSentToCashier}
               />
             ))}
@@ -781,6 +757,18 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             <Plus size={16} />
             Incluir Item no Pedido
           </button>
+        )}
+
+        {/* Fim da separacao (08/10/2026): avisar o cliente das trocas e o ultimo passo. */}
+        {!isSentToCashier && (
+          <SubstitutionPanel
+            order={order}
+            busy={actionLoading}
+            now={now}
+            onSend={handleSendSuggestions}
+            onDecideAll={handleDecideAll}
+            onExpire={() => runSuggestion(() => pickerApi.expireSuggestions(order.id), 'Seguimos sem as trocas')}
+          />
         )}
 
         {/* Fim do pedido: de onde vem a diferenca entre o aprovado e o agora. */}
@@ -886,31 +874,21 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
         )
       })()}
 
-      {/* Missing modal */}
-      {missingItem && (
-        <Modal onClose={() => setMissingItem(null)}>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Item Faltante</h2>
-          <textarea
-            placeholder="Motivo: ex. produto em falta, prateleira vazia"
-            value={missingItem.reason}
-            onChange={(e) => setMissingItem(s => s ? { ...s, reason: e.target.value } : s)}
-            rows={3}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:border-brand-500 mb-4"
+      {weightFor && (() => {
+        const taskItem = task?.items.find((i) => i.id === weightFor.taskItemId)
+        const product = taskItem ? getProductForTaskItem(taskItem) : null
+        const orderItem = taskItem ? getOrderItemForTaskItem(taskItem) : null
+        return (
+          <WeightConfirmModal
+            product={product}
+            requestedKg={Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 0)}
+            prefillKg={weightFor.prefillKg}
+            actionLoading={actionLoading}
+            onConfirm={handleWeightConfirm}
+            onClose={() => setWeightFor(null)}
           />
-          <div className="flex gap-2">
-            <button onClick={() => setMissingItem(null)} className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium">
-              Cancelar
-            </button>
-            <button
-              onClick={handleMissing}
-              disabled={!missingItem.reason.trim() || actionLoading}
-              className="flex-1 h-12 rounded-xl bg-red-600 text-white font-semibold disabled:opacity-40"
-            >
-              {actionLoading ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Confirmar Faltante'}
-            </button>
-          </div>
-        </Modal>
-      )}
+        )
+      })()}
 
       {/* Add item modal */}
       {addItemModal && (
@@ -935,9 +913,11 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       {suggestFor && (() => {
         const taskItem = task?.items.find((i) => i.id === suggestFor)
         const original = taskItem ? getProductForTaskItem(taskItem) : null
+        const originalItem = taskItem ? getOrderItemForTaskItem(taskItem) : null
         return (
           <AddItemScreen
             title="Sugerir troca"
+            defaultWeightKg={isWeighed(original) ? Number(originalItem?.requestedQuantity ?? originalItem?.quantity ?? 0) : null}
             hint={original ? `No lugar de: ${original.name}` : undefined}
             confirmLabel="Sugerir"
             productSearch={productSearch}
@@ -956,6 +936,48 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
           />
         )
       })()}
+
+      {/* Proximo passo sempre no polegar (08/10/2026): o separador desce a lista
+          separando, e o que vem depois (avisar o cliente, ir ao caixa) fica aqui,
+          sem voltar ao topo. */}
+      {!reviewMode && !suggestFor && taskItems.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur">
+          <div className="mx-auto max-w-lg">
+            {isSentToCashier ? (
+              <div className="space-y-2">
+                <div className="flex h-11 items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 text-sm font-semibold text-green-700">
+                  <Check size={16} /> {PAST_CASHIER_LABEL[order.status]}
+                </div>
+                {finishNext && (
+                  <button onClick={handleFinishOrder} disabled={actionLoading} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gray-900 font-semibold text-white disabled:opacity-60">
+                    {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <><Check size={16} /> {finishNext.label}</>}
+                  </button>
+                )}
+              </div>
+            ) : pending.length > 0 ? (
+              <p className="py-2 text-center text-sm font-semibold text-gray-600">
+                Falta separar {pending.length} {pending.length === 1 ? 'item' : 'itens'}
+              </p>
+            ) : subs.unsent.length > 0 ? (
+              <button onClick={handleSendSuggestions} disabled={actionLoading} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] font-semibold text-white disabled:opacity-60">
+                {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <><MessageCircle size={18} /> Enviar trocas ao cliente</>}
+              </button>
+            ) : subs.waiting.length > 0 && replyLeft > 0 ? (
+              <p className="py-2 text-center text-sm font-semibold text-amber-700">
+                Esperando o cliente responder ({replyLeft} min). Toque na resposta dele acima.
+              </p>
+            ) : subs.waiting.length > 0 ? (
+              <button onClick={() => runSuggestion(() => pickerApi.expireSuggestions(order.id), 'Seguimos sem as trocas')} disabled={actionLoading} className="h-12 w-full rounded-xl bg-gray-900 font-semibold text-white disabled:opacity-60">
+                Sem resposta: seguir sem as trocas
+              </button>
+            ) : canSendToCashier ? (
+              <button onClick={() => setReviewMode(true)} disabled={actionLoading} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-600 font-semibold text-white disabled:opacity-60">
+                <ClipboardList size={16} /> Revisar e enviar ao caixa
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {/* Review screen */}
       {reviewMode && order && (

@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { ArrowLeft, Camera, Loader2, Plus, Search } from 'lucide-react'
 import BarcodeScanner from './BarcodeScanner'
-import { Modal } from './PickingShared'
+import { Modal, isWeighed } from './PickingShared'
+import { parseWeightInput, weightLong, weightOnScale } from '../utils/weight'
 
 interface ProductResult {
   id: string
@@ -9,12 +11,13 @@ interface ProductResult {
   price: number
   promotionalPrice: number | null
   unit: string | null
+  isFractional?: boolean | null
 }
 
 export function AddItemScreen({
   productSearch, productResults, searchLoading, addQty, actionLoading, addItemScanner,
   onSearchChange, onOpenScanner, onCloseScanner, onScanResult,
-  onAddQtyChange, onAddItem, onClose, title = 'Incluir Item no Pedido', confirmLabel = 'Incluir', hint,
+  onAddQtyChange, onAddItem, onClose, title = 'Incluir Item no Pedido', confirmLabel = 'Incluir', hint, defaultWeightKg,
 }: {
   title?: string
   confirmLabel?: string
@@ -30,9 +33,15 @@ export function AddItemScreen({
   onCloseScanner: () => void
   onScanResult: (barcode: string) => void
   onAddQtyChange: (updater: (q: number) => number) => void
-  onAddItem: (productId: string) => void
+  /** Produto de peso: a quantidade e o peso (kg), nao o numero de unidades. */
+  onAddItem: (productId: string, quantity?: number) => void
   onClose: () => void
+  /** Peso ja preenchido para produto de balanca (na troca, o peso do item que faltou). */
+  defaultWeightKg?: number | null
 }) {
+  // Produto de balanca (08/10/2026): antes so dava para incluir 1, 2, 3 kg.
+  const [weights, setWeights] = useState<Record<string, string>>({})
+  const prefill = defaultWeightKg ? weightOnScale(defaultWeightKg).replace(' kg', '') : ''
   return (
     <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col">
       <header className="bg-brand-600 text-white px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
@@ -77,11 +86,38 @@ export function AddItemScreen({
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm text-gray-900">{p.name}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  R$ {(p.promotionalPrice ?? p.price).toFixed(2)} / {p.unit || 'un'}
+                  R$ {(p.promotionalPrice ?? p.price).toFixed(2).replace('.', ',')} / {isWeighed(p) ? 'kg' : (p.unit || 'un')}
                   {p.ean && <span className="ml-2">EAN: {p.ean}</span>}
                 </p>
               </div>
             </div>
+            {isWeighed(p) ? (() => {
+              const text = weights[p.id] ?? prefill
+              const parsed = parseWeightInput(text)
+              return (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      aria-label="Peso"
+                      placeholder="Peso: 0,268 ou 268"
+                      value={text}
+                      onChange={(e) => setWeights((w) => ({ ...w, [p.id]: e.target.value.replace(/[^\d.,]/g, '') }))}
+                      className="h-10 w-36 rounded-lg border border-gray-200 text-center text-base font-semibold focus:border-brand-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => parsed && onAddItem(p.id, parsed.kg)}
+                      disabled={actionLoading || !parsed}
+                      className="flex-1 h-10 rounded-lg bg-brand-500 text-white text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-40"
+                    >
+                      {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <><Plus size={14} /> {confirmLabel}</>}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-sm font-semibold text-green-700">{parsed ? `= ${weightLong(parsed.kg)}` : <span className="font-normal text-gray-400">Digite o peso da etiqueta</span>}</p>
+                </div>
+              )
+            })() : (
             <div className="flex items-center gap-2 mt-3">
               <button onClick={() => onAddQtyChange(q => Math.max(1, q - 1))} className="w-8 h-8 rounded-lg bg-gray-200 text-gray-700 font-bold flex items-center justify-center">−</button>
               <input
@@ -100,6 +136,7 @@ export function AddItemScreen({
                 {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <><Plus size={14} /> {confirmLabel}</>}
               </button>
             </div>
+            )}
           </div>
         ))}
       </div>

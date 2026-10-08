@@ -14,6 +14,18 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.19.0',
+    date: '08/10/2026',
+    title: 'Separação: Faltante e Troca em Um Toque, Peso em Gramas',
+    highlights: [
+      { type: 'feat', description: 'Cada item do app de separação tem dois botões: \"Faltante\" (não tem e pronto) e \"Substituir\" (marca a falta e já abre a busca do produto para sugerir). Antes era preciso escrever um motivo e depois descer a tela para sugerir a troca.' },
+      { type: 'feat', description: 'O próximo passo fica sempre numa barra embaixo da tela: falta separar, enviar as trocas ao cliente, esperar a resposta e, por fim, revisar e enviar ao caixa. As trocas são enviadas no fim da separação, não mais no topo.' },
+      { type: 'feat', description: 'Peso em gramas: o separador vê \"220 gramas\" em vez de \"0,22 kg\" (acima de 1 kg, \"1 quilo e 588 gramas\"), junto do jeito que sai na etiqueta da balança (0,220 kg).' },
+      { type: 'feat', description: 'Tela de peso: o separador digita o número da etiqueta (\"0,268\") ou em gramas (\"268\"), confere por extenso o que o app entendeu e é avisado se o peso ficou muito longe do pedido. Ao ler a etiqueta pela câmera, o peso já vem preenchido. É esse peso que vai para o DAV no caixa.' },
+      { type: 'fix', description: 'Incluir item ou sugerir troca de produto de peso agora pede o peso (antes só dava 1, 2, 3 kg). Na mensagem do WhatsApp, peso abaixo de 1 kg sai em gramas.' },
+    ],
+  },
+  {
     version: '1.18.0',
     date: '08/10/2026',
     title: 'Checkout Sem Gargalos e Cards Mais Claros',

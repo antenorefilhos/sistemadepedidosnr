@@ -71,8 +71,9 @@ export function whatsappLink(phone: string | null | undefined, text: string): st
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`
 }
 
-/** "2 un", "1,2 kg"; vazio para 1 unidade. */
+/** "2 un", "220 g", "1,2 kg"; vazio para 1 unidade. Abaixo de 1 kg, em gramas: "0,22 kg" confunde. */
 export function quantityLabel(quantity: number, weighed: boolean): string {
+  if (weighed && quantity < 1) return `${Math.round(quantity * 1000)} g`
   if (weighed) return `${quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg`
   return quantity > 1 ? `${quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} un` : ''
 }
