@@ -14,6 +14,20 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.18.0',
+    date: '08/10/2026',
+    title: 'Checkout Sem Gargalos e Cards Mais Claros',
+    highlights: [
+      { type: 'feat', description: 'Checkout refeito para o celular: etapas no topo, total e botão sempre visíveis embaixo, pagamento em cartões, troco em botões e confirmação com \"Acompanhar pedido\".' },
+      { type: 'feat', description: 'Se o cliente digita WhatsApp ou CPF de uma conta que já tem senha, o login abre ali mesmo e o pedido continua de onde estava. Antes ele só descobria no \"Finalizar\", com o aviso lá no topo da página.' },
+      { type: 'feat', description: 'Cliente logado escolhe entre os endereços salvos, e a taxa de entrega aparece na hora.' },
+      { type: 'fix', description: 'Avisos do checkout agora aparecem colados no botão, onde o cliente está, e a tela leva até o campo com problema. Mensagens com acento e em português claro.' },
+      { type: 'fix', description: 'Quem escolhia a localidade e depois digitava o número da casa tinha que escolher a localidade de novo. Agora a escolha só muda se o CEP mudar.' },
+      { type: 'fix', description: 'Cards de produto mostram o tamanho da embalagem e o preço por kg ou litro numa linha própria (ex.: \"500 g · R$ 59,80/kg\"): o Café Pilão 250 g e o 500 g ficavam iguais com o nome cortado.' },
+      { type: 'fix', description: 'No Mercado, os departamentos viraram uma linha que desliza no celular, e o botão de voltar ao topo não cobre mais o \"Ver carrinho\".' },
+    ],
+  },
+  {
     version: '1.17.0',
     date: '08/10/2026',
     title: 'Troca Sugerida pelo WhatsApp e Separação Mais Clara',
