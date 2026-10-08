@@ -1,114 +1,82 @@
-import { CheckCircle2, AlertTriangle, Banknote, QrCode, CreditCard } from 'lucide-react'
+import { CheckCircle2, Info, MessageCircle, PackageSearch, ShoppingBag } from 'lucide-react'
 import { formatPrice } from '../utils/format'
 import { PAYMENT_METHOD_LABEL } from '../utils/checkout'
-import { Button, buttonVariants } from './ui/button'
 import { CriarSenhaCard } from './CriarSenhaCard'
 import type { Order } from '../types'
 import type { WhatsAppDispatch } from '../services/api'
 
-/** Tela final de sucesso do Checkout -- extraida (JON-65, Auditoria 360) por
- * ser autocontida (so le `createdOrder`/`whatsappDispatch`, sem estado
- * proprio de formulario/pagamento). */
+/**
+ * Tela final do checkout (refeita em 08/10/2026): o que foi pedido, como paga,
+ * quanto deu, e o proximo passo -- acompanhar o pedido. Antes so havia
+ * "Pedido Confirmado!" e "Continuar comprando"; quem queria ver o pedido nao
+ * tinha caminho.
+ */
 export function OrderConfirmation({
-  createdOrder, whatsappDispatch, contaSemSenha, onContinueShopping,
+  createdOrder, whatsappDispatch, contaSemSenha, isPickup, onContinueShopping, onTrackOrder,
 }: {
-  createdOrder: Order | null;
-  whatsappDispatch: WhatsAppDispatch | null;
-  contaSemSenha: boolean;
-  onContinueShopping: () => void;
+  createdOrder: Order | null
+  whatsappDispatch: WhatsAppDispatch | null
+  contaSemSenha: boolean
+  isPickup?: boolean
+  onContinueShopping: () => void
+  onTrackOrder: () => void
 }) {
+  const method = String(createdOrder?.paymentMethod || 'CASH').toUpperCase()
+  const methodLabel = PAYMENT_METHOD_LABEL[method] || createdOrder?.paymentMethod || 'Dinheiro'
+  const changeFor = createdOrder?.notes?.match(/Troco para:\s*([^)\n]*)/)?.[1]?.trim()
+  const code = createdOrder?.erpDav ? `DAV ${createdOrder.erpDav}` : createdOrder ? `#${createdOrder.id.slice(-8).toUpperCase()}` : ''
+
   return (
-    <div className="bg-white border border-[#D2BB8A]/40 rounded-2xl p-8 text-center shadow-[0_12px_40px_rgba(93,8,42,0.04)] animate-in fade-in zoom-in duration-300">
-      <div className="w-16 h-16 rounded-full bg-[#FFF7FA] border border-[#5D082A]/15 flex items-center justify-center mx-auto mb-5 text-[#5D082A] shadow-inner">
-        <CheckCircle2 size={36} className="animate-in zoom-in-50 duration-500 motion-reduce:animate-none" />
-      </div>
-      <h2 className="text-2xl font-bold text-[#5D082A] mb-2">Pedido Confirmado!</h2>
-      <p className="text-gray-600 mb-6 text-sm">
-        Seu pedido já está pronto para ser enviado no WhatsApp com todos os detalhes.
-      </p>
-      {createdOrder && (() => {
-        const methodKey = String(createdOrder.paymentMethod || 'CASH').toUpperCase()
-        const badgeLabel = PAYMENT_METHOD_LABEL[methodKey] || createdOrder.paymentMethod || 'Dinheiro'
-        const badgeIcon = methodKey === 'PIX' ? <QrCode size={12} className="text-[#5D082A]" /> : methodKey === 'CARD' ? <CreditCard size={12} className="text-[#5D082A]" /> : <Banknote size={12} className="text-[#5D082A]" />
-        const changeAmount = createdOrder.notes?.match(/Troco para:\s*([^)]*)/)?.[1]
+    <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
+      <section className="rounded-3xl border border-[#E8D7B0]/70 bg-white p-6 text-center">
+        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <CheckCircle2 size={36} />
+        </span>
+        <h1 className="mt-4 text-2xl font-bold text-[#231F20]">Pedido feito!</h1>
+        <p className="mt-1.5 text-sm leading-relaxed text-[#5d4f33]">
+          {isPickup
+            ? 'Já estamos separando. Avisamos no WhatsApp quando estiver pronto para retirar.'
+            : 'Já estamos separando. Avisamos no WhatsApp quando sair para entrega.'}
+        </p>
+        {code && <p className="mt-3 inline-flex rounded-full bg-[#F8F4EA] px-3 py-1 text-sm font-bold text-[#5D082A]">Pedido {code}</p>}
+      </section>
 
-        return (
-          <div className="mb-6 rounded-xl border border-[#E8D7B0]/60 bg-[#FBFAF7] p-5 text-left space-y-4 shadow-sm">
-            <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm border-b border-[#E8D7B0]/30 pb-3">
-              <span className="text-gray-500 font-medium">Pedido</span>
-              <span className="font-mono text-right text-gray-800 font-bold">#{createdOrder.id.slice(-8).toUpperCase()}</span>
-
-              <span className="text-gray-500 font-medium">Pagamento</span>
-              <div className="flex justify-end">
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-[#F8F0DC] px-2 py-0.5 text-xs font-semibold text-[#5D082A] border border-[#E8D7B0]/40">
-                  {badgeIcon}
-                  {badgeLabel}
-                </span>
-              </div>
-
-              {(() => {
-                const pStatus = String(createdOrder.paymentStatus || 'UNPAID').toUpperCase()
-                const statusConfig: Record<string, { label: string; cls: string }> = {
-                  PAID: { label: 'Pago', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-                  AUTHORIZED: { label: 'Autorizado', cls: 'bg-blue-50 text-blue-800 border-blue-200' },
-                  PENDING: { label: 'Pagamento pendente', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
-                  FAILED: { label: 'Pagamento falhou', cls: 'bg-red-50 text-red-800 border-red-200' },
-                  UNPAID: { label: 'Aguardando pagamento', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
-                }
-                const cfg = statusConfig[pStatus] ?? { label: pStatus, cls: 'bg-gray-50 text-gray-700 border-gray-200' }
-                return (
-                  <>
-                    <span className="text-gray-500 font-medium">Status</span>
-                    <div className="flex justify-end">
-                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold border ${cfg.cls}`}>
-                        {cfg.label}
-                      </span>
-                    </div>
-                  </>
-                )
-              })()}
-
-              {methodKey === 'CASH' && changeAmount && (
-                <>
-                  <span className="text-gray-500 font-medium">Troco</span>
-                  <div className="flex justify-end">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 border border-amber-200">
-                      <Banknote size={12} className="text-amber-700" />
-                      Troco para R$ {changeAmount}
-                    </span>
-                  </div>
-                </>
-              )}
-
-              <span className="text-gray-500 font-semibold text-base mt-1">Total</span>
-              <span className="font-bold text-right text-base text-[#5D082A] mt-1">{formatPrice(createdOrder.total)}</span>
+      {createdOrder && (
+        <section className="rounded-2xl border border-[#E8D7B0]/70 bg-white p-4">
+          <dl className="space-y-2 text-sm">
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#5d4f33]">Pagamento</dt>
+              <dd className="font-semibold text-[#231F20]">
+                {methodLabel}
+                {method === 'CASH' && changeFor ? ` · troco para R$ ${changeFor}` : ''}
+              </dd>
             </div>
-
-            <div className="rounded-xl bg-[#FFF7FA] border border-[#5D082A]/10 p-3.5 flex items-start gap-2.5">
-              <AlertTriangle size={16} className="text-[#5D082A] shrink-0 mt-0.5" />
-              <p className="text-xs text-gray-700 leading-relaxed font-medium">
-                O valor final será confirmado pela equipe após a separação dos itens (em função do peso real e possíveis substituições).
-              </p>
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#5d4f33]">Total</dt>
+              <dd className="text-base font-black tabular-nums text-[#231F20]">{formatPrice(createdOrder.total)}</dd>
             </div>
-          </div>
-        )
-      })()}
+          </dl>
+          <p className="mt-3 flex gap-2 rounded-xl bg-[#F8F4EA] px-3 py-2.5 text-xs leading-relaxed text-[#5d4f33]">
+            <Info size={15} className="mt-px shrink-0 text-[#8a6a3a]" />
+            Você paga {isPickup ? 'na retirada' : 'na entrega'}. O valor final pode mudar um pouco por causa do peso dos itens ou de alguma troca que você aprovar.
+          </p>
+        </section>
+      )}
+
       {contaSemSenha && <CriarSenhaCard />}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+      <div className="space-y-2.5">
+        <button type="button" onClick={onTrackOrder} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#5D082A] text-[15px] font-bold text-white">
+          <PackageSearch size={18} /> Acompanhar pedido
+        </button>
         {whatsappDispatch?.url && (
-          <a
-            href={whatsappDispatch.url}
-            target="_blank"
-            rel="noreferrer"
-            className={buttonVariants({ variant: 'primary', size: 'md' })}
-          >
-            Enviar no WhatsApp
+          <a href={whatsappDispatch.url} target="_blank" rel="noreferrer" className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/50 bg-[#25D366]/10 text-[15px] font-bold text-[#0d5c36]">
+            <MessageCircle size={18} /> Mandar o pedido no WhatsApp da loja
           </a>
         )}
-        <Button onClick={onContinueShopping} variant="secondary">
-          Continuar comprando
-        </Button>
+        <button type="button" onClick={onContinueShopping} className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-semibold text-[#5D082A]">
+          <ShoppingBag size={16} /> Continuar comprando
+        </button>
       </div>
     </div>
   )

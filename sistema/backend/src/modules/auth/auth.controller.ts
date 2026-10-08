@@ -8,7 +8,7 @@ import { CreateAdminDto, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
 import { LoginDto, CustomerLoginDto } from './dto/login.dto'
-import { CustomerForgotPasswordDto, ForgotPasswordDto, ResetPasswordDto, SetPasswordDto, UpdateCustomerProfileDto } from './dto/forgot-password.dto'
+import { CustomerAccountCheckDto, CustomerForgotPasswordDto, ForgotPasswordDto, ResetPasswordDto, SetPasswordDto, UpdateCustomerProfileDto } from './dto/forgot-password.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
@@ -109,6 +109,17 @@ export class AuthController {
   })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.newPassword)
+  }
+
+  @Post('customer/account-check')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 10, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Os dados do checkout convidado ja sao de uma conta com senha?',
+    description: 'O checkout abre o login na hora, em vez de recusar so no Finalizar.',
+  })
+  customerAccountCheck(@Body() dto: CustomerAccountCheckDto) {
+    return this.authService.customerAccountCheck(dto)
   }
 
   @Post('customer/forgot-password')

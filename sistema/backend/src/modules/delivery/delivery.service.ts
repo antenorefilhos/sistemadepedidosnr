@@ -399,7 +399,7 @@ export class DeliveryService {
     }
     if (isCreate || body.cep !== undefined) {
       const cep = body.cep ? this.cleanCep(body.cep) : ''
-      if (cep && cep.length !== 8) throw new BadRequestException('CEP precisa ter 8 digitos.')
+      if (cep && cep.length !== 8) throw new BadRequestException('O CEP precisa ter 8 dígitos.')
       data.cep = cep || null
     }
     if (isCreate || body.fee !== undefined) {

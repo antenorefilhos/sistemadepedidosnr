@@ -48,7 +48,7 @@ export class CartService {
       where: { id, tenantId, storeId },
       include: { items: { orderBy: { createdAt: 'asc' } } },
     })
-    if (!cart) throw new NotFoundException('Carrinho nao encontrado.')
+    if (!cart) throw new NotFoundException('Não encontramos seu carrinho. Toque em Continuar de novo.')
     return this.toCartPayload(cart)
   }
 
@@ -201,8 +201,8 @@ export class CartService {
       where: { id, tenantId, storeId },
       include: { items: true },
     })
-    if (!cart) throw new NotFoundException('Carrinho nao encontrado.')
-    if (cart.status !== 'ACTIVE') throw new BadRequestException('Carrinho nao esta ativo.')
+    if (!cart) throw new NotFoundException('Não encontramos seu carrinho. Toque em Continuar de novo.')
+    if (cart.status !== 'ACTIVE') throw new BadRequestException('Seu carrinho mudou. Toque em Continuar de novo.')
     return cart
   }
 
@@ -229,24 +229,24 @@ export class CartService {
     })
     if (!product) throw new BadRequestException(`Produto nao encontrado: ${id}`)
     if (!product.active || String(product.syncOption || '').toUpperCase() === 'NUNCA') {
-      throw new BadRequestException(`Produto indisponivel para venda: ${product.name}`)
+      throw new BadRequestException(`O produto ${product.name} não está disponível agora.`)
     }
 
     const effective = resolveEffectiveFractional(product)
 
     if (!effective.isFractional && !Number.isInteger(normalizedQuantity)) {
-      throw new BadRequestException(`Produto ${product.name} nao aceita quantidade fracionada.`)
+      throw new BadRequestException(`O produto ${product.name} não é vendido por peso. Ajuste a quantidade.`)
     }
 
     const step = Number(effective.fractionStep || 0)
     if (effective.isFractional && step <= 0) {
-      throw new BadRequestException(`Produto ${product.name} esta sem fracionamento configurado.`)
+      throw new BadRequestException(`O produto ${product.name} está sem porção configurada. Tire do carrinho ou fale com a loja.`)
     }
 
     if (effective.isFractional) {
       const ratio = normalizedQuantity / step
       if (Math.abs(ratio - Math.round(ratio)) > 0.000001) {
-        throw new BadRequestException(`Quantidade do produto ${product.name} deve respeitar o passo ${step}.`)
+        throw new BadRequestException(`A quantidade de ${product.name} precisa ser múltipla de ${step}.`)
       }
     }
 

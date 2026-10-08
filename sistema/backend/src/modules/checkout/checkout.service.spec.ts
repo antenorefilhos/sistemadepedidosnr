@@ -229,7 +229,7 @@ describe('CheckoutService', () => {
       scheduledFor: '2026-10-07T15:00:00-03:00',
     })
     expect(quarta.canConfirm).toBe(false)
-    expect(quarta.blockers).toContain('itens fora do dia de venda')
+    expect(quarta.blockers).toContain('há itens que não são vendidos no dia escolhido')
     expect(quarta.stock.unavailableItems[0]).toEqual(expect.objectContaining({
       reason: 'FORA_DO_DIA',
       message: 'Vendido só de quinta a domingo. Agende para um desses dias ou tire do carrinho.',
@@ -453,7 +453,7 @@ describe('CheckoutService', () => {
           paymentMethod: 'PIX',
           delivery: { cep: '01001000', slotId: 'slot-1' },
         }),
-      ).rejects.toThrow('Cotacao nao encontrada')
+      ).rejects.toThrow('Não conseguimos calcular o pedido')
       expect(mockOrdersService.create).not.toHaveBeenCalled()
     })
 
@@ -469,7 +469,7 @@ describe('CheckoutService', () => {
           paymentMethod: 'PIX',
           delivery: { cep: '01001000', slotId: 'slot-1' },
         }),
-      ).rejects.toThrow('Cotacao nao encontrada')
+      ).rejects.toThrow('Não conseguimos calcular o pedido')
       expect(mockOrdersService.create).not.toHaveBeenCalled()
     })
   })

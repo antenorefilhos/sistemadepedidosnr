@@ -21,6 +21,24 @@ export class CustomerForgotPasswordDto {
   email?: string
 }
 
+/** Checkout convidado (08/10/2026): os dados digitados ja sao de uma conta? */
+export class CustomerAccountCheckDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  whatsapp?: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  cpf?: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  email?: string
+}
+
 export class ResetPasswordDto {
   @IsString()
   token: string

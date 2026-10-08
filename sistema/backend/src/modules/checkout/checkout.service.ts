@@ -76,7 +76,7 @@ export class CheckoutService {
   async createSession(context: CheckoutContext | undefined, dto: CreateCheckoutSessionDto) {
     const { tenantId, storeId } = this.resolveContext(context)
     const cart = await this.cartService.findCart(dto.cartId, { tenantId, storeId })
-    if (cart.status !== 'ACTIVE') throw new BadRequestException('Carrinho nao esta ativo.')
+    if (cart.status !== 'ACTIVE') throw new BadRequestException('Seu carrinho mudou. Toque em Continuar de novo.')
 
     const key = String(dto.idempotencyKey || '').trim()
     if (!key) throw new BadRequestException('idempotencyKey e obrigatorio para sessao de checkout.')
@@ -173,12 +173,12 @@ export class CheckoutService {
     // no meio do checkout cobrava o cliente calado (ver CLAUDE.md).
     const shownTotal = this.numericTotal(session.priceSnapshot)
     if (shownTotal == null) {
-      throw new BadRequestException('Cotacao nao encontrada para esta sessao. Chame /quote antes de confirmar.')
+      throw new BadRequestException('Não conseguimos calcular o pedido. Toque em Finalizar de novo.')
     }
 
     const quote = await this.buildQuote({ tenantId, storeId }, id, dto, { persist: true })
     if (!quote.canConfirm) {
-      throw new BadRequestException(`Checkout bloqueado: ${quote.blockers.join('; ')}`)
+      throw new BadRequestException(`Não foi possível fechar o pedido: ${quote.blockers.join('; ')}`)
     }
 
     const confirmedTotal = this.numericTotal(quote.price)
@@ -362,8 +362,8 @@ export class CheckoutService {
     const { tenantId, storeId } = this.resolveContext(context)
     const session = await this.findSessionOrThrow(id, { tenantId, storeId })
     const cart = await this.cartService.findCart(session.cartId, { tenantId, storeId })
-    if (cart.status !== 'ACTIVE') throw new BadRequestException('Carrinho nao esta ativo para checkout.')
-    if (cart.items.length === 0) throw new BadRequestException('Carrinho deve conter ao menos um item.')
+    if (cart.status !== 'ACTIVE') throw new BadRequestException('Seu carrinho mudou. Toque em Continuar de novo.')
+    if (cart.items.length === 0) throw new BadRequestException('Seu carrinho está vazio.')
 
     const deliveryDate = await promoDayFor(this.prisma, dto.scheduledFor)
     const stock = await this.buildStockSnapshot({ tenantId, storeId }, cart, deliveryDate)
@@ -550,7 +550,7 @@ export class CheckoutService {
         })
       : null
 
-    if (addressId && !address) throw new BadRequestException('Endereco de entrega nao encontrado para o checkout.')
+    if (addressId && !address) throw new BadRequestException('Não encontramos o endereço de entrega. Confira o endereço e tente de novo.')
 
     // JON-152 (Auditoria 360, Medium): com addressId resolvido, o CEP/lat/lng
     // do BODY vinham primeiro na prioridade -- cliente selecionava o proprio
@@ -576,7 +576,7 @@ export class CheckoutService {
     })
 
     if (calculation.requiresLocalitySelection) {
-      throw new BadRequestException('Selecione a localidade/condominio de entrega para este CEP antes de continuar.')
+      throw new BadRequestException('Este CEP atende mais de um lugar. Escolha a sua localidade para continuar.')
     }
 
     return {
@@ -616,10 +616,10 @@ export class CheckoutService {
 
   private getBlockers(stock: StockSnapshot, delivery: DeliverySnapshot) {
     const blockers: string[] = []
-    if (stock.unavailableItems.some((i) => i.reason === 'FORA_DO_DIA')) blockers.push('itens fora do dia de venda')
-    if (stock.unavailableItems.some((i) => i.reason !== 'FORA_DO_DIA')) blockers.push('itens indisponiveis em estoque')
-    if (delivery.outOfArea) blockers.push('endereco fora da area de entrega')
-    if (!delivery.minimumOrderMet) blockers.push('pedido abaixo do minimo da area de entrega')
+    if (stock.unavailableItems.some((i) => i.reason === 'FORA_DO_DIA')) blockers.push('há itens que não são vendidos no dia escolhido')
+    if (stock.unavailableItems.some((i) => i.reason !== 'FORA_DO_DIA')) blockers.push('há itens indisponíveis no carrinho')
+    if (delivery.outOfArea) blockers.push('o endereço está fora da área de entrega')
+    if (!delivery.minimumOrderMet) blockers.push('o pedido está abaixo do mínimo para entrega neste endereço')
     return blockers
   }
 
@@ -627,9 +627,9 @@ export class CheckoutService {
     const session = await this.prisma.checkoutSession.findFirst({
       where: { id, tenantId: context.tenantId, storeId: context.storeId },
     })
-    if (!session) throw new NotFoundException('Sessao de checkout nao encontrada.')
+    if (!session) throw new NotFoundException('Sua sessão de compra expirou. Toque em Finalizar de novo.')
     if (session.status === 'FAILED' && !options?.allowFailed) {
-      throw new BadRequestException('Sessao de checkout nao esta ativa.')
+      throw new BadRequestException('Sua sessão de compra expirou. Toque em Finalizar de novo.')
     }
     if (session.status !== 'COMPLETED' && session.expiresAt <= new Date()) {
       await this.prisma.checkoutSession.update({ where: { id: session.id }, data: { status: 'FAILED' } })
@@ -642,7 +642,7 @@ export class CheckoutService {
         customerId: session.customerId,
         metadata: { expiresAt: session.expiresAt.toISOString() },
       })
-      throw new BadRequestException('Sessao de checkout expirada.')
+      throw new BadRequestException('Sua sessão de compra expirou. Toque em Finalizar de novo.')
     }
     return session
   }
@@ -717,7 +717,7 @@ export class CheckoutService {
 
     const target = new Date(scheduledFor)
     if (Number.isNaN(target.getTime())) {
-      throw new BadRequestException('Horario de entrega invalido.')
+      throw new BadRequestException('Horário de entrega inválido. Escolha outro horário.')
     }
 
     const now = Date.now()
@@ -726,10 +726,10 @@ export class CheckoutService {
     const latest = now + 7 * 24 * 60 * 60 * 1000
 
     if (target.getTime() < earliest) {
-      throw new BadRequestException('O horario escolhido ja passou. Escolha outro horario.')
+      throw new BadRequestException('O horário escolhido já passou. Escolha outro.')
     }
     if (target.getTime() > latest) {
-      throw new BadRequestException('So da pra agendar com ate 7 dias de antecedencia.')
+      throw new BadRequestException('Dá para agendar com até 7 dias de antecedência.')
     }
   }
 

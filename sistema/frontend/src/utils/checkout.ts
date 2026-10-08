@@ -39,7 +39,7 @@ export function createFallbackDeliverySlot(hours?: HoursConfig) {
 
 export function formatDeliveryWindow(quote?: CheckoutQuoteResponse | null) {
   const slot = quote?.delivery?.slot
-  if (!slot?.windowStart || !slot?.windowEnd) return 'Proxima janela disponivel'
+  if (!slot?.windowStart || !slot?.windowEnd) return 'Próxima janela disponível'
 
   const asTime = (value: string) =>
     new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -75,4 +75,22 @@ export function getCheckoutBlockerMessage(
   }
   if (quote.delivery.outOfArea) return 'Endereço fora da zona de entrega cadastrada.'
   return quote.blockers.join('; ') || 'Não foi possível confirmar o pedido agora.'
+}
+
+/** "123.456.789-09" enquanto digita (08/10/2026). */
+export function maskCpfInput(value: string) {
+  const d = value.replace(/\D/g, '').slice(0, 11)
+  return d
+    .replace(/^(\d{3})(\d)/, '$1.$2')
+    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4')
+}
+
+/** "(24) 99999-0000" enquanto digita (08/10/2026). */
+export function maskPhoneInput(value: string) {
+  const d = value.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '').slice(0, 11)
+  if (d.length <= 2) return d.length ? `(${d}` : ''
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
 }

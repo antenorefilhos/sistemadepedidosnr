@@ -4,6 +4,7 @@ import type { DeviceContext } from '../fraud/fraud.util'
 import { Injectable, Optional, BadRequestException, UnauthorizedException, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { createHash, randomBytes } from 'crypto'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { CreateAdminDto, STAFF_MODULES, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
@@ -262,7 +263,7 @@ export class AuthService {
     if (!admin || !await bcrypt.compare(loginDto.password, admin.password)) {
       throw new UnauthorizedException({
         statusCode: 401,
-        message: 'Email ou senha invalidos',
+        message: 'E-mail ou senha inválidos',
         error: 'Nao autorizado',
       })
     }
@@ -551,6 +552,30 @@ export class AuthService {
     return { access_token, user: { id: customer.id, email: customer.email, name: customer.name, cpf: customer.cpf, whatsapp: customer.whatsapp, role: 'customer', tenantId, storeId } }
   }
 
+  /**
+   * Checkout convidado (08/10/2026): o cliente digita WhatsApp/CPF que ja sao
+   * de uma conta com senha e so descobria no "Finalizar", com o aviso no topo
+   * da pagina. Agora o checkout pergunta antes e abre o login ali mesmo.
+   * Revela o mesmo que o 409 do guestCheckout ja revelava; limitado no bucket auth.
+   */
+  async customerAccountCheck(dto: { whatsapp?: string; cpf?: string; email?: string }) {
+    const whatsapp = String(dto.whatsapp || '').replace(/\D/g, '')
+    const cpf = String(dto.cpf || '').replace(/\D/g, '')
+    const email = String(dto.email || '').trim().toLowerCase()
+    const or: Prisma.CustomerWhereInput[] = []
+    if (whatsapp.length === 10 || whatsapp.length === 11) or.push({ whatsapp })
+    if (cpf.length === 11) or.push({ cpf })
+    if (email.includes('@') && !email.endsWith('@checkout.local')) or.push({ email })
+    if (!or.length) return { exists: false }
+    const found = await this.prisma.customer.findFirst({
+      where: { OR: or, password: { not: null } },
+      select: { whatsapp: true, cpf: true, email: true },
+    })
+    if (!found) return { exists: false }
+    const via = found.whatsapp === whatsapp ? 'whatsapp' : found.cpf === cpf ? 'cpf' : 'email'
+    return { exists: true, via }
+  }
+
   async guestCheckout(dto: CreateGuestCheckoutDto, ctx?: DeviceContext) {
     const allowGuestCheckout = (process.env.ALLOW_GUEST_CHECKOUT || 'true').toLowerCase() !== 'false'
     if (!allowGuestCheckout) {
@@ -606,7 +631,7 @@ export class AuthService {
       if (existing.password) {
         throw new ConflictException({
           statusCode: 409,
-          message: 'Ja existe uma conta com esses dados. Faca login para continuar.',
+          message: 'Já existe uma conta com esses dados. Entre com sua senha para continuar.',
           error: 'Conta ja cadastrada',
         })
       }

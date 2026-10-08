@@ -60,7 +60,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // JON-138: token emitido antes de uma troca/reset de senha tem
       // tokenVersion desatualizado -- rejeita mesmo com assinatura valida.
       if ((payload.tokenVersion ?? 0) !== (customer.tokenVersion ?? 0)) {
-        throw new UnauthorizedException('Sessao expirada por troca de senha. Faca login novamente.')
+        throw new UnauthorizedException('Sua sessão expirou porque a senha foi trocada. Entre de novo.')
       }
       // JON-143: tenantId vinha do payload -- conta movida pra outro tenant
       // mantinha o contexto antigo por toda a validade do token (30 dias pra
@@ -94,7 +94,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           .catch(() => undefined)
       }
       if ((payload.tokenVersion ?? 0) !== (admin.tokenVersion ?? 0)) {
-        throw new UnauthorizedException('Sessao expirada por troca de senha. Faca login novamente.')
+        throw new UnauthorizedException('Sua sessão expirou porque a senha foi trocada. Entre de novo.')
       }
 
       // Papel e modulos vem do BANCO, nao do token: tirar o modulo `delivery`

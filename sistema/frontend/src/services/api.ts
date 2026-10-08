@@ -374,6 +374,9 @@ export const authAPI = {
   register: (data: RegisterPayload) => api.post('/auth/customer/register', data),
   guestCheckout: (data: GuestCheckoutPayload) => api.post('/auth/customer/guest-checkout', data),
   forgotPassword: (identifier: string) => api.post('/auth/customer/forgot-password', { identifier }),
+  /** Checkout convidado: os dados digitados ja sao de uma conta com senha? (08/10/2026) */
+  accountCheck: (data: { whatsapp?: string; cpf?: string; email?: string }) =>
+    api.post<{ exists: boolean; via?: 'whatsapp' | 'cpf' | 'email' }>('/auth/customer/account-check', data),
   resetPassword: (token: string, newPassword: string) =>
     api.post('/auth/customer/reset-password', { token, newPassword }),
   /** Cliente ja autenticado define a propria senha (conta de convidado nasce sem). */

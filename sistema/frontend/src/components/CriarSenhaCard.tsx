@@ -56,7 +56,7 @@ export function CriarSenhaCard() {
       await authAPI.setPassword(senha)
       setPronto(true)
     } catch (error) {
-      setErro(getApiErrorMessage(error, 'Nao foi possivel criar a senha agora.'))
+      setErro(getApiErrorMessage(error, 'Não foi possível criar a senha agora. Tente de novo.'))
     } finally {
       setEnviando(false)
     }

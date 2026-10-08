@@ -249,7 +249,7 @@ export class PricingService {
       const product = productsById.get(item.productId)
       if (!product) throw new BadRequestException(`Produto nao encontrado: ${item.productId}`)
       if (!product.active || String(product.syncOption || '').toUpperCase() === 'NUNCA') {
-        throw new BadRequestException(`Produto indisponivel para venda: ${product.name}`)
+        throw new BadRequestException(`O produto ${product.name} não está disponível agora.`)
       }
 
       const priceListItem = priceByProduct.get(item.productId)
