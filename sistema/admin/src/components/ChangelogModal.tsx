@@ -14,6 +14,14 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.21.1',
+    date: '08/10/2026',
+    title: 'Busca do Separador por Palavras',
+    highlights: [
+      { type: 'fix', description: 'No app de separação, a busca para incluir ou trocar produto aceita as palavras em qualquer ordem e sem acento: \"arroz tio joao\" já acha o \"Arroz Branco Tipo 1 Longo Fino Tio João Pacote 1kg\". Antes era preciso digitar o nome igual ao cadastro. O produto mais provável vem primeiro.' },
+    ],
+  },
+  {
     version: '1.21.0',
     date: '08/10/2026',
     title: 'Endereços do Site em Português',

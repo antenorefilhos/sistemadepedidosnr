@@ -1,4 +1,4 @@
-import { productIdsMatchingText } from '../../common/unaccent-search'
+import { searchProductIdsByWords } from '../../common/unaccent-search'
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { RequireModule } from '../../common/decorators/require-module.decorator'
@@ -228,46 +228,32 @@ export class PickerController {
     const prisma = this.pickingService['prisma']
     const select = { id: true, name: true, ean: true, price: true, promotionalPrice: true, unit: true, isFractional: true }
     const LIMIT = 15
+    const scope = { tenantId: ctx.tenantId, storeId: ctx.storeId, active: true }
 
-    // Prioriza correspondencias no inicio do nome ou EAN exato, depois preenche com "contem"
-    // — sem isso, produtos com o termo no meio do nome (ex: "Bolo de Cenoura") dominavam os
-    // 10 primeiros resultados e escondiam o produto mais obvio (ex: "Cenoura kg").
-    const startsWith = await prisma.product.findMany({
-      where: {
-        tenantId: ctx.tenantId,
-        storeId: ctx.storeId,
-        active: true,
-        OR: [
-          { name: { startsWith: term, mode: 'insensitive' } },
-          { ean: term },
-        ],
-      },
-      select,
-      orderBy: { name: 'asc' },
-      take: LIMIT,
-    })
+    // So numero: e codigo de barras (lido pela camera ou digitado).
+    if (/^\d{4,}$/.test(term)) {
+      const exact = await prisma.product.findMany({
+        where: { ...scope, OR: [{ ean: term }, { secondaryEans: { has: term } }] },
+        select,
+        take: LIMIT,
+      })
+      if (exact.length) return exact
+      return prisma.product.findMany({
+        where: { ...scope, ean: { contains: term } },
+        select,
+        orderBy: { name: 'asc' },
+        take: LIMIT,
+      })
+    }
 
-    if (startsWith.length >= LIMIT) return startsWith
-
-    const excludeIds = startsWith.map((p) => p.id)
-    const contains = await prisma.product.findMany({
-      where: {
-        tenantId: ctx.tenantId,
-        storeId: ctx.storeId,
-        active: true,
-        id: { notIn: excludeIds },
-        OR: [
-          { id: { in: await productIdsMatchingText(prisma, term) } },
-          { ean: { contains: term } },
-          { secondaryEans: { has: term } },
-        ],
-      },
-      select,
-      orderBy: { name: 'asc' },
-      take: LIMIT - startsWith.length,
-    })
-
-    return [...startsWith, ...contains]
+    // Por palavras, em qualquer ordem (08/10/2026): "arroz tio joao" acha o
+    // "Arroz Branco Tipo 1 Longo Fino Tio Joao Pacote 1kg". Antes a frase
+    // precisava aparecer inteira, na ordem do cadastro.
+    const ids = await searchProductIdsByWords(prisma, term, ctx, LIMIT)
+    if (!ids.length) return []
+    const found = await prisma.product.findMany({ where: { id: { in: ids } }, select })
+    const byId = new Map(found.map((product) => [product.id, product]))
+    return ids.map((id) => byId.get(id)).filter(Boolean)
   }
 
   @Post('tasks/:id/finish')
