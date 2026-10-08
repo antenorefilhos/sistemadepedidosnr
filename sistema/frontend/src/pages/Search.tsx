@@ -552,7 +552,7 @@ export default function MercadoPage() {
           <DesktopNavLinks tone="light" />
 
           <Link
-            to="/cart"
+            to="/carrinho"
             aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
             className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]"
           >
@@ -566,7 +566,7 @@ export default function MercadoPage() {
 
           {user && <NotificationBell />}
 
-          <Link to={user ? '/minha-conta' : '/login'} className="hidden shrink-0 items-center gap-1 rounded-full p-1 hover:bg-black/5 sm:flex">
+          <Link to={user ? '/minha-conta' : '/entrar'} className="hidden shrink-0 items-center gap-1 rounded-full p-1 hover:bg-black/5 sm:flex">
             <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D2BB8A]/40 bg-[#D2BB8A]/20">
               <User size={16} className="text-[#5D082A]" />
             </span>
@@ -840,7 +840,7 @@ export default function MercadoPage() {
       {count > 0 && (
         <div className="fixed inset-x-0 bottom-[var(--mobile-nav-height,4rem)] z-40 border-t border-[#D2BB8A]/40 bg-white/95 px-4 py-2.5 shadow-[0_-8px_30px_rgba(35,31,32,0.12)] backdrop-blur md:hidden">
           <Link
-            to="/cart"
+            to="/carrinho"
             className={buttonVariants({ className: 'flex h-12 w-full justify-between rounded-xl px-4 text-white shadow-lg' })}
             aria-label={`Ver carrinho com ${count} itens`}
           >

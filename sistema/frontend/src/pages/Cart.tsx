@@ -170,7 +170,7 @@ export default function Cart() {
 
   const goCheckout = () => {
     unavailable.forEach((l) => removeItem(l.item.productId))
-    navigate('/checkout')
+    navigate('/finalizar-compra')
   }
   const checkoutLabel = unavailable.length > 0 ? 'Tirar indisponíveis e fechar pedido' : 'Fechar pedido'
 

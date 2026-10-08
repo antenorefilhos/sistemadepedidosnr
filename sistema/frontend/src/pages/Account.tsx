@@ -100,7 +100,7 @@ export default function Account() {
           <ArrowLeft size={22} />
         </button>
         <h1 className="flex-1 text-lg font-bold text-[#231F20]">Minha conta</h1>
-        <Link to="/cart" aria-label={cartCount > 0 ? `Carrinho com ${cartCount} itens` : 'Carrinho vazio'} className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">
+        <Link to="/carrinho" aria-label={cartCount > 0 ? `Carrinho com ${cartCount} itens` : 'Carrinho vazio'} className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">
           <ShoppingCart size={22} />
           {cartCount > 0 && (
             <span className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#5D082A] px-1 text-[10px] font-bold text-white">{cartCount > 9 ? '9+' : cartCount}</span>
@@ -127,8 +127,8 @@ export default function Account() {
               <li className="flex gap-2"><Check size={16} className="mt-0.5 shrink-0 text-[#5D082A]" /> Endereços salvos e frete certo</li>
             </ul>
             <div className="mt-6 flex flex-col gap-2">
-              <Link to="/login?redirect=/minha-conta" className={buttonVariants({ size: 'lg', className: 'w-full rounded-xl' })}>Entrar</Link>
-              <Link to="/register" className={buttonVariants({ variant: 'outline', size: 'lg', className: 'w-full rounded-xl' })}>Criar conta</Link>
+              <Link to="/entrar?redirect=/minha-conta" className={buttonVariants({ size: 'lg', className: 'w-full rounded-xl' })}>Entrar</Link>
+              <Link to="/cadastro" className={buttonVariants({ variant: 'outline', size: 'lg', className: 'w-full rounded-xl' })}>Criar conta</Link>
             </div>
           </div>
         </main>
@@ -305,7 +305,7 @@ function OrderCard({ order }: { order: Order }) {
       return
     }
     toast.success(missing ? `${added} ${added === 1 ? 'item foi' : 'itens foram'} para o carrinho; ${missing} não ${missing === 1 ? 'está disponível' : 'estão disponíveis'} agora.` : 'Itens no carrinho, com o preço de hoje.')
-    navigate('/cart')
+    navigate('/carrinho')
   }
 
   // JON-182: a nota so existe depois que o pedido fatura no PDV -- consulta no clique.

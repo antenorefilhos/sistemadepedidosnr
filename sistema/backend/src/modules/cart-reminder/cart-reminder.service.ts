@@ -147,7 +147,7 @@ export class CartReminderService {
         type: 'CAMPAIGN',
         title: renderCartTemplate(s.cartTitle, ctx).slice(0, 80),
         body: renderCartTemplate(s.cartBody, ctx).slice(0, 180),
-        url: '/cart',
+        url: '/carrinho',
         customerId: snap.customerId,
         audienceLabel: customer.name,
         imageUrl: s.cartImage && main.ean ? `/uploads/products/${main.ean}.webp` : null,

@@ -30,7 +30,7 @@ export default function Login() {
   const { login } = useAuth()
 
   const redirect = searchParams.get('redirect') || undefined
-  const fromCheckout = Boolean(redirect?.startsWith('/checkout'))
+  const fromCheckout = Boolean(redirect?.startsWith('/finalizar-compra') || redirect?.startsWith('/checkout'))
   const notice = (location.state as { notice?: string } | null)?.notice
   const withRedirect = (path: string) => (redirect ? `${path}?redirect=${encodeURIComponent(redirect)}` : path)
 
@@ -129,7 +129,7 @@ export default function Login() {
         {fromCheckout && guestCheckoutEnabled && (
           <button
             type="button"
-            onClick={() => navigate(redirect || '/checkout')}
+            onClick={() => navigate(redirect || '/finalizar-compra')}
             className={buttonVariants({ variant: 'ghost', className: 'mt-2 h-11 w-full rounded-xl text-[15px]' })}
           >
             Comprar sem cadastro
@@ -138,7 +138,7 @@ export default function Login() {
 
         <div className="mt-6 border-t border-[#E8D7B0]/60 pt-5">
           <p className="text-center text-sm text-[#5d4f33]">Ainda não tem conta?</p>
-          <Link to={withRedirect('/register')} className={buttonVariants({ variant: 'outline', className: 'mt-2 h-12 w-full rounded-xl text-[15px]' })}>
+          <Link to={withRedirect('/cadastro')} className={buttonVariants({ variant: 'outline', className: 'mt-2 h-12 w-full rounded-xl text-[15px]' })}>
             Criar conta grátis
           </Link>
         </div>

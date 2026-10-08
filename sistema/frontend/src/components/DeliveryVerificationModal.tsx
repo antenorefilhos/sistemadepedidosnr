@@ -600,7 +600,7 @@ export function DeliveryVerificationModal() {
                 type="button"
                 onClick={() => {
                   handleCloseModal()
-                  navigate('/checkout')
+                  navigate('/finalizar-compra')
                 }}
                 variant="ghost"
                 size="sm"

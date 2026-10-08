@@ -255,7 +255,7 @@ function ShoppingCard({ shopping, collapsible, id }: { shopping: Shopping; colla
 
       <div className="mt-3">
         {allInCart ? (
-          <Link to="/cart" className={buttonVariants({ variant: 'outline', className: 'h-12 w-full rounded-xl text-[15px]' })}>
+          <Link to="/carrinho" className={buttonVariants({ variant: 'outline', className: 'h-12 w-full rounded-xl text-[15px]' })}>
             <Check size={18} /> Ingredientes no carrinho · Ver carrinho
           </Link>
         ) : (
@@ -312,7 +312,7 @@ function MobileRecipeBar({ shopping }: { shopping: Shopping }) {
             </button>
           </>
         ) : shopping.count > 0 ? (
-          <Link to="/cart" className={buttonVariants({ variant: 'primary', className: 'h-11 w-full rounded-xl' })}>
+          <Link to="/carrinho" className={buttonVariants({ variant: 'primary', className: 'h-11 w-full rounded-xl' })}>
             Ver carrinho · {shopping.count} {shopping.count === 1 ? 'item' : 'itens'} · {formatPrice(shopping.subtotal)}
           </Link>
         ) : (

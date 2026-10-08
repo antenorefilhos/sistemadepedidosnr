@@ -145,7 +145,7 @@ export default function Promocoes() {
             <Search size={21} />
           </Link>
           <Link
-            to="/cart"
+            to="/carrinho"
             aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
             className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]"
           >
@@ -285,7 +285,7 @@ function OfferAlertsCard() {
           <p className="text-sm font-bold text-[#231F20]">Saiba primeiro das ofertas</p>
           <p className="text-xs text-gray-500">Entre na sua conta e ative o aviso no celular.</p>
         </div>
-        <Link to="/login?redirect=/promocoes" className={buttonVariants({ size: 'sm', className: 'shrink-0 rounded-full px-4' })}>
+        <Link to="/entrar?redirect=/promocoes" className={buttonVariants({ size: 'sm', className: 'shrink-0 rounded-full px-4' })}>
           Entrar
         </Link>
       </section>

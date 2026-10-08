@@ -205,7 +205,7 @@ export default function WinePage() {
             <p className="-mt-0.5 text-[10px] uppercase tracking-[0.25em] text-[#D2BB8A]/60">Desde 1979</p>
           </div>
           <div className="flex items-center">
-            <Link to="/cart" className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#D2BB8A] hover:bg-white/5" aria-label={count > 0 ? `Carrinho com ${count} itens` : 'Carrinho vazio'}>
+            <Link to="/carrinho" className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#D2BB8A] hover:bg-white/5" aria-label={count > 0 ? `Carrinho com ${count} itens` : 'Carrinho vazio'}>
               <ShoppingCart size={22} />
               {count > 0 && (
                 <span className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#D2BB8A] px-1 text-[10px] font-bold text-[#231F20]">{count > 9 ? '9+' : count}</span>

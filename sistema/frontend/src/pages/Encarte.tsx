@@ -70,7 +70,7 @@ export default function Encarte() {
             <ArrowLeft size={22} />
           </Link>
           <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-[#231F20]">{campaign?.name || 'Encarte'}</h1>
-          <Link to="/cart" aria-label={count > 0 ? `Carrinho com ${count} itens` : 'Carrinho vazio'} className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">
+          <Link to="/carrinho" aria-label={count > 0 ? `Carrinho com ${count} itens` : 'Carrinho vazio'} className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]">
             <ShoppingCart size={22} />
             {count > 0 && (
               <span className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#5D082A] px-1 text-[10px] font-bold text-white">{count > 9 ? '9+' : count}</span>

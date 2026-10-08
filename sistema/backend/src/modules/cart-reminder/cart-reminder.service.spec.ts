@@ -104,7 +104,7 @@ describe('CartReminderService.plan (fila de envios)', () => {
         sourceKey: `carrinho:c1:${PARADO.getTime()}`,
         title: 'Giovana, esqueceu algo no carrinho?',
         body: 'Você deixou Batata Palha Extra Fina Yoki Pacote… e mais 1 item no carrinho. Finalize seu pedido!',
-        url: '/cart',
+        url: '/carrinho',
         customerId: 'c1',
         imageUrl: '/uploads/products/789.webp',
         respectHours: true,

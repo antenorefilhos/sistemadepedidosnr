@@ -83,7 +83,7 @@ export function MobileBottomNav() {
               </Link>
             )
           })}
-          <Link to="/cart" className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors relative cursor-pointer">
+          <Link to="/carrinho" className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors relative cursor-pointer">
             <ShoppingCart size={21} />
             {count > 0 && (
               <span className="absolute top-2 right-4 bg-[#5D082A] text-white text-label font-black rounded-full w-4 h-4 flex items-center justify-center">{count}</span>
@@ -93,7 +93,7 @@ export function MobileBottomNav() {
             )}
             <span className="text-label font-medium">Carrinho</span>
           </Link>
-          <Link to={user ? '/minha-conta' : '/login'} className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
+          <Link to={user ? '/minha-conta' : '/entrar'} className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
             <User size={21} />
             <span className="text-label font-medium">{user ? 'Conta' : 'Entrar'}</span>
           </Link>

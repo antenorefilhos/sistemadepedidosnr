@@ -121,7 +121,7 @@ describe('NotificationsService', () => {
       title: '✅ Pedido Confirmado',
       body: 'Pedido #ORDER-1 confirmado e em preparo',
       image: undefined,
-      url: '/account?n=notif-1',
+      url: '/minha-conta?n=notif-1',
     })
     expect(whatsAppService.sendStatusUpdate).toHaveBeenCalled()
   })

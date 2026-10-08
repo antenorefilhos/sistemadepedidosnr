@@ -101,7 +101,7 @@ export default function Checkout() {
 
   useEffect(() => {
     if (!guestCheckoutEnabled && !user) {
-      navigate('/login', { replace: true })
+      navigate('/entrar', { replace: true })
     }
   }, [guestCheckoutEnabled, user, navigate])
 
@@ -894,7 +894,7 @@ export default function Checkout() {
     if (step === 'payment') {
       setStep('address')
       window.scrollTo({ top: 0 })
-    } else navigate('/cart')
+    } else navigate('/carrinho')
   }
 
   // Total da barra: antes da cotação, itens + frete estimado do endereço.

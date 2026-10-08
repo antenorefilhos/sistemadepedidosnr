@@ -297,7 +297,7 @@ export default function Register() {
 
         <p className="mt-5 border-t border-[#E8D7B0]/60 pt-4 text-center text-sm text-[#5d4f33]">
           Já tem conta?{' '}
-          <Link to={redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login'} className="font-bold text-[#5D082A] hover:underline">
+          <Link to={redirect ? `/entrar?redirect=${encodeURIComponent(redirect)}` : '/entrar'} className="font-bold text-[#5D082A] hover:underline">
             Entrar
           </Link>
         </p>

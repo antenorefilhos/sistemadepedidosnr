@@ -94,7 +94,7 @@ ${itemsList}${hasMore}
 
 Seu carrinho está te esperando! Finalize seu pedido agora e receba em casa com a qualidade que você conhece.
 
-Acesse: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart
+Acesse: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/carrinho
     `.trim()
 
     return this.sendMessage(whatsappNumber, message)

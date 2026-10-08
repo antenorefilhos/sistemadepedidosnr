@@ -36,10 +36,14 @@ const Encarte = lazy(() => import('./pages/Encarte'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 const TermsOfUse = lazy(() => import('./pages/TermsOfUse'))
 
-// /account virou /minha-conta (08/10/2026): avisos, mensagens e favoritos antigos continuam abrindo.
-function LegacyAccountRedirect() {
+// Enderecos em portugues (08/10/2026): /account, /cart, /checkout, /login,
+// /register e /forbidden viraram /minha-conta, /carrinho, /finalizar-compra,
+// /entrar, /cadastro e /acesso-negado. Os antigos continuam abrindo -- avisos,
+// mensagens, banners e favoritos ja enviados -- e levam junto a query
+// (?redirect=, ?coupon=, ?aba=) e o state.
+function LegacyRedirect({ to }: { to: string }) {
   const location = useLocation()
-  return <Navigate to={`/minha-conta${location.search}`} replace />
+  return <Navigate to={`${to}${location.search}${location.hash}`} state={location.state} replace />
 }
 
 function LegacySearchRedirect() {
@@ -101,7 +105,7 @@ function ProtectedRoute({ children, isAuthenticated, isLoading }: ProtectedRoute
 
   // Volta para a pagina pedida depois do login (antes caia na Home: quem tocava
   // em "Conta" ou abria o link do pedido tinha que achar o caminho de novo).
-  return isAuthenticated ? <>{children}</> : <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />
+  return isAuthenticated ? <>{children}</> : <Navigate to={`/entrar?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />
 }
 
 function AppRoutes() {
@@ -115,11 +119,14 @@ function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <AnimatePresence mode="wait" initial={false}>
         <Routes location={location} key={location.pathname}>
-          <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
-          <Route path="/register" element={<PageTransition><Register /></PageTransition>} />
+          <Route path="/entrar" element={<PageTransition><Login /></PageTransition>} />
+          <Route path="/cadastro" element={<PageTransition><Register /></PageTransition>} />
+          <Route path="/login" element={<LegacyRedirect to="/entrar" />} />
+          <Route path="/register" element={<LegacyRedirect to="/cadastro" />} />
           <Route path="/esqueci-minha-senha" element={<PageTransition><ForgotPassword /></PageTransition>} />
           <Route path="/redefinir-senha" element={<PageTransition><ResetPassword /></PageTransition>} />
-          <Route path="/forbidden" element={<PageTransition><Forbidden /></PageTransition>} />
+          <Route path="/acesso-negado" element={<PageTransition><Forbidden /></PageTransition>} />
+          <Route path="/forbidden" element={<LegacyRedirect to="/acesso-negado" />} />
           <Route path="/vinhos" element={<PageTransition><WinePage /></PageTransition>} />
           <Route path="/adega" element={<PageTransition><WinePage /></PageTransition>} />
           <Route path="/adega-antenor" element={<PageTransition><WinePage /></PageTransition>} />
@@ -135,10 +142,11 @@ function AppRoutes() {
           <Route path="/termos" element={<PageTransition><TermsOfUse /></PageTransition>} />
 
           <Route path="/" element={<PageTransition><Home /></PageTransition>} />
-          <Route path="/cart" element={<PageTransition><Cart /></PageTransition>} />
-          <Route path="/carrinho" element={<Navigate to="/cart" replace />} />
+          <Route path="/carrinho" element={<PageTransition><Cart /></PageTransition>} />
+          <Route path="/cart" element={<LegacyRedirect to="/carrinho" />} />
+          <Route path="/checkout" element={<LegacyRedirect to="/finalizar-compra" />} />
           <Route
-            path="/checkout"
+            path="/finalizar-compra"
             element={
               guestCheckoutEnabled ? (
                 <PageTransition><Checkout /></PageTransition>
@@ -149,7 +157,7 @@ function AppRoutes() {
               )
             }
           />
-          <Route path="/account" element={<LegacyAccountRedirect />} />
+          <Route path="/account" element={<LegacyRedirect to="/minha-conta" />} />
           <Route
             path="/minha-conta"
             element={

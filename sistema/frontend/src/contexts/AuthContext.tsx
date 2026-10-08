@@ -27,7 +27,7 @@ export const AuthContext = createContext<AuthContextData>({} as AuthContextData)
 /**
  * So aceita caminho interno como destino pos-login.
  *
- * O destino vem da query string (`/login?redirect=...`), que qualquer um pode
+ * O destino vem da query string (`/entrar?redirect=...`), que qualquer um pode
  * montar num link. Sem esta checagem, `?redirect=https://site-falso` levaria o
  * cliente recem-autenticado pra fora do site logo apos digitar a senha --
  * open redirect, o vetor classico de phishing. `//host` tambem e externo,
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     delete api.defaults.headers.common['Authorization']
-    navigate('/login')
+    navigate('/entrar')
   }, [navigate])
 
   const applySession = useCallback((accessToken: string, userData: User) => {

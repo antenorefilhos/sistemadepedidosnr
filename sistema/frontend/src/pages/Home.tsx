@@ -627,7 +627,7 @@ export default function Home() {
                   <NotificationBell />
                 </div>
               )}
-              <Link to={user ? '/minha-conta' : '/login'} aria-label={user ? 'Minha conta' : 'Entrar'} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
+              <Link to={user ? '/minha-conta' : '/entrar'} aria-label={user ? 'Minha conta' : 'Entrar'} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
                 <User size={18} className="text-white" />
               </Link>
             </div>
@@ -660,7 +660,7 @@ export default function Home() {
               <ScanLine size={19} />
             </button>
           </form>
-          <Link to="/cart" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15" aria-label={`Carrinho com ${count} itens`}>
+          <Link to="/carrinho" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15" aria-label={`Carrinho com ${count} itens`}>
             <ShoppingCart size={22} className="text-white" />
             {count > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#D2BB8A] px-1 text-[11px] font-black text-[#5D082A]">{count > 9 ? '9+' : count}</span>
@@ -789,7 +789,7 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-4">
-            <Link to="/cart" className="relative p-2 text-white hover:text-[#D2BB8A] transition-colors" aria-label={`Carrinho com ${count} itens`}>
+            <Link to="/carrinho" className="relative p-2 text-white hover:text-[#D2BB8A] transition-colors" aria-label={`Carrinho com ${count} itens`}>
               <ShoppingCart size={24} />
               {count > 0 && (
                 <span className="absolute -top-1 -right-1 bg-[#D2BB8A] text-[#5D082A] text-label font-bold rounded-full w-4 h-4 flex items-center justify-center">
@@ -802,7 +802,7 @@ export default function Home() {
                 <NotificationBell />
               </div>
             )}
-            <Link to={user ? '/minha-conta' : '/login'} className="flex items-center gap-2 p-1 hover:bg-white/10 rounded-full transition-all">
+            <Link to={user ? '/minha-conta' : '/entrar'} className="flex items-center gap-2 p-1 hover:bg-white/10 rounded-full transition-all">
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden border border-white/20">
                 <User size={18} className="text-white" />
               </div>

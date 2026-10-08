@@ -14,6 +14,15 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.21.0',
+    date: '08/10/2026',
+    title: 'Endereços do Site em Português',
+    highlights: [
+      { type: 'feat', description: 'As páginas do site ganharam endereço em português: /carrinho, /finalizar-compra, /entrar, /cadastro, /minha-conta e /acesso-negado. Os endereços antigos (/cart, /checkout, /login, /register, /account) continuam funcionando e levam para a página nova, com o cupom, o destino depois do login e a aba da conta. Banners e avisos já enviados não quebram.' },
+      { type: 'fix', description: 'O lembrete de carrinho esquecido (aviso no celular e WhatsApp) agora abre /carrinho.' },
+    ],
+  },
+  {
     version: '1.20.1',
     date: '08/10/2026',
     title: 'Mensagem das Trocas Mais Limpa e Minha Conta em Português',

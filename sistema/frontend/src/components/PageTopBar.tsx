@@ -21,7 +21,7 @@ export function PageTopBar({ title, onBack, backLabel = 'Voltar', actions }: { t
         <div className="flex min-w-0 flex-1 items-center gap-2 text-lg font-bold text-[#231F20]">{title}</div>
         {actions}
         <Link
-          to="/cart"
+          to="/carrinho"
           aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
           className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]"
         >

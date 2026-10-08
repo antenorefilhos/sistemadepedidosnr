@@ -35,7 +35,7 @@ export default function ResetPassword() {
     setIsLoading(true)
     try {
       await authAPI.resetPassword(token, newPassword)
-      navigate('/login', { replace: true, state: { notice: 'Senha criada. Agora é só entrar com ela.' } })
+      navigate('/entrar', { replace: true, state: { notice: 'Senha criada. Agora é só entrar com ela.' } })
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Não foi possível salvar a senha. Tente de novo.'))
     } finally {
@@ -44,7 +44,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <AuthShell backTo="/login">
+    <AuthShell backTo="/entrar">
       <div className="rounded-3xl bg-white p-5 shadow-[0_1px_3px_rgba(35,31,32,0.06)] ring-1 ring-[#E8D7B0]/70 sm:p-8">
         {!token ? (
           <>

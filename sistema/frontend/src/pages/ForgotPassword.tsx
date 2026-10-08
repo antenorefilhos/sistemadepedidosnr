@@ -35,7 +35,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <AuthShell backTo="/login">
+    <AuthShell backTo="/entrar">
       <div className="rounded-3xl bg-white p-5 shadow-[0_1px_3px_rgba(35,31,32,0.06)] ring-1 ring-[#E8D7B0]/70 sm:p-8">
         {sent ? (
           <div className="text-center" role="status">
@@ -46,7 +46,7 @@ export default function ForgotPassword() {
             <p className="mt-2 text-sm leading-relaxed text-[#5d4f33]">
               Se encontrarmos sua conta, o link para criar a senha nova chega em alguns minutos no e-mail do cadastro. Olhe também o spam. O link vale por 1 hora.
             </p>
-            <Link to="/login" className={buttonVariants({ variant: 'primary', className: 'mt-6 h-12 w-full rounded-xl text-[15px]' })}>
+            <Link to="/entrar" className={buttonVariants({ variant: 'primary', className: 'mt-6 h-12 w-full rounded-xl text-[15px]' })}>
               Voltar para entrar
             </Link>
             <button type="button" onClick={() => setSent(false)} className="mt-2 h-11 w-full rounded-xl text-sm font-bold text-[#5D082A] hover:bg-[#F8F4EA]">
@@ -90,7 +90,7 @@ export default function ForgotPassword() {
               </LoadingButton>
             </form>
 
-            <Link to="/login" className="mt-3 flex h-11 items-center justify-center rounded-xl text-sm font-bold text-[#5D082A] hover:bg-[#F8F4EA]">
+            <Link to="/entrar" className="mt-3 flex h-11 items-center justify-center rounded-xl text-sm font-bold text-[#5D082A] hover:bg-[#F8F4EA]">
               Lembrei a senha
             </Link>
           </>

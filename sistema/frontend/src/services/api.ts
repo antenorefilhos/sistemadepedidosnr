@@ -221,24 +221,24 @@ api.interceptors.response.use(
     if (status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      if (window.location.pathname !== '/login') {
+      if (window.location.pathname !== '/entrar') {
         // Leva junto a pagina onde o cliente estava. Antes ia direto pra
         // /login e a navegacao se perdia: quem estava no meio do checkout
         // voltava pra tela de login sem contexto e recomecava do zero. O
         // destino e validado no AuthContext (destinoSeguro) antes de ser
         // usado -- nao da pra confiar em query string sem checar.
         const volta = window.location.pathname + window.location.search
-        window.location.href = `/login?redirect=${encodeURIComponent(volta)}`
+        window.location.href = `/entrar?redirect=${encodeURIComponent(volta)}`
       }
       error.userMessage = 'Sua sessão expirou. Entre de novo.'
     }
 
     // Login/cadastro recusado (conta suspensa, dado bloqueado) responde 403 com
-    // o motivo: mostra na propria tela. Antes ia para /forbidden e o cliente
+    // o motivo: mostra na propria tela. Antes ia para /acesso-negado e o cliente
     // perdia a mensagem (07/10/2026).
     if (status === 403 && !isAuthEndpoint) {
-      if (window.location.pathname !== '/forbidden') {
-        window.location.href = '/forbidden'
+      if (window.location.pathname !== '/acesso-negado') {
+        window.location.href = '/acesso-negado'
       }
       error.userMessage = 'Acesso negado para este recurso.'
     }

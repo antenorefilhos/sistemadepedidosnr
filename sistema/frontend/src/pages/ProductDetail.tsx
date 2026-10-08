@@ -188,7 +188,7 @@ function ProductHeader({ onBack, product }: { onBack: () => void; product?: Prod
           </button>
         )}
         <Link
-          to="/cart"
+          to="/carrinho"
           aria-label={count > 0 ? `Carrinho com ${count} ${count === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
           className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#231F20] hover:bg-[#F8F4EA]"
         >
@@ -413,7 +413,7 @@ function PurchaseActions({ product, purchase, size = 'lg' }: { product: Product;
           <span className="font-black tabular-nums">{formatPrice(price.displayPrice * purchase.shown)}</span>
         </Button>
       ) : (
-        <Link to="/cart" className={buttonVariants({ variant: 'primary', className: `${height} flex-1 justify-between gap-2 rounded-xl px-4 text-[15px]` })}>
+        <Link to="/carrinho" className={buttonVariants({ variant: 'primary', className: `${height} flex-1 justify-between gap-2 rounded-xl px-4 text-[15px]` })}>
           {purchase.justAdded ? (
             <span className="inline-flex items-center gap-2"><Check className="h-5 w-5" /> Adicionado</span>
           ) : (
