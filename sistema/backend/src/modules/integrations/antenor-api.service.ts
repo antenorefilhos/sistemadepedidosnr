@@ -534,8 +534,11 @@ export class AntenorApiService {
     mes?: number
     limitePorCarrossel?: number
   }): Promise<VitrineEcommerceAntenorApi> {
+    // ~23-29 s em 08/10/2026, encostando nos 30 s padrao. Roda por tras do
+    // cache da Home (HomeVitrinesService), entao pode esperar mais.
     const { data } = await this.cliente.get<VitrineEcommerceAntenorApi>('/api/integracao/vitrines', {
       params: { loja: this.loja, ...params },
+      timeout: Math.max(this.timeoutMs, 60_000),
     })
     return data
   }

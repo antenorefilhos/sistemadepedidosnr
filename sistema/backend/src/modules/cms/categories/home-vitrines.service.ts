@@ -155,17 +155,33 @@ export class HomeVitrinesService implements OnApplicationBootstrap {
   async getHomeVitrines(query: HomeVitrinesQuery) {
     const key = JSON.stringify(query ?? {});
     const hit = this.cache.get(key);
-    if (hit && Date.now() - hit.at < 10 * 60_000) return hit.value;
-    const value = this.build(query);
+    if (hit && Date.now() - hit.at < 10 * 60_000) return this.limitColdWait(hit.value);
+    const value = this.track(this.build(query));
     if (hit) {
       // Tem valor antigo: responde com ele e so troca quando o novo ficar pronto
       // (renova o relogio ja, para varias visitas nao dispararem varios recalculos).
       this.cache.set(key, { at: Date.now(), value: hit.value });
       value.then(() => this.cache.set(key, { at: Date.now(), value })).catch(() => undefined);
-      return hit.value;
+      return this.limitColdWait(hit.value);
     }
     this.cache.set(key, { at: Date.now(), value });
     value.catch(() => this.cache.delete(key));
+    return this.limitColdWait(value);
+  }
+
+  private readonly settled = new WeakSet<Promise<unknown>>();
+
+  private track<T>(value: Promise<T>): Promise<T> {
+    value.then(() => this.settled.add(value), () => undefined);
+    return value;
+  }
+
+  /**
+   * Montagem ainda em andamento (cache vazio, inclusive quem chega enquanto a
+   * da subida da API roda): espera no maximo COLD_WAIT_MS e responde null.
+   */
+  private async limitColdWait<T>(value: Promise<T>): Promise<T | null> {
+    if (this.settled.has(value)) return value;
     let timer: NodeJS.Timeout | undefined;
     const giveUp = new Promise<null>((resolve) => {
       timer = setTimeout(() => resolve(null), COLD_WAIT_MS);

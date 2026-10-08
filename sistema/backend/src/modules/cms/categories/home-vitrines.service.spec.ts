@@ -321,3 +321,21 @@ describe('vitrines com a AntenorApi lenta (08/10/2026)', () => {
     resolveRemota({ carrosseis: [] })
   })
 })
+
+describe('quem chega durante a montagem da subida da API (08/10/2026)', () => {
+  afterEach(() => jest.useRealTimers())
+
+  it('tambem espera no maximo 2,5 s', async () => {
+    jest.useFakeTimers()
+    const antenorApi = { getVitrines: jest.fn(() => new Promise(() => undefined)) }
+    const prisma = { product: { findMany: jest.fn().mockResolvedValue([]) }, category: { findMany: jest.fn().mockResolvedValue([]) } }
+    const service = new HomeVitrinesService(prisma as never, antenorApi as never)
+    const primeira = service.getHomeVitrines({})
+    jest.advanceTimersByTime(2600)
+    await expect(primeira).resolves.toBeNull()
+    const segunda = service.getHomeVitrines({})
+    jest.advanceTimersByTime(2600)
+    await expect(segunda).resolves.toBeNull()
+    expect(antenorApi.getVitrines).toHaveBeenCalledTimes(1)
+  })
+})
