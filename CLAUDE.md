@@ -46,6 +46,10 @@ via HTTPS com uma conta `role=picker`. Ver `Notificador/README.md`.
   quanto para "por que essa decisão?" — o commit/comentário quase sempre
   já tem a resposta, com data e contexto.
 
+## Novidades do admin: sobe a versão a cada entrega
+
+O botão "v1.x · Novidades" do painel lê a versão do `admin/package.json`, e a lista vem do `ADMIN_CHANGELOG` (`admin/src/components/ChangelogModal.tsx`), escrita à mão e em linguagem de loja. Ficou parada em 1.11.0 de 22/09 a 08/10/2026, com 172 commits sem registro, porque ninguém tinha essa tarefa. **Toda entrega que muda o que a loja ou a equipe vê ganha uma linha ali, e a versão sobe no mesmo commit.** O teste `ChangelogModal.test.ts` falha se a versão do `package.json` não for a da novidade mais recente.
+
 ## Roadmap
 
 Plano de lançamento e pendências em [docs/roadmap.md](docs/roadmap.md).
