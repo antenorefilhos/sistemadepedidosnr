@@ -30,7 +30,14 @@ export interface OrderItem {
   subtotal: number
   requestedQuantity: number | null
   fulfilledQuantity: number | null
+  finalSubtotal?: number | string | null
   status: string
+  /** Como o item foi confirmado (08/10/2026): CAMERA, TYPED, MANUAL ou BARCODE (antigo). */
+  pickMethod?: string | null
+  pickedBarcode?: string | null
+  /** Nao estava no pedido do cliente: o separador incluiu. */
+  addedByPicker?: boolean
+  substitutedByItemId?: string | null
   /** `ALLOW` (padrao) | `DENY` -- escolha do cliente no carrinho, item a item.
    *  Ja vinha na resposta da API; faltava so declarar e mostrar. */
   substitutionPolicy?: string
@@ -57,6 +64,15 @@ export interface Order {
   fulfillmentType?: string
   delivery?: number
   deliverySnapshot?: { freeShippingReason?: 'FIRST_ORDER' | 'EARNED' | null } | null
+  addressSnapshot?: {
+    street?: string
+    number?: string
+    complement?: string
+    neighborhood?: string
+    city?: string
+    reference?: string
+    zipCode?: string
+  } | null
   createdAt: string
   /** DAV do Solidcom -- e o numero que se digita no PDV pra puxar o pedido. */
   erpDav?: string | null
@@ -123,6 +139,7 @@ export const pickerApi = {
     quantity: number
     finalWeight?: number
     barcode?: string
+    method?: 'CAMERA' | 'TYPED' | 'MANUAL'
     notes?: string
   }) => api.post<PickingTask>(`/picker/tasks/${taskId}/items/${itemId}/pick`, data),
 

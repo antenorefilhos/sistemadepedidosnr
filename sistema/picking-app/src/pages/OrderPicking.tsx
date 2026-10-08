@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ArrowLeft, Check, ClipboardList, Loader2, Package, Plus } from 'lucide-react'
+import { ArrowLeft, Check, ClipboardList, Loader2, MapPin, Package, Plus } from 'lucide-react'
 import { pickerApi, PickingTask, PickingTaskItem, Order } from '../services/api'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
-import { deliveryLabel, paymentLabel } from '../utils/orderInfo'
+import { addressLines, deliveryLabel, paymentLabel } from '../utils/orderInfo'
 import { qtd, qtdInput } from '../utils/quantity'
-import { brl, orderAdjustment, signedBrl, signedPct } from '../utils/orderAdjustment'
+import { brl, orderAdjustment, signedBrl } from '../utils/orderAdjustment'
+import { AdjustmentSummary } from '../components/AdjustmentSummary'
 import toast from 'react-hot-toast'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { Modal, ItemCard, DoneItemCard } from '../components/PickingShared'
@@ -259,6 +260,8 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       const { data } = await pickerApi.pickItem(task.id, taskItem.id, {
         quantity: qty,
         barcode,
+        // A camera e o campo digitado chegam aqui; o modo aberto diz qual foi.
+        method: confirm.mode === 'ean' ? 'TYPED' : 'CAMERA',
         ...(isWeightedProduct(product) ? { finalWeight } : {}),
       })
       setTask(data)
@@ -289,6 +292,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
       const isAdjusted = adjustQty !== requested
       const { data } = await pickerApi.pickItem(task.id, taskItem.id, {
         quantity: adjustQty,
+        method: 'MANUAL',
         notes: isAdjusted ? `Quantidade corrigida: ${qtd(adjustQty)} de ${qtd(requested)}` : 'Marcação manual',
         ...(isWeightedProduct(product) ? { finalWeight: adjustQty } : {}),
       })
@@ -477,6 +481,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const canSendToCashier = (isSeparated || allDone) && !isSentToCashier
   const finishNext = FINISH_NEXT[order.status] || null
   const adjustment = orderAdjustment(order)
+  const address = order.fulfillmentType === 'PICKUP' ? null : addressLines(order.addressSnapshot)
 
   return (
     <div className="flex flex-col h-full">
@@ -492,12 +497,12 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             </p>
             {adjustment && (
               <p className="mt-0.5 text-xs text-white/80 tabular-nums">
-                Pedido {brl(adjustment.approved)}
+                Aprovado {brl(adjustment.approved)}
                 {Math.abs(adjustment.diff) >= 0.01 && (
                   <>
-                    {' · agora '}
+                    {' → agora '}
                     <span className="font-semibold text-white">{brl(adjustment.final)}</span>
-                    {` (${signedBrl(adjustment.diff)} · ${signedPct(adjustment.pct)})`}
+                    {` (${signedBrl(adjustment.diff)})`}
                   </>
                 )}
               </p>
@@ -567,9 +572,21 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             </button>
           </div>
         )}
-        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-700 flex flex-wrap gap-x-4 gap-y-1">
-          <span><strong>Pagamento:</strong> {paymentLabel(order.paymentMethod)}</span>
-          <span className="text-red-600 font-semibold">{deliveryLabel(order)}</span>
+        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-700">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <span><strong>Pagamento:</strong> {paymentLabel(order.paymentMethod)}</span>
+            <span className="text-red-600 font-semibold">{deliveryLabel(order)}</span>
+          </div>
+          {address && (
+            <a href={address.mapsUrl} target="_blank" rel="noreferrer" className="mt-2 flex items-start gap-2 border-t border-gray-100 pt-2 active:bg-gray-50">
+              <MapPin size={16} className="mt-0.5 shrink-0 text-brand-500" />
+              <span className="min-w-0">
+                <span className="block text-gray-900">{address.line1}</span>
+                {address.line2 && <span className="block text-xs text-gray-500">{address.line2}</span>}
+                {address.reference && <span className="block text-xs text-gray-500">Ref.: {address.reference}</span>}
+              </span>
+            </a>
+          )}
         </div>
         {order.riskLevel === 'HIGH' && !order.riskReviewedAt && (
           <div role="alert" className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
@@ -620,6 +637,8 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 key={item.id}
                 taskItem={item}
                 product={getProductForTaskItem(item)}
+                orderItem={getOrderItemForTaskItem(item)}
+                allItems={order.items}
                 onReset={() => { if (window.confirm('Desfazer a separação deste item?')) handleResetItem(item.id) }}
                 onRemove={() => { if (window.confirm('Remover este item já separado?')) handleRemoveItem(item.id) }}
                 disabled={actionLoading || isSentToCashier}
@@ -638,6 +657,9 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             Incluir Item no Pedido
           </button>
         )}
+
+        {/* Fim do pedido: de onde vem a diferenca entre o aprovado e o agora. */}
+        {done.length > 0 && <div className="pt-2"><AdjustmentSummary order={order} /></div>}
 
         {taskItems.length === 0 && (
           <div className="flex flex-col items-center justify-center h-40 text-gray-400 gap-2">

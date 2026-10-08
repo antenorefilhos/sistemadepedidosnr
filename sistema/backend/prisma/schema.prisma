@@ -755,6 +755,15 @@ model OrderItem {
   substitutedByItemId String?
   cutReason String?
   pickerNotes String?
+  /// Como o separador confirmou o item (08/10/2026): CAMERA (codigo lido pela
+  /// camera), TYPED (EAN digitado), MANUAL (marcado sem ler o codigo) ou
+  /// BARCODE (codigo lido antes de 08/10, sem saber se foi camera ou digitado).
+  pickMethod String?
+  /// Codigo lido ou digitado na separacao (pode ser a etiqueta da balanca).
+  pickedBarcode String?
+  /// Item que nao estava no pedido do cliente e foi incluido pelo separador.
+  /// Antes so dava para saber pelo texto da nota, que o "desfazer" apagava.
+  addedByPicker Boolean @default(false)
   createdAt DateTime @default(now())
 
   @@index([tenantId, storeId])

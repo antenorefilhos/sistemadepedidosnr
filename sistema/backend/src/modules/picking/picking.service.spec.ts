@@ -234,14 +234,15 @@ describe('PickingService', () => {
     expect(mockPrismaService.orderItem.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'order-item-1' },
-        data: expect.objectContaining({ status: 'PICKED' }),
+        // App antigo nao manda `method`: codigo informado vira BARCODE (08/10/2026).
+        data: expect.objectContaining({ status: 'PICKED', pickMethod: 'BARCODE', pickedBarcode: '789' }),
       }),
     )
     expect(mockPrismaService.orderEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           type: 'order.item_picked',
-          payload: expect.objectContaining({ pickedQuantity: 2, barcode: '789' }),
+          payload: expect.objectContaining({ pickedQuantity: 2, barcode: '789', method: 'BARCODE' }),
         }),
       }),
     )

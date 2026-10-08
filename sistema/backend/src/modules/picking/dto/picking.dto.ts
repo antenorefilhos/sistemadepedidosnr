@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsDateString, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator'
+import { IsArray, IsBoolean, IsDateString, IsIn, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator'
 
 export class CreatePickingTaskDto {
   @IsString()
@@ -35,6 +35,11 @@ export class PickPickingItemDto {
   @IsOptional()
   @IsString()
   barcode?: string
+
+  /** Como o separador confirmou: camera, EAN digitado ou marcado a mao (08/10/2026). */
+  @IsOptional()
+  @IsIn(['CAMERA', 'TYPED', 'MANUAL'])
+  method?: 'CAMERA' | 'TYPED' | 'MANUAL'
 
   @IsOptional()
   @IsString()

@@ -1,6 +1,9 @@
-import { Camera, Check, ChevronDown, ChevronUp, Edit3, Keyboard, Package, RotateCcw, Trash2, X } from 'lucide-react'
-import { PickingTaskItem } from '../services/api'
+import { Camera, Check, ChevronDown, ChevronUp, Edit3, Keyboard, RotateCcw, Trash2, X } from 'lucide-react'
+import { OrderItem, PickingTaskItem } from '../services/api'
 import { noteLabel, qtd } from '../utils/quantity'
+import { PICK_METHOD_LABEL } from '../utils/orderInfo'
+import { itemChange, signedBrl } from '../utils/orderAdjustment'
+import { ProductPhoto } from './ProductPhoto'
 
 export const ITEM_STATUS_LABEL: Record<string, string> = {
   PENDING: 'Pendente',
@@ -45,16 +48,14 @@ export function ItemCard({
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <button onClick={onToggle} className="w-full px-4 py-3 text-left flex items-center gap-3 active:bg-gray-50">
-        <div className="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Package size={16} className="text-brand-500" />
-        </div>
+      <button onClick={onToggle} className="w-full px-3 py-3 text-left flex items-center gap-3 active:bg-gray-50">
+        <ProductPhoto ean={product?.ean} />
         <div className="flex-1 min-w-0">
           <p className="font-medium text-gray-900 text-sm">{product?.name || 'Produto'}</p>
           <p className="text-xs text-gray-500">
-            {qty} {product?.unit || 'un'}
-            {product?.ean && <span className="ml-2 text-gray-400">EAN: {product.ean}</span>}
+            <strong className="text-gray-800">{qtd(qty)} {(product?.unit || 'un').toLowerCase()}</strong>
           </p>
+          {product?.ean && <p className="font-mono text-[11px] tracking-wide text-gray-400">EAN {product.ean}</p>}
           {naoAceitaTroca && (
             <span className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
               Não aceita troca
@@ -64,6 +65,12 @@ export function ItemCard({
         {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
       </button>
 
+      {expanded && product?.ean && (
+        <div className="px-4 pb-2">
+          {/* Foto grande para achar o produto na gondola. */}
+          <ProductPhoto ean={product.ean} className="h-40 w-full" />
+        </div>
+      )}
       {expanded && (
         <div className="px-4 pb-3 grid grid-cols-2 gap-2">
           <button
@@ -105,10 +112,12 @@ export function ItemCard({
 }
 
 export function DoneItemCard({
-  taskItem, product, onReset, onRemove, disabled,
+  taskItem, product, orderItem, allItems = [], onReset, onRemove, disabled,
 }: {
   taskItem: PickingTaskItem
   product?: { id: string; name: string; ean: string | null; unit: string | null } | null
+  orderItem?: OrderItem | null
+  allItems?: OrderItem[]
   onReset?: () => void
   onRemove?: () => void
   disabled?: boolean
@@ -117,23 +126,42 @@ export function DoneItemCard({
   const picked = Number(taskItem.pickedQuantity ?? 0)
   const requested = Number(taskItem.requestedQuantity ?? 0)
   const isAdjusted = taskItem.status === 'PICKED' && picked > 0 && picked !== requested
-  const isAddedDuringPicking = taskItem.notes?.includes('Incluido durante separacao')
+  const isAddedDuringPicking = Boolean(orderItem?.addedByPicker) || Boolean(taskItem.notes?.includes('Incluido durante separacao'))
+  const change = orderItem ? itemChange(orderItem, allItems) : null
+  const method = orderItem?.pickMethod ? PICK_METHOD_LABEL[orderItem.pickMethod] || orderItem.pickMethod : null
+  // Codigo lido diferente do EAN do cadastro: etiqueta da balanca ou EAN secundario.
+  const readCode = orderItem?.pickedBarcode && orderItem.pickedBarcode !== product?.ean ? orderItem.pickedBarcode : null
 
   return (
     <div className={`rounded-xl px-4 py-3 ${isMissing ? 'bg-red-50 border border-red-100' : isAdjusted ? 'bg-orange-50 border border-orange-100' : 'bg-green-50 border border-green-100'}`}>
-      <div className="flex items-center gap-3">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isMissing ? 'bg-red-100' : isAdjusted ? 'bg-orange-100' : 'bg-green-100'}`}>
-          {isMissing ? <X size={16} className="text-red-600" /> : isAdjusted ? <Edit3 size={16} className="text-orange-600" /> : <Check size={16} className="text-green-600" />}
+      <div className="flex items-start gap-3">
+        <div className="relative">
+          <ProductPhoto ean={product?.ean} className="h-11 w-11" />
+          <span className={`absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-white ${isMissing ? 'bg-red-600' : isAdjusted ? 'bg-orange-500' : 'bg-green-600'}`}>
+            {isMissing ? <X size={12} className="text-white" /> : isAdjusted ? <Edit3 size={11} className="text-white" /> : <Check size={12} className="text-white" />}
+          </span>
         </div>
         <div className="flex-1 min-w-0">
           <p className={`font-medium text-sm ${isMissing ? 'text-red-900' : isAdjusted ? 'text-orange-900' : 'text-green-900'}`}>
             {product?.name || 'Produto'}
           </p>
+          {isAddedDuringPicking && (
+            <span className="mt-0.5 inline-flex rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800">Incluído pelo separador · não estava no pedido</span>
+          )}
           <p className="text-xs text-gray-500">
-            {isAdjusted ? `Corrigido: ${qtd(picked)} de ${qtd(requested)} ${product?.unit || 'un'}` : (ITEM_STATUS_LABEL[taskItem.status] || taskItem.status)}
-            {noteLabel(taskItem.notes) && !isAdjusted && <span className="ml-1">· {noteLabel(taskItem.notes)}</span>}
+            {isAdjusted ? `Separado ${qtd(picked)} de ${qtd(requested)} ${(product?.unit || 'un').toLowerCase()} pedidos` : (ITEM_STATUS_LABEL[taskItem.status] || taskItem.status)}
+            {noteLabel(taskItem.notes) && !isAdjusted && !isAddedDuringPicking && <span className="ml-1">· {noteLabel(taskItem.notes)}</span>}
           </p>
+          {(method || product?.ean) && !isMissing && (
+            <p className="text-[11px] text-gray-500">
+              {method}
+              {readCode ? <span className="font-mono"> · lido {readCode}</span> : product?.ean ? <span className="font-mono text-gray-400">{method ? ' · ' : ''}EAN {product.ean}</span> : null}
+            </p>
+          )}
         </div>
+        {change && Math.abs(change.diff) >= 0.01 && (
+          <span className={`shrink-0 text-xs font-semibold tabular-nums ${change.diff < 0 ? 'text-red-600' : 'text-gray-900'}`}>{signedBrl(change.diff)}</span>
+        )}
       </div>
       {!disabled && (onReset || (onRemove && isAddedDuringPicking)) && (
         <div className="flex gap-2 mt-2 ml-11">

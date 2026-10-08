@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertCircle, Check, ChevronRight, Copy, ExternalLink, MessageCircle, Printer, RefreshCw, Search } from 'lucide-react'
+import { AlertCircle, Check, ChevronRight, Copy, ExternalLink, ImageOff, MessageCircle, Printer, RefreshCw, Search } from 'lucide-react'
 import { escapeHtml } from '@/lib/utils'
 import { WorkspaceDialog } from '../../components/WorkspaceDialog'
-import { orderAdjustment, signedBrl, signedPct } from '../../utils/orderAdjustment'
-import { fraudAPI, getApiErrorMessage, ordersAPI, type AdminOrder, type AdminOrderSummary } from '../../services/api'
+import { adjustmentBreakdown, adjustmentSentence, itemChange, signedBrl, type ChangeKind } from '../../utils/orderAdjustment'
+import { fraudAPI, getApiErrorMessage, ordersAPI, resolveApiUrl, type AdminOrder, type AdminOrderSummary } from '../../services/api'
 
 // Pedidos (refeito em 29/09/2026 com o Jonathan). Sobrio: lista por abas,
 // detalhe com o que a loja usa (DAV, agendamento, preferencia de troca) e
@@ -123,12 +123,41 @@ function eventDetail(ev: { type: string; payload?: unknown }): string | null {
 
 // Notas automaticas do app de separacao. A quantidade corrigida ja aparece na
 // linha do item (pedido x separado); as antigas vinham sem acento e com ponto.
+// Desde 08/10/2026 a forma de separar e o item incluido tem campo proprio.
 function pickerNote(note?: string | null): string | null {
   const n = String(note || '').trim()
   if (!n || /^Quantidade corrigida:/.test(n)) return null
-  if (n === 'Marcacao manual' || n === 'Marcação manual') return 'Separado sem ler o código de barras'
-  if (n.includes('Incluido durante separacao')) return 'Incluído pelo separador'
+  if (n === 'Marcacao manual' || n === 'Marcação manual') return null
+  if (n.includes('Incluido durante separacao')) return null
   return `Separador: ${n}`
+}
+
+const PICK_METHOD: Record<string, string> = {
+  CAMERA: 'código lido pela câmera',
+  TYPED: 'EAN digitado',
+  MANUAL: 'marcado sem ler o código',
+  BARCODE: 'código lido',
+}
+
+const CHANGE_NOTE: Partial<Record<ChangeKind, string>> = {
+  missing: 'em falta',
+  weight: 'peso',
+  quantity: 'quantidade',
+  added: 'incluído',
+  substitution: 'troca',
+}
+
+function ItemPhoto({ ean }: { ean?: string | null }) {
+  const [broken, setBroken] = useState(false)
+  return (
+    <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/[0.06] bg-white">
+      {ean && !broken ? (
+        <img src={resolveApiUrl(`/thumbs/products/${ean}.webp?v=3`)} alt="" loading="lazy" className="h-full w-full object-contain" onError={() => setBroken(true)} />
+      ) : (
+        <ImageOff size={14} className="text-gray-300" />
+      )}
+    </span>
+  )
 }
 const ACTOR_LABEL: Record<string, string> = { SYSTEM: 'sistema', ADMIN: 'admin', PICKER: 'separador', DRIVER: 'entregador', CUSTOMER: 'cliente' }
 const ITEM_STATUS: Record<string, string> = {
@@ -466,7 +495,7 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
         ? { label: 'Concluir pedido', status: 'COMPLETED' }
         : null
   const troco = order ? changeFor(order.notes) : null
-  const adjustment = order ? orderAdjustment(order) : null
+  const adjustment = order ? adjustmentBreakdown(order) : null
   const addr = order?.addressSnapshot
   const mapsUrl = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([addr.street, addr.number, addr.neighborhood, addr.city].filter(Boolean).join(', '))}` : ''
   const wa = order ? whatsappUrl(order.customer?.whatsapp, whatsappText(order)) : ''
@@ -573,22 +602,42 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                 <ul className="divide-y divide-black/[0.05]">
                   {order.items?.map((item) => {
                     const final = num(item.finalSubtotal)
+                    const change = itemChange(item, order.items || [])
+                    const method = item.pickMethod ? PICK_METHOD[item.pickMethod] || item.pickMethod : null
+                    // Codigo lido diferente do EAN do cadastro: etiqueta da balanca ou EAN secundario.
+                    const readCode = item.pickedBarcode && item.pickedBarcode !== item.product?.ean ? item.pickedBarcode : null
+                    const added = item.addedByPicker || /Incluido durante separacao/.test(item.pickerNotes || '')
+                    const replaced = order.items?.find((other) => other.substitutedByItemId === item.id)
                     return (
-                      <li key={item.id} className="flex items-start justify-between gap-3 py-2.5">
-                        <div className="min-w-0">
+                      <li key={item.id} className="flex items-start gap-3 py-2.5">
+                        <ItemPhoto ean={item.product?.ean} />
+                        <div className="min-w-0 flex-1">
                           <p className="text-sm text-gray-900">{item.product?.name || item.productId}</p>
+                          {(added || replaced) && (
+                            <span className="mt-0.5 inline-flex rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-800">
+                              {replaced ? `Troca de ${replaced.product?.name || 'outro item'}` : 'Incluído pelo separador · não estava no pedido'}
+                            </span>
+                          )}
                           <p className="mt-0.5 text-xs text-gray-500">
-                            Pedido {qty(item.requestedQuantity ?? item.quantity)}
-                            {item.fulfilledQuantity != null && ` · separado ${qty(item.fulfilledQuantity)}`}
+                            {added ? `Incluído ${qty(item.fulfilledQuantity ?? item.quantity)}` : `Pedido ${qty(item.requestedQuantity ?? item.quantity)}`}
+                            {!added && item.fulfilledQuantity != null && ` · separado ${qty(item.fulfilledQuantity)}`}
                             {' · '}{ITEM_STATUS[item.status || 'PENDING'] || item.status}
-                            {' · '}<span className={item.substitutionPolicy === 'DENY' ? 'text-gray-700' : ''}>{item.substitutionPolicy === 'DENY' ? 'cliente não quer troca' : 'aceita troca'}</span>
+                            {!added && <>{' · '}<span className={item.substitutionPolicy === 'DENY' ? 'text-gray-700' : ''}>{item.substitutionPolicy === 'DENY' ? 'cliente não quer troca' : 'aceita troca'}</span></>}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-gray-400">
+                            {item.product?.ean && <span className="font-mono">EAN {item.product.ean}</span>}
+                            {method && <span className="text-gray-500">{item.product?.ean ? ' · ' : ''}{method}</span>}
+                            {readCode && <span className="font-mono"> · lido {readCode}</span>}
                           </p>
                           {item.cutReason && <p className="mt-0.5 text-xs text-rose-700">{item.cutReason}</p>}
                           {pickerNote(item.pickerNotes) && <p className="mt-0.5 text-xs text-gray-500">{pickerNote(item.pickerNotes)}</p>}
                         </div>
                         <span className="shrink-0 text-right text-sm tabular-nums text-gray-900">
                           {brl(final ?? item.subtotal)}
-                          {final !== undefined && Math.abs(final - item.subtotal) > 0.009 && <span className="block text-xs text-gray-400 line-through">{brl(item.subtotal)}</span>}
+                          {!added && final !== undefined && Math.abs(final - item.subtotal) > 0.009 && <span className="block text-xs text-gray-400 line-through">{brl(item.subtotal)}</span>}
+                          {Math.abs(change.diff) >= 0.01 && CHANGE_NOTE[change.kind] && (
+                            <span className={`block text-xs ${change.diff < 0 ? 'text-rose-700' : 'text-gray-500'}`}>{signedBrl(change.diff)} · {CHANGE_NOTE[change.kind]}</span>
+                          )}
                         </span>
                       </li>
                     )
@@ -600,12 +649,16 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                   <div className="flex justify-between text-gray-600"><dt>Frete</dt><dd className="tabular-nums">{order.delivery > 0 ? brl(order.delivery) : 'grátis'}</dd></div>
                   {adjustment && Math.abs(adjustment.diff) >= 0.01 ? (
                     <>
+                      {/* Ajuste explicado (08/10/2026): de onde vem a diferenca, nao so o percentual. */}
                       <div className="flex justify-between border-t border-black/[0.05] pt-2 text-gray-600"><dt>Aprovado pelo cliente</dt><dd className="tabular-nums">{brl(adjustment.approved)}</dd></div>
-                      <div className="flex justify-between text-gray-600">
-                        <dt>Ajuste na separação</dt>
-                        <dd className="tabular-nums font-medium text-gray-900">{signedBrl(adjustment.diff)} ({signedPct(adjustment.pct)})</dd>
-                      </div>
+                      {adjustment.lines.map((line) => (
+                        <div key={line.key} className="flex justify-between text-gray-600">
+                          <dt>{line.label}{line.count > 0 && <span className="text-gray-400"> ({line.count})</span>}</dt>
+                          <dd className={`tabular-nums ${line.amount < 0 ? 'text-rose-700' : 'text-gray-900'}`}>{signedBrl(line.amount)}</dd>
+                        </div>
+                      ))}
                       <div className="flex justify-between font-semibold text-gray-900"><dt>Total final</dt><dd className="tabular-nums">{brl(order.total)}</dd></div>
+                      <p className="text-xs text-gray-500">{adjustmentSentence(adjustment)}.</p>
                     </>
                   ) : (
                     <div className="flex justify-between font-semibold text-gray-900"><dt>Total</dt><dd className="tabular-nums">{brl(order.total)}</dd></div>

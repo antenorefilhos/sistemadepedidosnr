@@ -1,9 +1,9 @@
-import { AlertTriangle, ArrowLeft, Check, Edit3, Loader2, Send, Truck, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, Edit3, Loader2, MapPin, Send, Truck, X } from 'lucide-react'
 import { getOrderPdvCode, hasPdvCode } from '../utils/orderCode'
-import { deliveryLabel, paymentLabel } from '../utils/orderInfo'
+import { addressLines, deliveryLabel, paymentLabel } from '../utils/orderInfo'
 import { Order, PickingTaskItem } from '../services/api'
 import { noteLabel } from '../utils/quantity'
-import { brl, orderAdjustment, signedBrl, signedPct } from '../utils/orderAdjustment'
+import { AdjustmentSummary } from './AdjustmentSummary'
 
 export function ReviewScreen({
   order, doneItems, deliveryInstructions, sendConfirm, actionLoading,
@@ -22,7 +22,8 @@ export function ReviewScreen({
 }) {
   const pickedItems = doneItems.filter(i => i.status !== 'MISSING')
   const missingItems = doneItems.filter(i => i.status === 'MISSING')
-  const adjustment = orderAdjustment(order)
+  const address = order.fulfillmentType === 'PICKUP' ? null : addressLines(order.addressSnapshot)
+  const orderItemFor = (taskItem: PickingTaskItem) => order.items?.find(i => i.id === taskItem.orderItemId)
   const productFor = (taskItem: PickingTaskItem) => order.items?.find(i => i.id === taskItem.orderItemId)?.product
 
   return (
@@ -49,6 +50,16 @@ export function ReviewScreen({
           {order.customer?.cpf && <p className="text-xs text-gray-500 mt-0.5">CPF: {order.customer.cpf}</p>}
           <p className="text-sm text-gray-700 mt-1"><strong>Pagamento:</strong> {paymentLabel(order.paymentMethod)}</p>
           <p className="text-sm text-red-600 font-semibold">{deliveryLabel(order)}</p>
+          {address && (
+            <p className="mt-1 flex items-start gap-1.5 text-sm text-gray-700">
+              <MapPin size={14} className="mt-0.5 shrink-0 text-gray-400" />
+              <span>
+                {address.line1}
+                {address.line2 && <span className="block text-xs text-gray-500">{address.line2}</span>}
+                {address.reference && <span className="block text-xs text-gray-500">Ref.: {address.reference}</span>}
+              </span>
+            </p>
+          )}
           {order.notes && (
             <div className="mt-2 bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-800">
               <strong>Obs do cliente:</strong> {order.notes}
@@ -73,7 +84,10 @@ export function ReviewScreen({
                     {isAdjusted
                       ? <Edit3 size={14} className="text-orange-600 flex-shrink-0 mt-0.5" />
                       : <Check size={14} className="text-green-600 flex-shrink-0 mt-0.5" />}
-                    <span className="flex-1 text-sm text-gray-900">{product?.name || 'Produto'}</span>
+                    <span className="flex-1 text-sm text-gray-900">
+                      {product?.name || 'Produto'}
+                      {orderItemFor(item)?.addedByPicker && <span className="ml-1 rounded bg-blue-100 px-1 py-px text-[10px] font-bold text-blue-800">incluído</span>}
+                    </span>
                     <span className={`text-sm flex-shrink-0 ${isAdjusted ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
                       {isAdjusted ? `${picked}/${requested}` : (picked || requested)} {product?.unit || 'un'}
                     </span>
@@ -104,39 +118,16 @@ export function ReviewScreen({
 
         {/* Summary */}
         <div className="bg-white rounded-xl p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Resumo</p>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Itens separados</span>
-              <span className="font-medium">{pickedItems.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Itens faltantes</span>
-              <span className="font-medium text-red-600">{missingItems.length}</span>
-            </div>
-            {adjustment && Math.abs(adjustment.diff) >= 0.01 ? (
-              <>
-                <div className="flex justify-between pt-1 border-t border-gray-100">
-                  <span className="text-gray-500">Aprovado pelo cliente</span>
-                  <span className="tabular-nums">{brl(adjustment.approved)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Ajuste na separação</span>
-                  <span className="font-medium tabular-nums">{signedBrl(adjustment.diff)} ({signedPct(adjustment.pct)})</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Total final</span>
-                  <span className="font-semibold tabular-nums">{brl(order.total)}</span>
-                </div>
-              </>
-            ) : (
-              <div className="flex justify-between pt-1 border-t border-gray-100">
-                <span className="text-gray-500">Total</span>
-                <span className="font-semibold tabular-nums">{brl(order.total)}</span>
-              </div>
-            )}
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Itens separados</span>
+            <span className="font-medium">{pickedItems.length}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Itens em falta</span>
+            <span className="font-medium text-red-600">{missingItems.length}</span>
           </div>
         </div>
+        <AdjustmentSummary order={order} title="Valor do pedido" />
 
         {/* Delivery instructions */}
         <div className="bg-white rounded-xl p-4">

@@ -589,7 +589,12 @@ export interface SearchInsightsResponse {
 export interface AdminOrderItem {
   id: string
   productId: string
-  product?: { name: string; ean: string }
+  product?: { name: string; ean: string; isFractional?: boolean | null; unit?: string | null }
+  /** Como o separador confirmou (08/10/2026): CAMERA, TYPED, MANUAL ou BARCODE (antigo). */
+  pickMethod?: string | null
+  pickedBarcode?: string | null
+  /** Nao estava no pedido: o separador incluiu. */
+  addedByPicker?: boolean
   quantity: number
   unitPrice: number
   subtotal: number

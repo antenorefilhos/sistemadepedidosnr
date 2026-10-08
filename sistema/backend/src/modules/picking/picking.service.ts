@@ -439,6 +439,8 @@ export class PickingService {
     }
 
     const fulfilledQuantity = dto.finalWeight ?? pickedQuantity
+    // App antigo em cache nao manda `method`: codigo informado vira BARCODE.
+    const pickMethod = dto.method ?? (dto.barcode ? 'BARCODE' : 'MANUAL')
     const unitPrice = this.numberValue(orderItem.finalUnitPrice) ?? orderItem.unitPrice
     const finalSubtotal = this.roundMoney(unitPrice * fulfilledQuantity)
 
@@ -461,6 +463,8 @@ export class PickingService {
           finalUnitPrice: this.decimal2(unitPrice),
           finalSubtotal: this.decimal2(finalSubtotal),
           pickerNotes: dto.notes || null,
+          pickMethod,
+          pickedBarcode: dto.barcode || null,
         },
         include: { product: true },
       }),
@@ -479,6 +483,7 @@ export class PickingService {
       fulfilledQuantity,
       finalSubtotal,
       barcode: dto.barcode || null,
+      method: pickMethod,
       notes: dto.notes || null,
     }, actor)
 
@@ -689,6 +694,7 @@ export class PickingService {
         finalSubtotal: this.decimal2(subtotal),
         status: 'PICKED',
         pickerNotes: dto.notes || 'Incluido durante separacao',
+        addedByPicker: true,
       },
       include: { product: true },
     })
@@ -754,7 +760,7 @@ export class PickingService {
       }),
       this.prisma.orderItem.update({
         where: { id: orderItem.id },
-        data: { status: 'ACTIVE', fulfilledQuantity: null, finalSubtotal: null, pickerNotes: null, cutReason: null },
+        data: { status: 'ACTIVE', fulfilledQuantity: null, finalSubtotal: null, pickerNotes: null, cutReason: null, pickMethod: null, pickedBarcode: null },
       }),
       this.prisma.pickingTask.update({
         where: { id: task.id },
