@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { recipesAPI } from '../services/api'
 import { useDragScroll } from '../hooks/useDragScroll'
 import { cn } from '../lib/cn'
+import { formatDuration } from '../utils/recipe'
 import type { Recipe } from '../types'
 
 // Receitas no caminho do cliente (29/09/2026): a unica entrada era o link do
@@ -35,7 +36,7 @@ export function RecipeCard({ recipe, className }: { recipe: RecipeCardData; clas
           <p className="mt-1 flex items-center gap-3 text-xs text-[#8A6A3A]">
             {recipe.prepTime ? (
               <span className="inline-flex items-center gap-1">
-                <Clock size={12} /> {recipe.prepTime} min
+                <Clock size={12} /> {formatDuration(recipe.prepTime)}
               </span>
             ) : null}
             {recipe.servings ? (

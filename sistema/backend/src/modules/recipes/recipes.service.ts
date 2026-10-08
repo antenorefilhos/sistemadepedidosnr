@@ -73,16 +73,25 @@ export class RecipesService {
     if (productId) where.products = { some: { productId } }
 
     if (!isAdmin) {
-      const [data, total] = await Promise.all([
+      const [rows, total] = await Promise.all([
         this.prisma.recipe.findMany({
           where,
           skip: (page - 1) * limit,
           take: limit,
           orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
-          include: { category: true },
+          include: {
+            category: true,
+            products: { select: { product: { select: { active: true, syncOption: true, stock: true } } } },
+          },
         }),
         this.prisma.recipe.count({ where }),
       ])
+      // productCount (07/10/2026): quantos ingredientes da para comprar agora --
+      // o card da lista mostra "9 ingredientes na loja". Mesmo filtro do findBySlug.
+      const data = rows.map(({ products, ...r }) => ({
+        ...r,
+        productCount: (products ?? []).filter((p) => isProductSellable(p.product)).length,
+      }))
       return { data, page, limit, total, hasNextPage: page * limit < total }
     }
 

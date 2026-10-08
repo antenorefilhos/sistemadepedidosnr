@@ -78,6 +78,21 @@ describe('RecipesService', () => {
       expect(where.OR).toEqual([{ publishedAt: null }, { publishedAt: { lte: expect.any(Date) } }]);
     });
 
+    it('conta so os ingredientes que da para comprar (productCount)', async () => {
+      mockPrisma.recipe.findMany.mockResolvedValue([{
+        id: 'r1',
+        products: [
+          { product: { active: true, syncOption: 'SEMPRE', stock: 0 } },
+          { product: { active: true, syncOption: 'ESTOQUE', stock: 0 } },
+          { product: { active: false, syncOption: 'SEMPRE', stock: 10 } },
+        ],
+      }]);
+      mockPrisma.recipe.count.mockResolvedValue(1);
+
+      const result = await service.list();
+      expect(result.data[0]).toEqual({ id: 'r1', productCount: 1 });
+    });
+
     it('deve calcular hasNextPage corretamente', async () => {
       mockPrisma.recipe.findMany.mockResolvedValue(new Array(12).fill({}));
       mockPrisma.recipe.count.mockResolvedValue(25);
