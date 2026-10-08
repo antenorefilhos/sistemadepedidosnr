@@ -157,6 +157,7 @@ export default function MercadoPage() {
   const brand = useBrand()
   const categoriesScroll = useDragScroll<HTMLDivElement>()
   const sectionsScroll = useDragScroll<HTMLDivElement>()
+  const landingDeptScroll = useDragScroll<HTMLDivElement>()
   const toolbarScroll = useDragScroll<HTMLDivElement>()
   const { data: categoriesCMS } = useCommercialTaxonomy()
   const navigate = useNavigate()
@@ -625,8 +626,12 @@ export default function MercadoPage() {
 
             <section>
               <h2 className="mb-3 text-base font-bold text-[#231F20]">Departamentos</h2>
-              {/* 4 por linha no celular: 18 departamentos em 5 linhas, nao 6 (a grade empurrava tudo para baixo). */}
-              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-9">
+              {/* 08/10/2026: no celular, uma linha que desliza (a grade de 5 linhas tomava a tela inteira); no computador, grade. */}
+              <div
+                ref={landingDeptScroll.ref}
+                className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 [overflow-anchor:none] lg:mx-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:px-0 lg:pb-0"
+                {...landingDeptScroll.dragProps}
+              >
                 {departments.map((dept) => {
                   const Icon = CATEGORY_ICONS[dept.id] || CATEGORY_ICONS.default
                   return (
@@ -634,7 +639,7 @@ export default function MercadoPage() {
                       key={dept.key}
                       type="button"
                       onClick={() => openDepartment(dept)}
-                      className="flex flex-col items-center gap-1.5 rounded-2xl border border-[#EFE6D2] bg-white px-1 py-3 text-center transition-colors hover:border-[#D2BB8A] active:scale-[0.98]"
+                      className="flex w-[84px] shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl border border-[#EFE6D2] bg-white px-1 py-3 text-center transition-colors hover:border-[#D2BB8A] active:scale-[0.98] lg:w-auto"
                     >
                       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F8F2E6] text-[#5D082A]">
                         <Icon size={21} strokeWidth={1.8} />
@@ -848,7 +853,7 @@ export default function MercadoPage() {
         </div>
       )}
       <MobileBottomNav />
-      <BackToTopButton />
+      <BackToTopButton aboveBar={count > 0} />
     </div>
   )
 }
