@@ -33,7 +33,7 @@ export function PromoIcon({ size, className }: { size: number; className?: strin
 
   return (
     <img
-      src={animated ? '/icons/icon-promo-menu.gif' : '/icons/icon-promo-menu-static.png'}
+      src={animated ? '/icons/icon-promo-menu.gif?v=2' : '/icons/icon-promo-menu-static.png'}
       alt=""
       width={size}
       height={size}

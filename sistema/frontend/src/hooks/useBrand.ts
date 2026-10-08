@@ -34,7 +34,7 @@ const DEFAULTS: BrandConfig = {
   // bordo e o cabecalho ignorava o logo configurado (mostrava sempre o
   // arquivo fixo), entao trocar o logo no admin nao tinha efeito.
   logoDesktopUrl: '/branding/logo-horizontal-branco.png',
-  logoMobileUrl: '/branding/logo-branco.png',
+  logoMobileUrl: '/branding/logo-branco.png?v=2',
   primaryColor: '#5D082A',
   secondaryColor: '#D2BB8A',
   contactWhatsapp: null,
