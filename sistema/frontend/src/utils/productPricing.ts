@@ -149,6 +149,30 @@ export function getProductPricePresentation(product: Product) {
 }
 
 /**
+ * Tamanho da embalagem lido do nome ("500 g", "1,5 L", "4 x 90 g", "10 un"),
+ * numa linha propria do card (08/10/2026): o nome corta em duas linhas e a
+ * medida, que fica no fim, sumia -- o Cafe Pilao 250g e o 500g ficavam iguais.
+ * Pesavel fica de fora: o preco ja diz a porcao.
+ */
+export function getPackageSize(product: Pick<Product, 'name' | 'isFractional'>): string {
+  if (product.isFractional) return ''
+  const name = product.name || ''
+  const num = (v: string) => Number(v.replace(',', '.')).toLocaleString('pt-BR', { maximumFractionDigits: 3 })
+  const unit = (u: string) => {
+    const lower = u.toLowerCase()
+    if (lower === 'kg' || lower === 'g' || lower === 'ml') return lower
+    return 'L'
+  }
+  const multi = name.match(/(\d+)\s*x\s*(\d+(?:[.,]\d+)?)\s?(kg|g|ml|l|lt)\b/i)
+  if (multi) return `${multi[1]} x ${num(multi[2])} ${unit(multi[3])}`
+  const measure = [...name.matchAll(/(\d+(?:[.,]\d+)?)\s?(kg|g|ml|l|lt|litros?)\b/gi)].pop()
+  if (measure) return `${num(measure[1])} ${unit(measure[2])}`
+  const units = name.match(/(\d+)\s*(?:unidades|unid|un)\b/i)
+  if (units && Number(units[1]) > 1) return `${units[1]} un`
+  return ''
+}
+
+/**
  * Preco por unidade de medida ("R$ 91,60/kg", "R$ 5,99/L") para comparar
  * embalagens, como a gondola e os apps de supermercado mostram (Decreto
  * 5.903/2006). Pesavel ja tem o preco do kg. Embalagem multipla ("4x90g",

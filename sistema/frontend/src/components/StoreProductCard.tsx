@@ -10,7 +10,7 @@ import { formatPrice, formatProductTitle } from '../utils/format'
 import { getProductCardViewModel } from '../utils/productCard'
 import { fractionNote } from '../utils/productDetailSchema'
 import { useSaleWeekday } from '../hooks/useDeliveryOperation'
-import { formatProductQuantity, getProductPricePresentation } from '../utils/productPricing'
+import { formatProductQuantity, getPackageSize, getProductPricePresentation, getUnitReference } from '../utils/productPricing'
 import { trackEvent } from '../utils/analytics'
 import { cn } from '../lib/cn'
 
@@ -66,9 +66,13 @@ export function StoreProductCard({
   const title = formatProductTitle(product.name)
   // Pesavel mostra o peso no carrinho ("1,25 kg").
   const displayQuantity = formatProductQuantity(product, quantity)
-  // Linha de apoio do pesavel: preco do kg e quanto a porcao rende.
+  // Linha de apoio: no pesavel, preco do kg e quanto a porcao rende; nos
+  // outros, o tamanho da embalagem e o preco do kg/L (08/10/2026) -- o nome
+  // corta em duas linhas e a medida, no fim dele, sumia.
   const note = product.isFractional ? fractionNote(product.alternativeDescription) : ''
-  const detail = [viewModel.referenceText, note].filter(Boolean).join(' · ')
+  const detail = product.isFractional
+    ? [viewModel.referenceText, note].filter(Boolean).join(' · ')
+    : [getPackageSize(product), getUnitReference(product)].filter(Boolean).join(' · ')
   const badge = viewModel.badgeVariant === 'promo' && viewModel.discountPct >= 1 ? `-${viewModel.discountPct}%` : viewModel.badgeText
 
   const fireAddToCartEvent = () => {

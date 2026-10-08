@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Product } from '../types'
 import { formatProductTitle } from './format'
-import { getUnitReference } from './productPricing'
+import { getPackageSize, getUnitReference } from './productPricing'
 import { getProductCardViewModel } from './productCard'
 import { fractionNote, getProductDetailSections } from './productDetailSchema'
 
@@ -63,5 +63,21 @@ describe('preco por unidade de medida', () => {
     expect(getUnitReference(p({ name: 'Sobremesa Danette Pack 4x90g', price: 12 }))).toBe('')
     expect(getUnitReference(p({ name: 'Ovo Branco Cart 12 Unidades', price: 10 }))).toBe('')
     expect(getUnitReference(p({ name: 'Vassoura Pelo', price: 10 }))).toBe('')
+  })
+})
+
+describe('tamanho da embalagem no card (08/10/2026)', () => {
+  const size = (name: string, isFractional = false) => getPackageSize({ name, isFractional })
+  it('le a medida do fim do nome', () => {
+    expect(size('Café Torrado Moido Almofada Tradicional Pilao Pacote 500g')).toBe('500 g')
+    expect(size('Café Torrado Moido Almofada Tradicional Pilao Pacote 250g')).toBe('250 g')
+    expect(size('Refrigerante Guarana Antarctica 1,5L')).toBe('1,5 L')
+    expect(size('Cerveja Pilsen Brahma Lata 350ml')).toBe('350 ml')
+    expect(size('Iogurte Pack 6x170g')).toBe('6 x 170 g')
+    expect(size('Fosforo Paraná Pacote 10 Unidades')).toBe('10 un')
+  })
+  it('sem medida ou pesavel: nada', () => {
+    expect(size('Couve')).toBe('')
+    expect(size('Banana Prata kg', true)).toBe('')
   })
 })
