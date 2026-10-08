@@ -14,6 +14,7 @@ import { AntenorApiService } from '../integrations/antenor-api.service';
 
 const mockPrismaService = {
   pickingTask: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+  substitutionSuggestion: { findMany: jest.fn().mockResolvedValue([]) },
   promotionUsage: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
   order: {
     findMany: jest.fn(),

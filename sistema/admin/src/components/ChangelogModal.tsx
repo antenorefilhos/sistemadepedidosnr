@@ -14,6 +14,18 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.20.0',
+    date: '08/10/2026',
+    title: 'Cliente Escolhe as Trocas pelo Site',
+    highlights: [
+      { type: 'feat', description: 'O cliente agora escolhe as trocas sugeridas também pelo site, em Minha conta: vê o produto que faltou, a troca com foto e preço, o total com e sem as trocas e toca em \"Quero a troca\" ou \"Não quero\". A resposta vale nos dois caminhos: se ele responder pelo site, o app de separação se atualiza sozinho e avisa o separador; se responder no WhatsApp, o separador registra como antes.' },
+      { type: 'feat', description: 'Mensagem das trocas no WhatsApp com texto novo: \"Maria, durante a separação do seu pedido 102130 não encontramos os seguintes itens...\", cada troca com o preço e o item que ela substitui, os totais com e sem as trocas e o link de Minha conta.' },
+      { type: 'fix', description: 'A lista do app de separação mostrava \"WAITING_CUSTOMER_SUBSTITUTION\" enquanto o cliente decidia. Agora mostra \"Esperando o cliente\".' },
+      { type: 'fix', description: 'Reabrir no app de separação um pedido que espera o cliente mandava de novo o aviso \"pedido sendo separado\" para ele. Não manda mais.' },
+      { type: 'fix', description: 'Em Minha conta, o pedido mostra o que ficou em falta e o que foi trocado, e peso abaixo de 1 kg aparece em gramas.' },
+    ],
+  },
+  {
     version: '1.19.0',
     date: '08/10/2026',
     title: 'Separação: Faltante e Troca em Um Toque, Peso em Gramas',

@@ -24,6 +24,7 @@ export function formatWhen(iso: string, now = new Date()) {
 
 /** Quantidade como o cliente pediu: pesavel em kg (o pedido grava kg), o resto em unidades. */
 export function itemQuantity(item: Pick<OrderItem, 'quantity' | 'product'>) {
+  if (item.product?.isFractional && item.quantity < 1) return `${Math.round(item.quantity * 1000)} g`
   if (item.product?.isFractional) return `${item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg`
   return `${item.quantity} un`
 }

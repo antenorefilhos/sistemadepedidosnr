@@ -24,6 +24,8 @@ import { parseChangeForFromNotes } from '../utils/changeOptions'
 import { buttonVariants } from '../components/ui/button'
 import { cn } from '../lib/cn'
 import { firstName, formatPhone, formatWhen, formatZip, initials, itemQuantity, maskCpf, orderStep } from '../utils/account'
+import { SubstitutionChoice } from '../components/SubstitutionChoice'
+import { pendingSuggestions } from '../utils/substitution'
 
 // Conta refeita em 07/10/2026 (revisao de UI/UX do storefront, a pagina que o
 // Jonathan apontou como a que mais precisava). Celular primeiro:
@@ -40,8 +42,8 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
   CONFIRMED: 'Confirmado',
   PICKING_PENDING: 'Na fila de separação',
   PICKING: 'Sendo separado',
-  // Faltou item e o separador mandou trocas no WhatsApp (08/10/2026).
-  WAITING_CUSTOMER_SUBSTITUTION: 'Aguardando sua resposta no WhatsApp',
+  // Faltou item e o separador sugeriu trocas: o cliente escolhe aqui ou no WhatsApp (08/10/2026).
+  WAITING_CUSTOMER_SUBSTITUTION: 'Escolha as trocas do seu pedido',
   CONFERENCE_PENDING: 'Em conferência',
   PACKING: 'Sendo embalado',
   READY_FOR_CHECKOUT: 'Finalizando no caixa',
@@ -135,7 +137,9 @@ export default function Account() {
     )
   }
 
-  const activeOrder = orders.find((o: Order) => isActive(o.status))
+  // Pedido esperando a escolha das trocas vem primeiro: e onde o cliente precisa agir.
+  const activeOrder = orders.find((o: Order) => isActive(o.status) && pendingSuggestions(o).length > 0)
+    || orders.find((o: Order) => isActive(o.status))
 
   return (
     <div className="min-h-screen bg-[#FBFAF7] pb-24">
@@ -222,6 +226,7 @@ function ActiveOrderCard({ order }: { order: Order }) {
         {order.fulfillmentType === 'PICKUP' ? <Store size={22} className="text-[#5D082A]" /> : <Truck size={22} className="text-[#5D082A]" />}
       </div>
       <OrderProgress order={order} />
+      <SubstitutionChoice order={order} />
       {whatsapp && (
         <a href={whatsapp} target="_blank" rel="noreferrer" className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-full border border-[#25D366]/40 bg-white px-3.5 text-xs font-semibold text-[#0d5c36]">
           <MessageCircle size={14} /> Falar com a loja sobre este pedido
@@ -369,9 +374,14 @@ function OrderCard({ order }: { order: Order }) {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="line-clamp-2 text-sm text-[#231F20]">{formatProductTitle(item.product?.name || 'Produto')}</span>
-                  <span className="text-xs text-gray-500">{itemQuantity(item)}</span>
+                  <span className="text-xs text-gray-500">
+                    {itemQuantity(item)}
+                    {/* O que a separacao fez com o item (08/10/2026): faltou ou foi trocado. */}
+                    {item.status === 'MISSING' && <span className="ml-1.5 rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-700">Em falta</span>}
+                    {item.status === 'SUBSTITUTED' && <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">Trocado</span>}
+                  </span>
                 </span>
-                <span className="shrink-0 text-sm font-semibold tabular-nums text-[#231F20]">{formatPrice(Number(item.subtotal ?? (item.unitPrice || 0) * item.quantity))}</span>
+                <span className={cn('shrink-0 text-sm font-semibold tabular-nums', ['MISSING', 'SUBSTITUTED'].includes(item.status || '') ? 'text-gray-400 line-through' : 'text-[#231F20]')}>{formatPrice(Number(item.subtotal ?? (item.unitPrice || 0) * item.quantity))}</span>
               </li>
             ))}
           </ul>

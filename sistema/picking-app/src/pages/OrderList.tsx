@@ -11,6 +11,8 @@ const STATUS_LABEL: Record<string, string> = {
   CONFIRMED: 'Confirmado',
   PICKING_PENDING: 'Aguardando',
   PICKING: 'Separando',
+  // 08/10/2026: faltava -- a lista mostrava WAITING_CUSTOMER_SUBSTITUTION cru.
+  WAITING_CUSTOMER_SUBSTITUTION: 'Esperando o cliente',
   CONFERENCE_PENDING: 'Separado',
   PACKING: 'Embalando',
   READY_FOR_CHECKOUT: 'No Caixa',
@@ -31,6 +33,7 @@ const STATUS_COLOR: Record<string, string> = {
   CONFIRMED: 'bg-blue-100 text-blue-800',
   PICKING_PENDING: 'bg-amber-100 text-amber-800',
   PICKING: 'bg-orange-100 text-orange-800',
+  WAITING_CUSTOMER_SUBSTITUTION: 'bg-amber-100 text-amber-800',
   CONFERENCE_PENDING: 'bg-purple-100 text-purple-800',
   READY_FOR_CHECKOUT: 'bg-green-100 text-green-800',
   READY_FOR_DELIVERY: 'bg-teal-100 text-teal-800',
@@ -206,7 +209,7 @@ export default function OrderList({
 function OrderCard({ order, onTap }: { order: Order; onTap: () => void }) {
   const itemCount = order.items.length
   const pickedCount = order.items.filter((i) => ['PICKED', 'SUBSTITUTED'].includes(i.status)).length
-  const isInProgress = ['PICKING', 'PICKING_PENDING'].includes(order.status)
+  const isInProgress = ['PICKING', 'PICKING_PENDING', 'WAITING_CUSTOMER_SUBSTITUTION'].includes(order.status)
   const isSeparated = ['CONFERENCE_PENDING', 'PACKING', 'READY_FOR_CHECKOUT'].includes(order.status)
 
   return (

@@ -13,6 +13,7 @@ describe('conta do cliente', () => {
   it('pesavel em kg, resto em unidades', () => {
     expect(itemQuantity({ quantity: 1.25, product: { isFractional: true } as never })).toBe('1,25 kg')
     expect(itemQuantity({ quantity: 3, product: { isFractional: false } as never })).toBe('3 un')
+    expect(itemQuantity({ quantity: 0.22, product: { isFractional: true } as never })).toBe('220 g')
   })
   it('CPF pela metade e telefone formatado', () => {
     expect(maskCpf('12345678909')).toBe('123.***.***-09')

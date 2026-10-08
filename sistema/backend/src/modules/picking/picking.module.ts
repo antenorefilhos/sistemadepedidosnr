@@ -5,11 +5,12 @@ import { IntegrationsModule } from '../integrations/integrations.module'
 import { OrdersModule } from '../orders/orders.module'
 import { AdminPickingController } from './picking.controller'
 import { PickerController } from './picker.controller'
+import { CustomerSubstitutionsController } from './customer-substitutions.controller'
 import { PickingService } from './picking.service'
 
 @Module({
   imports: [NotificationsModule, IntegrationsModule, OrdersModule],
-  controllers: [AdminPickingController, PickerController],
+  controllers: [AdminPickingController, PickerController, CustomerSubstitutionsController],
   providers: [PickingService, TenantAccessGuard],
   exports: [PickingService],
 })

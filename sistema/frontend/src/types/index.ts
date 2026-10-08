@@ -88,6 +88,21 @@ export interface Order {
   deliveryStops?: { status: string; deliveredAt: string | null }[]
   /** Total que o cliente aprovou no checkout; `total` muda na separacao (peso, troca). */
   approvedTotal?: number | null
+  /** Trocas que o separador mandou ao cliente (08/10/2026). */
+  substitutionSuggestions?: SubstitutionSuggestion[]
+}
+
+export interface SubstitutionSuggestion {
+  id: string
+  orderItemId: string
+  productId: string
+  quantity: number
+  unitPrice: number
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED'
+  sentAt: string | null
+  decidedAt: string | null
+  decidedBy: string | null
+  product: { id: string; name: string; ean: string | null; unit: string | null; isFractional: boolean | null } | null
 }
 
 export interface OrderItem {
@@ -97,6 +112,9 @@ export interface OrderItem {
   quantity: number
   unitPrice: number
   subtotal: number
+  /** PENDING, PICKED, MISSING, SUBSTITUTED, CANCELLED -- o que a separacao fez com o item. */
+  status?: string
+  substitutedByItemId?: string | null
 }
 
 export interface RecipeCategory {

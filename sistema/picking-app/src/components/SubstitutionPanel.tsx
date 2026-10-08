@@ -71,7 +71,9 @@ export function SuggestionRow({
           </p>
         </div>
       </div>
-      <span className={`mt-1.5 inline-flex rounded px-1.5 py-0.5 text-[11px] font-bold ${label.className}`}>{label.text}</span>
+      <span className={`mt-1.5 inline-flex rounded px-1.5 py-0.5 text-[11px] font-bold ${label.className}`}>
+        {label.text}{suggestion.decidedBy === 'CUSTOMER' && ['ACCEPTED', 'REJECTED'].includes(key) ? ' pelo site' : ''}
+      </span>
       {!disabled && key === 'DRAFT' && (
         <div className="mt-2 flex gap-2">
           <button onClick={onChange} className="flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs text-blue-700 active:bg-blue-100">
@@ -130,7 +132,7 @@ export function SubstitutionPanel({
           </p>
           <p className="mt-0.5 text-xs text-green-800">
             {left > 0
-              ? `Prazo de resposta: faltam ${left} min. Quando ele responder, toque na resposta.`
+              ? `Prazo de resposta: faltam ${left} min. Ele pode responder no WhatsApp (toque na resposta aqui) ou no site (aparece sozinho).`
               : 'Passou o prazo de 15 min sem resposta: siga sem as trocas.'}
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2">

@@ -59,7 +59,7 @@ const ORDER_STATUS_META: Record<string, { emoji: string; label: string; body: (s
   CONFIRMED: { emoji: '✅', label: 'Pedido Confirmado', body: (id) => `Pedido #${id} confirmado e em preparo` },
   PICKING_PENDING: { emoji: '📋', label: 'Na Fila de Separação', body: (id) => `Pedido #${id} na fila de separação` },
   PICKING: { emoji: '🛒', label: 'Em Separação', body: (id) => `Pedido #${id} sendo separado` },
-  WAITING_CUSTOMER_SUBSTITUTION: { emoji: '🔄', label: 'Faltou um item', body: (id) => `Pedido #${id}: mandamos no seu WhatsApp sugestões de troca. Responda por lá.` },
+  WAITING_CUSTOMER_SUBSTITUTION: { emoji: '🔄', label: 'Faltou um item', body: (id) => `Pedido #${id}: sugerimos trocas para o que faltou. Escolha aqui ou responda no WhatsApp.` },
   CONFERENCE_PENDING: { emoji: '🔍', label: 'Em Conferência', body: (id) => `Pedido #${id} separado, em conferência` },
   READY_FOR_CHECKOUT: { emoji: '💳', label: 'No Caixa', body: (id) => `Pedido #${id} no caixa` },
   READY_FOR_DELIVERY: { emoji: '📦', label: 'Pronto para Entrega', body: (id) => `Pedido #${id} pronto para entrega` },
@@ -669,6 +669,24 @@ export class NotificationsService {
       })
     } catch (error) {
       this.logger.warn(`Push de separacao falhou para ${orderId}: ${(error as Error).message}`)
+    }
+  }
+
+  /** O cliente respondeu as trocas pelo site: o separador fica sabendo sem olhar o app. */
+  async notifyPickingTeamSubstitutionAnswer(orderId: string, code: string, accepted: number, rejected: number): Promise<void> {
+    const partes = [
+      accepted ? `aceitou ${accepted === 1 ? '1 troca' : `${accepted} trocas`}` : '',
+      rejected ? `recusou ${rejected === 1 ? '1 troca' : `${rejected} trocas`}` : '',
+    ].filter(Boolean)
+    try {
+      await this.pushNotificationService.sendNotificationToModule('picking', {
+        title: 'Cliente respondeu as trocas',
+        body: `Pedido ${code}: ${partes.join(' e ')}. Pode seguir a separação.`,
+        url: `/pedidos/${orderId}`,
+        tag: `picking-subs-${orderId}`,
+      })
+    } catch (error) {
+      this.logger.warn(`Push de resposta de troca falhou para ${orderId}: ${(error as Error).message}`)
     }
   }
 

@@ -328,6 +328,9 @@ export const ordersAPI = {
   updateStatus: (id: string, status: string) => api.put(`/orders/${id}/status`, { status }),
   getNfe: (id: string) =>
     api.get<{ disponivel: boolean; chaveAcesso?: string; numero?: number; serie?: number; xml?: string }>(`/orders/${id}/nfe`),
+  /** O cliente aceita ou recusa as trocas sugeridas na separacao (08/10/2026). */
+  decideSubstitutions: (orderId: string, decisions: Array<{ id: string; accept: boolean }>) =>
+    api.post<{ accepted: number; rejected: number }>(`/orders/${orderId}/substitutions/decide`, { decisions }),
 }
 
 export const checkoutAPI = {

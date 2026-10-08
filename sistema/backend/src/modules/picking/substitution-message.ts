@@ -3,7 +3,8 @@
  *
  * O separador marca o que faltou, sugere o produto que tem na gondola e manda
  * tudo de uma vez pelo WhatsApp da loja, com preco e o total com e sem as
- * trocas. O cliente decide; a mensagem ja vem pronta para ninguem digitar.
+ * trocas. O cliente decide pelo WhatsApp (o separador registra) ou pelo site,
+ * em Minha conta; os dois caminhos gravam na mesma sugestao.
  */
 
 export const SUBSTITUTION_REPLY_MINUTES = 15
@@ -23,42 +24,47 @@ const firstName = (name?: string | null) => {
 
 export function buildSubstitutionMessage(input: {
   customerName?: string | null
-  pickerName?: string | null
+  /** O numero que o cliente conhece: o DAV, ou o codigo curto sem DAV. */
   orderCode: string
   lines: SuggestionLine[]
   totalWithout: number
   totalWith: number
+  /** Minha conta no site, onde o cliente tambem pode escolher (etapa 2). */
+  accountUrl?: string | null
 }): string {
+  // Texto do Jonathan (08/10/2026): direto, sem apresentacao, cada troca com o
+  // preco e o item que ela substitui na linha de baixo.
   const cliente = firstName(input.customerName)
-  const separador = firstName(input.pickerName)
   const comTroca = input.lines.filter((line) => line.suggestion)
+  const umItem = input.lines.length === 1
+  const umaTroca = comTroca.length === 1
   const out: string[] = []
 
-  out.push(`Olá${cliente ? `, ${cliente}` : ''}! ${separador ? `Aqui é ${separador}, do` : 'Aqui é do'} Antenor & Filhos, separando o seu pedido ${input.orderCode}.`)
+  const abertura = `durante a separação do seu pedido ${input.orderCode} não encontramos ${umItem ? 'o seguinte item' : 'os seguintes itens'}:`
+  out.push(cliente ? `${cliente}, ${abertura}` : abertura.charAt(0).toUpperCase() + abertura.slice(1))
   out.push('')
-  out.push('Não encontramos na loja:')
-  for (const line of input.lines) out.push(`• ${line.originalName} (${brl(line.originalSubtotal)})`)
+  for (const line of input.lines) out.push(`• ${line.originalName}`)
 
   if (comTroca.length) {
     out.push('')
     out.push('Podemos trocar por:')
     comTroca.forEach((line, i) => {
       const s = line.suggestion!
-      const prefixo = comTroca.length > 1 ? `${i + 1}) ` : '• '
-      out.push(`${prefixo}${s.quantityLabel ? `${s.quantityLabel} ` : ''}${s.name}: ${brl(s.subtotal)} (no lugar de ${line.originalName})`)
+      out.push(`${i + 1}. ${s.name}${s.quantityLabel ? ` (${s.quantityLabel})` : ''} - ${brl(s.subtotal)}`)
+      out.push(`no lugar de ${line.originalName}`)
     })
     out.push('')
-    out.push(`Com ${comTroca.length === 1 ? 'a troca' : 'as trocas'}, o pedido fica em ${brl(input.totalWith)}.`)
-    out.push(`Sem ${comTroca.length === 1 ? 'a troca' : 'as trocas'}, fica em ${brl(input.totalWithout)}.`)
-    out.push('')
-    if (comTroca.length === 1) {
-      out.push('Responda SIM para aceitar a troca ou NÃO para seguir sem ela.')
-    } else {
-      out.push('Responda SIM para aceitar todas, NÃO para seguir sem elas, ou os números das que aceita (ex.: 1).')
-    }
+    out.push(`Com ${umaTroca ? 'a troca' : 'as trocas'}, o pedido fica em ${brl(input.totalWith)}`)
+    out.push(`Sem ${umaTroca ? 'a troca' : 'as trocas'}, fica em ${brl(input.totalWithout)}`)
   } else {
     out.push('')
-    out.push(`Seguimos sem ${input.lines.length === 1 ? 'esse item' : 'esses itens'}; o pedido fica em ${brl(input.totalWithout)}.`)
+    out.push(`Sem ${umItem ? 'esse item' : 'esses itens'}, o pedido fica em ${brl(input.totalWithout)}`)
+  }
+  out.push('')
+  out.push('Aguardo sua resposta para darmos continuidade.')
+  if (comTroca.length && input.accountUrl) {
+    out.push('')
+    out.push(`Se preferir, escolha pelo site, em Minha conta: ${input.accountUrl}`)
   }
   return out.join('\n')
 }

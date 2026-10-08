@@ -53,7 +53,8 @@ export class PickerController {
     const ctx = getTenantContext(req)
     const actor = this.actorFromRequest(req)
     const task = await this.pickingService.ensureTaskForOrder(orderId, ctx, { assignedToId: req.user?.id }, actor)
-    if (['PENDING', 'WAITING_SUBSTITUTION'].includes(task.status)) {
+    // Reabrir o pedido enquanto espera o cliente nao recomeca a separacao (08/10/2026).
+    if (task.status === 'PENDING') {
       return this.pickingService.startTask(task.id, ctx, actor)
     }
     return task
@@ -168,7 +169,7 @@ export class PickerController {
   @Post('orders/:orderId/suggestions/send')
   @ApiOperation({ summary: 'Mensagem do WhatsApp com as trocas sugeridas' })
   async sendSuggestions(@Param('orderId') orderId: string, @Req() req: TenantContextRequest) {
-    return this.pickingService.sendSuggestions(orderId, getTenantContext(req), this.actorFromRequest(req), req.user?.name)
+    return this.pickingService.sendSuggestions(orderId, getTenantContext(req), this.actorFromRequest(req))
   }
 
   @Post('suggestions/:id/decide')

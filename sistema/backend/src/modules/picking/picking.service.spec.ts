@@ -399,3 +399,29 @@ describe('troca sugerida antes do caixa (08/10/2026)', () => {
     }))
   })
 })
+
+describe('o cliente escolhe as trocas pelo site (08/10/2026)', () => {
+  const notifications = { ...mockNotificationsService, notifyPickingTeamSubstitutionAnswer: jest.fn().mockResolvedValue(undefined) }
+  const svc = () => new PickingService(mockPrismaService as never, notifications as never, {} as never, mockIntegrationModulesService as never)
+
+  it('pedido de outro cliente: nao encontrado', async () => {
+    mockPrismaService.order.findFirst.mockResolvedValueOnce({ id: 'order-1', customerId: 'outro', erpDav: '1', status: 'WAITING_CUSTOMER_SUBSTITUTION' })
+    await expect(svc().decideSuggestionsAsCustomer('order-1', 'customer-1', [{ id: 's0', accept: true }], {})).rejects.toThrow('Pedido não encontrado')
+  })
+
+  it('prazo vencido: avisa que seguiu sem as trocas', async () => {
+    mockPrismaService.order.findFirst.mockResolvedValueOnce({ id: 'order-1', customerId: 'customer-1', erpDav: '1', status: 'PICKING' })
+    mockPrismaService.substitutionSuggestion.findMany.mockResolvedValueOnce([{ id: 's0', status: 'EXPIRED', sentAt: new Date() }])
+    await expect(svc().decideSuggestionsAsCustomer('order-1', 'customer-1', [{ id: 's0', accept: true }], {})).rejects.toThrow('prazo para responder passou')
+  })
+
+  it('decide como CUSTOMER, na mesma sugestao do separador, e avisa a separacao', async () => {
+    mockPrismaService.order.findFirst.mockResolvedValueOnce({ id: 'order-1', customerId: 'customer-1', erpDav: '102130', status: 'WAITING_CUSTOMER_SUBSTITUTION' })
+    mockPrismaService.substitutionSuggestion.findMany.mockResolvedValueOnce([{ id: 's0', status: 'PENDING', sentAt: new Date() }])
+    const service = svc()
+    const decide = jest.spyOn(service, 'decideSuggestion').mockResolvedValue({} as never)
+    await expect(service.decideSuggestionsAsCustomer('order-1', 'customer-1', [{ id: 's0', accept: false }], {})).resolves.toEqual({ accepted: 0, rejected: 1 })
+    expect(decide).toHaveBeenCalledWith('s0', false, {}, { actorType: 'CUSTOMER', actorId: 'customer-1' }, 'CUSTOMER')
+    expect(notifications.notifyPickingTeamSubstitutionAnswer).toHaveBeenCalledWith('order-1', '102130', 0, 1)
+  })
+})

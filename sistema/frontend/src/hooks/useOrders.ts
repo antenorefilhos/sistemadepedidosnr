@@ -18,6 +18,8 @@ export function useOrders(customerId?: string) {
     },
     refetchInterval: (data) => {
       const orders = Array.isArray(data) ? data : []
+      // Esperando a escolha das trocas: a loja pode decidir pelo WhatsApp, entao atualiza mais rapido.
+      if (orders.some((o: { status: string }) => o.status === 'WAITING_CUSTOMER_SUBSTITUTION')) return 10_000
       const hasActive = orders.some((o: { status: string }) => ACTIVE_STATUSES.includes(o.status))
       return hasActive ? 30_000 : false
     },

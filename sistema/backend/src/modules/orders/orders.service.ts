@@ -289,7 +289,7 @@ export class OrdersService {
       ...(customerId ? { customerId } : {}),
     }
 
-    return this.prisma.order.findMany({
+    const orders = await this.prisma.order.findMany({
       where: Object.keys(where).length > 0 ? where : undefined,
       include: {
         customer: { select: CUSTOMER_SAFE_SELECT },
@@ -301,6 +301,33 @@ export class OrdersService {
       },
       orderBy: { createdAt: 'desc' },
     })
+    return this.attachSentSuggestions(orders)
+  }
+
+  /**
+   * Trocas que o separador ja mandou ao cliente (08/10/2026): em Minha conta
+   * ele aceita ou recusa sem depender do WhatsApp. Rascunho do separador
+   * (sem sentAt) e sugestao apagada nao aparecem.
+   */
+  private async attachSentSuggestions<T extends { id: string }>(orders: T[]) {
+    if (!orders.length) return orders
+    const suggestions = await this.prisma.substitutionSuggestion.findMany({
+      where: { orderId: { in: orders.map((o) => o.id) }, sentAt: { not: null }, status: { not: 'CANCELLED' } },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, orderId: true, orderItemId: true, productId: true, quantity: true, unitPrice: true, status: true, sentAt: true, decidedAt: true, decidedBy: true },
+    })
+    if (!suggestions.length) return orders
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: [...new Set(suggestions.map((s) => s.productId))] } },
+      select: { id: true, name: true, ean: true, unit: true, isFractional: true },
+    })
+    const productById = new Map(products.map((p) => [p.id, p]))
+    return orders.map((o) => ({
+      ...o,
+      substitutionSuggestions: suggestions
+        .filter((s) => s.orderId === o.id)
+        .map((s) => ({ ...s, quantity: Number(s.quantity), unitPrice: Number(s.unitPrice), product: productById.get(s.productId) || null })),
+    }))
   }
 
   async findOne(id: string, context?: Partial<OrderTenantContext>) {

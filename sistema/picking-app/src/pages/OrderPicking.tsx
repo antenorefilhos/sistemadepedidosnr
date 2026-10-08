@@ -135,6 +135,28 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     }
   }, [confirm.mode])
 
+  // Esperando o cliente (08/10/2026): ele pode responder pelo site, em Minha
+  // conta. A tela se atualiza sozinha para o separador ver a resposta.
+  const waitingCount = order ? suggestionsOf(order).waiting.length : 0
+  const taskId = task?.id
+  const busyRef = useRef(false)
+  busyRef.current = actionLoading
+  useEffect(() => {
+    if (!waitingCount || !taskId) return
+    const timer = window.setInterval(async () => {
+      if (busyRef.current) return
+      try {
+        const { data } = await pickerApi.getTask(taskId)
+        if (busyRef.current) return
+        const answered = data.order ? waitingCount - suggestionsOf(data.order).waiting.length : 0
+        setTask(data)
+        setOrder(data.order || null)
+        if (answered > 0) toast.success('O cliente respondeu pelo site', { duration: 5000 })
+      } catch { /* tenta de novo na proxima volta */ }
+    }, 10000)
+    return () => window.clearInterval(timer)
+  }, [waitingCount, taskId])
+
   const refreshTask = async () => {
     if (!task) return
     try {
@@ -964,7 +986,7 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
               </button>
             ) : subs.waiting.length > 0 && replyLeft > 0 ? (
               <p className="py-2 text-center text-sm font-semibold text-amber-700">
-                Esperando o cliente responder ({replyLeft} min). Toque na resposta dele acima.
+                Esperando o cliente ({replyLeft} min). Respondeu no WhatsApp? Toque na resposta acima.
               </p>
             ) : subs.waiting.length > 0 ? (
               <button onClick={() => runSuggestion(() => pickerApi.expireSuggestions(order.id), 'Seguimos sem as trocas')} disabled={actionLoading} className="h-12 w-full rounded-xl bg-gray-900 font-semibold text-white disabled:opacity-60">

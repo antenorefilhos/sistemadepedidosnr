@@ -730,7 +730,7 @@ export class PickingService {
   }
 
   /** Monta a mensagem do WhatsApp com as trocas pendentes e marca como enviadas. */
-  async sendSuggestions(orderId: string, context: Partial<PickingTenantContext>, actor?: PickingActor, pickerName?: string | null) {
+  async sendSuggestions(orderId: string, context: Partial<PickingTenantContext>, actor?: PickingActor) {
     const order = await this.findOrderForPicking(orderId, context)
     this.assertStillInPicking(order.status)
     const open = await this.prisma.substitutionSuggestion.findMany({
@@ -772,11 +772,11 @@ export class PickingService {
     const totalWith = this.roundMoney(order.total + extra)
     const message = buildSubstitutionMessage({
       customerName: order.customer?.name,
-      pickerName,
-      orderCode: order.erpDav ? `DAV ${order.erpDav}` : `#${order.id.slice(-8).toUpperCase()}`,
+      orderCode: order.erpDav || `#${order.id.slice(-8).toUpperCase()}`,
       lines,
       totalWithout,
       totalWith,
+      accountUrl: `${String(process.env.FRONTEND_URL || 'https://mercado.antenorefilhos.com.br').replace(/\/+$/, '')}/account`,
     })
     const whatsappUrl = whatsappLink(order.customer?.whatsapp, message)
     if (!whatsappUrl) throw new BadRequestException('O cliente não tem WhatsApp válido no cadastro. Ligue para ele.')
@@ -859,6 +859,53 @@ export class PickingService {
     }
     await this.syncSubstitutionStatus(suggestion.orderId)
     return this.findTaskByOrder(suggestion.orderId, context)
+  }
+
+  /**
+   * O cliente escolhe as trocas pelo site, em Minha conta (etapa 2, 08/10/2026).
+   * Grava na mesma sugestao em que o separador registra a resposta do WhatsApp:
+   * quem decidir primeiro vale, e o outro lado ve a decisao.
+   */
+  async decideSuggestionsAsCustomer(
+    orderId: string,
+    customerId: string,
+    decisions: Array<{ id: string; accept: boolean }>,
+    context: Partial<PickingTenantContext>,
+  ) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...tenantStoreWhere(context) },
+      select: { id: true, customerId: true, erpDav: true, status: true },
+    })
+    if (!order || order.customerId !== customerId) throw new NotFoundException('Pedido não encontrado.')
+    if (PAST_CASHIER_STATUSES.includes(order.status)) {
+      throw new BadRequestException('A separação do seu pedido já terminou. Fale com a loja pelo WhatsApp.')
+    }
+    const suggestions = await this.prisma.substitutionSuggestion.findMany({
+      where: { orderId, id: { in: decisions.map((d) => d.id) } },
+      select: { id: true, status: true, sentAt: true },
+    })
+    if (!decisions.length || suggestions.length !== new Set(decisions.map((d) => d.id)).size) {
+      throw new BadRequestException('Troca não encontrada neste pedido.')
+    }
+    if (suggestions.some((s) => s.status === 'EXPIRED')) {
+      throw new BadRequestException('O prazo para responder passou e o pedido seguiu sem as trocas.')
+    }
+    if (suggestions.some((s) => !s.sentAt || s.status === 'CANCELLED')) {
+      throw new BadRequestException('Esta troca não está mais disponível.')
+    }
+
+    const actor = { actorType: 'CUSTOMER', actorId: customerId }
+    let accepted = 0
+    let rejected = 0
+    for (const decision of decisions) {
+      await this.decideSuggestion(decision.id, decision.accept, context, actor, 'CUSTOMER')
+      if (decision.accept) accepted++
+      else rejected++
+    }
+    this.notificationsService
+      .notifyPickingTeamSubstitutionAnswer(orderId, order.erpDav || orderId.slice(-8).toUpperCase(), accepted, rejected)
+      .catch(() => {})
+    return { accepted, rejected }
   }
 
   /** "Seguir sem as trocas": so depois do prazo de resposta. */
@@ -1614,7 +1661,10 @@ export class PickingService {
 
   private async ensureTaskCanReceiveItems(taskId: string, context: Partial<PickingTenantContext>, actor?: PickingActor) {
     let task = await this.findTaskForOperation(taskId, context)
-    if (['PENDING', 'WAITING_SUBSTITUTION'].includes(task.status)) {
+    // 08/10/2026: WAITING_SUBSTITUTION tambem passava por startTask, que volta
+    // o pedido para PICKING e manda ao cliente "pedido sendo separado" de novo
+    // -- no meio da espera pela resposta dele. A tarefa ja esta em andamento.
+    if (task.status === 'PENDING') {
       await this.startTask(task.id, context, actor)
       task = await this.findTaskForOperation(taskId, context)
     }
@@ -1626,7 +1676,9 @@ export class PickingService {
     // JA IN_PROGRESS chegava aqui sem checar de quem era -- outro separador
     // conseguia separar/reportar falta em item de tarefa que nao era dele.
     // Admin (actorType ADMIN) segue sem restricao, igual ao resto do modulo.
-    const isAdminActor = String(actor?.actorType || '').toUpperCase() === 'ADMIN'
+    // O cliente aceitando a troca pelo site (08/10/2026) mexe na tarefa do
+    // separador por definicao: nao e "outro membro da equipe".
+    const isAdminActor = ['ADMIN', 'CUSTOMER'].includes(String(actor?.actorType || '').toUpperCase())
     if (!isAdminActor && task.assignedToId && actor?.actorId && task.assignedToId !== actor.actorId) {
       throw new BadRequestException('Pedido esta sendo separado por outro membro da equipe.')
     }
