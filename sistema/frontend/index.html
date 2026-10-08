@@ -30,6 +30,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <!-- 08/10/2026: a conexao com a API (e com o banco de fotos do banner
+         principal) abre enquanto o JavaScript baixa; antes so abria quando a
+         Home pedia os dados, ~1 s depois no 4G. -->
+    <link rel="preconnect" href="%VITE_API_URL%" crossorigin />
+    <link rel="preconnect" href="https://images.unsplash.com" />
 
     <!-- Performance hints -->
     <meta name="theme-color" content="#5D082A" />
