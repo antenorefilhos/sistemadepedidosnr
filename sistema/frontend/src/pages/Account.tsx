@@ -127,7 +127,7 @@ export default function Account() {
               <li className="flex gap-2"><Check size={16} className="mt-0.5 shrink-0 text-[#5D082A]" /> Endereços salvos e frete certo</li>
             </ul>
             <div className="mt-6 flex flex-col gap-2">
-              <Link to="/login?redirect=/account" className={buttonVariants({ size: 'lg', className: 'w-full rounded-xl' })}>Entrar</Link>
+              <Link to="/login?redirect=/minha-conta" className={buttonVariants({ size: 'lg', className: 'w-full rounded-xl' })}>Entrar</Link>
               <Link to="/register" className={buttonVariants({ variant: 'outline', size: 'lg', className: 'w-full rounded-xl' })}>Criar conta</Link>
             </div>
           </div>

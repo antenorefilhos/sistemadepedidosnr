@@ -175,7 +175,7 @@ export default function Cart() {
   const checkoutLabel = unavailable.length > 0 ? 'Tirar indisponíveis e fechar pedido' : 'Fechar pedido'
 
   const emptyShelves = useMemo(() => {
-    if (rebuy.length > 0) return [{ key: 'rebuy', title: 'Compre de novo', icon: ShoppingCart, products: rebuy, to: '/account' }]
+    if (rebuy.length > 0) return [{ key: 'rebuy', title: 'Compre de novo', icon: ShoppingCart, products: rebuy, to: '/minha-conta' }]
     if (topSelling.length >= 4) return [{ key: 'top', title: 'Mais pedidos', icon: Sparkles, products: topSelling.map((t) => t.product), to: '/mercado' }]
     return (vitrines?.carrosseis || []).slice(0, 2).map((c) => ({ key: c.id, title: stripEmoji(c.titulo), icon: iconForCarrossel(c.id), products: c.produtos.slice(0, 12), to: c.linkVerTudo || '/mercado' }))
   }, [rebuy, topSelling, vitrines])

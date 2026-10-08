@@ -93,7 +93,7 @@ export function MobileBottomNav() {
             )}
             <span className="text-label font-medium">Carrinho</span>
           </Link>
-          <Link to={user ? '/account' : '/login'} className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
+          <Link to={user ? '/minha-conta' : '/login'} className="flex flex-col items-center justify-center gap-0.5 text-[#6B7280] hover:text-[#5D082A] transition-colors cursor-pointer">
             <User size={21} />
             <span className="text-label font-medium">{user ? 'Conta' : 'Entrar'}</span>
           </Link>

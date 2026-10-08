@@ -1,7 +1,7 @@
 import { buildSubstitutionMessage, quantityLabel, whatsappLink } from './substitution-message'
 
 describe('mensagem de troca sugerida', () => {
-  it('duas trocas: texto do Jonathan, cada troca com o item que substitui embaixo', () => {
+  it('duas trocas: texto do Jonathan, cada troca numa linha, em negrito, sem numero', () => {
     const text = buildSubstitutionMessage({
       customerName: 'JONATHAN oliveira',
       orderCode: '102130',
@@ -11,7 +11,7 @@ describe('mensagem de troca sugerida', () => {
       ],
       totalWithout: 73.52,
       totalWith: 96.41,
-      accountUrl: 'https://mercado.antenorefilhos.com.br/account',
+      accountUrl: 'https://mercado.antenorefilhos.com.br/minha-conta',
     })
     expect(text).toBe([
       'Jonathan, durante a separação do seu pedido 102130 não encontramos os seguintes itens:',
@@ -20,17 +20,15 @@ describe('mensagem de troca sugerida', () => {
       '• Batata Palha Yoki 120g',
       '',
       'Podemos trocar por:',
-      "1. Ketchup Hellmann's 380g - R$ 12,90",
-      'no lugar de Ketchup Heinz 397g',
-      '2. Batata Palha Elma Chips 100g - R$ 9,99',
-      'no lugar de Batata Palha Yoki 120g',
+      "*Ketchup Hellmann's 380g R$ 12,90* no lugar de Ketchup Heinz 397g",
+      '*Batata Palha Elma Chips 100g R$ 9,99* no lugar de Batata Palha Yoki 120g',
       '',
       'Com as trocas, o pedido fica em R$ 96,41',
       'Sem as trocas, fica em R$ 73,52',
       '',
       'Aguardo sua resposta para darmos continuidade.',
       '',
-      'Se preferir, escolha pelo site, em Minha conta: https://mercado.antenorefilhos.com.br/account',
+      'Se preferir, escolha pelo site, em Minha conta: https://mercado.antenorefilhos.com.br/minha-conta',
     ].join('\n'))
   })
 
@@ -46,7 +44,7 @@ describe('mensagem de troca sugerida', () => {
       totalWith: 1284.5,
     })
     expect(text).toContain('Durante a separação do seu pedido #AB12CD34 não encontramos os seguintes itens:')
-    expect(text).toContain('1. B (268 g) - R$ 1.234,50\nno lugar de A')
+    expect(text).toContain('*B (268 g) R$ 1.234,50* no lugar de A')
     expect(text).toContain('Com a troca, o pedido fica em R$ 1.284,50')
     expect(text).not.toContain('Minha conta')
   })

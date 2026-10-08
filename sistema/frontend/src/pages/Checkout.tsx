@@ -928,7 +928,7 @@ export default function Checkout() {
             contaSemSenha={contaSemSenha}
             isPickup={isPickup}
             onContinueShopping={() => navigate('/')}
-            onTrackOrder={() => navigate('/account')}
+            onTrackOrder={() => navigate('/minha-conta')}
           />
         ) : (
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-4" noValidate>

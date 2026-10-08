@@ -32,8 +32,9 @@ export function buildSubstitutionMessage(input: {
   /** Minha conta no site, onde o cliente tambem pode escolher (etapa 2). */
   accountUrl?: string | null
 }): string {
-  // Texto do Jonathan (08/10/2026): direto, sem apresentacao, cada troca com o
-  // preco e o item que ela substitui na linha de baixo.
+  // Texto do Jonathan (08/10/2026): direto, sem apresentacao. Cada troca numa
+  // linha so, em negrito no WhatsApp, sem numero (parecia quantidade) e sem
+  // hifen antes do preco.
   const cliente = firstName(input.customerName)
   const comTroca = input.lines.filter((line) => line.suggestion)
   const umItem = input.lines.length === 1
@@ -48,11 +49,10 @@ export function buildSubstitutionMessage(input: {
   if (comTroca.length) {
     out.push('')
     out.push('Podemos trocar por:')
-    comTroca.forEach((line, i) => {
+    for (const line of comTroca) {
       const s = line.suggestion!
-      out.push(`${i + 1}. ${s.name}${s.quantityLabel ? ` (${s.quantityLabel})` : ''} - ${brl(s.subtotal)}`)
-      out.push(`no lugar de ${line.originalName}`)
-    })
+      out.push(`*${s.name}${s.quantityLabel ? ` (${s.quantityLabel})` : ''} ${brl(s.subtotal)}* no lugar de ${line.originalName}`)
+    }
     out.push('')
     out.push(`Com ${umaTroca ? 'a troca' : 'as trocas'}, o pedido fica em ${brl(input.totalWith)}`)
     out.push(`Sem ${umaTroca ? 'a troca' : 'as trocas'}, fica em ${brl(input.totalWithout)}`)

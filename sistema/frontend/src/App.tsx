@@ -36,6 +36,12 @@ const Encarte = lazy(() => import('./pages/Encarte'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 const TermsOfUse = lazy(() => import('./pages/TermsOfUse'))
 
+// /account virou /minha-conta (08/10/2026): avisos, mensagens e favoritos antigos continuam abrindo.
+function LegacyAccountRedirect() {
+  const location = useLocation()
+  return <Navigate to={`/minha-conta${location.search}`} replace />
+}
+
 function LegacySearchRedirect() {
   const location = useLocation()
   return <Navigate to={`/mercado${location.search}`} replace />
@@ -143,8 +149,9 @@ function AppRoutes() {
               )
             }
           />
+          <Route path="/account" element={<LegacyAccountRedirect />} />
           <Route
-            path="/account"
+            path="/minha-conta"
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading}>
                 <PageTransition><Account /></PageTransition>

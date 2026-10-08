@@ -566,7 +566,7 @@ export default function MercadoPage() {
 
           {user && <NotificationBell />}
 
-          <Link to={user ? '/account' : '/login'} className="hidden shrink-0 items-center gap-1 rounded-full p-1 hover:bg-black/5 sm:flex">
+          <Link to={user ? '/minha-conta' : '/login'} className="hidden shrink-0 items-center gap-1 rounded-full p-1 hover:bg-black/5 sm:flex">
             <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D2BB8A]/40 bg-[#D2BB8A]/20">
               <User size={16} className="text-[#5D082A]" />
             </span>

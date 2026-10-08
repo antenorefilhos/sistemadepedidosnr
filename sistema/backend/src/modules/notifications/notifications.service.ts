@@ -731,7 +731,7 @@ export class NotificationsService {
         title: `${meta.emoji} ${meta.label}`,
         body: meta.body(shortId),
         customerId: order.customerId,
-        url: '/account',
+        url: '/minha-conta',
       })
 
       if (order.customer?.whatsapp) {

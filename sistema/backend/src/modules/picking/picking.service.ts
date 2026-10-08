@@ -776,7 +776,7 @@ export class PickingService {
       lines,
       totalWithout,
       totalWith,
-      accountUrl: `${String(process.env.FRONTEND_URL || 'https://mercado.antenorefilhos.com.br').replace(/\/+$/, '')}/account`,
+      accountUrl: `${String(process.env.FRONTEND_URL || 'https://mercado.antenorefilhos.com.br').replace(/\/+$/, '')}/minha-conta`,
     })
     const whatsappUrl = whatsappLink(order.customer?.whatsapp, message)
     if (!whatsappUrl) throw new BadRequestException('O cliente não tem WhatsApp válido no cadastro. Ligue para ele.')

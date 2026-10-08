@@ -360,7 +360,7 @@ export default function Home() {
     )
     const list: Array<{ key: string; eyebrow?: string; title: string; icon: typeof ShoppingCart; products: Product[]; to: string }> = []
     if (user && rebuyProducts.length > 0) {
-      list.push({ key: 'rebuy', title: 'Compre de novo', icon: ShoppingCart, products: rebuyProducts.slice(0, 12), to: '/account' })
+      list.push({ key: 'rebuy', title: 'Compre de novo', icon: ShoppingCart, products: rebuyProducts.slice(0, 12), to: '/minha-conta' })
     }
     if (offers.length > 0) {
       list.push({ key: 'offers', title: 'Ofertas de hoje', icon: Sparkles, products: offers.slice(0, 12), to: '/promocoes' })
@@ -627,7 +627,7 @@ export default function Home() {
                   <NotificationBell />
                 </div>
               )}
-              <Link to={user ? '/account' : '/login'} aria-label={user ? 'Minha conta' : 'Entrar'} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
+              <Link to={user ? '/minha-conta' : '/login'} aria-label={user ? 'Minha conta' : 'Entrar'} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
                 <User size={18} className="text-white" />
               </Link>
             </div>
@@ -802,7 +802,7 @@ export default function Home() {
                 <NotificationBell />
               </div>
             )}
-            <Link to={user ? '/account' : '/login'} className="flex items-center gap-2 p-1 hover:bg-white/10 rounded-full transition-all">
+            <Link to={user ? '/minha-conta' : '/login'} className="flex items-center gap-2 p-1 hover:bg-white/10 rounded-full transition-all">
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden border border-white/20">
                 <User size={18} className="text-white" />
               </div>

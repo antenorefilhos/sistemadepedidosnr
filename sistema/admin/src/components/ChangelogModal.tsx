@@ -14,6 +14,15 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.20.1',
+    date: '08/10/2026',
+    title: 'Mensagem das Trocas Mais Limpa e Minha Conta em Português',
+    highlights: [
+      { type: 'fix', description: 'Na mensagem das trocas, cada troca ocupa uma linha só, com o produto e o preço em negrito e o item que ela substitui logo depois (\"Arroz Camil 1kg R$ 7,49 no lugar de Arroz Tio João 1kg\"). Sem número na frente, que parecia quantidade, e sem hífen antes do preço.' },
+      { type: 'fix', description: 'O endereço da conta do cliente agora é /minha-conta. Links e avisos antigos com /account continuam funcionando e abrem a página nova.' },
+    ],
+  },
+  {
     version: '1.20.0',
     date: '08/10/2026',
     title: 'Cliente Escolhe as Trocas pelo Site',
