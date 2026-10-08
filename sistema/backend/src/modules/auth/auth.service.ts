@@ -120,12 +120,14 @@ export class AuthService {
 
   /**
    * Mesmo padrao de forgotPassword do admin, mas para clientes do storefront.
-   * So funciona se o cliente tiver e-mail cadastrado -- contas criadas via
-   * checkout convidado sem e-mail nao tem como recuperar senha por aqui.
+   * Aceita e-mail, CPF ou celular (07/10/2026), como o login: quem comprou
+   * como convidado lembra do WhatsApp, nao do e-mail. O link vai sempre para
+   * o e-mail do cadastro; sem e-mail nao ha como mandar, e a resposta continua
+   * generica (nao conta se a conta existe).
    */
-  async customerForgotPassword(email: string) {
-    const customer = await this.prisma.customer.findUnique({ where: { email } })
-    if (customer) {
+  async customerForgotPassword(identifier: string) {
+    const customer = await this.findCustomerByLoginIdentifier(String(identifier || '').trim())
+    if (customer?.email) {
       const token = randomBytes(32).toString('hex')
       const tokenHash = createHash('sha256').update(token).digest('hex')
       await this.prisma.customer.update({
@@ -136,7 +138,7 @@ export class AuthService {
       const resetUrl = `${frontendUrl}/redefinir-senha?token=${token}`
       await this.emailService.sendPasswordReset(customer.email!, customer.name, resetUrl)
     }
-    return { message: 'Se o e-mail existir, enviamos um link de redefinicao.' }
+    return { message: 'Se encontrarmos sua conta, enviamos um link para o e-mail cadastrado.' }
   }
 
   async customerResetPassword(token: string, newPassword: string) {
@@ -145,7 +147,7 @@ export class AuthService {
       where: { resetTokenHash: tokenHash, resetTokenExpiresAt: { gt: new Date() } },
     })
     if (!customer) {
-      throw new BadRequestException('Link invalido ou expirado. Peca uma nova redefinicao.')
+      throw new BadRequestException('Este link já foi usado ou venceu. Peça um novo.')
     }
     const password = await bcrypt.hash(newPassword, 10)
     // JON-139: mesma claim atomica do reset de admin -- ver comentario la.
@@ -155,7 +157,7 @@ export class AuthService {
       data: { password, resetTokenHash: null, resetTokenExpiresAt: null, tokenVersion: { increment: 1 } },
     })
     if (claimed.count === 0) {
-      throw new BadRequestException('Link invalido ou expirado. Peca uma nova redefinicao.')
+      throw new BadRequestException('Este link já foi usado ou venceu. Peça um novo.')
     }
     return { message: 'Senha redefinida com sucesso.' }
   }
@@ -308,7 +310,7 @@ export class AuthService {
     if (customer.blocked) {
       throw new ForbiddenException({
         statusCode: 403,
-        message: customer.blockedReason || 'Sua conta foi suspensa. Entre em contato com a loja para mais informacoes.',
+        message: customer.blockedReason || 'Sua conta está suspensa. Fale com a loja para saber mais.',
         error: 'Conta suspensa',
       })
     }
@@ -757,7 +759,7 @@ export class AuthService {
     if (customer.blocked) {
       throw new ForbiddenException({
         statusCode: 403,
-        message: customer.blockedReason || 'Sua conta foi suspensa. Entre em contato com a loja para mais informacoes.',
+        message: customer.blockedReason || 'Sua conta está suspensa. Fale com a loja para saber mais.',
         error: 'Conta suspensa',
       })
     }

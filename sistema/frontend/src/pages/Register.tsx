@@ -1,22 +1,19 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getApiErrorMessage } from '../utils/apiError'
 import { LoadingButton } from '../components/LoadingButton'
-import { Button, buttonVariants } from '../components/ui/button'
+import { AuthHelp, AuthShell } from '../components/AuthShell'
 import { Input } from '../components/ui/input'
 import { PasswordInput } from '../components/ui/password-input'
 import { Select } from '../components/ui/select'
-import { surfaceClasses } from '../components/ui/surface'
 import { cn } from '../lib/cn'
 
-// JON-170 (Auditoria 360): logo branco sobre painel branco do cadastro
-// desaparecia -- login usa a versao bordo sobre o mesmo painel e fica legivel.
-const HORIZONTAL_LOGO_SRC = '/branding/logo-horizontal-bordo.png'
+// 07/10/2026: mesmo layout das telas de entrada (AuthShell) e volta para onde
+// o cliente estava ao terminar -- vindo do checkout, o cadastro caia na Home.
 
 function fieldClass(touched: boolean, error: string | undefined) {
-  const base = 'mt-1 h-12 px-4 placeholder:text-gray-500'
+  const base = 'mt-1.5 h-12 rounded-xl px-4 text-base placeholder:text-gray-400'
   if (!touched) return cn(base, 'border-gray-300')
   return error
     ? cn(base, 'border-red-400 bg-red-50 focus-visible:ring-red-400')
@@ -58,13 +55,14 @@ export default function Register() {
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const redirect = searchParams.get('redirect') || undefined
   const { register } = useAuth()
 
   const validate = (data: typeof formData) => {
     const errs: Record<string, string> = {}
     if (!data.name.trim()) errs.name = 'Nome é obrigatório'
-    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errs.email = 'Email inválido'
+    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errs.email = 'E-mail inválido'
     const cpfDigits = data.cpf.replace(/\D/g, '')
     if (cpfDigits && cpfDigits.length < 11) errs.cpf = 'CPF deve ter 11 dígitos'
     const whatsappDigits = data.whatsapp.replace(/\D/g, '')
@@ -105,7 +103,7 @@ export default function Register() {
         cpf: formData.cpf.replace(/\D/g, ''),
         whatsapp: formData.whatsapp.replace(/\D/g, ''),
         origin: formData.origin || 'DESCONHECIDO',
-      })
+      }, redirect)
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Falha ao criar conta'))
     } finally {
@@ -116,34 +114,12 @@ export default function Register() {
   const pwStrength = passwordStrength(formData.password)
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F5F5F0] py-8 px-4 sm:px-6 sm:py-12 lg:px-8">
-      <Link
-        to="/"
-        className={buttonVariants({ variant: 'outline', size: 'md', className: 'mb-4 self-start bg-white/80 backdrop-blur-sm sm:fixed sm:left-5 sm:top-5 sm:z-50 sm:mb-0 sm:self-auto' })}
-        aria-label="Voltar para a loja"
-      >
-        <ArrowLeft size={15} />
-        Voltar à loja
-      </Link>
-      <div className={surfaceClasses({ tone: 'warm', className: 'glass max-w-md w-full space-y-8 p-8 border-[#D2BB8A]/20' })}>
-        <div>
-          <img
-            src={HORIZONTAL_LOGO_SRC}
-            alt="Antenor & Filhos"
-            className="mx-auto h-14 w-auto object-contain"
-          />
-          <h2 className="mt-6 text-center text-3xl font-bold text-[#231F20] luxury-text">
-            Crie sua conta e compre melhor
-          </h2>
-          <p className="mt-2 text-center text-xs tracking-widest uppercase text-[#5D082A] font-bold">
-            Antenor & Filhos
-          </p>
-          <p className="mt-3 text-center text-sm text-gray-500">
-            Cadastre-se para acompanhar pedidos, salvar seus dados e comprar mais rápido.
-          </p>
-        </div>
+    <AuthShell>
+      <div className="rounded-3xl bg-white p-5 shadow-[0_1px_3px_rgba(35,31,32,0.06)] ring-1 ring-[#E8D7B0]/70 sm:p-8">
+        <h1 className="text-2xl font-bold leading-tight text-[#231F20]">Criar conta grátis</h1>
+        <p className="mt-1.5 text-sm text-[#5d4f33]">Para acompanhar pedidos, salvar seus endereços e comprar mais rápido.</p>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit} noValidate>
+        <form className="mt-5 space-y-6" onSubmit={handleSubmit} noValidate>
           {error && (
             <div className="rounded-lg bg-red-50 p-4 border border-red-100" role="alert">
               <p className="text-sm font-medium text-red-800 whitespace-pre-line">{error}</p>
@@ -152,8 +128,8 @@ export default function Register() {
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Nome Completo
+              <label htmlFor="name" className="block text-sm font-semibold text-[#231F20]">
+                Nome completo
               </label>
               <Input
                 id="name"
@@ -164,7 +140,7 @@ export default function Register() {
                 aria-invalid={touched.name && !!errors.name}
                 aria-describedby={touched.name && errors.name ? 'name-error' : undefined}
                 className={fieldClass(!!touched.name, errors.name)}
-                placeholder="João Silva"
+                placeholder="Como você se chama"
                 value={formData.name}
                 onChange={handleChange}
                 onBlur={handleBlur}
@@ -173,19 +149,21 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email
+              <label htmlFor="email" className="block text-sm font-semibold text-[#231F20]">
+                E-mail
               </label>
               <Input
                 id="email"
                 name="email"
                 type="email"
                 autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
                 aria-required="true"
                 aria-invalid={touched.email && !!errors.email}
                 aria-describedby={touched.email && errors.email ? 'email-error' : undefined}
                 className={fieldClass(!!touched.email, errors.email)}
-                placeholder="joao@example.com"
+                placeholder="voce@email.com"
                 value={formData.email}
                 onChange={handleChange}
                 onBlur={handleBlur}
@@ -194,7 +172,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="cpf" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="cpf" className="block text-sm font-semibold text-[#231F20]">
                 CPF
               </label>
               <Input
@@ -207,7 +185,7 @@ export default function Register() {
                 aria-invalid={touched.cpf && !!errors.cpf}
                 aria-describedby={touched.cpf && errors.cpf ? 'cpf-error' : undefined}
                 className={fieldClass(!!touched.cpf, errors.cpf)}
-                placeholder="12345678900"
+                placeholder="Só números"
                 maxLength={14}
                 value={formData.cpf}
                 onChange={handleChange}
@@ -217,7 +195,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="whatsapp" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="whatsapp" className="block text-sm font-semibold text-[#231F20]">
                 WhatsApp
               </label>
               <Input
@@ -229,7 +207,7 @@ export default function Register() {
                 aria-invalid={touched.whatsapp && !!errors.whatsapp}
                 aria-describedby={touched.whatsapp && errors.whatsapp ? 'whatsapp-error' : undefined}
                 className={fieldClass(!!touched.whatsapp, errors.whatsapp)}
-                placeholder="11987654321"
+                placeholder="DDD + número"
                 maxLength={11}
                 value={formData.whatsapp}
                 onChange={handleChange}
@@ -239,7 +217,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-semibold text-[#231F20]">
                 Senha
               </label>
               <PasswordInput
@@ -270,8 +248,8 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirmar Senha
+              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-[#231F20]">
+                Repita a senha
               </label>
               <PasswordInput
                 id="confirmPassword"
@@ -290,13 +268,13 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="origin" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="origin" className="block text-sm font-semibold text-[#231F20]">
                 Como nos conheceu?
               </label>
               <Select
                 id="origin"
                 name="origin"
-                className="mt-1 h-12 border-gray-300 px-4"
+                className="mt-1.5 h-12 rounded-xl border-gray-300 px-4 text-base"
                 value={formData.origin}
                 onChange={handleChange}
                 onBlur={handleBlur}
@@ -312,33 +290,21 @@ export default function Register() {
             </div>
           </div>
 
-          <div>
-            <LoadingButton
-              type="submit"
-              isLoading={isLoading}
-              loadingText="Criando sua conta..."
-              className="w-full py-3 text-sm rounded-lg shadow-lg"
-            >
-              Criar conta grátis
-            </LoadingButton>
-          </div>
-
-          <div className="text-center text-sm">
-            <p className="text-gray-500">
-              Já tem cadastro?{' '}
-              <Button
-                type="button"
-                onClick={() => navigate('/login')}
-                variant="ghost"
-                size="sm"
-                className="h-auto px-1 py-0 align-baseline"
-              >
-                Entrar agora
-              </Button>
-            </p>
-          </div>
+          <LoadingButton type="submit" isLoading={isLoading} loadingText="Criando sua conta..." className="h-12 w-full rounded-xl text-[15px]">
+            Criar conta grátis
+          </LoadingButton>
         </form>
+
+        <p className="mt-5 border-t border-[#E8D7B0]/60 pt-4 text-center text-sm text-[#5d4f33]">
+          Já tem conta?{' '}
+          <Link to={redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login'} className="font-bold text-[#5D082A] hover:underline">
+            Entrar
+          </Link>
+        </p>
       </div>
-    </div>
+      <div className="mt-6">
+        <AuthHelp />
+      </div>
+    </AuthShell>
   )
 }

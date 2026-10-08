@@ -16,7 +16,7 @@ export interface AuthContextData {
   isLoading: boolean
   isAuthenticated: boolean
   login: (email: string, password: string, destino?: string) => Promise<void>
-  register: (data: RegisterPayload) => Promise<void>
+  register: (data: RegisterPayload, destino?: string) => Promise<void>
   logout: () => void
   /** Troca token e dados da sessao (depois de editar o perfil ou a senha), sem sair da pagina. */
   applySession: (accessToken: string, user: User) => void
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [navigate])
 
-  const register = useCallback(async (data: RegisterPayload) => {
+  const register = useCallback(async (data: RegisterPayload, destino?: string) => {
     setIsLoading(true)
     try {
       const response = await authAPI.register(data)
@@ -94,7 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
       window.dispatchEvent(new Event('auth:changed'))
 
-      navigate('/')
+      // Quem criou a conta vindo do checkout volta para ele (07/10/2026).
+      navigate(destinoSeguro(destino))
     } finally {
       setIsLoading(false)
     }

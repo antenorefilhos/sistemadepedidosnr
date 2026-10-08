@@ -230,10 +230,13 @@ api.interceptors.response.use(
         const volta = window.location.pathname + window.location.search
         window.location.href = `/login?redirect=${encodeURIComponent(volta)}`
       }
-      error.userMessage = 'Sessao expirada. Faca login novamente.'
+      error.userMessage = 'Sua sessão expirou. Entre de novo.'
     }
 
-    if (status === 403) {
+    // Login/cadastro recusado (conta suspensa, dado bloqueado) responde 403 com
+    // o motivo: mostra na propria tela. Antes ia para /forbidden e o cliente
+    // perdia a mensagem (07/10/2026).
+    if (status === 403 && !isAuthEndpoint) {
       if (window.location.pathname !== '/forbidden') {
         window.location.href = '/forbidden'
       }
@@ -241,15 +244,20 @@ api.interceptors.response.use(
     }
 
     if (status === 404) {
-      error.userMessage = 'Recurso nao encontrado.'
+      error.userMessage = 'Não encontrado.'
+    }
+
+    // O limitador responde em ingles ("ThrottlerException: Too Many Requests").
+    if (status === 429) {
+      error.userMessage = 'Muitas tentativas seguidas. Espere um minuto e tente de novo.'
     }
 
     if (status === 500) {
-      error.userMessage = 'Erro interno do servidor. Tente novamente.'
+      error.userMessage = 'Erro no servidor. Tente de novo.'
     }
 
     if (!hasResponse) {
-      error.userMessage = 'Sem conexao com o servidor. Verifique sua internet e tente novamente.'
+      error.userMessage = 'Sem conexão com o servidor. Verifique sua internet e tente de novo.'
     }
 
     return Promise.reject(error)
@@ -365,7 +373,7 @@ export const authAPI = {
   login: (identifier: string, password: string) => api.post('/auth/customer/login', { identifier, password }),
   register: (data: RegisterPayload) => api.post('/auth/customer/register', data),
   guestCheckout: (data: GuestCheckoutPayload) => api.post('/auth/customer/guest-checkout', data),
-  forgotPassword: (email: string) => api.post('/auth/customer/forgot-password', { email }),
+  forgotPassword: (identifier: string) => api.post('/auth/customer/forgot-password', { identifier }),
   resetPassword: (token: string, newPassword: string) =>
     api.post('/auth/customer/reset-password', { token, newPassword }),
   /** Cliente ja autenticado define a propria senha (conta de convidado nasce sem). */

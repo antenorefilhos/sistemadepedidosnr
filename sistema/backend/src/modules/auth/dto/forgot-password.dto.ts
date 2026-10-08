@@ -5,6 +5,22 @@ export class ForgotPasswordDto {
   email: string
 }
 
+/**
+ * Cliente (07/10/2026): pede o link pelo mesmo dado com que entra -- e-mail,
+ * CPF ou celular. `email` continua aceito para o site antigo em cache.
+ */
+export class CustomerForgotPasswordDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  identifier?: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  email?: string
+}
+
 export class ResetPasswordDto {
   @IsString()
   token: string

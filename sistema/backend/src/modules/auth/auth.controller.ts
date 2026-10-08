@@ -8,7 +8,7 @@ import { CreateAdminDto, UpdateStaffDto } from './dto/create-admin.dto'
 import { CreateCustomerRegisterDto } from './dto/create-customer-register.dto'
 import { CreateGuestCheckoutDto } from './dto/create-guest-checkout.dto'
 import { LoginDto, CustomerLoginDto } from './dto/login.dto'
-import { ForgotPasswordDto, ResetPasswordDto, SetPasswordDto, UpdateCustomerProfileDto } from './dto/forgot-password.dto'
+import { CustomerForgotPasswordDto, ForgotPasswordDto, ResetPasswordDto, SetPasswordDto, UpdateCustomerProfileDto } from './dto/forgot-password.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
@@ -118,8 +118,8 @@ export class AuthController {
     summary: 'Solicitar redefinicao de senha (cliente)',
     description: 'Envia um link de redefinicao por e-mail se a conta existir. Resposta sempre generica.',
   })
-  customerForgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.customerForgotPassword(dto.email)
+  customerForgotPassword(@Body() dto: CustomerForgotPasswordDto) {
+    return this.authService.customerForgotPassword(dto.identifier ?? dto.email ?? '')
   }
 
   @Post('customer/reset-password')
