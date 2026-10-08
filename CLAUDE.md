@@ -1182,3 +1182,13 @@ Primeira página da revisão do storefront. Regras que valem além dela:
 - **`alternativeDescription` do ERP é nota de fracionamento, não descrição.** Não mostrar cru nem usar como meta description. `fractionNote()` transforma em "Cada porção: 1,25 kg (cerca de 1 unidade)" e descarta o aviso genérico.
 - **Vitrine da página (`getRecommendations`):** da cesta do PDV entra só par observado (origem `produto`); o recuo `categoria` trazia açúcar, arroz e sal. Produto com missão (tag) recebe itens da missão. A loja só usa o título da missão quando todos os itens são dela. Só entra item com foto, com departamento e fora de departamento oculto.
 - O caminho e o "Ver mais em" usam o nome do departamento. O site não tem página de seção, e o `ecommerceCategory` ("Manteigas & Requeijão") abria o departamento inteiro.
+
+## Receitas: a observação do produto decide a lista de compra (07/10/2026)
+
+Na página da receita a lista "Ingredientes na loja" já chega marcada, com o total no botão e na barra fixa. Quem decide o que vem marcado é a **observação** do produto na receita (admin), em `recipeProductRole` (`frontend/src/utils/recipe.ts`):
+
+- "para harmonizar" (sem "cozinhar"/"molho") → grupo *Para harmonizar*, desmarcado. O vinho também aparece no quadro de Harmonização com o "+".
+- "opcional", "sem tempo? ..." ou "alternativa" → grupo *Opcional*, desmarcado. O kit feijoada, por exemplo, não é somado às carnes avulsas.
+- Qualquer outra observação, ou nenhuma → ingrediente, marcado.
+
+Passo do preparo que começa com "Dica:" ou "Harmonização:" sai da numeração e vira quadro. Produto por peso entra no carrinho com uma porção, ou seja, o passo do cadastro: o filé mignon de peça inteira entra com 2,35 kg.
