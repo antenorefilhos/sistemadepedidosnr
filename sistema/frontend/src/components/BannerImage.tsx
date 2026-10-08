@@ -1,3 +1,5 @@
+import { sizedImageUrl } from '../utils/imageUrl'
+
 /**
  * Foto de fundo de um banner, escolhendo entre a arte de desktop e a de mobile.
  *
@@ -40,26 +42,6 @@ const POSITION_BY_ALIGN: Record<'left' | 'center' | 'right', string> = {
   right: 'left center',
 }
 
-/**
- * Foto do Unsplash na largura que a tela usa (08/10/2026). Os banners vinham
- * com `w=1600` (~200 KB cada) e o celular mostra ~360 px: o banner principal
- * era o maior elemento da Home e o ultimo a aparecer. No celular pede 800 px
- * (nitido em tela 2x); no computador fica como cadastrado. Outra origem passa
- * direto.
- */
-export function sizedImageUrl(url: string | null | undefined, width: number): string | null {
-  if (!url) return null
-  try {
-    const parsed = new URL(url)
-    if (parsed.hostname !== 'images.unsplash.com') return url
-    parsed.searchParams.set('w', String(width))
-    parsed.searchParams.set('q', '70')
-    if (!parsed.searchParams.has('auto')) parsed.searchParams.set('auto', 'format')
-    return parsed.toString()
-  } catch {
-    return url
-  }
-}
 export function BannerImage({
   desktopUrl,
   mobileUrl,
@@ -83,13 +65,15 @@ export function BannerImage({
   fetchPriority?: 'high' | 'low' | 'auto'
   draggable?: boolean
 }) {
-  // Sem arte mobile, o celular ainda recebe a de desktop -- mas na largura dele.
+  // Sem arte mobile, o celular ainda recebe a de desktop -- mas na largura
+  // dele (800 px); no computador, ate 1600 px (08/10/2026).
   const mobileSrc = sizedImageUrl(mobileUrl || desktopUrl, 800)
+  const desktopSrc = sizedImageUrl(desktopUrl, 1600) || desktopUrl
   return (
     <picture>
-      {mobileSrc && mobileSrc !== desktopUrl && <source media="(max-width: 767px)" srcSet={mobileSrc} />}
+      {mobileSrc && mobileSrc !== desktopSrc && <source media="(max-width: 767px)" srcSet={mobileSrc} />}
       <img
-        src={desktopUrl}
+        src={desktopSrc}
         alt={alt}
         className={className}
         style={{ objectPosition: objectPosition ?? POSITION_BY_ALIGN[align] }}

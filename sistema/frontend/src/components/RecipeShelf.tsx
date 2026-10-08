@@ -7,6 +7,7 @@ import { useDragScroll } from '../hooks/useDragScroll'
 import { cn } from '../lib/cn'
 import { formatDuration } from '../utils/recipe'
 import type { Recipe } from '../types'
+import { sizedImageUrl } from '../utils/imageUrl'
 
 // Receitas no caminho do cliente (29/09/2026): a unica entrada era o link do
 // topo no computador -- no celular, onde esta quase todo cliente, nao havia
@@ -23,7 +24,7 @@ export function RecipeCard({ recipe, className }: { recipe: RecipeCardData; clas
     >
       <div className="aspect-video bg-[#F8F4EA]">
         {recipe.imageUrl ? (
-          <img src={recipe.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+          <img src={sizedImageUrl(recipe.imageUrl, 640) ?? undefined} alt="" loading="lazy" className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <ChefHat size={28} className="text-[#D2BB8A]" />

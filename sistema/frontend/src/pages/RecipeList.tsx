@@ -8,6 +8,7 @@ import { SEO, StructuredData } from '../components/SEO'
 import { DIFFICULTY_LABEL, formatDuration, pickOfTheDay } from '../utils/recipe'
 import { cn } from '../lib/cn'
 import type { Recipe } from '../types'
+import { sizedImageUrl } from '../utils/imageUrl'
 
 // Lista de receitas refeita em 07/10/2026 (revisao de UI/UX do storefront,
 // celular primeiro): receita do dia em destaque, duas colunas no celular (eram
@@ -41,7 +42,7 @@ function RecipeImage({ recipe, className }: { recipe: ListRecipe; className?: st
   return (
     <div className={cn('overflow-hidden bg-[#F8F4EA]', className)}>
       {recipe.imageUrl ? (
-        <img src={recipe.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+        <img src={sizedImageUrl(recipe.imageUrl, 640) ?? undefined} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
       ) : (
         <div className="flex h-full w-full items-center justify-center">
           <ChefHat size={32} className="text-[#D2BB8A]" />

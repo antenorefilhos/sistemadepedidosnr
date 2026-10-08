@@ -14,6 +14,14 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.21.4',
+    date: '08/10/2026',
+    title: 'Fotos de Banner e Receita no Tamanho Certo',
+    highlights: [
+      { type: 'fix', description: 'Banners e fotos de receita enviados pelo admin agora chegam ao cliente no tamanho em que aparecem: o servidor gera e guarda versões menores na primeira visita. Uma foto de receita caiu de 156 KB para 46 KB no card, e o banner principal de 244 KB para 66 KB no celular. Vale também para as imagens já enviadas; nada muda no jeito de cadastrar.' },
+    ],
+  },
+  {
     version: '1.21.3',
     date: '08/10/2026',
     title: 'Home Mais Rápida',

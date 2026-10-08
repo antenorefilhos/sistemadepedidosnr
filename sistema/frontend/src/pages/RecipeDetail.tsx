@@ -20,6 +20,7 @@ import { trackEvent } from '../utils/analytics'
 import { DIFFICULTY_LABEL, formatDuration, ingredientAmount, recipeProductRole, splitSteps, type RecipeProductRole } from '../utils/recipe'
 import { cn } from '../lib/cn'
 import type { Product, Recipe } from '../types'
+import { sizedImageUrl } from '../utils/imageUrl'
 
 // Pagina da receita refeita em 07/10/2026 (revisao de UI/UX do storefront,
 // celular primeiro, padrao "comprar a receita" dos apps de supermercado):
@@ -503,7 +504,7 @@ function RecipeView({ recipe }: { recipe: Recipe }) {
         <div className="min-w-0">
           {recipe.imageUrl && (
             <div className="aspect-[4/3] overflow-hidden bg-[#F8F4EA] sm:aspect-video lg:rounded-2xl">
-              <img src={recipe.imageUrl} alt={recipe.title} className="h-full w-full object-cover" />
+              <img src={sizedImageUrl(recipe.imageUrl, 1200) ?? undefined} alt={recipe.title} className="h-full w-full object-cover" />
             </div>
           )}
 
@@ -535,7 +536,7 @@ function RecipeView({ recipe }: { recipe: Recipe }) {
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#5D082A] text-sm font-bold text-white">{i + 1}</span>
                       <div className="min-w-0 pt-1">
                         <p className="text-[15px] leading-relaxed text-[#231F20]">{step.content}</p>
-                        {step.imageUrl && <img src={step.imageUrl} alt={`Passo ${i + 1}`} className="mt-2 w-full max-w-sm rounded-xl object-cover" loading="lazy" />}
+                        {step.imageUrl && <img src={sizedImageUrl(step.imageUrl, 640) ?? undefined} alt={`Passo ${i + 1}`} className="mt-2 w-full max-w-sm rounded-xl object-cover" loading="lazy" />}
                       </div>
                     </li>
                   ))}
