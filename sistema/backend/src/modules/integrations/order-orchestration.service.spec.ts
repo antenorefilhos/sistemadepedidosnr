@@ -31,6 +31,7 @@ const mockPrismaService = {
   },
   orderEvent: {
     create: jest.fn(),
+    findFirst: jest.fn().mockResolvedValue(null),
   },
 }
 const mockAntenorApiService = {
@@ -907,10 +908,19 @@ describe('OrderOrchestrationService', () => {
       expect(mockPrismaService.orderEvent.create).not.toHaveBeenCalled()
     })
 
-    it('item cancelado no caixa e divergencia real e fica registrada', async () => {
+    it('item cancelado no caixa e divergencia real e fica registrada (cupom fechado ha mais de 20 min)', async () => {
+      mockPrismaService.orderEvent.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 30 * 60 * 1000) })
       mockAntenorApiService.getInvoicedItems.mockResolvedValue([{ cdProduto: 1363, ean: '7896005801512', qtdFaturada: 0, vlUnitario: 18.5, canceladoNoCaixa: true }])
       await service.reconcileInvoicedOrder(undefined, 'order-1')
       expect(mockPrismaService.orderEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ type: 'order.invoice_diverged' }) }))
+    })
+
+    it('cupom recem-fechado com so o item cortado: nao grava divergencia, confere depois (102129)', async () => {
+      mockPrismaService.orderEvent.findFirst.mockResolvedValue({ createdAt: new Date() })
+      mockAntenorApiService.getInvoicedItems.mockResolvedValue([{ cdProduto: 1363, ean: '7896005801512', qtdFaturada: 0, vlUnitario: 18.5, canceladoNoCaixa: true }])
+      const r = await service.reconcileInvoicedOrder(undefined, 'order-1')
+      expect(r).toHaveProperty('motivo')
+      expect(mockPrismaService.orderEvent.create).not.toHaveBeenCalled()
     })
 
     it('cupom que confere grava a conferencia', async () => {

@@ -22,6 +22,9 @@ interface ScaleBarcodeParsingResult {
   totalValue: number
 }
 
+/** Tempo para o caixa terminar de registrar o cupom antes de gravar divergencia (ver reconcileInvoicedOrder). */
+const CUPOM_ESTAVEL_MS = 20 * 60 * 1000
+
 @Injectable()
 export class OrderOrchestrationService {
   private readonly logger = new Logger(OrderOrchestrationService.name)
@@ -982,6 +985,24 @@ export class OrderOrchestrationService {
       })),
       faturados,
     )
+
+    // Cupom ainda sendo registrado (08/10/2026). O item cortado na separacao
+    // chega ao cupom na hora, ja cancelado (vem do DAV), e os vendidos entram
+    // conforme o caixa passa. A conferencia que roda no faturamento via so os
+    // cancelados e gravava "nada foi cobrado" de vez: 102125, 102126, 102128 e
+    // 102129, todos cobrados certo. Divergencia so e gravada com o cupom
+    // fechado ha CUPOM_ESTAVEL_MS; antes disso o PdvPaymentScheduler confere
+    // de novo (a cada 15 min). Cupom que confere grava na hora.
+    if (reconciliacao.temDivergencia) {
+      const faturadoEm = await this.prisma.orderEvent.findFirst({
+        where: { orderId, type: 'order.invoiced' },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      })
+      if (faturadoEm && Date.now() - faturadoEm.createdAt.getTime() < CUPOM_ESTAVEL_MS) {
+        return { orderId, motivo: 'Cupom fechado agora; confere de novo na proxima rodada.' }
+      }
+    }
 
     await this.prisma.orderEvent.create({
       data: {
