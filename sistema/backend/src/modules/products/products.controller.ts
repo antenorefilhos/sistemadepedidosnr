@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, Query, UseGuards, Patch, Req, NotFoundException } from '@nestjs/common'
+import { cached } from '../../common/memory-cache'
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger'
 import { ProductsService } from './products.service'
 import { CreateProductDto } from './dto/create-product.dto'
@@ -196,21 +197,17 @@ export class ProductsController {
     @Query('onSale') onSale?: string,
     @Query('section') section?: string,
   ) {
-    return this.productsService.findAll(
-      search,
-      Number(page) || 1,
-      Number(limit) || 80,
-      category || cat,
-      minPrice ? Number(minPrice) : undefined,
-      maxPrice ? Number(maxPrice) : undefined,
-      classification01,
-      classification02,
-      classification03,
-      classification04,
-      req ? getTenantContext(req) : undefined,
-      tag,
-      { sort, onSale: onSale === '1' || onSale === 'true', section },
-    )
+    const context = req ? getTenantContext(req) : undefined
+    const args = [
+      search, Number(page) || 1, Number(limit) || 80, category || cat,
+      minPrice ? Number(minPrice) : undefined, maxPrice ? Number(maxPrice) : undefined,
+      classification01, classification02, classification03, classification04,
+    ] as const
+    const options = { sort, onSale: onSale === '1' || onSale === 'true', section }
+    // Listagem publica, igual para todo cliente: 30 s em memoria (a Home e o
+    // Mercado pediam o mesmo catalogo a cada visita, disputando o processo).
+    const key = `products:list:${JSON.stringify([...args, context?.tenantId, context?.storeId, tag, options])}`
+    return cached(key, 30_000, () => this.productsService.findAll(...args, context, tag, options))
   }
 
   @Get('sections')
@@ -240,7 +237,8 @@ export class ProductsController {
   })
   @ApiResponse({ status: 200, description: 'Lista de produtos em promocao' })
   async findPromotions(@Req() req?: TenantContextRequest) {
-    return this.productsService.findPromotions(req ? getTenantContext(req) : undefined)
+    const context = req ? getTenantContext(req) : undefined
+    return cached(`products:promotions:${context?.tenantId}:${context?.storeId}`, 30_000, () => this.productsService.findPromotions(context))
   }
 
   @Get('suggest')

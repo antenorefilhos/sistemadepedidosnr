@@ -6,6 +6,7 @@ import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { RelaxedThrottle } from '../../../common/decorators/relaxed-throttle.decorator'
 import { invalidateNotOffered } from '../../../common/not-offered-categories';
+import { cached, invalidateCached } from '../../../common/memory-cache';
 import { Logger, Query } from '@nestjs/common';
 
 @RelaxedThrottle()
@@ -18,9 +19,11 @@ export class CategoriesController {
     private readonly homeVitrinesService: HomeVitrinesService,
   ) {}
 
+  // Igual para todo cliente e pesada (varre o catalogo e monta as vitrines):
+  // 1 min em memoria, e o admin mexendo em departamento zera na hora.
   @Get('commercial')
   findCommercialTaxonomy() {
-    return this.categoriesService.findCommercialTaxonomy();
+    return cached('cms:commercial', 60_000, () => this.categoriesService.findCommercialTaxonomy());
   }
 
   /**
@@ -55,14 +58,14 @@ export class CategoriesController {
   addClassificationMapping(
     @Body() data: { categoryId: string; classificationLevel: number; classificationValue: string }
   ) {
-    return this.categoriesService.addClassificationMapping(data);
+    return this.categoriesService.addClassificationMapping(data).finally(() => invalidateCached('cms:'));
   }
 
   @Delete('classification-mappings/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   removeClassificationMapping(@Param('id') id: string) {
-    return this.categoriesService.removeClassificationMapping(id);
+    return this.categoriesService.removeClassificationMapping(id).finally(() => invalidateCached('cms:'));
   }
 
   @Get()
@@ -87,6 +90,7 @@ export class CategoriesController {
     const result = await this.categoriesService.update(id, data);
     // Ocultar/reexibir departamento vale na hora (vitrine, recomendacao, listagem).
     invalidateNotOffered();
+    invalidateCached('cms:');
     this.homeVitrinesService.clearCache();
     return result;
   }
