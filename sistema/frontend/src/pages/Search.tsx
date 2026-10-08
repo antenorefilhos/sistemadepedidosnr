@@ -38,7 +38,9 @@ import { DesktopNavLinks } from '../components/DesktopNavLinks'
 
 // Mercado refeito em 07/10/2026 (revisao de UI/UX do storefront, padrao dos
 // apps lideres de supermercado, celular primeiro):
-// - sem busca: buscas recentes, grade de departamentos e buscas populares;
+// - sem busca: a linha de departamentos da Home e logo os produtos; buscas
+//   recentes e populares so aparecem ao tocar no campo (08/10/2026: na tela
+//   de entrada elas empurravam os produtos para fora da tela);
 // - com busca/departamento: titulo claro, secoes do departamento (Bovinos,
 //   Aves...), ordenar e filtrar numa folha que sobe de baixo, filtros ativos
 //   como chips que se tiram com um toque;
@@ -207,6 +209,7 @@ export default function MercadoPage() {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const trackedSearchRef = useRef('')
   const prevFiltersRef = useRef<string>('')
 
@@ -257,7 +260,9 @@ export default function MercadoPage() {
 
   useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) setIsInputFocused(false)
+      const target = event.target as Node
+      if (suggestionsRef.current?.contains(target) || panelRef.current?.contains(target)) return
+      setIsInputFocused(false)
     }
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
@@ -378,6 +383,7 @@ export default function MercadoPage() {
 
   const setCategory = (code: string) => {
     setInputValue('')
+    setIsInputFocused(false)
     // Departamento novo: tira a busca e a secao do anterior; ordem e filtros ficam.
     updateParams({ cat: code ? toCategoryUrlParam(code) : undefined, q: undefined, secao: undefined, tag: undefined })
   }
@@ -443,7 +449,12 @@ export default function MercadoPage() {
     ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Olá! Procurei "${q}" no site e não achei. Vocês têm?`)}`
     : null
 
-  const showDropdown = isInputFocused && (suggestions.length > 0 || (!inputValue.trim() && recent.length > 0))
+  // Ao tocar no campo: vazio mostra recentes e populares; digitando, sugestoes.
+  const showPanel = isInputFocused && (inputValue.trim() ? suggestions.length > 0 : true)
+  const closePanel = () => {
+    setIsInputFocused(false)
+    inputRef.current?.blur()
+  }
 
   return (
     <div className="min-h-screen bg-[#FBFAF7]">
@@ -476,9 +487,6 @@ export default function MercadoPage() {
               <input
                 ref={inputRef}
                 type="search"
-                // So abre o teclado sozinho quando a pessoa veio para buscar
-                // (aba Buscar); vindo de um departamento ele cobria a lista.
-                autoFocus={isLanding}
                 value={inputValue}
                 enterKeyHint="search"
                 onFocus={() => setIsInputFocused(true)}
@@ -518,35 +526,6 @@ export default function MercadoPage() {
               )}
             </form>
 
-            {showDropdown && (
-              <div className="absolute left-0 right-0 top-[50px] z-50 overflow-hidden rounded-2xl border border-[#E8D7B0]/70 bg-white shadow-xl">
-                {inputValue.trim()
-                  ? suggestions.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => runSearch(formatProductTitle(suggestion), 'suggestion_click')}
-                        className="flex w-full items-center gap-3 border-b border-[#f1e8d6] px-4 py-3 text-left text-sm text-[#231F20] last:border-b-0 hover:bg-[#FBF7F0]"
-                      >
-                        <Search size={15} className="shrink-0 text-gray-400" />
-                        <span className="line-clamp-1">{formatProductTitle(suggestion)}</span>
-                      </button>
-                    ))
-                  : recent.map((term) => (
-                      <button
-                        key={term}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => runSearch(term, 'recent')}
-                        className="flex w-full items-center gap-3 border-b border-[#f1e8d6] px-4 py-3 text-left text-sm text-[#231F20] last:border-b-0 hover:bg-[#FBF7F0]"
-                      >
-                        <Clock size={15} className="shrink-0 text-gray-400" />
-                        <span className="line-clamp-1">{term}</span>
-                      </button>
-                    ))}
-              </div>
-            )}
           </div>
 
           <DesktopNavLinks tone="light" />
@@ -585,7 +564,115 @@ export default function MercadoPage() {
             ))}
           </div>
         )}
+
+        {showPanel && (
+          <div ref={panelRef} className="absolute inset-x-0 top-full max-h-[70vh] overflow-y-auto border-b border-[#E8D7B0]/60 bg-white shadow-xl">
+            <div className="mx-auto max-w-3xl px-4 py-3">
+              {inputValue.trim() ? (
+                <ul>
+                  {suggestions.map((suggestion) => (
+                    <li key={suggestion}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => runSearch(formatProductTitle(suggestion), 'suggestion_click')}
+                        className="flex w-full items-center gap-3 border-b border-[#f1e8d6] py-3 text-left text-sm text-[#231F20] last:border-b-0 hover:bg-[#FBF7F0]"
+                      >
+                        <Search size={15} className="shrink-0 text-gray-400" />
+                        <span className="line-clamp-1">{formatProductTitle(suggestion)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="space-y-4">
+                  {recent.length > 0 && (
+                    <section>
+                      <div className="mb-1 flex items-center justify-between">
+                        <h2 className="text-sm font-bold text-[#231F20]">Buscas recentes</h2>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setRecent([])
+                            writeRecent([])
+                          }}
+                          className="h-8 px-1 text-xs font-semibold text-[#5D082A]"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                      <ul>
+                        {recent.map((term) => (
+                          <li key={term}>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => runSearch(term, 'recent')}
+                              className="flex w-full items-center gap-3 border-b border-[#f1e8d6] py-2.5 text-left text-sm text-[#231F20] last:border-b-0 hover:bg-[#FBF7F0]"
+                            >
+                              <Clock size={15} className="shrink-0 text-gray-400" />
+                              <span className="line-clamp-1">{term}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                  <section>
+                    <h2 className="mb-2 text-sm font-bold text-[#231F20]">Buscas populares</h2>
+                    <div className="flex flex-wrap gap-2">
+                      {QUICK_LINKS.map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => (item.to ? navigate(item.to) : runSearch(item.query!, 'popular'))}
+                          className={chip(false)}
+                        >
+                          {item.to ? <Tag size={14} className="text-[#5D082A]" /> : <Search size={14} className="text-gray-400" />} {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </header>
+
+      {/* Fundo escurecido com o painel aberto: tocar fora fecha sem abrir produto. */}
+      {showPanel && <div aria-hidden="true" className="fixed inset-0 z-40 bg-black/25" onMouseDown={closePanel} onTouchStart={closePanel} />}
+
+      {/* Departamentos como na Home (08/10/2026): uma linha que desliza, rolando com a pagina. */}
+      {isLanding && departments.length > 0 && (
+        <nav aria-label="Departamentos" className="border-b border-[#EFE6D2] bg-white">
+          <div
+            ref={landingDeptScroll.ref}
+            className="no-scrollbar mx-auto flex max-w-7xl snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-3 lg:gap-4"
+            style={{ touchAction: 'pan-x' }}
+            {...landingDeptScroll.dragProps}
+          >
+            {departments.map((dept) => {
+              const Icon = CATEGORY_ICONS[dept.id] || CATEGORY_ICONS.default
+              return (
+                <Link
+                  key={dept.key}
+                  to={getCategoryHref({ id: dept.id, code: dept.key })}
+                  style={{ touchAction: 'manipulation' }}
+                  className="group flex w-[68px] shrink-0 snap-start flex-col items-center gap-1.5 text-center"
+                >
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#E8D7B0]/70 bg-[#F8F2E6] text-[#5D082A] transition-transform duration-150 group-hover:border-[#D2BB8A] group-active:scale-95">
+                    <Icon size={24} strokeWidth={1.8} />
+                  </span>
+                  <span className="line-clamp-2 text-[11px] font-semibold leading-tight text-[#231F20]">{dept.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </nav>
+      )}
 
       {scannerOpen && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={() => setScannerOpen(false)}>
@@ -598,84 +685,14 @@ export default function MercadoPage() {
 
       <main className="mx-auto max-w-7xl px-4 pb-6 pt-4">
         {isLanding ? (
-          <div className="space-y-6">
-            {recent.length > 0 && (
-              <section>
-                <div className="mb-2.5 flex items-center justify-between">
-                  <h2 className="text-base font-bold text-[#231F20]">Buscas recentes</h2>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRecent([])
-                      writeRecent([])
-                    }}
-                    className="text-xs font-semibold text-[#5D082A]"
-                  >
-                    Limpar
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {recent.map((term) => (
-                    <button key={term} type="button" onClick={() => runSearch(term, 'recent')} className={chip(false)}>
-                      <Clock size={14} className="text-gray-400" /> {term}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            <section>
-              <h2 className="mb-3 text-base font-bold text-[#231F20]">Departamentos</h2>
-              {/* 08/10/2026: no celular, uma linha que desliza (a grade de 5 linhas tomava a tela inteira); no computador, grade. */}
-              <div
-                ref={landingDeptScroll.ref}
-                className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 [overflow-anchor:none] lg:mx-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:px-0 lg:pb-0"
-                {...landingDeptScroll.dragProps}
-              >
-                {departments.map((dept) => {
-                  const Icon = CATEGORY_ICONS[dept.id] || CATEGORY_ICONS.default
-                  return (
-                    <button
-                      key={dept.key}
-                      type="button"
-                      onClick={() => openDepartment(dept)}
-                      className="flex w-[84px] shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl border border-[#EFE6D2] bg-white px-1 py-3 text-center transition-colors hover:border-[#D2BB8A] active:scale-[0.98] lg:w-auto"
-                    >
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F8F2E6] text-[#5D082A]">
-                        <Icon size={21} strokeWidth={1.8} />
-                      </span>
-                      <span className="line-clamp-2 text-[11px] font-semibold leading-tight text-[#231F20]">{dept.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-
-            <section>
-              <h2 className="mb-2.5 text-base font-bold text-[#231F20]">Buscas populares</h2>
-              <div className="flex flex-wrap gap-2">
-                {QUICK_LINKS.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => (item.to ? navigate(item.to) : runSearch(item.query!, 'popular'))}
-                    className={chip(false)}
-                  >
-                    {item.to ? <Tag size={14} className="text-[#5D082A]" /> : <Search size={14} className="text-gray-400" />} {item.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <div className="flex items-end justify-between gap-3 pt-1">
-              <div>
-                <h2 className="text-lg font-bold text-[#231F20]">Todos os produtos</h2>
-                {!isLoading && <p className="text-xs text-gray-500">{total} produtos</p>}
-              </div>
-              <button type="button" onClick={() => setSheetOpen(true)} className={chip(false)}>
-                <SlidersHorizontal size={14} /> Ordenar e filtrar
-              </button>
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h1 className="text-lg font-bold text-[#231F20]">Todos os produtos</h1>
+              {!isLoading && <p className="text-xs text-gray-500">{total} produtos</p>}
             </div>
+            <button type="button" onClick={() => setSheetOpen(true)} className={chip(false)}>
+              <SlidersHorizontal size={14} /> Ordenar e filtrar
+            </button>
           </div>
         ) : (
           <>

@@ -14,6 +14,14 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.21.2',
+    date: '08/10/2026',
+    title: 'Tela de Busca Direto nos Produtos',
+    highlights: [
+      { type: 'fix', description: 'A tela de busca do site (Mercado) abre com a linha de departamentos igual à da Home e os produtos logo abaixo. As buscas recentes e populares, que ocupavam a tela inteira, agora aparecem só quando o cliente toca no campo de busca, junto com as sugestões enquanto ele digita.' },
+    ],
+  },
+  {
     version: '1.21.1',
     date: '08/10/2026',
     title: 'Busca do Separador por Palavras',
