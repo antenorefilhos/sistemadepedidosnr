@@ -13,6 +13,8 @@ import {
   PickPickingItemDto,
   ResetPickedItemDto,
   SubstitutePickingItemDto,
+  SuggestSubstitutionDto,
+  DecideSuggestionDto,
 } from './dto/picking.dto'
 import { PickingService } from './picking.service'
 import { OrdersService } from '../orders/orders.service'
@@ -143,6 +145,42 @@ export class PickerController {
     @Req() req: TenantContextRequest,
   ) {
     return this.pickingService.substituteItem(id, itemId, dto, getTenantContext(req), this.actorFromRequest(req))
+  }
+
+  // ---- Troca sugerida (08/10/2026) ----
+  @Post('tasks/:id/items/:itemId/suggestion')
+  @ApiOperation({ summary: 'Sugerir troca para item em falta' })
+  async suggestSubstitution(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: SuggestSubstitutionDto,
+    @Req() req: TenantContextRequest,
+  ) {
+    return this.pickingService.suggestSubstitution(id, itemId, dto, getTenantContext(req), this.actorFromRequest(req))
+  }
+
+  @Post('suggestions/:id/cancel')
+  @ApiOperation({ summary: 'Apagar troca sugerida ainda sem resposta' })
+  async cancelSuggestion(@Param('id') id: string, @Req() req: TenantContextRequest) {
+    return this.pickingService.cancelSuggestion(id, getTenantContext(req))
+  }
+
+  @Post('orders/:orderId/suggestions/send')
+  @ApiOperation({ summary: 'Mensagem do WhatsApp com as trocas sugeridas' })
+  async sendSuggestions(@Param('orderId') orderId: string, @Req() req: TenantContextRequest) {
+    return this.pickingService.sendSuggestions(orderId, getTenantContext(req), this.actorFromRequest(req), req.user?.name)
+  }
+
+  @Post('suggestions/:id/decide')
+  @ApiOperation({ summary: 'Registrar a resposta do cliente a uma troca' })
+  async decideSuggestion(@Param('id') id: string, @Body() dto: DecideSuggestionDto, @Req() req: TenantContextRequest) {
+    return this.pickingService.decideSuggestion(id, dto.accept, getTenantContext(req), this.actorFromRequest(req))
+  }
+
+  @Post('orders/:orderId/suggestions/expire')
+  @ApiOperation({ summary: 'Seguir sem as trocas depois do prazo de resposta' })
+  async expireSuggestions(@Param('orderId') orderId: string, @Req() req: TenantContextRequest) {
+    return this.pickingService.expireSuggestions(orderId, getTenantContext(req), this.actorFromRequest(req))
   }
 
   @Post('tasks/:id/items/:itemId/reset')

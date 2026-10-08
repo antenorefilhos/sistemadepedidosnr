@@ -1,5 +1,6 @@
 import { Camera, Check, ChevronDown, ChevronUp, Edit3, Keyboard, RotateCcw, Trash2, X } from 'lucide-react'
-import { OrderItem, PickingTaskItem } from '../services/api'
+import { OrderItem, PickingTaskItem, SubstitutionSuggestion } from '../services/api'
+import { SuggestionRow } from './SubstitutionPanel'
 import { noteLabel, qtd } from '../utils/quantity'
 import { PICK_METHOD_LABEL } from '../utils/orderInfo'
 import { itemChange, signedBrl } from '../utils/orderAdjustment'
@@ -113,6 +114,7 @@ export function ItemCard({
 
 export function DoneItemCard({
   taskItem, product, orderItem, allItems = [], onReset, onRemove, disabled,
+  suggestion, onSuggest, onCancelSuggestion, onDecideSuggestion,
 }: {
   taskItem: PickingTaskItem
   product?: { id: string; name: string; ean: string | null; unit: string | null } | null
@@ -121,6 +123,10 @@ export function DoneItemCard({
   onReset?: () => void
   onRemove?: () => void
   disabled?: boolean
+  suggestion?: SubstitutionSuggestion | null
+  onSuggest?: () => void
+  onCancelSuggestion?: () => void
+  onDecideSuggestion?: (accept: boolean) => void
 }) {
   const isMissing = taskItem.status === 'MISSING'
   const picked = Number(taskItem.pickedQuantity ?? 0)
@@ -128,6 +134,8 @@ export function DoneItemCard({
   const isAdjusted = taskItem.status === 'PICKED' && picked > 0 && picked !== requested
   const isAddedDuringPicking = Boolean(orderItem?.addedByPicker) || Boolean(taskItem.notes?.includes('Incluido durante separacao'))
   const change = orderItem ? itemChange(orderItem, allItems) : null
+  // Substituto de troca aceita pelo cliente: mostra de qual item veio.
+  const replaced = orderItem ? allItems.find((other) => other.substitutedByItemId === orderItem.id) : undefined
   const method = orderItem?.pickMethod ? PICK_METHOD_LABEL[orderItem.pickMethod] || orderItem.pickMethod : null
   // Codigo lido diferente do EAN do cadastro: etiqueta da balanca ou EAN secundario.
   const readCode = orderItem?.pickedBarcode && orderItem.pickedBarcode !== product?.ean ? orderItem.pickedBarcode : null
@@ -145,7 +153,10 @@ export function DoneItemCard({
           <p className={`font-medium text-sm ${isMissing ? 'text-red-900' : isAdjusted ? 'text-orange-900' : 'text-green-900'}`}>
             {product?.name || 'Produto'}
           </p>
-          {isAddedDuringPicking && (
+          {replaced && (
+            <span className="mt-0.5 inline-flex rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-800">Troca de {replaced.product?.name || 'outro item'} · aceita pelo cliente</span>
+          )}
+          {isAddedDuringPicking && !replaced && (
             <span className="mt-0.5 inline-flex rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800">Incluído pelo separador · não estava no pedido</span>
           )}
           <p className="text-xs text-gray-500">
@@ -163,6 +174,24 @@ export function DoneItemCard({
           <span className={`shrink-0 text-xs font-semibold tabular-nums ${change.diff < 0 ? 'text-red-600' : 'text-gray-900'}`}>{signedBrl(change.diff)}</span>
         )}
       </div>
+      {isMissing && orderItem?.substitutionPolicy === 'DENY' && (
+        <p className="mt-2 ml-14 text-xs font-semibold text-amber-800">Cliente não aceita troca neste item.</p>
+      )}
+      {suggestion ? (
+        <SuggestionRow
+          suggestion={suggestion}
+          disabled={Boolean(disabled)}
+          onChange={() => onSuggest?.()}
+          onCancel={() => onCancelSuggestion?.()}
+          onDecide={(accept) => onDecideSuggestion?.(accept)}
+        />
+      ) : (
+        isMissing && !disabled && orderItem?.substitutionPolicy !== 'DENY' && onSuggest && (
+          <button onClick={onSuggest} className="mt-2 ml-14 flex h-10 items-center gap-1.5 rounded-lg border border-brand-500/30 bg-white px-3 text-sm font-semibold text-brand-600 active:bg-brand-50">
+            <RotateCcw size={14} /> Sugerir troca
+          </button>
+        )
+      )}
       {!disabled && (onReset || (onRemove && isAddedDuringPicking)) && (
         <div className="flex gap-2 mt-2 ml-11">
           {onReset && (

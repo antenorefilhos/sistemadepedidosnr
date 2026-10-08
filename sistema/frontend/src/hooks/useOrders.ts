@@ -4,7 +4,7 @@ import { ordersAPI, customersAPI, type CreateOrderPayload } from '../services/ap
 // Pedido em andamento: a lista se atualiza sozinha (30 s). Antes so PENDING e
 // CONFIRMED -- o cliente nao via "Saiu para entrega" sem recarregar (07/10/2026).
 export const ACTIVE_ORDER_STATUSES = [
-  'PENDING', 'CONFIRMED', 'PICKING_PENDING', 'PICKING', 'CONFERENCE_PENDING', 'PACKING',
+  'PENDING', 'CONFIRMED', 'PICKING_PENDING', 'PICKING', 'WAITING_CUSTOMER_SUBSTITUTION', 'CONFERENCE_PENDING', 'PACKING',
   'READY_FOR_CHECKOUT', 'READY_FOR_DELIVERY', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY',
 ]
 const ACTIVE_STATUSES = ACTIVE_ORDER_STATUSES

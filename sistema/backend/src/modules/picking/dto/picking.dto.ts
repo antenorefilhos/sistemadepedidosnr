@@ -59,6 +59,30 @@ export class MissingPickingItemDto {
   notes?: string
 }
 
+/** Troca sugerida para item em falta (08/10/2026). */
+export class SuggestSubstitutionDto {
+  @IsString()
+  productId: string
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.000001)
+  quantity?: number
+
+  @IsOptional()
+  @IsIn(['CAMERA', 'TYPED', 'MANUAL'])
+  method?: 'CAMERA' | 'TYPED' | 'MANUAL'
+
+  @IsOptional()
+  @IsString()
+  barcode?: string
+}
+
+export class DecideSuggestionDto {
+  @IsBoolean()
+  accept: boolean
+}
+
 export class SubstitutePickingItemDto {
   @IsString()
   substituteProductId: string

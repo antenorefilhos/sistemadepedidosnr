@@ -42,6 +42,14 @@ const mockPrismaService = {
     create: jest.fn(),
   },
   admin: { findMany: jest.fn().mockResolvedValue([]) },
+  substitutionSuggestion: {
+    findMany: jest.fn().mockResolvedValue([]),
+    findFirst: jest.fn(),
+    count: jest.fn().mockResolvedValue(0),
+    create: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+  },
   packingChecklist: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
@@ -51,6 +59,7 @@ const mockPrismaService = {
   order: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
     update: jest.fn(),
   },
   orderItem: {
@@ -357,6 +366,36 @@ describe('sendToCashier fecha a tarefa (29/09/2026)', () => {
     expect(mockPrismaService.pickingTask.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'task-1' },
       data: expect.objectContaining({ status: 'COMPLETED' }),
+    }))
+  })
+})
+
+describe('troca sugerida antes do caixa (08/10/2026)', () => {
+  const svc = () => new PickingService(mockPrismaService as never, mockNotificationsService as never, {} as never, mockIntegrationModulesService as never)
+  const prepare = (suggestions: Array<{ sentAt: Date | null }>) => {
+    mockPrismaService.order.findFirst.mockResolvedValueOnce(baseOrder)
+    mockPrismaService.pickingTask.findFirst.mockResolvedValueOnce({ id: 'task-1', status: 'IN_PROGRESS', completedAt: null, items: [{ status: 'MISSING' }] })
+    mockPrismaService.substitutionSuggestion.findMany.mockResolvedValueOnce(suggestions.map((s, i) => ({ id: `s${i}`, status: 'PENDING', ...s })))
+  }
+
+  it('troca sugerida e nao enviada barra o envio ao caixa', async () => {
+    prepare([{ sentAt: null }])
+    await expect(svc().sendToCashier('order-1', {})).rejects.toThrow('não foi enviada ao cliente')
+  })
+
+  it('troca enviada ha 5 min barra com o tempo que falta', async () => {
+    prepare([{ sentAt: new Date(Date.now() - 5 * 60000) }])
+    await expect(svc().sendToCashier('order-1', {})).rejects.toThrow('faltam 10 min')
+  })
+
+  it('passou dos 15 min: a troca expira e o pedido segue para o caixa', async () => {
+    prepare([{ sentAt: new Date(Date.now() - 16 * 60000) }])
+    mockPrismaService.substitutionSuggestion.updateMany.mockResolvedValueOnce({ count: 1 })
+    mockPrismaService.order.findFirst.mockResolvedValue(baseOrder)
+    mockPrismaService.order.update.mockResolvedValueOnce({ ...baseOrder, status: 'READY_FOR_CHECKOUT', erpDav: null })
+    await svc().sendToCashier('order-1', {})
+    expect(mockPrismaService.substitutionSuggestion.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'EXPIRED', decidedBy: 'SYSTEM' }),
     }))
   })
 })

@@ -5,7 +5,7 @@ import type { OrderItem } from '../types'
 /** Etapa (0-3) do pedido para o cliente: recebido, separando, a caminho/pronto, entregue/retirado. */
 export function orderStep(status: string) {
   if (['PENDING', 'CONFIRMED'].includes(status)) return 0
-  if (['PICKING_PENDING', 'PICKING', 'CONFERENCE_PENDING', 'PACKING', 'READY_FOR_CHECKOUT'].includes(status)) return 1
+  if (['PICKING_PENDING', 'PICKING', 'WAITING_CUSTOMER_SUBSTITUTION', 'CONFERENCE_PENDING', 'PACKING', 'READY_FOR_CHECKOUT'].includes(status)) return 1
   if (['READY_FOR_DELIVERY', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY'].includes(status)) return 2
   return 3
 }

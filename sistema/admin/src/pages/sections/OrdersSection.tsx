@@ -76,6 +76,9 @@ const EVENT_LABEL: Record<string, string> = {
   'order.item_reset_by_picker': 'Item reaberto pelo separador',
   'order.added_item_removed': 'Item incluído removido',
   'order.substitution_accepted': 'Cliente aceitou a troca',
+  'order.substitution_suggested': 'Trocas enviadas ao cliente (WhatsApp)',
+  'order.substitution_rejected': 'Cliente recusou a troca',
+  'order.substitution_expired': 'Troca sem resposta: seguiu sem',
   'order.waiting_customer_substitution': 'Aguardando cliente aprovar troca',
   'order.ready_for_pickup': 'Pronto para retirada',
   'order.ready_for_delivery': 'Pronto para entrega',
@@ -118,6 +121,14 @@ function eventDetail(ev: { type: string; payload?: unknown }): string | null {
     return partes.filter(Boolean).join(' · ') || null
   }
   if (ev.type === 'order.cancelled_in_erp' && typeof p.motivo === 'string') return p.motivo
+  if (ev.type === 'order.substitution_suggested' && Array.isArray(p.suggestions)) {
+    const nomes = (p.suggestions as Array<{ productName?: string }>).map((s) => s.productName).filter(Boolean)
+    const total = Number(p.totalWith)
+    return [nomes.join(', '), Number.isFinite(total) ? `com as trocas ${brl(total)}` : ''].filter(Boolean).join(' · ') || null
+  }
+  if (ev.type === 'order.substitution_accepted' && typeof p.substituteProductName === 'string') {
+    return `${p.sourceProductName || 'item'} → ${p.substituteProductName}`
+  }
   return null
 }
 

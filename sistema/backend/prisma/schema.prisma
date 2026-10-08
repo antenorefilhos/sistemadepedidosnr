@@ -853,6 +853,39 @@ model PickingTaskItem {
   @@map("picking_task_items")
 }
 
+/// Troca sugerida pelo separador para um item em falta (08/10/2026). Quem
+/// decide e o cliente: etapa 1 pelo WhatsApp (o separador registra a resposta),
+/// etapa 2 por um link do cliente -- os dois atualizam este mesmo registro.
+model SubstitutionSuggestion {
+  id                    String    @id @default(cuid())
+  tenantId              String    @default("tenant_default")
+  storeId               String    @default("store_default")
+  orderId               String
+  /// Item do pedido que faltou.
+  orderItemId           String
+  /// Produto sugerido no lugar.
+  productId             String
+  quantity              Decimal   @db.Decimal(12, 3)
+  /// Preco mostrado ao cliente na sugestao (vale o que ele aceitou).
+  unitPrice             Decimal   @db.Decimal(10, 2)
+  pickMethod            String?
+  pickedBarcode         String?
+  /// PENDING, ACCEPTED, REJECTED, EXPIRED (sem resposta no prazo), CANCELLED
+  status                String    @default("PENDING")
+  /// Quando foi para o cliente; antes disso e rascunho do separador.
+  sentAt                DateTime?
+  decidedAt             DateTime?
+  /// PICKER (registrou a resposta do WhatsApp), CUSTOMER (link), SYSTEM (prazo)
+  decidedBy             String?
+  substituteOrderItemId String?
+  createdById           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([orderId, status])
+  @@map("substitution_suggestions")
+}
+
 model PickerPerformanceSnapshot {
   id              String   @id @default(cuid())
   tenantId        String   @default("tenant_default")

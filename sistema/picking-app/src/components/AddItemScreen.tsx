@@ -14,8 +14,11 @@ interface ProductResult {
 export function AddItemScreen({
   productSearch, productResults, searchLoading, addQty, actionLoading, addItemScanner,
   onSearchChange, onOpenScanner, onCloseScanner, onScanResult,
-  onAddQtyChange, onAddItem, onClose,
+  onAddQtyChange, onAddItem, onClose, title = 'Incluir Item no Pedido', confirmLabel = 'Incluir', hint,
 }: {
+  title?: string
+  confirmLabel?: string
+  hint?: string
   productSearch: string
   productResults: ProductResult[]
   searchLoading: boolean
@@ -37,8 +40,9 @@ export function AddItemScreen({
           <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-xl active:bg-white/10">
             <ArrowLeft size={20} />
           </button>
-          <p className="font-semibold">Incluir Item no Pedido</p>
+          <p className="font-semibold">{title}</p>
         </div>
+        {hint && <p className="mt-1 pl-[3.25rem] text-xs text-white/70">{hint}</p>}
       </header>
       <div className="px-4 py-3">
         <div className="flex gap-2">
@@ -93,7 +97,7 @@ export function AddItemScreen({
                 disabled={actionLoading}
                 className="flex-1 h-8 rounded-lg bg-brand-500 text-white text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-40"
               >
-                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <><Plus size={14} /> Incluir</>}
+                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <><Plus size={14} /> {confirmLabel}</>}
               </button>
             </div>
           </div>

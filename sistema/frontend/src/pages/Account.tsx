@@ -40,6 +40,8 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
   CONFIRMED: 'Confirmado',
   PICKING_PENDING: 'Na fila de separação',
   PICKING: 'Sendo separado',
+  // Faltou item e o separador mandou trocas no WhatsApp (08/10/2026).
+  WAITING_CUSTOMER_SUBSTITUTION: 'Aguardando sua resposta no WhatsApp',
   CONFERENCE_PENDING: 'Em conferência',
   PACKING: 'Sendo embalado',
   READY_FOR_CHECKOUT: 'Finalizando no caixa',

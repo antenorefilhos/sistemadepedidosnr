@@ -19,7 +19,9 @@ import {
   PickPickingItemDto,
   ResetPickedItemDto,
   SubstitutePickingItemDto,
+  SuggestSubstitutionDto,
 } from './dto/picking.dto'
+import { buildSubstitutionMessage, quantityLabel, SUBSTITUTION_REPLY_MINUTES, whatsappLink } from './substitution-message'
 
 type PickingTenantContext = Pick<TenantContext, 'tenantId' | 'storeId'>
 
@@ -140,6 +142,7 @@ export class PickingService {
       if (pendingItems.length > 0) {
         throw new BadRequestException('Ainda existem itens pendentes de separacao.')
       }
+      await this.settleSuggestionsBeforeCashier(order.id, actor)
       // 29/09/2026: antes pulava CONFERENCE_PENDING/PACKING -- etapas que o
       // fluxo real nao usa (o separador envia direto ao caixa). A tarefa ficava
       // aberta para sempre: 13 "aguardando conferencia" com pedido ja
@@ -523,20 +526,13 @@ export class PickingService {
           pickerNotes: notes,
         },
       }),
-      this.prisma.pickingTask.update({
-        where: { id: task.id },
-        data: { status: requestSubstitution ? 'WAITING_SUBSTITUTION' : 'IN_PROGRESS' },
-      }),
     ])
 
-    const order = await this.prisma.order.update({
-      where: { id: task.orderId },
-      data: { status: requestSubstitution ? 'WAITING_CUSTOMER_SUBSTITUTION' : 'PICKING' },
-      include: {
-        customer: { select: CUSTOMER_SAFE_SELECT },
-        items: { include: { product: true } },
-      },
-    })
+    // 08/10/2026: item em falta deixou de pôr o pedido em "aguardando o
+    // cliente" -- ninguem falava com ele. A espera comeca quando o separador
+    // manda as trocas sugeridas pelo WhatsApp (sendSuggestions).
+    await this.syncSubstitutionStatus(task.orderId)
+    const order = await this.findOrderForPicking(task.orderId)
     const suggestions = requestSubstitution ? await this.findSubstitutionSuggestions(orderItem) : []
     await this.recordOrderEvent(order, 'order.item_missing', {
       taskId: task.id,
@@ -561,6 +557,8 @@ export class PickingService {
     dto: SubstitutePickingItemDto,
     context: Partial<PickingTenantContext>,
     actor?: PickingActor,
+    /** Troca sugerida aceita: vale o preco que o cliente viu e a leitura do separador. */
+    accepted?: { unitPrice: number; pickMethod?: string | null; pickedBarcode?: string | null },
   ) {
     const task = await this.ensureTaskCanReceiveItems(taskId, context, actor)
     const taskItem = this.getTaskItem(task, taskItemId)
@@ -580,7 +578,7 @@ export class PickingService {
       throw new BadRequestException('Quantidade de substituicao invalida.')
     }
 
-    const unitPrice = substitute.promotionalPrice ?? substitute.price
+    const unitPrice = accepted?.unitPrice ?? substitute.promotionalPrice ?? substitute.price
     const subtotal = this.roundMoney(unitPrice * quantity)
     const substituteOrderItem = await this.prisma.orderItem.create({
       data: {
@@ -598,6 +596,8 @@ export class PickingService {
         status: 'PICKED',
         substitutionPolicy: sourceOrderItem.substitutionPolicy || 'ALLOW',
         pickerNotes: dto.notes || null,
+        pickMethod: accepted?.pickMethod || null,
+        pickedBarcode: accepted?.pickedBarcode || null,
       },
       include: { product: true },
     })
@@ -659,6 +659,281 @@ export class PickingService {
       notes: dto.notes || null,
     }, actor)
 
+    return this.findTask(task.id, context)
+  }
+
+  // ---- Troca sugerida pelo separador (08/10/2026) --------------------------
+  // Etapa 1: o separador sugere, manda pelo WhatsApp da loja e registra a
+  // resposta do cliente. Etapa 2 (depois): link para o cliente decidir, que
+  // atualiza estes mesmos registros -- os dois lados ficam sincronizados.
+
+  async suggestSubstitution(
+    taskId: string,
+    taskItemId: string,
+    dto: SuggestSubstitutionDto,
+    context: Partial<PickingTenantContext>,
+    actor?: PickingActor,
+  ) {
+    const task = await this.ensureTaskCanReceiveItems(taskId, context, actor)
+    await this.assertOrderStillInPicking(task.orderId)
+    const taskItem = this.getTaskItem(task, taskItemId)
+    if (taskItem.status !== 'MISSING') {
+      throw new BadRequestException('Sugira troca só para item marcado como em falta.')
+    }
+    const orderItem = await this.findOrderItemForTask(task, taskItem.orderItemId)
+    if (orderItem.substitutionPolicy === 'DENY') {
+      throw new BadRequestException('O cliente não aceita troca neste item.')
+    }
+    const product = await this.prisma.product.findFirst({
+      where: { id: dto.productId, tenantId: task.tenantId, storeId: task.storeId, active: true },
+    })
+    if (!product) throw new NotFoundException('Produto não encontrado.')
+    if (product.id === orderItem.productId) {
+      throw new BadRequestException('Escolha um produto diferente do que faltou.')
+    }
+    const quantity = dto.quantity ?? this.numberValue(taskItem.requestedQuantity) ?? orderItem.quantity
+    const unitPrice = product.promotionalPrice ?? product.price
+
+    // Uma sugestao por item: a nova substitui a anterior ainda sem resposta.
+    await this.prisma.substitutionSuggestion.updateMany({
+      where: { orderItemId: orderItem.id, status: 'PENDING' },
+      data: { status: 'CANCELLED', decidedAt: new Date(), decidedBy: 'PICKER' },
+    })
+    await this.prisma.substitutionSuggestion.create({
+      data: {
+        tenantId: task.tenantId,
+        storeId: task.storeId,
+        orderId: task.orderId,
+        orderItemId: orderItem.id,
+        productId: product.id,
+        quantity: this.decimal3(quantity),
+        unitPrice: this.decimal2(unitPrice),
+        pickMethod: dto.method ?? (dto.barcode ? 'BARCODE' : null),
+        pickedBarcode: dto.barcode || null,
+        createdById: actor?.actorId || null,
+      },
+    })
+    await this.syncSubstitutionStatus(task.orderId)
+    return this.findTask(task.id, context)
+  }
+
+  async cancelSuggestion(suggestionId: string, context: Partial<PickingTenantContext>) {
+    const suggestion = await this.findSuggestion(suggestionId, context)
+    await this.assertOrderStillInPicking(suggestion.orderId)
+    if (suggestion.status !== 'PENDING') throw new BadRequestException('Esta troca já foi decidida.')
+    await this.prisma.substitutionSuggestion.update({
+      where: { id: suggestion.id },
+      data: { status: 'CANCELLED', decidedAt: new Date(), decidedBy: 'PICKER' },
+    })
+    await this.syncSubstitutionStatus(suggestion.orderId)
+    return this.findTaskByOrder(suggestion.orderId, context)
+  }
+
+  /** Monta a mensagem do WhatsApp com as trocas pendentes e marca como enviadas. */
+  async sendSuggestions(orderId: string, context: Partial<PickingTenantContext>, actor?: PickingActor, pickerName?: string | null) {
+    const order = await this.findOrderForPicking(orderId, context)
+    this.assertStillInPicking(order.status)
+    const open = await this.prisma.substitutionSuggestion.findMany({
+      where: { orderId, status: 'PENDING' },
+      orderBy: { createdAt: 'asc' },
+    })
+    if (!open.length) throw new BadRequestException('Nenhuma troca sugerida para enviar.')
+    const unsent = open.filter((s) => !s.sentAt)
+
+    const products = await this.prisma.product.findMany({ where: { id: { in: open.map((s) => s.productId) } } })
+    const productById = new Map(products.map((p) => [p.id, p]))
+    const settled = new Set(
+      (await this.prisma.substitutionSuggestion.findMany({
+        where: { orderId, status: { in: ['REJECTED', 'EXPIRED'] } },
+        select: { orderItemId: true },
+      })).map((s) => s.orderItemId),
+    )
+    const weighed = (p?: { isFractional?: boolean | null; unit?: string | null } | null) =>
+      Boolean(p?.isFractional) || ['kg', 'quilo', 'g'].includes(String(p?.unit || '').toLowerCase())
+
+    let extra = 0
+    const lines = order.items
+      .filter((item) => item.status === 'MISSING' && (open.some((s) => s.orderItemId === item.id) || !settled.has(item.id)))
+      .map((item) => {
+        const s = open.find((candidate) => candidate.orderItemId === item.id)
+        const p = s ? productById.get(s.productId) : undefined
+        if (!s || !p) return { originalName: item.product?.name || 'Produto', originalSubtotal: item.subtotal, suggestion: null }
+        const qty = Number(s.quantity)
+        const subtotal = this.roundMoney(Number(s.unitPrice) * qty)
+        extra += subtotal
+        return {
+          originalName: item.product?.name || 'Produto',
+          originalSubtotal: item.subtotal,
+          suggestion: { name: p.name, quantityLabel: quantityLabel(qty, weighed(p)), subtotal },
+        }
+      })
+
+    const totalWithout = this.roundMoney(order.total)
+    const totalWith = this.roundMoney(order.total + extra)
+    const message = buildSubstitutionMessage({
+      customerName: order.customer?.name,
+      pickerName,
+      orderCode: order.erpDav ? `DAV ${order.erpDav}` : `#${order.id.slice(-8).toUpperCase()}`,
+      lines,
+      totalWithout,
+      totalWith,
+    })
+    const whatsappUrl = whatsappLink(order.customer?.whatsapp, message)
+    if (!whatsappUrl) throw new BadRequestException('O cliente não tem WhatsApp válido no cadastro. Ligue para ele.')
+
+    if (unsent.length) {
+      await this.prisma.substitutionSuggestion.updateMany({
+        where: { id: { in: unsent.map((s) => s.id) } },
+        data: { sentAt: new Date() },
+      })
+      await this.recordOrderEvent(order, 'order.substitution_suggested', {
+        suggestions: open.map((s) => ({
+          suggestionId: s.id,
+          orderItemId: s.orderItemId,
+          productId: s.productId,
+          productName: productById.get(s.productId)?.name || null,
+          quantity: Number(s.quantity),
+          unitPrice: Number(s.unitPrice),
+        })),
+        totalWith,
+        totalWithout,
+      }, actor)
+    }
+    await this.syncSubstitutionStatus(orderId)
+    if (unsent.length) this.notificationsService.notifyOrderStatusChange(orderId, 'WAITING_CUSTOMER_SUBSTITUTION').catch(() => {})
+
+    return { message, whatsappUrl, task: await this.findTaskByOrder(orderId, context) }
+  }
+
+  /** Resposta do cliente, registrada pelo separador (etapa 1) ou pelo proprio cliente (etapa 2). */
+  async decideSuggestion(
+    suggestionId: string,
+    accept: boolean,
+    context: Partial<PickingTenantContext>,
+    actor?: PickingActor,
+    decidedBy: 'PICKER' | 'CUSTOMER' = 'PICKER',
+  ) {
+    const suggestion = await this.findSuggestion(suggestionId, context)
+    await this.assertOrderStillInPicking(suggestion.orderId)
+    if (suggestion.status !== 'PENDING') {
+      const same = (accept && suggestion.status === 'ACCEPTED') || (!accept && suggestion.status === 'REJECTED')
+      if (same) return this.findTaskByOrder(suggestion.orderId, context)
+      throw new BadRequestException('Esta troca já foi decidida.')
+    }
+    if (!suggestion.sentAt) throw new BadRequestException('Envie a troca ao cliente antes de registrar a resposta.')
+
+    if (accept) {
+      const task = await this.prisma.pickingTask.findFirst({
+        where: { orderId: suggestion.orderId, ...tenantStoreWhere(context) },
+        include: { items: true },
+      })
+      const taskItem = task?.items.find((item) => item.orderItemId === suggestion.orderItemId)
+      if (!task || !taskItem || taskItem.status !== 'MISSING') {
+        throw new BadRequestException('O item original não está mais em falta.')
+      }
+      await this.substituteItem(
+        task.id,
+        taskItem.id,
+        { substituteProductId: suggestion.productId, quantity: Number(suggestion.quantity), reason: 'Troca aceita pelo cliente' },
+        context,
+        actor,
+        { unitPrice: Number(suggestion.unitPrice), pickMethod: suggestion.pickMethod, pickedBarcode: suggestion.pickedBarcode },
+      )
+      const original = await this.prisma.orderItem.findUnique({ where: { id: suggestion.orderItemId }, select: { substitutedByItemId: true } })
+      await this.prisma.substitutionSuggestion.update({
+        where: { id: suggestion.id },
+        data: { status: 'ACCEPTED', decidedAt: new Date(), decidedBy, substituteOrderItemId: original?.substitutedByItemId || null },
+      })
+    } else {
+      await this.prisma.substitutionSuggestion.update({
+        where: { id: suggestion.id },
+        data: { status: 'REJECTED', decidedAt: new Date(), decidedBy },
+      })
+      const order = await this.findOrderForPicking(suggestion.orderId)
+      await this.recordOrderEvent(order, 'order.substitution_rejected', {
+        suggestionId: suggestion.id,
+        orderItemId: suggestion.orderItemId,
+        productId: suggestion.productId,
+        decidedBy,
+      }, actor)
+    }
+    await this.syncSubstitutionStatus(suggestion.orderId)
+    return this.findTaskByOrder(suggestion.orderId, context)
+  }
+
+  /** "Seguir sem as trocas": so depois do prazo de resposta. */
+  async expireSuggestions(orderId: string, context: Partial<PickingTenantContext>, actor?: PickingActor) {
+    const order = await this.findOrderForPicking(orderId, context)
+    this.assertStillInPicking(order.status)
+    const open = await this.prisma.substitutionSuggestion.findMany({ where: { orderId, status: 'PENDING', sentAt: { not: null } } })
+    const remaining = this.replyMinutesLeft(open)
+    if (remaining > 0) {
+      throw new BadRequestException(`Ainda no prazo de resposta do cliente (faltam ${remaining} min). Registre a resposta ou espere.`)
+    }
+    await this.expireOpenSuggestions(orderId, actor)
+    return this.findTaskByOrder(orderId, context)
+  }
+
+  /** Antes do caixa: nada sem enviar, nada dentro do prazo; o que passou do prazo expira. */
+  private async settleSuggestionsBeforeCashier(orderId: string, actor?: PickingActor) {
+    const open = await this.prisma.substitutionSuggestion.findMany({ where: { orderId, status: 'PENDING' } })
+    if (!open.length) return
+    if (open.some((s) => !s.sentAt)) {
+      throw new BadRequestException('Há troca sugerida que não foi enviada ao cliente. Envie pelo WhatsApp ou apague a sugestão.')
+    }
+    const remaining = this.replyMinutesLeft(open)
+    if (remaining > 0) {
+      throw new BadRequestException(`Aguardando a resposta do cliente sobre as trocas (faltam ${remaining} min). Registre a resposta ou espere o prazo.`)
+    }
+    await this.expireOpenSuggestions(orderId, actor)
+  }
+
+  private replyMinutesLeft(open: Array<{ sentAt: Date | null }>) {
+    const sent = open.map((s) => s.sentAt?.getTime() || 0).filter(Boolean)
+    if (!sent.length) return 0
+    const left = Math.max(...sent) + SUBSTITUTION_REPLY_MINUTES * 60000 - Date.now()
+    return left > 0 ? Math.ceil(left / 60000) : 0
+  }
+
+  private async expireOpenSuggestions(orderId: string, actor?: PickingActor) {
+    const result = await this.prisma.substitutionSuggestion.updateMany({
+      where: { orderId, status: 'PENDING', sentAt: { not: null } },
+      data: { status: 'EXPIRED', decidedAt: new Date(), decidedBy: 'SYSTEM' },
+    })
+    if (result.count > 0) {
+      const order = await this.findOrderForPicking(orderId)
+      await this.recordOrderEvent(order, 'order.substitution_expired', { count: result.count, minutes: SUBSTITUTION_REPLY_MINUTES }, actor)
+    }
+    await this.syncSubstitutionStatus(orderId)
+  }
+
+  /** Pedido e tarefa "aguardando o cliente" so enquanto houver troca enviada sem resposta. */
+  private async syncSubstitutionStatus(orderId: string) {
+    const [order, task, waiting] = await Promise.all([
+      this.prisma.order.findUnique({ where: { id: orderId }, select: { status: true } }),
+      this.prisma.pickingTask.findFirst({ where: { orderId }, select: { id: true, status: true } }),
+      this.prisma.substitutionSuggestion.count({ where: { orderId, status: 'PENDING', sentAt: { not: null } } }),
+    ])
+    if (!order || PAST_CASHIER_STATUSES.includes(order.status)) return
+    const orderStatus = waiting ? 'WAITING_CUSTOMER_SUBSTITUTION' : order.status === 'WAITING_CUSTOMER_SUBSTITUTION' ? 'PICKING' : order.status
+    if (orderStatus !== order.status) {
+      await this.prisma.order.update({ where: { id: orderId }, data: { status: orderStatus } })
+    }
+    if (task && ['IN_PROGRESS', 'WAITING_SUBSTITUTION'].includes(task.status)) {
+      const taskStatus = waiting ? 'WAITING_SUBSTITUTION' : 'IN_PROGRESS'
+      if (taskStatus !== task.status) await this.prisma.pickingTask.update({ where: { id: task.id }, data: { status: taskStatus } })
+    }
+  }
+
+  private async findSuggestion(id: string, context: Partial<PickingTenantContext>) {
+    const suggestion = await this.prisma.substitutionSuggestion.findFirst({ where: { id, ...tenantStoreWhere(context) } })
+    if (!suggestion) throw new NotFoundException('Troca sugerida não encontrada.')
+    return suggestion
+  }
+
+  private async findTaskByOrder(orderId: string, context: Partial<PickingTenantContext>) {
+    const task = await this.prisma.pickingTask.findFirst({ where: { orderId, ...tenantStoreWhere(context) }, select: { id: true } })
+    if (!task) throw new NotFoundException('Separação não encontrada.')
     return this.findTask(task.id, context)
   }
 
@@ -748,6 +1023,10 @@ export class PickingService {
     if (!FINAL_ITEM_STATUSES.includes(taskItem.status)) {
       throw new BadRequestException('Item ainda nao foi separado.')
     }
+    // Troca aceita: reabrir o original deixaria o substituto no pedido em dobro.
+    if (taskItem.status === 'SUBSTITUTED') {
+      throw new BadRequestException('Este item foi trocado com o aceite do cliente e não pode ser reaberto.')
+    }
 
     const orderItem = await this.findOrderItemForTask(task, taskItem.orderItemId)
     const previousStatus = taskItem.status
@@ -773,6 +1052,12 @@ export class PickingService {
       where: { id: task.orderId },
       data: { status: 'PICKING' },
     })
+    // Item reaberto (o separador achou o produto): a troca sugerida para ele cai.
+    await this.prisma.substitutionSuggestion.updateMany({
+      where: { orderItemId: orderItem.id, status: 'PENDING' },
+      data: { status: 'CANCELLED', decidedAt: new Date(), decidedBy: 'PICKER' },
+    })
+    await this.syncSubstitutionStatus(task.orderId)
 
     const order = await this.findOrderForPicking(task.orderId, context)
     await this.recordOrderEvent(order, 'order.item_reset_by_picker', {
@@ -1220,7 +1505,7 @@ export class PickingService {
     const orderIds = Array.from(new Set(tasks.map((task) => task.orderId)))
     const taskIds = tasks.map((task) => task.id)
     const assigneeIds = Array.from(new Set(tasks.map((task) => task.assignedToId).filter((id): id is string => Boolean(id))))
-    const [orders, checklists, assignees] = await Promise.all([
+    const [orders, checklists, assignees, suggestions] = await Promise.all([
       this.prisma.order.findMany({
         where: { ...scopedWhere, id: { in: orderIds } },
         include: {
@@ -1237,8 +1522,25 @@ export class PickingService {
       assigneeIds.length
         ? this.prisma.admin.findMany({ where: { id: { in: assigneeIds } }, select: { id: true, name: true } })
         : Promise.resolve([] as Array<{ id: string; name: string }>),
+      this.prisma.substitutionSuggestion.findMany({
+        where: { orderId: { in: orderIds }, status: { not: 'CANCELLED' } },
+        orderBy: { createdAt: 'asc' },
+      }),
     ])
     const assigneeNameById = new Map(assignees.map((admin) => [admin.id, admin.name]))
+    const suggestedProducts = suggestions.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: Array.from(new Set(suggestions.map((s) => s.productId))) } },
+          select: { id: true, name: true, ean: true, unit: true, isFractional: true, price: true, promotionalPrice: true },
+        })
+      : []
+    const productById = new Map(suggestedProducts.map((p) => [p.id, p]))
+    const suggestionsByOrder = new Map<string, Array<Record<string, unknown>>>()
+    for (const s of suggestions) {
+      const list = suggestionsByOrder.get(s.orderId) || []
+      list.push({ ...s, quantity: Number(s.quantity), unitPrice: Number(s.unitPrice), product: productById.get(s.productId) || null })
+      suggestionsByOrder.set(s.orderId, list)
+    }
 
     const ordersById = new Map(orders.map((order) => [order.id, order]))
     const checklistByTaskId = new Map<string, typeof checklists[number]>()
@@ -1250,7 +1552,9 @@ export class PickingService {
 
     return tasks.map((task) => ({
       ...task,
-      order: ordersById.get(task.orderId) || null,
+      order: ordersById.has(task.orderId)
+        ? { ...ordersById.get(task.orderId)!, substitutionSuggestions: suggestionsByOrder.get(task.orderId) || [] }
+        : null,
       checklist: checklistByTaskId.get(task.id) || null,
       assignedToName: task.assignedToId ? assigneeNameById.get(task.assignedToId) || null : null,
     }))

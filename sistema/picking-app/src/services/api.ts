@@ -51,6 +51,20 @@ export interface OrderItem {
   }
 }
 
+/** Troca sugerida pelo separador para item em falta (08/10/2026). */
+export interface SubstitutionSuggestion {
+  id: string
+  orderItemId: string
+  productId: string
+  quantity: number
+  unitPrice: number
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED'
+  sentAt: string | null
+  decidedAt: string | null
+  decidedBy: string | null
+  product: { id: string; name: string; ean: string | null; unit: string | null; isFractional: boolean | null } | null
+}
+
 export interface Order {
   id: string
   customerId: string
@@ -83,6 +97,7 @@ export interface Order {
   riskReviewedAt?: string | null
   items: OrderItem[]
   pickingTask?: PickingTask | null
+  substitutionSuggestions?: SubstitutionSuggestion[]
 }
 
 export interface PickingTaskItem {
@@ -160,6 +175,14 @@ export const pickerApi = {
 
   searchProducts: (q: string) =>
     api.get<Array<{ id: string; name: string; ean: string | null; price: number; promotionalPrice: number | null; unit: string | null }>>('/picker/products/search', { params: { q } }),
+
+  suggestSubstitution: (taskId: string, itemId: string, data: { productId: string; quantity?: number; method?: 'CAMERA' | 'TYPED' | 'MANUAL'; barcode?: string }) =>
+    api.post<PickingTask>(`/picker/tasks/${taskId}/items/${itemId}/suggestion`, data),
+  cancelSuggestion: (id: string) => api.post<PickingTask>(`/picker/suggestions/${id}/cancel`),
+  sendSuggestions: (orderId: string) =>
+    api.post<{ message: string; whatsappUrl: string; task: PickingTask }>(`/picker/orders/${orderId}/suggestions/send`),
+  decideSuggestion: (id: string, accept: boolean) => api.post<PickingTask>(`/picker/suggestions/${id}/decide`, { accept }),
+  expireSuggestions: (orderId: string) => api.post<PickingTask>(`/picker/orders/${orderId}/suggestions/expire`),
 
   finishTask: (id: string, notes?: string) =>
     api.post<PickingTask>(`/picker/tasks/${id}/finish`, { notes }),

@@ -59,6 +59,7 @@ const ORDER_STATUS_META: Record<string, { emoji: string; label: string; body: (s
   CONFIRMED: { emoji: '✅', label: 'Pedido Confirmado', body: (id) => `Pedido #${id} confirmado e em preparo` },
   PICKING_PENDING: { emoji: '📋', label: 'Na Fila de Separação', body: (id) => `Pedido #${id} na fila de separação` },
   PICKING: { emoji: '🛒', label: 'Em Separação', body: (id) => `Pedido #${id} sendo separado` },
+  WAITING_CUSTOMER_SUBSTITUTION: { emoji: '🔄', label: 'Faltou um item', body: (id) => `Pedido #${id}: mandamos no seu WhatsApp sugestões de troca. Responda por lá.` },
   CONFERENCE_PENDING: { emoji: '🔍', label: 'Em Conferência', body: (id) => `Pedido #${id} separado, em conferência` },
   READY_FOR_CHECKOUT: { emoji: '💳', label: 'No Caixa', body: (id) => `Pedido #${id} no caixa` },
   READY_FOR_DELIVERY: { emoji: '📦', label: 'Pronto para Entrega', body: (id) => `Pedido #${id} pronto para entrega` },

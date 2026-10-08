@@ -6,6 +6,7 @@ import { addressLines, deliveryLabel, paymentLabel } from '../utils/orderInfo'
 import { qtd, qtdInput } from '../utils/quantity'
 import { brl, orderAdjustment, signedBrl } from '../utils/orderAdjustment'
 import { AdjustmentSummary } from '../components/AdjustmentSummary'
+import { SubstitutionPanel, minutesLeft, suggestionsOf, useMinuteTicker } from '../components/SubstitutionPanel'
 import toast from 'react-hot-toast'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { Modal, ItemCard, DoneItemCard } from '../components/PickingShared'
@@ -81,6 +82,10 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const [deliveryInstructions, setDeliveryInstructions] = useState('')
   const [sendConfirm, setSendConfirm] = useState(false)
   const [takeoverConfirm, setTakeoverConfirm] = useState(false)
+  // Troca sugerida: item em falta para o qual o separador esta escolhendo o produto.
+  const [suggestFor, setSuggestFor] = useState<string | null>(null)
+  const [lastScan, setLastScan] = useState<string | null>(null)
+  const now = useMinuteTicker()
   const eanInputRef = useRef<HTMLInputElement>(null)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRequestSeq = useRef(0)
@@ -406,6 +411,98 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
     }
   }
 
+  // ---- Troca sugerida (08/10/2026) ----
+  const applyTask = (data: PickingTask) => {
+    setTask(data)
+    setOrder(data.order || null)
+  }
+
+  const suggestionForItem = (orderItemId: string) => {
+    const list = (order?.substitutionSuggestions || []).filter((s) => s.orderItemId === orderItemId && s.status !== 'CANCELLED')
+    return list.length ? list[list.length - 1] : null
+  }
+
+  const openSuggest = (taskItem: PickingTaskItem) => {
+    const orderItem = getOrderItemForTaskItem(taskItem)
+    setAddQty(Math.max(1, Math.round(Number(orderItem?.requestedQuantity ?? orderItem?.quantity ?? 1))))
+    setLastScan(null)
+    setSuggestFor(taskItem.id)
+  }
+
+  const closeSuggest = () => {
+    setSuggestFor(null)
+    setProductSearch('')
+    setProductResults([])
+    setAddQty(1)
+    setLastScan(null)
+  }
+
+  const handleSuggest = async (productId: string) => {
+    if (!task || !suggestFor) return
+    const product = productResults.find((p) => p.id === productId)
+    const scanned = Boolean(lastScan && product?.ean === lastScan)
+    setActionLoading(true)
+    try {
+      const { data } = await pickerApi.suggestSubstitution(task.id, suggestFor, {
+        productId,
+        quantity: addQty,
+        ...(scanned ? { method: 'CAMERA' as const, barcode: lastScan! } : {}),
+      })
+      applyTask(data)
+      toast.success('Troca sugerida. Envie ao cliente quando terminar.')
+      closeSuggest()
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Não foi possível sugerir a troca')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const runSuggestion = async (fn: () => Promise<{ data: PickingTask }>, done?: string) => {
+    setActionLoading(true)
+    try {
+      const { data } = await fn()
+      applyTask(data)
+      if (done) toast.success(done)
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Não foi possível concluir')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleSendSuggestions = async () => {
+    if (!order) return
+    setActionLoading(true)
+    try {
+      const { data } = await pickerApi.sendSuggestions(order.id)
+      applyTask(data.task)
+      // Abre o WhatsApp do aparelho (o da loja) com a mensagem pronta.
+      window.open(data.whatsappUrl, '_blank', 'noopener')
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Não foi possível montar a mensagem')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDecideAll = async (accept: boolean) => {
+    if (!order) return
+    const waiting = suggestionsOf(order).waiting
+    setActionLoading(true)
+    try {
+      let last: PickingTask | null = null
+      for (const s of waiting) last = (await pickerApi.decideSuggestion(s.id, accept)).data
+      if (last) applyTask(last)
+      toast.success(accept ? 'Trocas aceitas' : 'Seguimos sem as trocas')
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Não foi possível registrar a resposta')
+      await refreshTask()
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleFinishPicking = async () => {
     if (!task) return
     setActionLoading(true)
@@ -481,6 +578,14 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
   const canSendToCashier = (isSeparated || allDone) && !isSentToCashier
   const finishNext = FINISH_NEXT[order.status] || null
   const adjustment = orderAdjustment(order)
+  const subs = suggestionsOf(order)
+  const replyLeft = minutesLeft(subs.lastSent, now)
+  // Caixa so depois das trocas enviadas e respondidas (ou do prazo de 15 min).
+  const substitutionBlock = subs.unsent.length
+    ? 'Envie as trocas ao cliente antes'
+    : subs.waiting.length && replyLeft > 0
+      ? `Aguardando o cliente (${replyLeft} min)`
+      : null
   const address = order.fulfillmentType === 'PICKUP' ? null : addressLines(order.addressSnapshot)
 
   return (
@@ -534,11 +639,11 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
           {canSendToCashier && (
             <button
               onClick={() => setReviewMode(true)}
-              disabled={actionLoading}
+              disabled={actionLoading || Boolean(substitutionBlock)}
               className="flex-1 h-11 rounded-xl bg-green-600 text-white font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
             >
               <ClipboardList size={14} />
-              Revisar e Enviar
+              {substitutionBlock || 'Revisar e Enviar'}
             </button>
           )}
           {isSentToCashier && (
@@ -588,6 +693,16 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
             </a>
           )}
         </div>
+        {!isSentToCashier && (
+          <SubstitutionPanel
+            order={order}
+            busy={actionLoading}
+            now={now}
+            onSend={handleSendSuggestions}
+            onDecideAll={handleDecideAll}
+            onExpire={() => runSuggestion(() => pickerApi.expireSuggestions(order.id), 'Seguimos sem as trocas')}
+          />
+        )}
         {order.riskLevel === 'HIGH' && !order.riskReviewedAt && (
           <div role="alert" className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
             <strong>Ligue para o cliente antes de separar.</strong>
@@ -639,7 +754,17 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
                 product={getProductForTaskItem(item)}
                 orderItem={getOrderItemForTaskItem(item)}
                 allItems={order.items}
-                onReset={() => { if (window.confirm('Desfazer a separação deste item?')) handleResetItem(item.id) }}
+                suggestion={suggestionForItem(item.orderItemId)}
+                onSuggest={['MISSING', 'SUBSTITUTED'].includes(item.status) ? () => openSuggest(item) : undefined}
+                onCancelSuggestion={() => {
+                  const s = suggestionForItem(item.orderItemId)
+                  if (s) runSuggestion(() => pickerApi.cancelSuggestion(s.id), 'Sugestão apagada')
+                }}
+                onDecideSuggestion={(accept) => {
+                  const s = suggestionForItem(item.orderItemId)
+                  if (s) runSuggestion(() => pickerApi.decideSuggestion(s.id, accept), accept ? 'Troca aceita' : 'Troca recusada')
+                }}
+                onReset={item.status === 'SUBSTITUTED' ? undefined : () => { if (window.confirm('Desfazer a separação deste item?')) handleResetItem(item.id) }}
                 onRemove={() => { if (window.confirm('Remover este item já separado?')) handleRemoveItem(item.id) }}
                 disabled={actionLoading || isSentToCashier}
               />
@@ -805,6 +930,32 @@ export default function OrderPicking({ orderId, onBack }: { orderId: string; onB
           onClose={() => { setAddItemModal(false); setProductSearch(''); setProductResults([]); setAddQty(1) }}
         />
       )}
+
+      {/* Sugerir troca: mesma busca do incluir item (nome, EAN digitado ou camera) */}
+      {suggestFor && (() => {
+        const taskItem = task?.items.find((i) => i.id === suggestFor)
+        const original = taskItem ? getProductForTaskItem(taskItem) : null
+        return (
+          <AddItemScreen
+            title="Sugerir troca"
+            hint={original ? `No lugar de: ${original.name}` : undefined}
+            confirmLabel="Sugerir"
+            productSearch={productSearch}
+            productResults={productResults}
+            searchLoading={searchLoading}
+            addQty={addQty}
+            actionLoading={actionLoading}
+            addItemScanner={addItemScanner}
+            onSearchChange={handleSearchProducts}
+            onOpenScanner={() => setAddItemScanner(true)}
+            onCloseScanner={() => setAddItemScanner(false)}
+            onScanResult={(barcode) => { setAddItemScanner(false); setLastScan(barcode); handleSearchProducts(barcode) }}
+            onAddQtyChange={setAddQty}
+            onAddItem={handleSuggest}
+            onClose={closeSuggest}
+          />
+        )
+      })()}
 
       {/* Review screen */}
       {reviewMode && order && (

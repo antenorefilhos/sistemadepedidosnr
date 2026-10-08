@@ -14,6 +14,22 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.17.0',
+    date: '08/10/2026',
+    title: 'Troca Sugerida pelo WhatsApp e Separação Mais Clara',
+    highlights: [
+      { type: 'feat', description: 'Troca sugerida pelo WhatsApp: quando falta um item que o cliente aceita trocar, o separador sugere o produto que tem na gôndola (lendo o código ou buscando), termina o resto e manda tudo de uma vez pelo WhatsApp da loja. A mensagem já sai pronta, com o que faltou, as trocas com preço e o total com e sem elas. O separador toca na resposta do cliente (aceitou ou recusou); sem resposta em 15 minutos, segue sem as trocas. O pedido só vai para o caixa depois disso.' },
+      { type: 'feat', description: 'App de separação e detalhe do pedido mostram a foto e o EAN de cada item e como ele foi separado: código lido pela câmera, EAN digitado ou marcado sem ler o código.' },
+      { type: 'feat', description: 'Item que não estava no pedido aparece como \"Incluído pelo separador\", e o substituto de uma troca mostra de qual item veio.' },
+      { type: 'feat', description: 'A diferença entre o que o cliente aprovou e o valor final agora vem explicada por motivo (itens em falta, trocas, peso, quantidade, itens incluídos, frete e desconto), no fim do pedido no app e no detalhe do pedido no painel.' },
+      { type: 'feat', description: 'Endereço de entrega, com link do mapa, junto do pagamento e da taxa no app de separação.' },
+      { type: 'feat', description: 'Produto cortado na separação com estoque zerado sai do site na hora e volta sozinho quando vender no caixa ou entrar mercadoria, mesmo no mesmo dia. Corte de produto com estoque fica no site com aviso de repor a gôndola.' },
+      { type: 'fix', description: 'Pedido com item em falta ficava \"aguardando o cliente\" sem ninguém falar com ele. Agora só fica assim quando as trocas são enviadas.' },
+      { type: 'fix', description: 'Todo pedido com item cortado aparecia como \"Cupom diferente do pedido\", com itens que foram cobrados marcados como não cobrados. A conferência agora espera o caixa terminar de registrar o cupom.' },
+      { type: 'fix', description: 'Categoria de 2.427 produtos corrigida no cadastro (ex.: fígado e filé de frango saíram de Bovinos, chã bovino saiu de Chás, salmão foi para Peixes).' },
+    ],
+  },
+  {
     version: '1.16.0',
     date: '07/10/2026',
     title: 'Loja Refeita Página a Página, no Padrão dos Apps de Supermercado',
