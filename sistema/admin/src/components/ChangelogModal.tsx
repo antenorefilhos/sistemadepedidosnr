@@ -14,6 +14,14 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.21.6',
+    date: '08/10/2026',
+    title: 'Garrafas com Zoom na Página da Adega',
+    highlights: [
+      { type: 'feat', description: 'Na página da Adega, o card do vinho ficou mais vertical e a foto da garrafa agora aparece com zoom, aproveitando o espaço: a garrafa fica bem maior e mais elegante, sem cortar nem distorcer o arquivo original. Medido em 36 fotos: a garrafa nunca ocupa mais de 27% da largura da foto, então o recorte do zoom só tira o excesso de fundo branco ao redor, com boa folga de sobra.' },
+    ],
+  },
+  {
     version: '1.21.5',
     date: '08/10/2026',
     title: 'Mensagem das Trocas em Lista',

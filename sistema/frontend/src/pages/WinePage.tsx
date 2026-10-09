@@ -540,14 +540,22 @@ function WineCard({ product, facts }: { product: Product; facts: WineFacts }) {
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-[#D2BB8A]/15 bg-[#2A2420] transition-colors hover:border-[#D2BB8A]/50">
-      {/* Fundo branco: as fotos sao recortadas em branco, o creme deixava um quadrado visivel. */}
-      <div className="relative aspect-[4/5] bg-white">
+      {/* Frame vertical com zoom na garrafa (08/10/2026): a foto do catalogo e
+          sempre um canvas quadrado com a garrafa centralizada ocupando so
+          ~25-27% da largura (medido em 36 fotos da adega, pior caso 27,4%).
+          Com object-contain isso sobrava muito branco nas laterais e a
+          garrafa ficava pequena. object-cover num frame mais vertical corta
+          so esse excesso de fundo -- a garrafa inteira (topo a base) sempre
+          fica visivel, porque o recorte do cover em imagem quadrada dentro
+          de um frame retrato nunca corta a altura, so a largura. 3:5 deixa
+          ~55% de largura visivel, folga de 2x sobre o pior caso. */}
+      <div className="relative aspect-[3/5] bg-white">
         <Link to={productPath(product)} state={{ from: '/adega' }} className="absolute inset-0 flex items-center justify-center" aria-label={`Ver ${title}`}>
           {!imgError ? (
             <img
               src={imageCandidates[imageIndex]}
               alt={product.name}
-              className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
               decoding="async"
               onError={() => (imageIndex < imageCandidates.length - 1 ? setImageIndex((i) => i + 1) : setImgError(true))}
