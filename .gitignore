@@ -19,6 +19,9 @@ sistema/certs/*.pem
 .od-skills/
 .github/skills/
 .github/hooks/
+.agents/
+.browser-harness-v2/
+.codex/
 # `.claude/*` (com barra-asterisco), nao `.claude/`: com o diretorio inteiro
 # ignorado o git nao desce nele e as excecoes abaixo nunca sao avaliadas.
 .claude/*
@@ -44,6 +47,13 @@ arquivos-projeto/md/06\ -\ Sessões/Day_0_Historico.md
 # uploads_data em docker-compose.prod.yml -- nao por checkout de git; ~175MB
 # e cresce a cada resync do ERP, so inchava o repo)
 sistema/backend/uploads/products/
+
+# Pasta uploads/ duplicada na raiz do projeto (achada em 10/10/2026, varredura
+# de organizacao do repo) -- mesmo conteudo de sistema/backend/uploads/products/
+# (fotos de produto por codigo numerico/EAN), ~420MB, visivelmente uma copia
+# de trabalho fora do lugar certo. Mesma razao da regra acima: runtime, nao
+# fonte de verdade de codigo.
+/uploads/
 
 # Local environment
 .env
@@ -114,6 +124,41 @@ Notificador/out/
 
 # Documentos de integracao que chegaram com credencial em texto puro (08/09/2026).
 # Nao apago o conteudo -- e material tecnico do dev da API -- mas mantenho fora
-# do git ate as chaves serem rotacionadas e removidas dos arquivos.
+# do git ate as chaves serem rotacionadas e removidas dos arquivos. Ampliado em
+# 10/10/2026 (varredura de organizacao) para o resto do mesmo lote de 07-08/09
+# com o dev da AntenorApi (checksum do PAF, liberacao do tunel) -- dois deles
+# citam fragmento de chave real mascarado so parcialmente; tratar o lote
+# inteiro pela mesma regra em vez de auditar byte a byte qual esta 100% limpo.
 docs/retorno-treplica-cloudflare-tunnel.*
 docs/resumo-pre-tunel-aprovado.*
+docs/alinhamento-checksum-e-deploy-final.html
+docs/ambiente-de-desenvolvimento.html
+docs/antes-de-ligar-o-tunel.html
+docs/conferencia-antenorapi-v1.5.0.html
+docs/mapa-integracao-solidcom.html
+docs/o-que-o-checksum-revela.html
+docs/replica-conferencia-antenorapi.html
+docs/resposta-ambiente-desenvolvimento.html
+docs/treplica-rota-antenorapi.html
+
+# Pastas de trabalho de auditoria/triagem -- scripts PowerShell, CSVs brutos,
+# screenshots e evidencia intermediaria de analises pontuais (catalogo Nova
+# Real, auditoria 360). Valor esta nos relatorios .md que resumem cada uma
+# (ja commitados em docs/ fora destas pastas) e no codigo que essas analises
+# geraram -- nao no material de trabalho em si, que so incha o repo
+# (~68MB juntos) sem servir de fonte de verdade de nada.
+docs/analises/
+docs/auditoria-360/evidencias/
+
+# Scratch/ad-hoc, nao documentacao canonica do projeto
+/auditoria_report.html
+/.recent_commits.txt
+/tmp-jau-result.json
+/tmp-jau.ps1
+/PRODUTOS/
+/TAXA DE ENTREGAS.xlsx
+sistema/backend/TASK_DEV_FIX_WINE_CARDS_VISUAL.md
+
+# Backup pessoal pre-formatacao desta maquina (~490MB, ver docs/nova-maquina.md)
+# -- nao e codigo do projeto, so vive aqui por conveniencia de pasta.
+/_backup-pre-formatacao/
