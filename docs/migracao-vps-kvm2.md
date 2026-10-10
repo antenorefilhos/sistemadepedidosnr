@@ -83,35 +83,29 @@ carregado (aí é renovação, não emissão).
       (gerada só para os `rsync` diretos entre as VPS).
 - [ ] Testar um pedido ponta a ponta assim que a loja abrir às 7h (limpar
       depois, regra de dados oficiais).
-- [ ] **Liberar o IP novo (`179.199.155.81`) — tem DUAS camadas de
-      allowlist, não uma só.** Descoberto em 10/10/2026, depois do TI
-      confirmar a liberação:
-      1. **Firewall de rede** (TI da loja): liberado por volta de
-         16h. Confirmado — porta abre em ~40ms (antes dava timeout
-         puro nas duas, 5000 e 5001); o IP antigo (`179.198.122.67`)
-         agora é quem dá timeout, prova que a liberação trocou de IP
-         em vez de só adicionar.
-      2. **Allowlist por IP dentro da própria AntenorApi** (lado do
-         agente ORQ-API, não é infra do TI): mesmo com a porta aberta
-         e a `ANTENOR_API_KEY` certa, `/health` devolve
-         `403 {"message":"Acesso restrito por IP"}` — allowlist
-         separado, só o ORQ-API consegue mexer. Avisado no
-         `conversa-agentes.md` (`AEF-058`, 10/10/2026): pedido pra
-         trocar `179.198.122.67` → `179.199.155.81` nesse segundo
-         allowlist. **Ainda bloqueado, aguardando resposta deles.**
-      **Mais sério do que parecia a princípio** — não é só a Home:
-      - `ProductsSyncScheduler` (preço/estoque) quebrado — catálogo
-        congelado no estado do dump do corte, não atualiza mais.
-      - `PromotionsScheduler` (encartes/campanhas) quebrado — oferta
-        não liga/desliga no horário.
-      - Pedido fechado agora sincroniza com o ERP via fila de retry
-        (`OrderSyncRetryScheduler`, a cada 10 min por ~2h) em vez de na
-        hora — separador não consegue puxar DAV no PDV até resolver.
-      Decisão do Jonathan (10/10/2026, loja já aberta): **manter assim
-      por enquanto**. Opção descartada por ora: reverter o corte pra
-      antiga (ainda de pé, intacta, religar é rápido se precisar).
-      **Enquanto não libera**: acompanhar a fila de pedido sem DAV na
-      tela Integrações do admin.
+- [x] **IP novo (`179.199.155.81`) liberado nas DUAS camadas de
+      allowlist — resolvido em 10/10/2026, ~15h50.** Descoberto que
+      não era uma liberação só:
+      1. **Firewall de rede** (TI da loja): liberado por volta de 16h.
+         Confirmado — porta abre em ~40ms (antes dava timeout puro nas
+         duas, 5000 e 5001); o IP antigo (`179.198.122.67`) passou a
+         dar timeout, prova que a liberação trocou de IP em vez de só
+         adicionar.
+      2. **Allowlist por IP dentro da própria AntenorApi** (`src/server.ts`
+         do lado do ORQ-API, não é infra do TI): mesmo com a porta
+         aberta e a `ANTENOR_API_KEY` certa, `/health` devolvia
+         `403 {"message":"Acesso restrito por IP"}`. Avisado no
+         `conversa-agentes.md` (`AEF-058`); ORQ-API publicou v1.30.2
+         às 15h47 trocando `179.198.122.67`/`2a02:4780:6e:ba79::1` por
+         `179.199.155.81`/`::ffff:179.199.155.81`.
+      Confirmado com `/health` → 200 (`solidcon`/`dorsal` conectados) e
+      os dois syncs disparados manualmente: `products/admin/sync`
+      completo (`product_deactivation_aplicada count=8`) e
+      `products/sync/promotions` (`checked:14, confirmed:10,
+      unreachable:0`). **`ProductsSyncScheduler` e `PromotionsScheduler`
+      voltaram ao ar**, não precisa mais acompanhar a fila de DAV por
+      este motivo. ORQ-API pediu aviso prévio na próxima troca de IP/
+      servidor (o site ficou ~13h sem sync porque não avisamos antes).
 - [x] **Bug real encontrado e corrigido nesse caminho** (10/10/2026,
       commit `6068e019`): `Home.tsx` fazia
       `vitrinesData?.carrosseis.map(...)` — o `?.` só protege contra
