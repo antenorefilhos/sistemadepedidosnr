@@ -3,6 +3,76 @@
 Jonathan já comprou a VPS nova (10/10/2026). Este documento é o plano —
 atualiza conforme a migração avança, igual ao `roadmap.md`.
 
+## Status (10/10/2026)
+
+**Passo 1 (preparar) e passo 2 (primeira carga) concluídos.** Falta só o
+passo 3 (corte) — decisão do Jonathan sobre horário.
+
+- **VPS nova**: ID Hostinger `2049592`, IP `179.199.155.81`, KVM 2 (2 vCPU/
+  8 GB/100 GB), Ubuntu 26.04 LTS, data center 22 (mesmo da atual). Acessada
+  via a API da Hostinger (plugin oficial instalado no Claude Code), sem
+  precisar de senha — a chave `claude-code@antenor` foi cadastrada nela do
+  mesmo jeito que já estava na atual. `Host antenor-vps-nova` no
+  `~/.ssh/config`.
+- **Token do túnel**: Jonathan confirmou reaproveitar o `CLOUDFLARE_TUNNEL_TOKEN`
+  atual — corte mais simples, nenhuma rota pra reapontar no painel Cloudflare.
+- **Otimizações aplicadas na VPS nova** (a atual não tinha nenhuma destas —
+  vale considerar aplicar lá também antes ou durante o corte):
+  - Swap de 4 GB (`swappiness=10`, só emergência) — a atual roda sem swap
+    nenhum há 8 GB inteiros de RAM sem rede de segurança contra OOM.
+  - `vm.overcommit_memory=1` (recomendação oficial do Redis), `somaxconn`
+    e `inotify.max_user_watches` no mesmo nível da atual.
+  - UFW ativo (22/80/443, igual à atual).
+  - **Login root por senha estava habilitado na atual** (`PasswordAuthentication
+    yes` efetivo, apesar de dois arquivos de drop-in do cloud-init se
+    contradizendo — `50-cloud-init.conf` dizia `yes`, `60-cloudimg-settings.conf`
+    dizia `no`, o primeiro vence). Na VPS nova, removido o drop-in conflitante
+    e forçado `PasswordAuthentication no` / `PermitRootLogin prohibit-password`
+    — só chave, nunca senha. Testado acesso por chave antes e depois de cada
+    mudança.
+  - fail2ban instalado e ativo pro SSH (5 tentativas, 1h de ban) — a atual
+    não tem.
+  - `unattended-upgrades` e NTP confirmados (já vinham ativos de fábrica).
+  - Docker: `daemon.json` replicado (log rotation 10 MB×3, pools de rede),
+    mesma versão de Compose.
+- **Dados migrados e conferidos:**
+  - Banco: `pg_dump`/`pg_restore` direto entre as duas VPS. Contagem de
+    `products` (14.992) e `orders` (20) bate exato nas duas.
+  - Fotos de produto (`uploads_data`): `rsync` **direto entre as duas VPS**
+    (gerei uma chave temporária na nova e autorizei na antiga só pra isso,
+    sem passar pelo meu link local) — 13.379 arquivos, 790 MB, tamanho
+    idêntico nos dois lados.
+  - Busca: reindexada do zero na nova (14.992 produtos no Meilisearch),
+    como o plano já previa — nunca copiamos o volume do Meilisearch.
+  - `check-env.js --prod`: 37 divergências, **idênticas às da VPS atual**
+    (rodei o mesmo check nas duas pra confirmar) — são gaps pré-existentes
+    (features não conectadas tipo NFE/Pagamentos/Hubspot, não é bug da
+    migração), fora de escopo aqui.
+  - `check-schema-drift.js`: schema e banco batem, só as 20 divergências
+    benignas de sempre.
+  - Os 5 subdomínios testados direto nos containers (bypassando o Caddy) e
+    via Caddy por HTTP (porta 80, confirma que o roteamento por `Host`
+    reconhece os 5 certo) — todos OK.
+- **Dois achados corrigidos no caminho:**
+  - O container `storefront`/`admin` não subia (nginx recusava por falta de
+    `/etc/antenor-certs/cert.pem` — certificado self-signed interno, nunca
+    trafega pela rede, gerado direto na VPS, nunca esteve no git). Gerei um
+    novo igual na VPS nova.
+  - **Parei a API logo depois do primeiro teste** porque os schedulers dela
+    (sync do ERP, push de notificação) já ligam sozinhos ao subir — rodando
+    nas duas VPS ao mesmo tempo, duplicaria notificação push pra cliente de
+    verdade. Só volto a ligar a API perto do corte de fato.
+  - **Parei o Caddy (`proxy`) depois de confirmar o roteamento** — ele tenta
+    emitir certificado Let's Encrypt de verdade pros 5 domínios assim que
+    sobe, e falha (porque o DNS/túnel ainda aponta pra VPS atual, como tem
+    que ser até o corte). Tentativa falha repetida consome o **mesmo limite
+    semanal do Let's Encrypt** que vale pro certificado real no dia do corte
+    — por isso parei antes de insistir à toa.
+- **Estado atual dos containers na VPS nova:** `db`, `redis`, `meili` rodando;
+  `api`, `proxy`, `cloudflared` parados de propósito (só sobem no corte).
+  `storefront`/`admin`/`picking`/`delivery`/`backup` rodando (não têm o
+  mesmo risco de duplicar nada).
+
 ## Por que a arquitetura atual torna isso barato
 
 Duas decisões já tomadas (e documentadas no `CLAUDE.md`) deixam a migração
@@ -85,11 +155,9 @@ histórico, não é operacional.
 - Atualizar `~/.ssh/config` (`Host antenor-vps`) pra apontar pro IP novo.
 - Atualizar este documento com a data real do corte e qualquer imprevisto.
 
-## Em aberto — preciso de você antes de começar
+## Em aberto — só falta isto antes do corte
 
-1. **Acesso à VPS nova**: IP e como logar (usuário/senha ou já tem uma chave
-   SSH cadastrada)?
-2. **Horário do corte**: tem preferência de dia/hora de menor movimento, ou
+1. ~~Acesso à VPS nova~~ — resolvido via API da Hostinger.
+2. ~~Token do túnel~~ — resolvido, reaproveita o atual.
+3. **Horário do corte**: tem preferência de dia/hora de menor movimento, ou
    decido com base no horário de funcionamento da loja?
-3. **Token do túnel**: reaproveita o mesmo `CLOUDFLARE_TUNNEL_TOKEN` (corte
-   mais simples, só troca onde ele roda) ou prefere um túnel novo do zero?
