@@ -1,8 +1,18 @@
 # Infraestrutura de produção — referência completa
 
+> **Parcialmente desatualizado (verificado em 10/10/2026).** Este documento
+> é de 12/08/2026 e descreve a arquitetura **antes** de duas mudanças
+> estruturais: a migração de DNS pra Cloudflare (17/09/2026 — ver CLAUDE.md,
+> "Cloudflare na frente da VPS") e a migração de VPS (10/10/2026, marco zero
+> do lançamento — ver `docs/migracao-vps-kvm2.md`). Em caso de divergência,
+> **CLAUDE.md é a fonte de verdade**, não este arquivo. IP e mecanismo de DNS
+> abaixo já corrigidos; o resto (volumes, variáveis, troubleshooting datado
+> de 12/08) ainda não foi reverificado linha a linha.
+
 Este documento é o retrato do que está **realmente rodando** em produção hoje
-(12/08/2026), para consulta rápida ou migração futura. `docs/deploy.md` é o
-passo a passo de como subir do zero; este arquivo é "o que existe e onde".
+(12/08/2026, parcialmente superado — ver aviso acima), para consulta rápida
+ou migração futura. `docs/deploy.md` é o passo a passo de como subir do
+zero; este arquivo é "o que existe e onde".
 
 **Nenhum valor de segredo real está neste arquivo** (regra do projeto — ver
 CLAUDE.md, "Zero segredos no repo"). Onde um segredo é citado, é só o *nome*
@@ -14,9 +24,9 @@ da variável e *onde* ela mora — nunca o valor.
 |---|---|
 | Provedor | Hostinger |
 | Plano | VPS KVM 2 (2 vCPU / 8 GB RAM / 100 GB NVMe) |
-| IP público | `179.198.122.67` |
+| IP público | `179.199.155.81` (desde a migração de 10/10/2026; o IP original desta tabela, `179.198.122.67`, era da VPS anterior, hoje formatada) |
 | Sistema operacional | Ubuntu 26.04 LTS |
-| Acesso | SSH `root@179.198.122.67`. Autenticação por chave (ed25519) cadastrada no painel Hostinger (VPS → Configurações → Chaves SSH); senha segue guardada só localmente/gestor de senhas, nunca commitada, como fallback |
+| Acesso | SSH `root@179.199.155.81` (alias `antenor-vps`). Autenticação por chave (ed25519) cadastrada no painel Hostinger (VPS → Configurações → Chaves SSH); senha segue guardada só localmente/gestor de senhas, nunca commitada, como fallback |
 | Firewall (ufw) | Só `22/tcp` (SSH), `80/tcp`, `443/tcp` liberados. Tudo mais bloqueado, inclusive do lado de dentro (Postgres/Redis/Meili nunca têm porta publicada no host) |
 | Localização do repositório no servidor | `/opt/antenor` (clone de `https://github.com/antenorefilhos/sistemadepedidosnr.git`, branch `main`) |
 
@@ -27,18 +37,28 @@ Jonathan. Ver comentário no topo do arquivo pra reajustar se precisar.
 
 ## 2. DNS — `antenorefilhos.com.br`
 
+> **Superado desde 17/09/2026.** A zona migrou dos nameservers do
+> Registro.br pra **Cloudflare** (compartilhada com o site institucional da
+> filial 2 na Vercel e o e-mail Hostinger — zona inteira, não só os 5
+> subdomínios). Os 5 subdomínios do sistema Antenor não têm mais registro
+> `A` apontando pro IP da VPS: eles passam por um **Cloudflare Tunnel**
+> (`cloudflared`), que faz conexão de saída da VPS pro Cloudflare — não há
+> IP público exposto no DNS. Ver CLAUDE.md, seção "Cloudflare na frente da
+> VPS", pra arquitetura completa (inclusive a armadilha de SNI por conexão
+> reaproveitada e a de cache de erro 404/5xx). A tabela abaixo é histórica,
+> de antes dessa migração — não reflete os registros reais de hoje.
+
 O domínio raiz é **compartilhado**: o sistema da outra loja (hospedado no
 **Vercel**) usa o domínio raiz e o `www`. O sistema Antenor usa 5 subdomínios
-próprios, todos apontando para o IP da VPS acima.
+próprios.
 
-**Onde gerenciar**: painel de DNS da **Hostinger**
+**Onde gerenciar (histórico, pré-17/09):** painel de DNS da **Hostinger**
 (`hpanel.hostinger.com` → Domínios → `antenorefilhos.com.br` → DNS/Nameservers).
-O domínio está registrado no **Registro.br**, mas os nameservers do
-Registro.br (`ns1.dns-parking.com` / `ns2.dns-parking.com`) delegam a zona
-inteira pra Hostinger — é lá, não no Registro.br, que os registros de verdade
-ficam.
+O domínio estava registrado no **Registro.br**, com os nameservers do
+Registro.br (`ns1.dns-parking.com` / `ns2.dns-parking.com`) delegando a zona
+inteira pra Hostinger. **Hoje a gestão é pelo painel do Cloudflare.**
 
-### Registros do sistema Antenor (criados hoje)
+### Registros do sistema Antenor (histórico, antes da migração pro Cloudflare)
 
 | Tipo | Nome | Valor | TTL |
 |---|---|---|---|

@@ -21,16 +21,26 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
-- [x] **Migração para a VPS nova (Hostinger KVM 2).** (10/10/2026)
+- [x] **Migração de VPS (Hostinger KVM 2) — marco zero do lançamento
+      oficial "Antenor & Filhos — NOVA REAL".** (10/10/2026)
       Corte feito às 5h30 (loja fechada, abre 7h), com a loja fechada —
       zero downtime perceptível ao cliente. Detalhe completo em
-      [migracao-vps-kvm2.md](migracao-vps-kvm2.md). Achado real durante o
-      corte, fora do plano original: Caddy novo não conseguia emitir
-      certificado do zero nesse arranjo (HTTP-01 circular atrás do túnel
-      sem porta pública) — resolvido copiando `caddy_data`/`caddy_config`
-      da antiga em vez de deixar reemitir. VPS antiga mantida parada (só
-      `cloudflared`/`api`) como contingência por alguns dias antes do
-      decommission definitivo.
+      [migracao-vps-kvm2.md](migracao-vps-kvm2.md). Três achados reais no
+      caminho, todos resolvidos no mesmo dia:
+      1. Caddy novo não conseguia emitir certificado do zero nesse arranjo
+         (HTTP-01 circular atrás do túnel sem porta pública) — resolvido
+         copiando `caddy_data`/`caddy_config` da antiga em vez de deixar
+         reemitir.
+      2. Bug real, pré-existente, na Home (`vitrinesData?.carrosseis.map`
+         sem `?.` extra) ficou visível porque o novo ambiente tornou
+         constante um timeout que antes era raro — corrigido e implantado.
+      3. Firewall da AntenorApi tinha **duas** camadas de bloqueio pro IP
+         novo (rede + allowlist da própria aplicação), travando os
+         schedulers de preço/estoque e encartes por ~13h — as duas
+         liberadas, confirmado com sync manual de ponta a ponta.
+      **VPS antiga (`179.198.122.67`) formatada por completo** no mesmo
+      dia, a pedido do Jonathan — sem cópia de rollback. A VPS atual
+      (`179.199.155.81`) é a única cópia operacional do sistema.
 
 - [x] **Webhook `produto.alterado` da AntenorApi (JON-33).** (18/09/2026)
       Estava em standby desde 11/09 por dependência circular entre
@@ -349,10 +359,12 @@ Sem isto no ar, todo cliente cai no CEP.
   vindo do mesmo IP assim que o Caddy entrasse — quebraria rate limit e
   qualquer verificação por IP em checkout/pedidos/CRM/LGPD. Corrigido em
   `main.ts` junto com o proxy.
-- [x] **Deploy real** — no ar em `179.198.122.67` (Hostinger VPS KVM2), 5
-      subdomínios com HTTPS automático via Caddy. Estado completo do que está
-      rodando, DNS, segredos (só os nomes, nunca os valores) e os bugs achados
-      só neste primeiro deploy real: [docs/infraestrutura.md](infraestrutura.md).
+- [x] **Deploy real** — no ar em `179.199.155.81` (Hostinger VPS KVM 2, desde
+      a migração de 10/10/2026 — o IP original desta entrada,
+      `179.198.122.67`, pertence à VPS já formatada), 5 subdomínios com
+      HTTPS automático via Caddy. Estado completo do que está rodando, DNS,
+      segredos (só os nomes, nunca os valores) e os bugs achados só neste
+      primeiro deploy real: [docs/infraestrutura.md](infraestrutura.md).
 - [x] **Recuperação de senha do admin** — não existia mecanismo nenhum antes
       (só reset direto no banco via SSH). Fluxo por e-mail via Resend
       (`/auth/forgot-password` + `/auth/reset-password`, token com hash + 1h

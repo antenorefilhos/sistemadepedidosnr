@@ -142,8 +142,10 @@ carregado (aí é renovação, não emissão).
   8 GB/100 GB), Ubuntu 26.04 LTS, data center 22 (mesmo da atual). Acessada
   via a API da Hostinger (plugin oficial instalado no Claude Code), sem
   precisar de senha — a chave `claude-code@antenor` foi cadastrada nela do
-  mesmo jeito que já estava na atual. `Host antenor-vps-nova` no
-  `~/.ssh/config`.
+  mesmo jeito que já estava na atual. É a VPS do alias `Host antenor-vps`
+  no `~/.ssh/config` desde que a antiga foi formatada (10/10/2026, ver
+  pendência acima) — o alias `antenor-vps-nova` usado durante a migração foi
+  removido, não precisa mais distinguir "nova" de "atual".
 - **Token do túnel**: Jonathan confirmou reaproveitar o `CLOUDFLARE_TUNNEL_TOKEN`
   atual — corte mais simples, nenhuma rota pra reapontar no painel Cloudflare.
 - **Otimizações aplicadas na VPS nova** (a atual não tinha nenhuma destas —
