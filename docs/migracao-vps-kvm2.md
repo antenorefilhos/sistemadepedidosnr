@@ -3,10 +3,84 @@
 Jonathan já comprou a VPS nova (10/10/2026). Este documento é o plano —
 atualiza conforme a migração avança, igual ao `roadmap.md`.
 
-## Status (10/10/2026)
+## Status (10/10/2026) — CORTE CONCLUÍDO
 
-**Passo 1 (preparar) e passo 2 (primeira carga) concluídos.** Falta só o
-passo 3 (corte) — decisão do Jonathan sobre horário.
+**Migração completa.** Corte feito às 05h30 (horário do servidor/UTC;
+02h30 local), com a loja fechada (abre 7h) — zero downtime perceptível,
+Jonathan autorizou o corte nessa janela ("pode fazer agora, a loja esta
+fechada, só abriremos as 7h").
+
+### Sequência real do corte
+
+1. `pg_dump` fresco na VPS atual (10,9 MB) → `scp -3` direto pra nova →
+   `pg_restore --clean --if-exists` na nova. Conferido: 14.992 produtos,
+   20 pedidos, igual à atual.
+2. `rsync` final de `uploads_data` (delta de ~0 arquivos — já estava
+   sincronizado da carga inicial). 13.379 arquivos, 790 MB, idêntico nos
+   dois lados.
+3. `docker compose stop cloudflared` na **atual**.
+4. `docker compose up -d api proxy cloudflared` na **nova**.
+5. **Achado não previsto, resolvido no próprio corte** (ver seção abaixo):
+   os 5 domínios voltaram 502 — Caddy novo não tinha certificado
+   nenhum e não conseguia emitir um do zero nesse arranjo. Corrigido
+   copiando `caddy_data`/`caddy_config` da atual via `rsync` direto
+   entre as VPS (mesma chave temporária já usada pros uploads).
+6. `proxy` religado, carregou os certificados existentes do cache —
+   sem precisar reemitir nada. Os 5 domínios voltaram a responder 200.
+7. Busca reindexada (`POST /products/admin/reindex-search` →
+   `{"indexed":14992}`). Testado `/products?search=arroz` retornando
+   produto real pela API nova.
+8. `api` da **atual** parada (schedulers dela não podem ficar ativos em
+   paralelo com a nova, que agora é quem recebe tráfego real).
+
+### Achado real: Caddy não bootstrapa certificado do zero nesse arranjo
+
+O plano original (seção "O que NÃO precisa migrar" abaixo) assumia que o
+Caddy reemitiria certificado novo sozinho, sem precisar copiar
+`caddy_data`/`caddy_config` — **essa suposição estava errada**, descoberta
+só na prática durante o corte.
+
+Causa: com Cloudflare Tunnel + origem só em HTTPS (`https://antenor_proxy:443`,
+armadilha documentada mais abaixo sobre HTTP vs HTTPS na rota), **todo**
+tráfego — inclusive a validação ACME HTTP-01 do Let's Encrypt — atravessa o
+mesmo caminho TLS até o Caddy. Isso é inofensivo pra **renovação** (o
+certificado atual, ainda válido, responde ao handshake TLS normalmente, e o
+desafio HTTP-01 viaja por dentro dessa conexão já estabelecida). É fatal pra
+**emissão nova**: sem nenhum certificado ainda carregado, o Caddy rejeita a
+própria conexão TLS da validação (`tls: internal error` — a mesma proteção
+contra domain fronting já documentada mais abaixo, só que disparando mesmo
+com SNI correto, porque não existe *nenhum* certificado carregado pra
+nenhum domínio ainda). Circular: precisa de certificado válido para validar
+o desafio que emite o certificado.
+
+**Regra pra qualquer bootstrap futuro de Caddy atrás deste mesmo Cloudflare
+Tunnel:** copiar `caddy_data`/`caddy_config` de uma instância que já tem
+certificado válido, nunca deixar emitir do zero. Só vale confiar em
+reemissão automática quando já existe pelo menos um certificado válido
+carregado (aí é renovação, não emissão).
+
+### Estado final dos containers
+
+- **VPS antiga**: `cloudflared` e `api` parados (contingência de rollback
+  — religar os dois reverte o corte). `db`/`redis`/`meili`/`proxy`/
+  `storefront`/`admin`/`picking`/`delivery`/`backup` seguem de pé, sem
+  tráfego real.
+- **VPS nova**: todos os 11 serviços rodando, recebendo tráfego real via
+  o `cloudflared` novo (mesmo `CLOUDFLARE_TUNNEL_TOKEN` de antes).
+
+### Pendências pós-corte
+
+- Testar um pedido ponta a ponta assim que a loja abrir às 7h (limpar
+  depois, regra de dados oficiais).
+- Corrigir `PasswordAuthentication yes` na VPS **antiga** (achado, nunca
+  corrigido — só a nova recebeu o hardening de SSH).
+- Revogar/remover a chave SSH temporária (`~/.ssh/id_ed25519` gerada na
+  nova, autorizada na antiga) usada só para os `rsync` diretos entre as
+  VPS.
+- Manter a antiga parada, não apagada, por alguns dias antes do
+  decommission definitivo.
+- Atualizar `~/.ssh/config` (`Host antenor-vps`) pra apontar pro IP novo
+  quando a antiga for desligada de vez.
 
 - **VPS nova**: ID Hostinger `2049592`, IP `179.199.155.81`, KVM 2 (2 vCPU/
   8 GB/100 GB), Ubuntu 26.04 LTS, data center 22 (mesmo da atual). Acessada
@@ -155,9 +229,10 @@ histórico, não é operacional.
 - Atualizar `~/.ssh/config` (`Host antenor-vps`) pra apontar pro IP novo.
 - Atualizar este documento com a data real do corte e qualquer imprevisto.
 
-## Em aberto — só falta isto antes do corte
+## Em aberto — resolvido, corte concluído
 
 1. ~~Acesso à VPS nova~~ — resolvido via API da Hostinger.
 2. ~~Token do túnel~~ — resolvido, reaproveita o atual.
-3. **Horário do corte**: tem preferência de dia/hora de menor movimento, ou
-   decido com base no horário de funcionamento da loja?
+3. ~~Horário do corte~~ — Jonathan autorizou na hora, loja fechada
+   (05h30 servidor / 02h30 local, abre 7h). Corte concluído, ver seção
+   "Status" no topo deste documento.

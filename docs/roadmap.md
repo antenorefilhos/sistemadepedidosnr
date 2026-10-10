@@ -21,13 +21,16 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
-- [ ] **Migração para a VPS nova (Hostinger KVM 2).** (10/10/2026)
-      Jonathan comprou a VPS nova. Plano completo em
-      [migracao-vps-kvm2.md](migracao-vps-kvm2.md) — a arquitetura atual
-      (Cloudflare Tunnel sem IP público fixo + tudo em Docker Compose) deixa
-      o corte simples: derrubar o `cloudflared` antigo e subir o novo.
-      Faltam 3 decisões do Jonathan (acesso à VPS nova, horário do corte,
-      reaproveitar o token do túnel ou criar um novo) antes de começar.
+- [x] **Migração para a VPS nova (Hostinger KVM 2).** (10/10/2026)
+      Corte feito às 5h30 (loja fechada, abre 7h), com a loja fechada —
+      zero downtime perceptível ao cliente. Detalhe completo em
+      [migracao-vps-kvm2.md](migracao-vps-kvm2.md). Achado real durante o
+      corte, fora do plano original: Caddy novo não conseguia emitir
+      certificado do zero nesse arranjo (HTTP-01 circular atrás do túnel
+      sem porta pública) — resolvido copiando `caddy_data`/`caddy_config`
+      da antiga em vez de deixar reemitir. VPS antiga mantida parada (só
+      `cloudflared`/`api`) como contingência por alguns dias antes do
+      decommission definitivo.
 
 - [x] **Webhook `produto.alterado` da AntenorApi (JON-33).** (18/09/2026)
       Estava em standby desde 11/09 por dependência circular entre
