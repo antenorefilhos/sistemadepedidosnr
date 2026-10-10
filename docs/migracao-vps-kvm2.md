@@ -119,10 +119,24 @@ carregado (aí é renovação, não emissão).
       buildado e deployado no storefront da VPS nova. Confirmado limpo
       por console do navegador, sem erro, mesmo com a AntenorApi
       inacessível.
-- [ ] Manter a antiga parada, não apagada, por alguns dias antes do
-      decommission definitivo.
-- [ ] Atualizar `~/.ssh/config` (`Host antenor-vps`) pra apontar pro IP
-      novo quando a antiga for desligada de vez.
+- [x] **VPS antiga formatada por completo** (10/10/2026, ~16h45, pedido
+      explícito do Jonathan — "PODE FORMATAR"). Alertei que fazia só
+      ~14h do corte e que o plano original era manter parada por
+      alguns dias; ele confirmou mesmo assim. Feito via API da
+      Hostinger (`vps_virtual-machines_recreate`, VM `1894459`,
+      template Ubuntu 26.04 LTS), que reinstala o SO do zero e apaga
+      tudo — sem snapshot, sem como voltar. Confirmado depois, por
+      SSH: sem Docker instalado, `/opt` vazio, nenhum arquivo
+      `*antenor*` em lugar nenhum, disco em 1,6 GB (só SO base). A
+      chave `claude-code@antenor` foi reatachada via API pra validar o
+      acesso; `~/.ssh/known_hosts` atualizado (fingerprint do host
+      mudou com a reinstalação). **Não existe mais contingência de
+      rollback** — qualquer problema novo na VPS nova (`179.199.155.81`)
+      não tem mais "religar a antiga" como opção; seria migração do
+      zero de novo.
+- [x] Atualizar `~/.ssh/config` (`Host antenor-vps`) pra apontar pro IP
+      novo, já que a antiga virou uma VM vazia sem relação com o
+      sistema.
 
 - **VPS nova**: ID Hostinger `2049592`, IP `179.199.155.81`, KVM 2 (2 vCPU/
   8 GB/100 GB), Ubuntu 26.04 LTS, data center 22 (mesmo da atual). Acessada
