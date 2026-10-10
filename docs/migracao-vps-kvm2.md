@@ -84,13 +84,23 @@ carregado (aí é renovação, não emissão).
 - [ ] Testar um pedido ponta a ponta assim que a loja abrir às 7h (limpar
       depois, regra de dados oficiais).
 - [ ] **Liberar o IP novo (`179.199.155.81`) no firewall que protege a
-      AntenorApi (`45.239.193.56:5001`)** — hoje só o IP da VPS antiga
-      passa; testado direto (`curl`), antiga responde em 64ms, nova dá
-      timeout puro. Efeito prático: `/cms/categories/home-vitrines`
-      sempre estoura o `COLD_WAIT_MS` e a Home cai no fallback
-      client-side (funciona, só perde a personalização da AntenorApi).
-      Ação é do Jonathan — é firewall de rede da loja/ERP, fora do nosso
-      alcance remoto.
+      AntenorApi (`45.239.193.56:5001`) e o Solidcom (`:5000`)** — hoje
+      só o IP da VPS antiga passa (testado direto com `curl`: antiga
+      responde em 64-300ms, nova dá timeout puro nas duas portas).
+      **Mais sério do que parecia a princípio** — não é só a Home:
+      - `ProductsSyncScheduler` (preço/estoque) quebrado — catálogo
+        congelado no estado do dump do corte, não atualiza mais.
+      - `PromotionsScheduler` (encartes/campanhas) quebrado — oferta
+        não liga/desliga no horário.
+      - Pedido fechado agora sincroniza com o ERP via fila de retry
+        (`OrderSyncRetryScheduler`, a cada 10 min por ~2h) em vez de na
+        hora — separador não consegue puxar DAV no PDV até resolver.
+      Decisão do Jonathan (10/10/2026, loja já aberta): **manter assim
+      por enquanto**, vai pedir pro TI da loja liberar o IP novo no
+      firewall. Opção descartada por ora: reverter o corte pra antiga
+      (ainda de pé, intacta, religar é rápido se precisar).
+      **Enquanto não libera**: acompanhar a fila de pedido sem DAV na
+      tela Integrações do admin.
 - [x] **Bug real encontrado e corrigido nesse caminho** (10/10/2026,
       commit `6068e019`): `Home.tsx` fazia
       `vitrinesData?.carrosseis.map(...)` — o `?.` só protege contra
