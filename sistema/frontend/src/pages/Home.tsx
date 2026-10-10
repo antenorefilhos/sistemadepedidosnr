@@ -215,7 +215,7 @@ export default function Home() {
   // Embaralha uma vez por resposta da API: recalcular junto com homeHidden
   // (que chega depois) reordenava as vitrines ja na tela.
   const shuffledVitrines = useMemo(
-    () => vitrinesData?.carrosseis.map((carrossel) => ({ ...carrossel, produtos: shuffle(carrossel.produtos) })) ?? null,
+    () => vitrinesData?.carrosseis?.map((carrossel) => ({ ...carrossel, produtos: shuffle(carrossel.produtos) })) ?? null,
     [vitrinesData],
   )
   const vitrinesSections = useMemo(() => {
