@@ -70,17 +70,23 @@ carregado (aí é renovação, não emissão).
 
 ### Pendências pós-corte
 
-- Testar um pedido ponta a ponta assim que a loja abrir às 7h (limpar
-  depois, regra de dados oficiais).
-- Corrigir `PasswordAuthentication yes` na VPS **antiga** (achado, nunca
-  corrigido — só a nova recebeu o hardening de SSH).
-- Revogar/remover a chave SSH temporária (`~/.ssh/id_ed25519` gerada na
-  nova, autorizada na antiga) usada só para os `rsync` diretos entre as
-  VPS.
-- Manter a antiga parada, não apagada, por alguns dias antes do
-  decommission definitivo.
-- Atualizar `~/.ssh/config` (`Host antenor-vps`) pra apontar pro IP novo
-  quando a antiga for desligada de vez.
+- [x] **SSH da VPS antiga corrigido** (10/10/2026, ~06h25) — mesmo
+      conflito documentado (`50-cloud-init.conf` com `yes` vencendo de
+      `60-cloudimg-settings.conf` com `no`). Removido o drop-in do
+      cloud-init, adicionado `99-antenor-hardening.conf`
+      (`PasswordAuthentication no`, `KbdInteractiveAuthentication no`,
+      `PermitRootLogin prohibit-password`). Testado acesso por chave
+      antes e depois. fail2ban **não** instalado lá de propósito — a
+      antiga vai ser desligada em poucos dias, não compensa.
+- [x] **Chave SSH temporária revogada** — removida de
+      `~/.ssh/authorized_keys` na antiga e apagada dos dois lados
+      (gerada só para os `rsync` diretos entre as VPS).
+- [ ] Testar um pedido ponta a ponta assim que a loja abrir às 7h (limpar
+      depois, regra de dados oficiais).
+- [ ] Manter a antiga parada, não apagada, por alguns dias antes do
+      decommission definitivo.
+- [ ] Atualizar `~/.ssh/config` (`Host antenor-vps`) pra apontar pro IP
+      novo quando a antiga for desligada de vez.
 
 - **VPS nova**: ID Hostinger `2049592`, IP `179.199.155.81`, KVM 2 (2 vCPU/
   8 GB/100 GB), Ubuntu 26.04 LTS, data center 22 (mesmo da atual). Acessada
