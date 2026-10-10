@@ -83,6 +83,27 @@ carregado (aí é renovação, não emissão).
       (gerada só para os `rsync` diretos entre as VPS).
 - [ ] Testar um pedido ponta a ponta assim que a loja abrir às 7h (limpar
       depois, regra de dados oficiais).
+- [ ] **Liberar o IP novo (`179.199.155.81`) no firewall que protege a
+      AntenorApi (`45.239.193.56:5001`)** — hoje só o IP da VPS antiga
+      passa; testado direto (`curl`), antiga responde em 64ms, nova dá
+      timeout puro. Efeito prático: `/cms/categories/home-vitrines`
+      sempre estoura o `COLD_WAIT_MS` e a Home cai no fallback
+      client-side (funciona, só perde a personalização da AntenorApi).
+      Ação é do Jonathan — é firewall de rede da loja/ERP, fora do nosso
+      alcance remoto.
+- [x] **Bug real encontrado e corrigido nesse caminho** (10/10/2026,
+      commit `6068e019`): `Home.tsx` fazia
+      `vitrinesData?.carrosseis.map(...)` — o `?.` só protege contra
+      `null`/`undefined`, e quando a AntenorApi estoura o timeout o
+      backend tenta mandar `null` mas o corpo chega vazio (`""`) pro
+      front; `""?.carrosseis` vira `undefined`, `.map()` quebra a Home
+      inteira (React error boundary, "Algo deu errado"). Só apareceu
+      agora porque o timeout passou a ser constante (achado 1 acima);
+      o bug em si é pré-existente, não foi introduzido pela migração.
+      Corrigido com `?.` extra (`vitrinesData?.carrosseis?.map(...)`),
+      buildado e deployado no storefront da VPS nova. Confirmado limpo
+      por console do navegador, sem erro, mesmo com a AntenorApi
+      inacessível.
 - [ ] Manter a antiga parada, não apagada, por alguns dias antes do
       decommission definitivo.
 - [ ] Atualizar `~/.ssh/config` (`Host antenor-vps`) pra apontar pro IP
