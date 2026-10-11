@@ -1133,7 +1133,7 @@ export default function StoreBannersManager() {
                     na imagem, onde faz sentido escolher onde o bloco fica ancorado. */}
                 {(form.slot === 'hero' || form.slot === 'intercalado') && (
                   <div>
-                    <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do conteúdo<FieldHint>De que lado ficam título, texto e botão. O escurecimento da foto acompanha: alinhou à direita, a sombra vai pra direita e libera o outro lado pra imagem aparecer.</FieldHint></Label>
+                    <Label className="block text-xs font-medium text-gray-600 mb-1">Alinhamento do conteúdo<FieldHint>De que lado ficam selo, título, texto e botão (o patrocínio, se houver, vai pro lado oposto). O escurecimento da foto acompanha: alinhou à direita, a sombra vai pra direita e libera o outro lado pra imagem aparecer.</FieldHint></Label>
                     <div className="flex gap-2">
                       {[
                         { value: 'left', label: 'Esquerda' },

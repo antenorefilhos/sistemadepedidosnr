@@ -345,7 +345,10 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                 style={{ background: buildOverlayGradient(slide.overlayColor || '#231F20', align) }}
               />
 
-              <div className="relative z-10 flex items-center justify-between gap-2">
+              {/* O selo acompanha o lado do titulo/CTA, igual ao PromoBanner
+                  (utils/bannerCardLayout.ts explica o porque) -- antes ficava
+                  sempre fixo a esquerda mesmo com align==='right'. */}
+              <div className={`relative z-10 flex items-center justify-between gap-2 ${align === 'right' ? 'flex-row-reverse' : ''}`}>
                 <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                   {slide.tag && (
                     <Badge
@@ -357,7 +360,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                   )}
                 </div>
                 {slide.sponsorName && (
-                  <span className="ml-auto shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm sm:px-2.5 sm:py-1 sm:text-[11px]">
+                  <span className="shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm sm:px-2.5 sm:py-1 sm:text-[11px]">
                     {slide.sponsorName}
                   </span>
                 )}

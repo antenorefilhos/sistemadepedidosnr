@@ -106,7 +106,15 @@ export function PromoBanner({
             renderizada mesmo vazia -- com um filho a menos o justify-between
             reposicionaria as outras zonas. */}
         <div className="absolute inset-0 z-10 flex flex-col justify-between p-4 sm:p-6 md:p-8">
-          <div className="flex items-center justify-between gap-2">
+          {/* O selo acompanha o lado do titulo/CTA (align==='right' manda ele
+              pro lado direito, junto do resto do conteudo) e o patrocinio vai
+              pro lado oposto -- antes o selo ficava sempre fixo a esquerda e
+              o patrocinio sempre a direita, ignorando o "Alinhamento do
+              conteudo" escolhido no admin (achado em 11/10/2026: o operador
+              selecionava direita e o selo continuava a esquerda). Em
+              align==='center' mantem o layout de sempre (selo a esquerda,
+              patrocinio a direita) -- nao ha "lado oposto" claro pra centro. */}
+          <div className={`flex items-center justify-between gap-2 ${align === 'right' ? 'flex-row-reverse' : ''}`}>
             <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
               {badge && (
                 <Badge tone="gold" className="h-auto w-fit border-[#D2BB8A] bg-[#D2BB8A] px-2 py-0.5 text-[9px] text-[#231F20] md:px-3 md:py-1 md:text-xs">
@@ -120,7 +128,7 @@ export function PromoBanner({
               )}
             </div>
             {sponsorName && (
-              <span className="ml-auto shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:px-2.5 md:py-1 md:text-[11px]">
+              <span className="shrink-0 whitespace-nowrap rounded-full border border-white/40 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm md:px-2.5 md:py-1 md:text-[11px]">
                 {sponsorName}
               </span>
             )}
