@@ -273,19 +273,21 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
       onKeyDown={handleKeyDown}
       className="outline-none focus-visible:ring-2 focus-visible:ring-[#D2BB8A] focus-visible:ring-offset-2 rounded-2xl"
     >
-      {/* Janela de recorte, sem moldura: borda, cantos e sombra ficam em cada
-          card (abaixo), nao aqui. Enquanto essa moldura estava neste div ela
-          nao saia do lugar durante o arrasto -- so o conteudo deslizava dentro
-          dela, e o gesto lia como "a imagem escorrega dentro do card" em vez
-          de "o card inteiro anda", que e como os outros carrosseis se
-          comportam. O py/-my abre espaco pra sombra do card nao ser cortada
-          pelo overflow, sem mexer no espacamento da pagina -- py-6 (24px),
-          nao py-3 (12px): o shadow-lg do card (0 10px 15px -3px) se estende
-          uns ~22px alem da borda antes de desaparecer de vez, e com so 12px
-          de respiro ele era cortado no meio do esmaecimento em vez de sumir
-          suave -- lia como uma linha reta por baixo do card (reportado pelo
-          Jonathan via print, 11/10/2026; confirmado com zoom no card real:
-          o corte era visivel, nao era so percepcao). */}
+      {/* Janela de recorte: borda e cantos ficam em cada card (abaixo), a
+          sombra fica AQUI, nao no card. Historico: a sombra morava no card
+          e esta div so abria um respiro (-my-N/py-N) pra o overflow-hidden
+          nao cortar o esmaecimento dela -- resolvia o corte embaixo, mas o
+          carrossel tambem recorta os LADOS (pra escorregar os cards sem
+          mostrar o vizinho), e nenhum respiro lateral existe nem pode
+          existir sem revelar o card ao lado -- a sombra saia cortada reto
+          nas laterais, sem como suavizar (reportado pelo Jonathan,
+          11/10/2026). Overflow-hidden NAO corta a propria sombra de quem
+          tem a classe -- so corta o conteudo (filhos) que vaza da caixa.
+          Por isso a sombra mudou pra esta div (que tem o overflow-hidden)
+          em vez do card (filho dela): sai inteira, sem corte em lado
+          nenhum, e o recorte horizontal do carrossel continua funcionando
+          normal. Sem essa descoberta, py/-my so empurra o problema pra um
+          eixo diferente -- nunca cobre os dois ao mesmo tempo. */}
       <div
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -295,7 +297,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="relative -my-6 select-none overflow-hidden py-6 touch-pan-y"
+        className="relative select-none overflow-hidden rounded-2xl shadow-lg touch-pan-y"
       >
       {/* Track: os cards ficam lado a lado e a faixa inteira desliza. O passo
           e a largura do card mais o vao entre eles -- o 100% do translateX
@@ -326,8 +328,10 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                 tone: 'dark',
                 // border-0 anula a borda que surfaceClasses traz por padrao: o
                 // card e uma foto sangrando ate a borda, e o filete dourado em
-                // volta lia como contorno solto em vez de moldura.
-                className: `relative flex w-full shrink-0 select-none flex-col justify-between overflow-hidden rounded-2xl border-0 bg-[#231F20] p-4 shadow-lg sm:p-6 md:p-8 ${CARD_MIN_HEIGHT}`,
+                // volta lia como contorno solto em vez de moldura. Sem
+                // shadow-lg aqui -- a sombra mora no wrapper (acima), nao em
+                // cada card, pra nao ser cortada nas laterais pelo carrossel.
+                className: `relative flex w-full shrink-0 select-none flex-col justify-between overflow-hidden rounded-2xl border-0 bg-[#231F20] p-4 sm:p-6 md:p-8 ${CARD_MIN_HEIGHT}`,
               })}
             >
               {/* img + div de overlay, mesma montagem do PromoBanner. Como
