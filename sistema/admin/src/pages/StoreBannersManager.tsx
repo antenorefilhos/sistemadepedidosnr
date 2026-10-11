@@ -312,14 +312,20 @@ export default function StoreBannersManager() {
         campaignErpId: form.campaignErpId.trim() ? Number(form.campaignErpId.trim()) : null,
         order: editing?.order ?? items.length,
       };
+      // Salvar fica na tela em vez de fechar (pedido do Jonathan, 11/10/2026)
+      // -- editar banner costuma ser "salva, olha o preview, ajusta de novo",
+      // e fechar a cada clique forcava reabrir e perder o foco no campo.
+      // So Cancelar/X fecham. Na criacao, o banner recem-criado vira o
+      // `editing`: salvar de novo atualiza em vez de criar um duplicado.
       if (editing) {
-        await cmsAPI.storeBanners.update(editing.id, payload);
+        const res = await cmsAPI.storeBanners.update(editing.id, payload);
+        setEditing(res.data);
         pushNotice('success', 'Banner atualizado');
       } else {
-        await cmsAPI.storeBanners.create(payload);
+        const res = await cmsAPI.storeBanners.create(payload);
+        setEditing(res.data);
         pushNotice('success', 'Banner criado');
       }
-      closeModal();
       loadData();
     } catch (err) {
       pushNotice('error', getApiErrorMessage(err, 'Erro ao salvar banner'));

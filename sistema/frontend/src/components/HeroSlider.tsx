@@ -279,7 +279,13 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
           dela, e o gesto lia como "a imagem escorrega dentro do card" em vez
           de "o card inteiro anda", que e como os outros carrosseis se
           comportam. O py/-my abre espaco pra sombra do card nao ser cortada
-          pelo overflow, sem mexer no espacamento da pagina. */}
+          pelo overflow, sem mexer no espacamento da pagina -- py-6 (24px),
+          nao py-3 (12px): o shadow-lg do card (0 10px 15px -3px) se estende
+          uns ~22px alem da borda antes de desaparecer de vez, e com so 12px
+          de respiro ele era cortado no meio do esmaecimento em vez de sumir
+          suave -- lia como uma linha reta por baixo do card (reportado pelo
+          Jonathan via print, 11/10/2026; confirmado com zoom no card real:
+          o corte era visivel, nao era so percepcao). */}
       <div
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -289,7 +295,7 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="relative -my-3 select-none overflow-hidden py-3 touch-pan-y"
+        className="relative -my-6 select-none overflow-hidden py-6 touch-pan-y"
       >
       {/* Track: os cards ficam lado a lado e a faixa inteira desliza. O passo
           e a largura do card mais o vao entre eles -- o 100% do translateX
