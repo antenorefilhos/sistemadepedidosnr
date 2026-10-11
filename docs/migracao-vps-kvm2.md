@@ -106,6 +106,14 @@ carregado (aí é renovação, não emissão).
       voltaram ao ar**, não precisa mais acompanhar a fila de DAV por
       este motivo. ORQ-API pediu aviso prévio na próxima troca de IP/
       servidor (o site ficou ~13h sem sync porque não avisamos antes).
+      **Confirmado no check-up diário do admin (`CHECKUP_CRON`, 06h30):**
+      o check-up das 06h31 de 10/10 (rodou dentro da própria janela do
+      incidente, 03h–15h30) acusou "produto do feed escondido no site",
+      "feed completo indisponível" e timeout no "compre junto" — três
+      sintomas do mesmo AEF-058, não problemas novos. `ProductsSyncScheduler`
+      fechou com sucesso às 20h00 (`2181 sincronizados, 0 erros`) e os
+      syncs incrementais de hora em hora seguiram limpos daí em diante;
+      sem nenhuma recorrência de timeout/403 até 11/10. Nada a reabrir.
 - [x] **Bug real encontrado e corrigido nesse caminho** (10/10/2026,
       commit `6068e019`): `Home.tsx` fazia
       `vitrinesData?.carrosseis.map(...)` — o `?.` só protege contra
