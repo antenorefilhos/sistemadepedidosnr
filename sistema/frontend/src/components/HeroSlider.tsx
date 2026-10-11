@@ -328,17 +328,28 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                   backgroundImage empilhado (gradiente, url) o gradiente e a
                   foto compartilhavam background-size: cover, entao a cor
                   esticava junto com a imagem em vez de cobrir o card inteiro
-                  -- em card largo com foto estreita sobrava borda sem tinta. */}
+                  -- em card largo com foto estreita sobrava borda sem tinta.
+                  O wrapper absolute e necessario aqui (diferente do
+                  PromoBanner, onde o flex-col das 3 zonas e uma div a parte,
+                  fora do card): o card em si e o flex-col justify-between,
+                  entao sem isso o <picture> do BannerImage (sem position
+                  propria) virava um item de flex a mais, com 0px de altura,
+                  roubando uma fatia do espaco distribuido pelo
+                  justify-between -- empurrava selo/titulo/CTA pra baixo do
+                  que deveriam ficar (achado em 11/10/2026, Jonathan reportou
+                  o selo "mais pra baixo do que deveria"). */}
               {slide.imageUrl && (
-                <BannerImage
-                  desktopUrl={slide.imageUrl}
-                  mobileUrl={slide.mobileImageUrl}
-                  alt=""
-                  align={align}
-                  loading={i === 0 ? 'eager' : 'lazy'}
-                  fetchPriority={i === 0 ? 'high' : 'auto'}
-                  draggable={false}
-                />
+                <div className="absolute inset-0">
+                  <BannerImage
+                    desktopUrl={slide.imageUrl}
+                    mobileUrl={slide.mobileImageUrl}
+                    alt=""
+                    align={align}
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                    fetchPriority={i === 0 ? 'high' : 'auto'}
+                    draggable={false}
+                  />
+                </div>
               )}
               <div
                 className="absolute inset-0"
