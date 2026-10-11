@@ -38,7 +38,12 @@ export function DynamicVitrineBanner({
         className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#5D082A] to-[#7A1338] px-4 py-3 sm:px-8 sm:py-5"
       >
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold leading-tight text-white sm:text-lg">{headline}</p>
+          {/* line-clamp-1: a faixa e fina (~140px no celular) e so tem uma
+              linha de altura reservada pro headline -- sem o clamp, um texto
+              mais longo que o normal (a AntenorApi gera por regra, mas nada
+              impede uma frase maior) empurraria o subheadline/CTA pra fora da
+              faixa em vez de reticenciar. */}
+          <p className="line-clamp-1 text-sm font-bold leading-tight text-white sm:text-lg">{headline}</p>
           <p className="mt-0.5 line-clamp-1 text-xs text-white/75 sm:line-clamp-2 sm:text-sm">{subheadline}</p>
         </div>
         <span className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'hidden shrink-0 whitespace-nowrap sm:inline-flex' })}>

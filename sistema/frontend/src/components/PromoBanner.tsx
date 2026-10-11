@@ -9,6 +9,12 @@ import { surfaceClasses } from './ui/surface'
 import { buildOverlayGradient } from '../utils/homeCategories'
 import { cmsAPI } from '../services/api'
 import type { Product } from '../types'
+import {
+  BANNER_ALIGN_CLASSES,
+  BANNER_DESCRIPTION_ALIGN_CLASSES,
+  BANNER_DESCRIPTION_CLAMP,
+  BANNER_TITLE_CLAMP,
+} from '../utils/bannerCardLayout'
 
 /**
  * Card de banner com foto de fundo, usado pelos banners intercalados da Home
@@ -71,19 +77,11 @@ export function PromoBanner({
   bannerId?: string
 }) {
   const tone = overlayColor || '#231F20'
-  // Mesmo mapeamento do ALIGN_CLASSES do HeroSlider. self-* (nao items-* no
-  // container): a linha do topo precisa manter a largura toda pro
+  // Mesmos mapas do HeroSlider, de utils/bannerCardLayout -- self-* (nao
+  // items-* no container): a linha do topo precisa manter a largura toda pro
   // justify-between empurrar o patrocinio pra direita.
-  const contentAlignClass =
-    align === 'right'
-      ? 'self-end items-end text-right'
-      : align === 'center'
-        ? 'self-center items-center text-center'
-        : 'self-start items-start text-left'
-  // A descricao e mais estreita que o bloco (max-w-*%), entao precisa da
-  // margem auto correspondente pra encostar no mesmo lado que o texto aponta
-  // -- sem isso, em align=right/center ela ficaria presa a esquerda do bloco.
-  const descriptionAlignClass = align === 'right' ? 'ml-auto' : align === 'center' ? 'mx-auto' : ''
+  const contentAlignClass = BANNER_ALIGN_CLASSES[align]
+  const descriptionAlignClass = BANNER_DESCRIPTION_ALIGN_CLASSES[align]
 
   const handleCtaClick = () => {
     if (bannerId) cmsAPI.storeBanners.registerClick(bannerId).catch(() => {})
@@ -129,13 +127,18 @@ export function PromoBanner({
           </div>
 
           <div className={`max-w-lg ${contentAlignClass}`}>
-            <h3 className="text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-2xl lg:text-3xl">{title}</h3>
+            {/* line-clamp-2: sem isso, um titulo proximo do limite de 60
+                caracteres do admin (ver FIELD_LIMITS em StoreBannersManager.tsx)
+                quebra em 3+ linhas num card mobile e e cortado cru pelo
+                overflow-hidden do card, em vez de reticenciar -- achado em
+                11/10/2026, o HeroSlider ja tinha essa protecao e este card nao. */}
+            <h3 className={`${BANNER_TITLE_CLAMP} text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-2xl lg:text-3xl`}>{title}</h3>
             {/* Descricao contida em ~2/3 pra nao invadir a foto do produto a
                 direita; whitespace-pre-line respeita o Enter que o operador
                 digita no textarea do admin. */}
             {description && (
               <p
-                className={`mt-1 line-clamp-3 max-w-[75%] whitespace-pre-line text-xs leading-snug text-white/85 sm:mt-2 sm:text-sm md:max-w-[60%] md:leading-relaxed ${descriptionAlignClass}`}
+                className={`mt-1 ${BANNER_DESCRIPTION_CLAMP} max-w-[75%] whitespace-pre-line text-xs leading-snug text-white/85 sm:mt-2 sm:text-sm md:max-w-[60%] md:leading-relaxed ${descriptionAlignClass}`}
               >
                 {description}
               </p>

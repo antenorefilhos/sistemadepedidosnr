@@ -35,6 +35,7 @@ import { ProductShelf } from '../components/ProductShelf'
 import { SkeletonCard, SkeletonHero } from '../components/Skeleton'
 import { trackEvent } from '../utils/analytics'
 import { stripEmoji } from '../utils/format'
+import { BANNER_DESCRIPTION_CLAMP, BANNER_TITLE_CLAMP } from '../utils/bannerCardLayout'
 import {
   Search, ShoppingCart, User, ArrowRight, Sparkles, MapPin,
   Apple, Croissant, Beef, Flame, Candy, Pizza, ShoppingBag, MessageCircle, ChevronLeft, ChevronRight, X, Megaphone,
@@ -1200,7 +1201,12 @@ function PopupBanner({ banner, onDismiss }: { banner: PromoBannerView; onDismiss
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onDismiss} />
-      <div ref={popupRef} className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-[#F7F0E4] shadow-2xl">
+      {/* max-h/flex-col + overflow-y-auto no conteudo (nao aqui): o
+          overflow-hidden deste wrapper so cuida do cantos arredondados da
+          imagem/card. Sem o teto de altura, titulo+descricao no limite do
+          admin (60/160 caracteres) podia empurrar o card pra fora da tela em
+          celular curto, sem como rolar ate o CTA. */}
+      <div ref={popupRef} className="relative z-10 flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-[#F7F0E4] shadow-2xl">
         <button
           type="button"
           onClick={onDismiss}
@@ -1209,28 +1215,34 @@ function PopupBanner({ banner, onDismiss }: { banner: PromoBannerView; onDismiss
         >
           <X size={16} />
         </button>
-        <div className="relative aspect-[3/2] w-full">
-          <BannerImage desktopUrl={banner.image} mobileUrl={banner.mobileImage} alt={banner.title} />
-          <div className="absolute inset-0" style={{ background: buildOverlaySolid(banner.overlayColor || '#231F20', 0.35) }} />
-        </div>
-        <div className="space-y-2 p-5 text-left">
-          {banner.badge && (
-            <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
-              {banner.badge}
-            </Badge>
-          )}
-          <h3 className="text-xl font-bold text-[#231F20] luxury-text">{banner.title}</h3>
-          {banner.description && <p className="text-sm text-[#5d4f33]">{banner.description}</p>}
-          {banner.ctaLabel && banner.ctaTo && (
-            <Link
-              to={banner.ctaTo}
-              onClick={handleCtaClick}
-              className={buttonVariants({ variant: 'primary', size: 'lg', className: 'mt-2 w-full justify-center bg-[#5D082A] text-white hover:bg-[#7B1038]' })}
-            >
-              {banner.ctaLabel}
-              <ArrowRight size={16} />
-            </Link>
-          )}
+        <div className="overflow-y-auto">
+          <div className="relative aspect-[3/2] w-full">
+            <BannerImage desktopUrl={banner.image} mobileUrl={banner.mobileImage} alt={banner.title} />
+            <div className="absolute inset-0" style={{ background: buildOverlaySolid(banner.overlayColor || '#231F20', 0.35) }} />
+          </div>
+          <div className="space-y-2 p-5 text-left">
+            {banner.badge && (
+              <Badge tone="gold" className="h-auto border-[#D2BB8A] bg-[#D2BB8A] px-3 py-1 text-[#231F20]">
+                {banner.badge}
+              </Badge>
+            )}
+            {/* Mesmos clamps do HeroSlider/PromoBanner (utils/bannerCardLayout)
+                -- o popup e o unico banner sem corte de texto algum ate
+                11/10/2026; aqui o risco nao era corte, era o card crescer pra
+                fora da tela (ver max-h acima). */}
+            <h3 className={`${BANNER_TITLE_CLAMP} text-xl font-bold text-[#231F20] luxury-text`}>{banner.title}</h3>
+            {banner.description && <p className={`${BANNER_DESCRIPTION_CLAMP} text-sm text-[#5d4f33]`}>{banner.description}</p>}
+            {banner.ctaLabel && banner.ctaTo && (
+              <Link
+                to={banner.ctaTo}
+                onClick={handleCtaClick}
+                className={buttonVariants({ variant: 'primary', size: 'lg', className: 'mt-2 w-full justify-center bg-[#5D082A] text-white hover:bg-[#7B1038]' })}
+              >
+                {banner.ctaLabel}
+                <ArrowRight size={16} />
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     </div>

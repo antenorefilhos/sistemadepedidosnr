@@ -326,7 +326,10 @@ function PreviewMockup({
               </div>
               <div className="space-y-1.5 p-3">
                 <PreviewBadge text={popup.badgeText} className={s.badge} />
-                <p className={`font-bold leading-tight text-[#231F20] ${s.title}`}>{popup.title || popup.name}</p>
+                {/* line-clamp-2 igual ao hero/intercalado acima (linha ~148) e
+                    ao popup real (Home.tsx) -- até 11/10/2026 o popup era o
+                    único slot sem clamp nem aqui nem no storefront. */}
+                <p className={`line-clamp-2 font-bold leading-tight text-[#231F20] ${s.title}`}>{popup.title || popup.name}</p>
                 {popup.ctaLabel && (
                   <span className={`block w-full rounded bg-[#5D082A] text-center font-bold text-white ${s.cta}`}>
                     {popup.ctaLabel}

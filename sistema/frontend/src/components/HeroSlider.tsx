@@ -8,8 +8,15 @@ import { buildOverlayGradient } from '../utils/homeCategories'
 import { cmsAPI } from '../services/api'
 import { BannerImage } from './BannerImage'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import {
+  BANNER_ALIGN_CLASSES,
+  BANNER_DESCRIPTION_ALIGN_CLASSES,
+  BANNER_DESCRIPTION_CLAMP,
+  BANNER_TITLE_CLAMP,
+  type BannerAlign,
+} from '../utils/bannerCardLayout'
 
-export type HeroSlideAlign = 'left' | 'center' | 'right'
+export type HeroSlideAlign = BannerAlign
 
 export interface HeroSlideCMS {
   id: string
@@ -40,18 +47,6 @@ const TOUCH_SWIPE_THRESHOLD_PX = 35
 // slide puxado pra direita, ultimo puxado pra esquerda). Sem isso o track
 // mostraria o vazio ao lado da faixa.
 const EDGE_RESISTANCE = 0.35
-
-const ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
-  left: 'self-start items-start text-left',
-  center: 'self-center items-center text-center',
-  right: 'self-end items-end text-right',
-}
-
-const DESCRIPTION_ALIGN_CLASSES: Record<HeroSlideAlign, string> = {
-  left: '',
-  center: 'mx-auto',
-  right: 'ml-auto',
-}
 
 // Mesma escala do PromoBanner (Home.tsx) -- os dois sao o mesmo tipo de card
 // e apareciam com alturas diferentes na mesma pagina.
@@ -368,8 +363,8 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                 )}
               </div>
 
-              <div className={`relative z-10 max-w-2xl ${ALIGN_CLASSES[align]}`}>
-                <h3 className="line-clamp-2 text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-3xl lg:text-4xl">
+              <div className={`relative z-10 max-w-2xl ${BANNER_ALIGN_CLASSES[align]}`}>
+                <h3 className={`${BANNER_TITLE_CLAMP} text-lg font-bold leading-tight text-white luxury-text sm:text-xl md:text-3xl lg:text-4xl`}>
                   {slide.title}
                 </h3>
                 {slide.description && (
@@ -379,14 +374,14 @@ export function HeroSlider({ slides }: { slides: HeroSlideCMS[] }) {
                   // center/right o texto (mais estreito que o bloco) ficaria
                   // preso a esquerda.
                   <p
-                    className={`mt-1 line-clamp-3 max-w-[75%] whitespace-pre-line text-xs text-white/85 sm:mt-2 sm:text-sm md:max-w-[60%] md:text-base ${DESCRIPTION_ALIGN_CLASSES[align]}`}
+                    className={`mt-1 ${BANNER_DESCRIPTION_CLAMP} max-w-[75%] whitespace-pre-line text-xs text-white/85 sm:mt-2 sm:text-sm md:max-w-[60%] md:text-base ${BANNER_DESCRIPTION_ALIGN_CLASSES[align]}`}
                   >
                     {slide.description}
                   </p>
                 )}
               </div>
 
-              <div className={`relative z-10 flex flex-col ${ALIGN_CLASSES[align]}`}>{renderCta(slide, isActive)}</div>
+              <div className={`relative z-10 flex flex-col ${BANNER_ALIGN_CLASSES[align]}`}>{renderCta(slide, isActive)}</div>
             </div>
           )
         })}
