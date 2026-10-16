@@ -14,6 +14,14 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.23.1',
+    date: '16/10/2026',
+    title: 'Editar Área no Mapa Não Trava Mais',
+    highlights: [
+      { type: 'fix', description: 'Em Taxas de Entrega > Áreas no mapa, arrastar um ponto para ajustar uma área e salvar dava erro na tela. Agora funciona normalmente.' },
+    ],
+  },
+  {
     version: '1.23.0',
     date: '16/10/2026',
     title: 'Antifraude Mostra Quem Tenta, e Período por Calendário',

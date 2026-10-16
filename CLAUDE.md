@@ -1357,3 +1357,29 @@ As duas telas só tinham presets fixos (Hoje/7/30 dias na Visão Geral;
 - `AdminOverview.results.bucket` (`'hour'|'day'`) substitui os lugares que
   checavam `period === 'day'` no frontend — continua certo pro período
   personalizado de um dia só.
+
+## Armadilha: marker dentro do featureGroup editável quebra o leaflet-draw (16/10/2026)
+
+Editar uma área (`Taxas de Entrega > Áreas no mapa`) e arrastar um vértice
+jogava duas exceções no console (`Cannot read properties of undefined
+(reading 'enable'/'disable')`) e às vezes deixava a barra de edição do mapa
+travada. Reproduzido ao vivo (via browser automation, token de admin forjado
+localmente com o `JWT_SECRET` do próprio container -- nunca a senha real) e
+confirmado contra produção antes do fix: o selo da área (`L.marker` com
+`divIcon`, só pra mostrar "Nome · R$ X" no centro do polígono) era adicionado
+ao MESMO `L.FeatureGroup` passado pro `DrawControl` como `edit.featureGroup`
+(`DeliveryAreasTab.tsx`, `AreaMap`).
+
+O `EditToolbar` do leaflet-draw tenta habilitar edição em **toda** camada
+desse featureGroup ao clicar "Editar área" -- inclusive o marker do selo, que
+nunca teve `dragging` inicializado (não é arrastável, é só rótulo visual).
+`L.Edit.Marker.addHooks()` chama `marker.dragging.enable()`, e sem
+`dragging` isso quebra.
+
+A edição em si não se perdia (o evento `EDITED` já tinha disparado antes da
+exceção), mas a experiência ficava quebrada e o console sujo a cada uso.
+
+Corrigido: o selo foi pra um `L.FeatureGroup` próprio (`labelRef`), fora do
+`edit.featureGroup` do DrawControl -- só o polígono em si fica editável.
+**Regra geral:** nunca misture camada decorativa/não-editável no mesmo
+featureGroup que um `L.Control.Draw` edita; use um grupo separado.

@@ -408,6 +408,7 @@ function AreaMap({ form, others, onPolygon, onError }: { form: DeliveryZonePaylo
   const mapRef = useRef<L.Map | null>(null)
   const drawnRef = useRef<L.FeatureGroup | null>(null)
   const refGroupRef = useRef<L.FeatureGroup | null>(null)
+  const labelRef = useRef<L.FeatureGroup | null>(null)
   const fittedRef = useRef(false)
   const onPolygonRef = useRef(onPolygon)
   onPolygonRef.current = onPolygon
@@ -425,6 +426,15 @@ function AreaMap({ form, others, onPolygon, onError }: { form: DeliveryZonePaylo
     L.control.layers(addBaseLayers(map), { 'Outras áreas': refGroup }, { position: 'topright' }).addTo(map)
     const drawn = new L.FeatureGroup().addTo(map)
     drawnRef.current = drawn
+    // So selo (nome + taxa) da area sendo editada -- fora do featureGroup do
+    // DrawControl de proposito (16/10/2026): leaflet-draw tenta habilitar
+    // edicao em TODA camada de `edit.featureGroup`, inclusive marker sem
+    // `dragging` (este e so visual, nao arrastavel). Misturado com o poligono
+    // em `drawn`, "Editar area" e "Salvar" lancavam
+    // "Cannot read properties of undefined (reading 'enable'/'disable')" ao
+    // tentar fazer o selo arrastavel -- quebrava a barra de edicao do mapa.
+    const label = new L.FeatureGroup().addTo(map)
+    labelRef.current = label
 
     const DrawControl = (L.Control as any)?.Draw
     const DrawEvent = (L as any)?.Draw?.Event
@@ -476,6 +486,7 @@ function AreaMap({ form, others, onPolygon, onError }: { form: DeliveryZonePaylo
       mapRef.current = null
       drawnRef.current = null
       refGroupRef.current = null
+      labelRef.current = null
     }
   }, [onError])
 
@@ -484,9 +495,11 @@ function AreaMap({ form, others, onPolygon, onError }: { form: DeliveryZonePaylo
     const map = mapRef.current
     const refGroup = refGroupRef.current
     const drawn = drawnRef.current
-    if (!map || !refGroup || !drawn) return
+    const label = labelRef.current
+    if (!map || !refGroup || !drawn || !label) return
     drawAreas(refGroup, others)
     drawn.clearLayers()
+    label.clearLayers()
     if (own.length > 2) {
       const poly = L.polygon(own, { color: '#5D082A', fillColor: '#5D082A', fillOpacity: 0.15 })
       drawn.addLayer(poly)
@@ -499,7 +512,7 @@ function AreaMap({ form, others, onPolygon, onError }: { form: DeliveryZonePaylo
           html: `<span style="border-color:#5D082A;color:#5D082A">${escapeHtml(form.name || 'Nova área')}${feeNum > 0 ? `<b>${formatFee(feeNum)}</b>` : ''}</span>`,
           iconSize: [0, 0],
         }),
-      }).addTo(drawn)
+      }).addTo(label)
       if (!fittedRef.current || !map.getBounds().intersects(poly.getBounds())) map.fitBounds(poly.getBounds(), { padding: [20, 20] })
       fittedRef.current = true
     } else if (!fittedRef.current) {
