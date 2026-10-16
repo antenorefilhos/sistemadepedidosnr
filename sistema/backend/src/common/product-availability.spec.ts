@@ -1,4 +1,4 @@
-import { isProductSellable } from './product-availability'
+import { isProductSellable, resolveSiteVisibility } from './product-availability'
 
 /**
  * Decisao do lojista (02/09/2026): o estoque do ERP governa EXIBICAO, nao
@@ -52,5 +52,34 @@ describe('applySiteVisibility', () => {
   it('SEMPRE vende sem estoque, mas nao reativa inativo no ERP', () => {
     expect(applySiteVisibility({ active: true, syncOption: 'ESTOQUE' }, 'SEMPRE')).toEqual({ active: true, syncOption: 'SEMPRE' })
     expect(applySiteVisibility({ active: false, syncOption: 'ESTOQUE' }, 'SEMPRE').active).toBe(false)
+  })
+})
+
+/**
+ * "Ocultar até" (16/10/2026): reverte a exibicao de um produto vendido por
+ * erro no PDV sem exigir volta manual -- ver CLAUDE.md.
+ */
+describe('resolveSiteVisibility', () => {
+  it('sem prazo, OCULTO vale para sempre', () => {
+    expect(resolveSiteVisibility('OCULTO', null)).toBe('OCULTO')
+  })
+
+  it('prazo no futuro, OCULTO continua valendo', () => {
+    const amanha = new Date(Date.now() + 86_400_000)
+    expect(resolveSiteVisibility('OCULTO', amanha)).toBe('OCULTO')
+  })
+
+  it('prazo vencido, volta a seguir o ERP (null)', () => {
+    const ontem = new Date(Date.now() - 86_400_000)
+    expect(resolveSiteVisibility('OCULTO', ontem)).toBeNull()
+  })
+
+  it('prazo so vale para OCULTO -- SEMPRE nunca expira por data', () => {
+    const ontem = new Date(Date.now() - 86_400_000)
+    expect(resolveSiteVisibility('SEMPRE', ontem)).toBe('SEMPRE')
+  })
+
+  it('sem siteVisibility, segue o ERP independente de prazo', () => {
+    expect(resolveSiteVisibility(null, new Date(Date.now() - 86_400_000))).toBeNull()
   })
 })

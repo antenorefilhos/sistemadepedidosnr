@@ -1161,6 +1161,16 @@ Regras de giro lento na AntenorApi (rollback por chave, sem deploy):
 - **Mercearia gourmet (ORD-050, `MERCEARIA_GIRO_LENTO`):** em 18 tipos da v3, é a mesma A ∩ C como **porta de entrada adicional** (quem já está no site fica), com a guarda de compra nos últimos 18 meses e saldo ≥ 1. Na mercearia, a regra sozinha tiraria 37 itens que vendem no PDV com saldo ERP errado.
 - **Produto sem preço (≤ 0) no feed vira inativo no nosso sync** (`antenor-api.service.ts`). Dois vinhos ficaram à venda por R$ 0,00 em 03/10.
 
+### "Ocultar até": reverter uma venda errada no PDV sem desligar o produto de vez (16/10/2026)
+
+Cenário que motivou: produto vendido por erro no caixa dispara o sinal "venda recente" do Mostruário (acima), que pode marcar SEMPRE por até 30 dias — o produto aparece no site mesmo sendo um erro pontual. A opção "Ocultar" (`siteVisibility='OCULTO'`) já existia e resolve, mas é permanente até alguém lembrar de desligar.
+
+Adicionado prazo opcional (`products.siteVisibilityUntil`): na tela de editar produto, visibilidade "Ocultar" ganha botões de 7/15/30 dias (ou data livre). Passado o prazo, o produto volta a seguir a API sozinho, sem exigir que o lojista lembre de reativar.
+
+- `resolveSiteVisibility()` (`common/product-availability.ts`) decide se o OCULTO ainda vale; chamado antes de `applySiteVisibility()` em todo lugar que lê `siteVisibility` do banco.
+- **Não depende do sync do ERP para expirar.** O sync incremental só processa produto que o ERP mudou — um produto escondido só por aqui pode nunca aparecer nele. `ProductVisibilityScheduler` (`product-visibility.scheduler.ts`) roda a cada 15 min, independente do conector de ERP, e reverte sozinho (`ProductsService.expireHiddenUntil`).
+- O sync (completo e incremental) também expira por conta própria quando o produto aparece no feed, e limpa `siteVisibility`/`siteVisibilityUntil` no banco pra não mostrar "Oculto até" com data já passada.
+
 ## Ficha do vinho e Adega (03-04/10/2026)
 
 `products.wineProfile` (JSONB, só do site; o sync não mexe) guarda tipo, estilo, uvas, país, região/denominação, produtor, linha, teor, temperatura, guarda, descrição para iniciante, notas de degustação, harmonização e fontes. Sanitizado em `common/wine-profile.ts` e editável no admin, na seção Ficha do vinho do painel do produto. A loja usa a ficha nos filtros da `/adega` (tipo, país, uva e preço, com contagem por faceta e estado na URL), no card ("Tinto · Malbec · Argentina") e no bloco "Sobre este vinho" da página do produto. Sem ficha, `utils/wine.ts` deduz o básico da classificação v3 e do nome.

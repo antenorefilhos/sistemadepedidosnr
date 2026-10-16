@@ -8,6 +8,7 @@ import { SearchHealthService } from './search-health.service'
 import { SearchHealthController } from './search-health.controller'
 import { ProductsSyncScheduler } from './products-sync.scheduler'
 import { MissingProductsMonitor } from './missing-products.monitor'
+import { ProductVisibilityScheduler } from './product-visibility.scheduler'
 import { CategoriesModule } from '../categories/categories.module'
 import { NotificationsModule } from '../notifications/notifications.module'
 import { TenantAccessGuard } from '../../common/guards/tenant-access.guard'
@@ -21,7 +22,7 @@ import { PermissionGuard } from '../../common/guards/permission.guard'
   // isso e dependencia circular na cara.
   imports: [forwardRef(() => IntegrationsModule), CategoriesModule, NotificationsModule],
   controllers: [ProductsController, AdminProductsController, SearchHealthController],
-  providers: [ProductsService, ProductSearchService, SearchHealthService, ProductsSyncScheduler, MissingProductsMonitor, TenantAccessGuard, PermissionGuard],
+  providers: [ProductsService, ProductSearchService, SearchHealthService, ProductsSyncScheduler, MissingProductsMonitor, ProductVisibilityScheduler, TenantAccessGuard, PermissionGuard],
   exports: [ProductsService, ProductSearchService],
 })
 export class ProductsModule {}

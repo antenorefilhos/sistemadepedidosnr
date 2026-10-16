@@ -910,6 +910,8 @@ export interface CatalogProduct {
   syncOption: string
   erpSyncOption: string | null
   siteVisibility: 'OCULTO' | 'SEMPRE' | null
+  /** Só preenchido com siteVisibility === 'OCULTO': prazo do "Ocultar até". */
+  siteVisibilityUntil: string | null
   categoryOverrideId: string | null
   /** Dias da semana em que vende (0 = domingo); vazio = todos. */
   saleWeekdays: number[]
@@ -960,8 +962,18 @@ export const productsAPI = {
   getMercadologicalTree: () => api.get<MercadologicalTreeResponse>('/products/admin/mercadological-tree'),
   catalog: (params: { tab?: CatalogTab; search?: string; category?: string; page?: number; limit?: number }) =>
     api.get<CatalogResponse>('/products/admin/catalog', { params }),
-  updateSite: (id: string, data: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[]; wineProfile?: Record<string, unknown> | null }) =>
-    api.patch(`/products/admin/${id}/site`, data),
+  updateSite: (
+    id: string,
+    data: {
+      visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'
+      /** Só vale junto de visibility: 'OCULTO'. ISO date; omitir/null = sem prazo. */
+      visibilityUntil?: string | null
+      categoryId?: string | null
+      displayName?: string | null
+      saleWeekdays?: number[]
+      wineProfile?: Record<string, unknown> | null
+    },
+  ) => api.patch(`/products/admin/${id}/site`, data),
   createAdmin: (data: ProductPayload) => api.post('/products/admin', data),
   create: (data: ProductPayload) => api.post('/products', data),
   update: (id: string, data: Partial<ProductPayload>) => api.put(`/products/${id}`, data),

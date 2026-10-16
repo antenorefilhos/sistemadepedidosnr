@@ -58,3 +58,20 @@ export function applySiteVisibility(
   if (siteVisibility === 'SEMPRE') return { active: erp.active, syncOption: 'SEMPRE' }
   return erp
 }
+
+/**
+ * "Ocultar até" (16/10/2026): oculta com prazo, pra reverter exibição de um
+ * produto vendido por erro no PDV (ex.: Mostruário marcou SEMPRE por venda
+ * recente) sem precisar lembrar de reativar depois. Passado o prazo, o
+ * ajuste deixa de valer e `applySiteVisibility` volta a seguir o ERP sozinho
+ * -- chame isto ANTES de `applySiteVisibility` em todo lugar que le
+ * siteVisibility do banco (sync e leitura administrativa).
+ */
+export function resolveSiteVisibility(
+  siteVisibility: string | null | undefined,
+  siteVisibilityUntil: Date | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (siteVisibility === 'OCULTO' && siteVisibilityUntil && siteVisibilityUntil <= now) return null
+  return siteVisibility ?? null
+}

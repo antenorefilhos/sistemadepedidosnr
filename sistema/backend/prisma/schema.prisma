@@ -475,6 +475,11 @@ model Product {
   erpActive Boolean  @default(true)
   erpSyncOption String?
   siteVisibility String? // null = segue o ERP | OCULTO | SEMPRE
+  // "Ocultar até" (16/10/2026): prazo do OCULTO. Passado esse instante, o sync
+  // para de respeitar o ajuste sozinho (volta pro ERP), sem exigir reativação
+  // manual -- ver resolveSiteVisibility em product-availability.ts. Só faz
+  // sentido junto de siteVisibility === 'OCULTO'; nos outros casos fica null.
+  siteVisibilityUntil DateTime?
   // Dias da semana em que o produto e vendido (0 = domingo ... 6 = sabado);
   // vazio = todos. Vale o dia da entrega/retirada. Ver common/sale-days.ts.
   saleWeekdays Int[] @default([])

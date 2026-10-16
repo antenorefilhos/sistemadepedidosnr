@@ -16,7 +16,7 @@ import { Prisma } from '@prisma/client'
 import { IntegrationModulesService } from '../../modules/integrations/integration-modules.service'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import { productIdsMatchingText } from '../../common/unaccent-search'
-import { applySiteVisibility, isProductSellable } from '../../common/product-availability'
+import { applySiteVisibility, isProductSellable, resolveSiteVisibility } from '../../common/product-availability'
 import { normalizeSaleWeekdays } from '../../common/sale-days'
 import { sanitizeWineProfile } from '../../common/wine-profile'
 import { eansWithPhoto, photoVersion } from '../../common/product-photos'
@@ -1510,7 +1510,14 @@ export class ProductsService {
    */
   async updateSiteSettings(
     id: string,
-    dto: { visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[]; wineProfile?: unknown },
+    dto: {
+      visibility?: 'ERP' | 'OCULTO' | 'SEMPRE'
+      visibilityUntil?: string | null
+      categoryId?: string | null
+      displayName?: string | null
+      saleWeekdays?: number[]
+      wineProfile?: unknown
+    },
     adminId?: string,
   ) {
     const product = await this.prisma.product.findUnique({ where: { id } })
@@ -1520,11 +1527,21 @@ export class ProductsService {
     if (dto.visibility !== undefined) {
       if (!['ERP', 'OCULTO', 'SEMPRE'].includes(dto.visibility)) throw new BadRequestException('Visibilidade invalida.')
       const siteVisibility = dto.visibility === 'ERP' ? null : dto.visibility
+      // Prazo ("Ocultar até") so faz sentido junto de OCULTO -- nos outros casos
+      // zera, senao um "Ocultar até dia X" antigo reaparece se o lojista
+      // escolher OCULTO de novo depois sem querer prazo.
+      let siteVisibilityUntil: Date | null = null
+      if (dto.visibilityUntil) {
+        if (siteVisibility !== 'OCULTO') throw new BadRequestException('O prazo só vale com visibilidade "Ocultar".')
+        const until = new Date(dto.visibilityUntil)
+        if (Number.isNaN(until.getTime()) || until <= new Date()) throw new BadRequestException('Prazo invalido: precisa ser uma data futura.')
+        siteVisibilityUntil = until
+      }
       const effective = applySiteVisibility(
         { active: product.erpActive, syncOption: product.erpSyncOption || product.syncOption },
         siteVisibility,
       )
-      Object.assign(data, { siteVisibility, active: effective.active, syncOption: effective.syncOption })
+      Object.assign(data, { siteVisibility, siteVisibilityUntil, active: effective.active, syncOption: effective.syncOption })
     }
 
     if (dto.categoryId !== undefined) {
@@ -1562,6 +1579,29 @@ export class ProductsService {
     await this.auditLogService.log({ action: 'PRODUCT_SITE_SETTINGS', entity: 'PRODUCT', entityId: id, adminId, changes: dto })
     await this.productSearchService.indexProductById(id)
     return updated
+  }
+
+  /**
+   * "Ocultar até" (16/10/2026): reverte sozinho os produtos cujo prazo venceu,
+   * sem depender do sync do ERP (incremental só olha produto que o ERP mudou
+   * -- um produto so escondido por aqui pode nunca aparecer nele; o completo
+   * roda 4x/dia, tarde demais pra um prazo pensado em horas). Chamado por
+   * `ProductVisibilityScheduler` a cada 15 min.
+   */
+  async expireHiddenUntil() {
+    const expired = await this.prisma.product.findMany({
+      where: { siteVisibility: 'OCULTO', siteVisibilityUntil: { lte: new Date() } },
+      select: { id: true, erpActive: true, erpSyncOption: true, syncOption: true },
+    })
+    for (const p of expired) {
+      const effective = applySiteVisibility({ active: p.erpActive, syncOption: p.erpSyncOption || p.syncOption }, null)
+      await this.prisma.product.update({
+        where: { id: p.id },
+        data: { siteVisibility: null, siteVisibilityUntil: null, active: effective.active, syncOption: effective.syncOption },
+      })
+      await this.productSearchService.indexProductById(p.id)
+    }
+    return { reverted: expired.length }
   }
 
   /**
@@ -1659,7 +1699,7 @@ export class ProductsService {
         select: {
           id: true, ean: true, erpProductId: true, secondaryEans: true, name: true, titleMask: true, erpDescription: true, pdvDescription: true,
           price: true, promotionalPrice: true, promotionalPriceValidUntil: true, stock: true, unit: true,
-          active: true, erpActive: true, syncOption: true, erpSyncOption: true, siteVisibility: true, categoryOverrideId: true, updatedAt: true, saleWeekdays: true, erpMissingSince: true, wineProfile: true,
+          active: true, erpActive: true, syncOption: true, erpSyncOption: true, siteVisibility: true, siteVisibilityUntil: true, categoryOverrideId: true, updatedAt: true, saleWeekdays: true, erpMissingSince: true, wineProfile: true,
           alternativeDescription: true, isFractional: true, fractionStep: true, manualIsFractional: true, manualFractionStep: true, badges: true, videoUrl: true,
           ecommerceCategory: true, classification01: true, classification02: true, classification03: true, classification04: true,
         },
@@ -1689,7 +1729,9 @@ export class ProductsService {
           : 'Inativo no ERP'
       } else if (p.siteVisibility === 'OCULTO') {
         status = 'HIDDEN'
-        reason = 'Oculto por você'
+        reason = p.siteVisibilityUntil
+          ? `Oculto por você até ${p.siteVisibilityUntil.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })}`
+          : 'Oculto por você'
       } else if (p.syncOption === 'NUNCA') {
         status = 'OFF'
         // Desde 03/10/2026 o cadastro inteiro do ERP esta em "Estoque" (ORD-043):
@@ -2261,9 +2303,14 @@ export class ProductsService {
         // se o ERP mandou o campo -- senao preserva o que esta gravado, que
         // veio do ultimo sync completo ou de ajuste manual no admin.
         // Ajustes do admin (ocultar, sempre a venda, categoria) vencem o ERP.
+        // "Ocultar até" (16/10/2026): passado o prazo, resolveSiteVisibility
+        // devolve null e o sync volta a seguir o ERP sozinho, sem exigir que
+        // o lojista lembre de reativar manualmente.
+        const visibilityExpired =
+          existing?.siteVisibility === 'OCULTO' && !!existing?.siteVisibilityUntil && existing.siteVisibilityUntil <= new Date()
         const effective = applySiteVisibility(
           { active: erpActive, syncOption: item.syncOption || existing?.syncOption || 'ESTOQUE' },
-          existing?.siteVisibility,
+          resolveSiteVisibility(existing?.siteVisibility, existing?.siteVisibilityUntil),
         )
         const overrideCategoryCode = existing?.categoryOverrideId ? cmsCodeById.get(existing.categoryOverrideId) : undefined
         const holder = eanHolders.get(mainEan)
@@ -2286,6 +2333,9 @@ export class ProductsService {
                 ...(item.syncOption || existing.siteVisibility === 'SEMPRE' ? { syncOption: effective.syncOption } : {}),
                 ...(item.ecommerceCategory ? { ecommerceCategory: item.ecommerceCategory } : {}),
                 ...(item.ecommerceTags ? { tags: item.ecommerceTags } : {}),
+                // Prazo do "Ocultar até" vencido: limpa o ajuste pra admin
+                // mostrar "Automático" de novo, em vez de "Oculto" com data passada.
+                ...(visibilityExpired ? { siteVisibility: null, siteVisibilityUntil: null } : {}),
               },
             })
           : await this.prisma.product.create({

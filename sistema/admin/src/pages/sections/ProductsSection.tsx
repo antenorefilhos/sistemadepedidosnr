@@ -37,6 +37,16 @@ const SYNC_LABEL: Record<string, string> = { SEMPRE: 'Sempre', ESTOQUE: 'Só com
 const brl = (v?: number | null) => (v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))
 const num = (v: number) => v.toLocaleString('pt-BR')
 const qty = (v?: number | null) => (v == null ? '—' : v.toLocaleString('pt-BR', { maximumFractionDigits: 3 }))
+// "Ocultar até" (16/10/2026): data local (YYYY-MM-DD) N dias a partir de hoje, pro <input type="date">.
+// Usa os componentes locais (não toISOString, que converte pra UTC e erra a data perto da virada).
+const addDaysISO = (days: number) => {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
 const slugify = (v: string) =>
   v.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/&/g, ' e ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
@@ -551,6 +561,8 @@ function ProductPanel({
 }) {
   const initial = {
     visibility: (p.siteVisibility || 'ERP') as Visibility,
+    // Prazo do "Ocultar até" (16/10/2026): data no formato do <input type="date"> (YYYY-MM-DD).
+    visibilityUntil: p.siteVisibilityUntil ? p.siteVisibilityUntil.slice(0, 10) : '',
     categoryId: p.categoryOverrideId || '',
     displayName: p.titleMask || '',
     badges: p.badges || '',
@@ -586,10 +598,16 @@ function ProductPanel({
     setSaving(true)
     setError('')
     try {
-      const site: { visibility?: Visibility; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[]; wineProfile?: Record<string, unknown> | null } = {}
+      const site: { visibility?: Visibility; visibilityUntil?: string | null; categoryId?: string | null; displayName?: string | null; saleWeekdays?: number[]; wineProfile?: Record<string, unknown> | null } = {}
       if (JSON.stringify(form.saleWeekdays) !== JSON.stringify(initial.saleWeekdays)) site.saleWeekdays = form.saleWeekdays
       if (JSON.stringify(form.wine) !== JSON.stringify(initial.wine)) site.wineProfile = wineProfileFrom(form.wine, p.wineProfile)
-      if (form.visibility !== initial.visibility) site.visibility = form.visibility
+      const visibilityUntilChanged = form.visibility === 'OCULTO' && form.visibilityUntil !== initial.visibilityUntil
+      if (form.visibility !== initial.visibility || visibilityUntilChanged) {
+        site.visibility = form.visibility
+        if (form.visibility === 'OCULTO' && form.visibilityUntil) {
+          site.visibilityUntil = `${form.visibilityUntil}T23:59:59-03:00`
+        }
+      }
       if (form.categoryId !== initial.categoryId) site.categoryId = form.categoryId || null
       if (form.displayName.trim() !== initial.displayName) site.displayName = form.displayName.trim() || null
       if (Object.keys(site).length) await productsAPI.updateSite(p.id, site)
@@ -676,7 +694,7 @@ function ProductPanel({
                   <button
                     key={v}
                     type="button"
-                    onClick={() => set({ visibility: v })}
+                    onClick={() => set({ visibility: v, visibilityUntil: v === 'OCULTO' ? form.visibilityUntil : '' })}
                     className={`rounded-lg px-2 py-1.5 text-sm ${form.visibility === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}
                   >
                     {label}
@@ -684,6 +702,45 @@ function ProductPanel({
                 ))}
               </div>
               <p className="mt-1.5 text-xs text-gray-500">{visibilityEffect[form.visibility]}</p>
+
+              {form.visibility === 'OCULTO' && (
+                <div className="mt-2 rounded-xl border border-black/[0.08] bg-gray-50 p-3">
+                  <span className="text-xs text-gray-500">Ocultar até (opcional — volta ao automático sozinho)</span>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {[
+                      ['7', '7 dias'],
+                      ['15', '15 dias'],
+                      ['30', '30 dias'],
+                    ].map(([days, label]) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => set({ visibilityUntil: addDaysISO(Number(days)) })}
+                        className="rounded-lg bg-white px-2.5 py-1 text-xs text-gray-700 shadow-sm hover:bg-gray-100"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    {form.visibilityUntil && (
+                      <button type="button" onClick={() => set({ visibilityUntil: '' })} className="rounded-lg px-2.5 py-1 text-xs text-rose-700 hover:bg-rose-50">
+                        Remover prazo
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="date"
+                    value={form.visibilityUntil}
+                    min={addDaysISO(1)}
+                    onChange={(e) => set({ visibilityUntil: e.target.value })}
+                    className="mt-1.5 h-9 w-full rounded-lg border border-black/[0.08] bg-white px-2.5 text-sm text-gray-900"
+                  />
+                  <p className="mt-1 text-gray-400">
+                    {form.visibilityUntil
+                      ? `Volta a seguir a API sozinho em ${new Date(`${form.visibilityUntil}T00:00:00-03:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}.`
+                      : 'Sem prazo, fica oculto até você mudar aqui de novo.'}
+                  </p>
+                </div>
+              )}
             </div>
 
             <label className="mt-4 block text-xs text-gray-500">
