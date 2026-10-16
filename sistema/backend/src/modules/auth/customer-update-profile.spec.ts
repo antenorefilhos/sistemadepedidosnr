@@ -12,7 +12,7 @@ const build = (customer: Record<string, unknown>, other: Record<string, unknown>
     fraudLog: { create: jest.fn().mockResolvedValue({}) },
   }
   const jwt = { sign: jest.fn().mockReturnValue('token-novo') }
-  const fraud = { blockedReason: jest.fn().mockResolvedValue(blockedReason) }
+  const fraud = { blockedReason: jest.fn().mockResolvedValue(blockedReason), logEvent: jest.fn() }
   const service = new AuthService(prisma as never, jwt as never, {} as never, fraud as never)
   return { service, prisma, fraud }
 }

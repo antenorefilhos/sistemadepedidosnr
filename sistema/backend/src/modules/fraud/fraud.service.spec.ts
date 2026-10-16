@@ -81,10 +81,10 @@ describe('FraudService.firstPurchase (por pessoa)', () => {
 })
 
 describe('FraudService.blockedReason', () => {
-  it('CPF ou aparelho bloqueado barra, mesmo com conta nova', async () => {
+  it('CPF ou aparelho bloqueado barra, mesmo com conta nova, e diz qual identificador bateu', async () => {
     const s = build({ blocks: [{ kind: 'CPF', value: '52998224725', reason: 'trote' }, { kind: 'DEVICE', value: 'dev-x' }] })
-    expect(await s.blockedReason('t', { cpf: '529.982.247-25' })).toBe('trote')
-    expect(await s.blockedReason('t', {}, ctx({ deviceId: 'dev-x' }) as never)).toBe('bloqueado')
+    expect(await s.blockedReason('t', { cpf: '529.982.247-25' })).toEqual({ reason: 'trote', kind: 'CPF', value: '52998224725' })
+    expect(await s.blockedReason('t', {}, ctx({ deviceId: 'dev-x' }) as never)).toEqual({ reason: 'bloqueado', kind: 'DEVICE', value: 'dev-x' })
     expect(await s.blockedReason('t', { cpf: '15350946056' }, ctx() as never)).toBeNull()
   })
 })

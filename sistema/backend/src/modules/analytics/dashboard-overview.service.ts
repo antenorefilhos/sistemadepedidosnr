@@ -58,6 +58,21 @@ export function periodRange(period: OverviewPeriod, now = new Date()) {
   return { from, to: now, prevFrom: new Date(from.getTime() - days * DAY_MS), prevTo: from }
 }
 
+/**
+ * Periodo livre (calendario, 16/10/2026): o "de/ate" escolhido no admin, nos
+ * mesmos moldes do periodRange acima -- `to` vai so ate agora se o dia final
+ * for hoje (senao o periodo "ganharia" horas do dia que ainda nao acabou), e
+ * o anterior e a mesma quantidade de dias, imediatamente antes.
+ */
+export function customRange(fromStr: string, toStr: string, now = new Date()) {
+  const from = startOfDayBrt(new Date(`${fromStr}T12:00:00Z`))
+  const toDayStart = startOfDayBrt(new Date(`${toStr}T12:00:00Z`))
+  const today = startOfDayBrt(now)
+  const to = toDayStart.getTime() >= today.getTime() ? now : new Date(toDayStart.getTime() + DAY_MS - 1)
+  const days = Math.round((toDayStart.getTime() - from.getTime()) / DAY_MS) + 1
+  return { from, to, prevFrom: new Date(from.getTime() - days * DAY_MS), prevTo: from }
+}
+
 const round2 = (n: number) => Math.round(n * 100) / 100
 const parseMeta = (raw?: string | null): Record<string, unknown> => {
   try {
@@ -71,11 +86,13 @@ const parseMeta = (raw?: string | null): Record<string, unknown> => {
 export class DashboardOverviewService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getOverview(period: OverviewPeriod, now = new Date()) {
-    const range = periodRange(period, now)
+  async getOverview(input: { period: OverviewPeriod } | { from: string; to: string }, now = new Date()) {
+    const isCustom = 'from' in input
+    const range = isCustom ? customRange(input.from, input.to, now) : periodRange(input.period, now)
+    const period: OverviewPeriod | 'custom' = isCustom ? 'custom' : input.period
     const [operation, results, site, products] = await Promise.all([
       this.operation(now),
-      this.results(period, range),
+      this.results(range),
       this.site(range),
       this.products(range),
     ])
@@ -130,7 +147,7 @@ export class DashboardOverviewService {
   }
 
   /** Resultado do periodo x periodo anterior. */
-  private async results(period: OverviewPeriod, range: ReturnType<typeof periodRange>) {
+  private async results(range: ReturnType<typeof periodRange>) {
     const orders = await this.prisma.order.findMany({
       where: { createdAt: { gte: range.prevFrom, lte: range.to } },
       select: { id: true, status: true, total: true, createdAt: true, customerId: true },
@@ -162,10 +179,14 @@ export class DashboardOverviewService {
       : []
     const newCustomers = firstOrders.filter((f) => f._min.createdAt && f._min.createdAt >= range.from).length
 
-    // Serie: por hora (hoje) ou por dia (7/30 dias).
+    // Serie: por hora (periodo cabe num so dia) ou por dia (periodo maior,
+    // qualquer quantidade de dias -- nao so 7 ou 30 fixos, pra caber tambem
+    // o periodo livre do calendario).
     const validCur = orders.filter((o) => inCur(o.createdAt) && !INVALID.includes(o.status))
+    const sameDay = startOfDayBrt(range.from).getTime() === startOfDayBrt(range.to).getTime()
+    const bucket: 'hour' | 'day' = sameDay ? 'hour' : 'day'
     let series: Array<{ label: string; revenue: number; orders: number }>
-    if (period === 'day') {
+    if (bucket === 'hour') {
       series = Array.from({ length: 24 }, (_, h) => ({ label: `${h}h`, revenue: 0, orders: 0 }))
       for (const o of validCur) {
         const slot = series[hourBrt(o.createdAt)]
@@ -173,7 +194,7 @@ export class DashboardOverviewService {
         slot.orders += 1
       }
     } else {
-      const days = period === 'week' ? 7 : 30
+      const days = Math.round((startOfDayBrt(range.to).getTime() - range.from.getTime()) / DAY_MS) + 1
       series = Array.from({ length: days }, (_, i) => {
         const iso = isoDayBrt(new Date(range.from.getTime() + i * DAY_MS + 12 * 60 * 60 * 1000))
         return { label: `${iso.slice(8, 10)}/${iso.slice(5, 7)}`, revenue: 0, orders: 0 }
@@ -195,6 +216,7 @@ export class DashboardOverviewService {
     return {
       current: { ...pick(cur), newCustomers, returningCustomers: cur.customerIds.length - newCustomers },
       previous: pick(prev),
+      bucket,
       series,
       ordersByHour: byHour,
     }

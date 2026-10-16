@@ -1553,7 +1553,8 @@ export interface SubstitutionEvent {
 
 /** Tela Antifraude (01/10/2026). */
 export interface FraudOverview {
-  days: number
+  since: string
+  until: string
   summary: { assessed: number; high: number; medium: number; pendingReview: number; denied: number; linkedAccounts: number; blocked: number }
   riskOrders: Array<{
     id: string
@@ -1572,12 +1573,14 @@ export interface FraudOverview {
     coupons: number
     accounts: Array<{ customerId: string; name: string; cpf: string; whatsapp: string; blocked: boolean; createdAt: string | null; orders: number; coupons: number }>
   }>
-  events: Array<{ id: string; kind: string; label: string; customerId: string | null; customer: string | null; orderId: string | null; at: string }>
+  events: Array<{ id: string; kind: string; label: string; customerId: string | null; customer: string | null; orderId: string | null; at: string; attempt: string | null }>
   blocked: Array<{ customerId: string; name: string; reason: string | null; at: string; identifiers: number }>
 }
 
 export const fraudAPI = {
-  overview: (days = 30) => api.get<FraudOverview>('/admin/fraud', { params: { days } }),
+  // Periodo fixo (dias) ou calendario (from/to, AAAA-MM-DD) -- 16/10/2026.
+  overview: (opts: { days?: number } | { from: string; to: string }) =>
+    api.get<FraudOverview>('/admin/fraud', { params: 'from' in opts ? { from: opts.from, to: opts.to } : { days: opts.days ?? 30 } }),
   review: (orderId: string) => api.post(`/admin/fraud/orders/${orderId}/review`),
   block: (customerId: string, reason?: string) => api.post(`/admin/fraud/customers/${customerId}/block`, { reason }),
   unblock: (customerId: string) => api.delete(`/admin/fraud/customers/${customerId}/block`),
@@ -1987,7 +1990,7 @@ export const staffAPI = {
 }
 
 // Painel inicial (29/09/2026): um unico endpoint, tudo calculado no servidor.
-export type OverviewPeriod = 'day' | 'week' | 'month'
+export type OverviewPeriod = 'day' | 'week' | 'month' | 'custom'
 export interface OverviewKpis {
   revenue: number
   orders: number
@@ -1996,6 +1999,7 @@ export interface OverviewKpis {
 }
 export interface AdminOverview {
   period: OverviewPeriod
+  range: { from: string; to: string; prevFrom: string; prevTo: string }
   generatedAt: string
   operation: {
     active: number
@@ -2006,6 +2010,7 @@ export interface AdminOverview {
   results: {
     current: OverviewKpis & { newCustomers: number; returningCustomers: number }
     previous: OverviewKpis
+    bucket: 'hour' | 'day'
     series: Array<{ label: string; revenue: number; orders: number }>
     ordersByHour: number[]
   }
@@ -2026,7 +2031,9 @@ export interface CheckupLast {
   results: Array<{ name: string; ok: boolean; detail: string }>
 }
 export const overviewAPI = {
-  get: (period: OverviewPeriod) => api.get<AdminOverview>('/admin/overview', { params: { period } }),
+  // Personalizado (period='custom') exige from/to, AAAA-MM-DD (16/10/2026).
+  get: (period: OverviewPeriod, range?: { from: string; to: string }) =>
+    api.get<AdminOverview>('/admin/overview', { params: period === 'custom' && range ? { period, from: range.from, to: range.to } : { period } }),
   lastCheckup: () => api.get<CheckupLast | null>('/admin/checkup/last'),
 }
 

@@ -505,9 +505,15 @@ export class OrdersService {
       country: clientCountry || null,
     }
     if (this.fraud) {
-      const blockedReason = await this.fraud.blockedReason(tenantId, customer, fraudCtx)
-      if (blockedReason) {
-        await this.fraud.logEvent(tenantId, 'BLOCKED', 'pedido', customerId)
+      const match = await this.fraud.blockedReason(tenantId, customer, fraudCtx)
+      if (match) {
+        // 16/10/2026: guarda qual identificador bateu no bloqueio e o
+        // aparelho/IP usados -- antes so registrava "pedido", sem saber quem.
+        await this.fraud.logEvent(tenantId, 'BLOCKED', 'pedido', customerId, null, {
+          matchedKind: match.kind,
+          matchedValue: match.value,
+          device: { deviceId: fraudCtx.deviceId, ip: fraudCtx.ip, country: fraudCtx.country },
+        })
         await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
         throw new ForbiddenException('Não foi possível concluir o pedido. Fale com a loja pelo WhatsApp.')
       }

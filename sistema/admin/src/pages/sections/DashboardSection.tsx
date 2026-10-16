@@ -14,7 +14,9 @@ const PERIODS: Array<{ value: OverviewPeriod; label: string; compare: string }> 
   { value: 'day', label: 'Hoje', compare: 'ontem até esta hora' },
   { value: 'week', label: '7 dias', compare: '7 dias anteriores' },
   { value: 'month', label: '30 dias', compare: '30 dias anteriores' },
+  { value: 'custom', label: 'Personalizado', compare: 'período anterior equivalente' },
 ]
+const todayStr = () => new Date().toISOString().slice(0, 10)
 
 const brl = (value: number, compact = false) =>
   value.toLocaleString('pt-BR', {
@@ -143,6 +145,8 @@ function List({ items, empty }: { items: Array<{ key: string; main: string; side
 
 export function DashboardSection({ onNavigate, onOpenOrder }: { onNavigate?: (section: Section) => void; onOpenOrder?: (orderId: string) => void }) {
   const [period, setPeriod] = useState<OverviewPeriod>('day')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
   const [data, setData] = useState<AdminOverview | null>(null)
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -150,11 +154,16 @@ export function DashboardSection({ onNavigate, onOpenOrder }: { onNavigate?: (se
   const [healthOpen, setHealthOpen] = useState(false)
   const requestRef = useRef(0)
 
+  // Personalizado so dispara com as duas datas preenchidas e em ordem --
+  // antes disso, so espera (sem bater na API com periodo incompleto).
+  const customReady = period !== 'custom' || (customFrom !== '' && customTo !== '' && customFrom <= customTo)
+
   const load = useCallback(async () => {
+    if (!customReady) return
     const id = ++requestRef.current
     setLoading(true)
     try {
-      const res = await overviewAPI.get(period)
+      const res = await overviewAPI.get(period, period === 'custom' ? { from: customFrom, to: customTo } : undefined)
       if (id === requestRef.current) {
         setData(res.data)
         setError(false)
@@ -164,7 +173,7 @@ export function DashboardSection({ onNavigate, onOpenOrder }: { onNavigate?: (se
     } finally {
       if (id === requestRef.current) setLoading(false)
     }
-  }, [period])
+  }, [period, customFrom, customTo, customReady])
 
   useEffect(() => {
     load()
@@ -176,7 +185,9 @@ export function DashboardSection({ onNavigate, onOpenOrder }: { onNavigate?: (se
     overviewAPI.lastCheckup().then((res) => setCheckup(res.data)).catch(() => setCheckup(null))
   }, [])
 
-  const compare = PERIODS.find((p) => p.value === period)!.compare
+  const compare = period === 'custom' && data
+    ? `${new Date(data.range.prevFrom).toLocaleDateString('pt-BR')} a ${new Date(data.range.prevTo).toLocaleDateString('pt-BR')}`
+    : PERIODS.find((p) => p.value === period)!.compare
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
   const updatedAt = data ? new Date(data.generatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
   const failures = checkup?.results.filter((r) => !r.ok) ?? []
@@ -206,6 +217,20 @@ export function DashboardSection({ onNavigate, onOpenOrder }: { onNavigate?: (se
           </button>
         </div>
       </div>
+
+      {period === 'custom' && (
+        <div className="-mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <label className="flex items-center gap-1.5 text-gray-600">
+            De
+            <input type="date" value={customFrom} max={customTo || todayStr()} onChange={(e) => setCustomFrom(e.target.value)} className="h-9 rounded-lg border border-black/[0.06] bg-white px-2 text-sm" />
+          </label>
+          <label className="flex items-center gap-1.5 text-gray-600">
+            até
+            <input type="date" value={customTo} min={customFrom} max={todayStr()} onChange={(e) => setCustomTo(e.target.value)} className="h-9 rounded-lg border border-black/[0.06] bg-white px-2 text-sm" />
+          </label>
+          {customFrom && customTo && customFrom > customTo && <span className="text-xs text-rose-700">A data inicial não pode ser depois da final.</span>}
+        </div>
+      )}
 
       {error && !data && (
         <Panel>
@@ -284,15 +309,15 @@ export function DashboardSection({ onNavigate, onOpenOrder }: { onNavigate?: (se
             />
           </div>
 
-          <div className={`grid gap-4 ${period === 'day' ? '' : 'lg:grid-cols-3'}`}>
-            <Panel title={period === 'day' ? 'Faturamento por hora' : 'Faturamento por dia'} className={period === 'day' ? '' : 'lg:col-span-2'}>
+          <div className={`grid gap-4 ${data.results.bucket === 'hour' ? '' : 'lg:grid-cols-3'}`}>
+            <Panel title={data.results.bucket === 'hour' ? 'Faturamento por hora' : 'Faturamento por dia'} className={data.results.bucket === 'hour' ? '' : 'lg:col-span-2'}>
               <Bars
                 caption="Faturamento no período"
                 data={data.results.series.map((s) => ({ label: s.label, value: s.revenue, sub: `${s.orders} ${s.orders === 1 ? 'pedido' : 'pedidos'}` }))}
                 format={(v) => brl(v)}
               />
             </Panel>
-            {period !== 'day' && (
+            {data.results.bucket !== 'hour' && (
               <Panel title="Pedidos por hora do dia">
                 <Bars
                   caption="Pedidos por hora do dia"

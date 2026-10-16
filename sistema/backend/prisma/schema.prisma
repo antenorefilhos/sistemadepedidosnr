@@ -2003,6 +2003,10 @@ model FraudLog {
   value       String   // valor detectado (hash/ip/whatsapp)
   orderId     String?  // pedido que tentou o benefício
   customerId  String?
+  // 16/10/2026: o que foi tentado de fato (identificador que bateu no
+  // bloqueio, os dados submetidos e o aparelho/IP usados) -- antes so
+  // existia o rotulo generico do vetor, sem dado pra identificar quem tentou.
+  details     Json?
   createdAt   DateTime @default(now())
 
   @@index([tenantId, storeId, vector, value])

@@ -10,6 +10,14 @@ const TZ = 'America/Sao_Paulo'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const when = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const LEVEL = { HIGH: { label: 'Risco alto', dot: 'bg-rose-500' }, MEDIUM: { label: 'Atenção', dot: 'bg-amber-500' }, LOW: { label: 'Baixo', dot: 'bg-emerald-500' } } as const
+const todayStr = () => new Date().toISOString().slice(0, 10)
+type Period = 7 | 30 | 90 | 'custom'
+const PERIODS: Array<{ value: Period; label: string }> = [
+  { value: 7, label: '7 dias' },
+  { value: 30, label: '30 dias' },
+  { value: 90, label: '90 dias' },
+  { value: 'custom', label: 'Personalizado' },
+]
 
 function Stat({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: 'ok' | 'warn' | 'bad' }) {
   const dot = tone === 'bad' ? 'bg-rose-500' : tone === 'warn' ? 'bg-amber-500' : tone === 'ok' ? 'bg-emerald-500' : ''
@@ -26,20 +34,26 @@ function Stat({ label, value, hint, tone }: { label: string; value: string; hint
 }
 
 export default function FraudAudit() {
+  const [period, setPeriod] = useState<Period>(30)
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
   const [data, setData] = useState<FraudOverview | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [howOpen, setHowOpen] = useState(false)
 
+  const customReady = period !== 'custom' || (customFrom !== '' && customTo !== '' && customFrom <= customTo)
+
   const load = useCallback(async () => {
+    if (!customReady) return
     try {
-      setData((await fraudAPI.overview(30)).data)
+      setData((await fraudAPI.overview(period === 'custom' ? { from: customFrom, to: customTo } : { days: period })).data)
       setError('')
     } catch (e) {
       setError(getApiErrorMessage(e, 'Não foi possível carregar o antifraude.'))
     }
-  }, [])
+  }, [period, customFrom, customTo, customReady])
   useEffect(() => {
     load()
   }, [load])
@@ -66,12 +80,43 @@ export default function FraudAudit() {
   const d = data
   const pending = d?.riskOrders.filter((o) => !o.riskReviewedAt && !['CANCELLED', 'REFUNDED'].includes(o.status)) ?? []
   const done = d?.riskOrders.filter((o) => o.riskReviewedAt || ['CANCELLED', 'REFUNDED'].includes(o.status)) ?? []
+  const periodLabel = d ? `${new Date(d.since).toLocaleDateString('pt-BR')} a ${new Date(d.until).toLocaleDateString('pt-BR')}` : ''
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <p className="max-w-3xl text-sm text-gray-500">
-        Liga as contas da mesma pessoa (aparelho, impressão digital com a rede, e-mail e endereço), nega benefício de primeira compra a quem já comprou e dá uma nota de risco a cada pedido. Risco alto aparece na separação para a equipe ligar antes de separar.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="max-w-3xl text-sm text-gray-500">
+          Liga as contas da mesma pessoa (aparelho, impressão digital com a rede, e-mail e endereço), nega benefício de primeira compra a quem já comprou e dá uma nota de risco a cada pedido. Risco alto aparece na separação para a equipe ligar antes de separar.
+        </p>
+        <div role="tablist" aria-label="Período" className="flex shrink-0 rounded-xl border border-black/[0.06] bg-white p-1">
+          {PERIODS.map((p) => (
+            <button
+              key={p.value}
+              role="tab"
+              aria-selected={period === p.value}
+              type="button"
+              onClick={() => setPeriod(p.value)}
+              className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${period === p.value ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {period === 'custom' && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <label className="flex items-center gap-1.5 text-gray-600">
+            De
+            <input type="date" value={customFrom} max={customTo || todayStr()} onChange={(e) => setCustomFrom(e.target.value)} className="h-9 rounded-lg border border-black/[0.06] bg-white px-2 text-sm" />
+          </label>
+          <label className="flex items-center gap-1.5 text-gray-600">
+            até
+            <input type="date" value={customTo} min={customFrom} max={todayStr()} onChange={(e) => setCustomTo(e.target.value)} className="h-9 rounded-lg border border-black/[0.06] bg-white px-2 text-sm" />
+          </label>
+          {customFrom && customTo && customFrom > customTo && <span className="text-xs text-rose-700">A data inicial não pode ser depois da final.</span>}
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
@@ -85,8 +130,8 @@ export default function FraudAudit() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Para conferir" value={String(d.summary.pendingReview)} tone={d.summary.pendingReview ? 'bad' : 'ok'} hint={`${d.summary.high} risco alto e ${d.summary.medium} atenção em 30 dias`} />
-            <Stat label="Pedidos analisados · 30 dias" value={String(d.summary.assessed)} hint="todo pedido novo ganha nota de risco" />
+            <Stat label="Para conferir" value={String(d.summary.pendingReview)} tone={d.summary.pendingReview ? 'bad' : 'ok'} hint={`${d.summary.high} risco alto e ${d.summary.medium} atenção · ${periodLabel}`} />
+            <Stat label="Pedidos analisados" value={String(d.summary.assessed)} hint={`todo pedido novo ganha nota de risco · ${periodLabel}`} />
             <Stat label="Benefícios negados" value={String(d.summary.denied)} tone={d.summary.denied ? 'warn' : undefined} hint="cupom ou frete de primeira compra" />
             <Stat label="Contas ligadas" value={String(d.summary.linkedAccounts)} hint={`${d.summary.blocked} pessoa(s) bloqueada(s)`} />
           </div>
@@ -177,18 +222,22 @@ export default function FraudAudit() {
             </section>
 
             <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
-              <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Ocorrências · 30 dias</h3>
+              <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Ocorrências · {periodLabel}</h3>
               {d.events.length === 0 ? (
                 <p className="mt-3 text-sm text-gray-600">Nenhuma tentativa barrada.</p>
               ) : (
                 <ul className="mt-2 max-h-80 divide-y divide-black/[0.05] overflow-y-auto">
                   {d.events.map((e) => (
-                    <li key={e.id} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-                      <span className="min-w-0 text-gray-900">
-                        {e.label}
-                        {e.customer && <span className="text-gray-500"> · {e.customer}</span>}
+                    <li key={e.id} className="flex flex-col gap-0.5 py-2 text-sm">
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0 text-gray-900">
+                          {e.label}
+                          {e.customer && <span className="text-gray-500"> · {e.customer}</span>}
+                        </span>
+                        <span className="shrink-0 text-xs tabular-nums text-gray-500">{when(e.at)}</span>
                       </span>
-                      <span className="shrink-0 text-xs tabular-nums text-gray-500">{when(e.at)}</span>
+                      {/* Quem tentou de fato (16/10/2026): identificador que bateu no bloqueio, o que foi submetido e o IP -- antes so dizia que alguem tentou. */}
+                      {e.attempt && <span className="text-xs text-gray-500">{e.attempt}</span>}
                     </li>
                   ))}
                 </ul>

@@ -14,6 +14,15 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.23.0',
+    date: '16/10/2026',
+    title: 'Antifraude Mostra Quem Tenta, e Período por Calendário',
+    highlights: [
+      { type: 'feat', description: 'Na tela Antifraude, cada tentativa bloqueada agora mostra o que a pessoa tentou: qual CPF, WhatsApp ou aparelho bateu no bloqueio, o que ela submeteu de novo e o IP usado. Antes só dizia "alguém tentou", sem dar pra saber quem.' },
+      { type: 'feat', description: 'Visão Geral e Antifraude ganharam a opção "Personalizado": escolha qualquer período no calendário, não só Hoje/7 dias/30 dias.' },
+    ],
+  },
+  {
     version: '1.22.0',
     date: '16/10/2026',
     title: 'Cliente Pode Excluir a Própria Conta',

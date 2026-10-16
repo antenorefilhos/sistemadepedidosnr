@@ -15,22 +15,55 @@ const VECTOR_LABEL: Record<string, string> = {
   VELOCITY: 'Muitos pedidos em pouco tempo',
 }
 
+const KIND_PT: Record<string, string> = { CPF: 'CPF', WHATSAPP: 'WhatsApp', EMAIL: 'e-mail', DEVICE: 'aparelho', DEVICE_KEY: 'aparelho' }
+/** Mascara so o que e pessoal de verdade (CPF/WhatsApp); aparelho/IP ficam em claro -- sao opacos, sem valor de rastreio sozinhos. */
+const maskIfPersonal = (kind: string | undefined, value: string | undefined) => (value && (kind === 'CPF' || kind === 'WHATSAPP') ? mask(value, kind === 'CPF' ? 3 : 4) : value)
+
+/**
+ * O que foi tentado de fato numa ocorrencia BLOCKED (16/10/2026): qual
+ * identificador bateu no bloqueio, o que a pessoa submeteu (mascarado se for
+ * CPF/WhatsApp) e o aparelho/IP usados -- sem isso a ocorrencia so dizia "um
+ * cliente bloqueado tentou", sem jeito de saber QUEM.
+ */
+function describeAttempt(details: unknown): string | null {
+  if (!details || typeof details !== 'object') return null
+  const d = details as Record<string, unknown>
+  const bits: string[] = []
+  if (d.matchedKind && d.matchedValue) {
+    bits.push(`${KIND_PT[String(d.matchedKind)] || String(d.matchedKind)} bloqueado: ${maskIfPersonal(String(d.matchedKind), String(d.matchedValue))}`)
+  }
+  const attempted = d.attempted as Record<string, string | null> | undefined
+  if (attempted) {
+    const parts = [
+      attempted.cpf && `CPF ${maskIfPersonal('CPF', attempted.cpf)}`,
+      attempted.whatsapp && `WhatsApp ${maskIfPersonal('WHATSAPP', attempted.whatsapp)}`,
+      attempted.email && `e-mail ${attempted.email}`,
+    ].filter(Boolean)
+    if (parts.length) bits.push(`tentou com ${parts.join(', ')}`)
+  }
+  const device = d.device as Record<string, string | null> | undefined
+  if (device?.ip) bits.push(`IP ${device.ip}`)
+  return bits.join(' · ') || null
+}
+
 /** Tela Antifraude do admin (01/10/2026). */
 @Injectable()
 export class FraudAdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async overview(tenantId: string, days = 30) {
-    const since = new Date(Date.now() - days * 86_400_000)
+  async overview(tenantId: string, range: { since: Date; until?: Date }) {
+    const since = range.since
+    const until = range.until
+    const untilClause = until ? { lte: until } : {}
     const [assessed, riskOrders, logs, blocks, shared] = await Promise.all([
-      this.prisma.order.groupBy({ by: ['riskLevel'], where: { tenantId, createdAt: { gte: since }, riskLevel: { not: null } }, _count: { _all: true } }),
+      this.prisma.order.groupBy({ by: ['riskLevel'], where: { tenantId, createdAt: { gte: since, ...untilClause }, riskLevel: { not: null } }, _count: { _all: true } }),
       this.prisma.order.findMany({
-        where: { tenantId, createdAt: { gte: since }, riskLevel: { in: ['HIGH', 'MEDIUM'] } },
+        where: { tenantId, createdAt: { gte: since, ...untilClause }, riskLevel: { in: ['HIGH', 'MEDIUM'] } },
         select: { id: true, erpDav: true, total: true, status: true, createdAt: true, riskScore: true, riskLevel: true, riskReasons: true, riskReviewedAt: true, customer: { select: { id: true, name: true, blocked: true } } },
         orderBy: { createdAt: 'desc' },
         take: 50,
       }),
-      this.prisma.fraudLog.findMany({ where: { tenantId, createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, take: 100 }),
+      this.prisma.fraudLog.findMany({ where: { tenantId, createdAt: { gte: since, ...untilClause } }, orderBy: { createdAt: 'desc' }, take: 100 }),
       this.prisma.fraudBlock.findMany({ where: { tenantId }, orderBy: { createdAt: 'desc' } }),
       // Identificador forte usado por mais de uma conta: a mesma pessoa.
       this.prisma.$queryRaw<Array<{ kind: string; value: string; ids: string[] }>>`
@@ -110,7 +143,8 @@ export class FraudAdminService {
 
     const count = (level: string) => assessed.find((a) => a.riskLevel === level)?._count._all ?? 0
     return {
-      days,
+      since: since.toISOString(),
+      until: (until ?? new Date()).toISOString(),
       summary: {
         assessed: assessed.reduce((a, x) => a + x._count._all, 0),
         high: count('HIGH'),
@@ -122,7 +156,16 @@ export class FraudAdminService {
       },
       riskOrders: riskOrders.map((o) => ({ ...o, total: Number(o.total) })),
       clusters,
-      events: logs.map((l) => ({ id: l.id, kind: l.vector, label: VECTOR_LABEL[l.vector] || l.vector, customerId: l.customerId, customer: l.customerId ? logName.get(l.customerId) ?? null : null, orderId: l.orderId, at: l.createdAt })),
+      events: logs.map((l) => ({
+        id: l.id,
+        kind: l.vector,
+        label: VECTOR_LABEL[l.vector] || l.vector,
+        customerId: l.customerId,
+        customer: l.customerId ? logName.get(l.customerId) ?? null : null,
+        orderId: l.orderId,
+        at: l.createdAt,
+        attempt: describeAttempt(l.details),
+      })),
       blocked: [...blockedPeople.values()],
     }
   }

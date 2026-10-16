@@ -5,6 +5,7 @@ import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decora
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { getTenantContext, TenantContextRequest } from '../../common/tenant/tenant-context'
+import { validateDateRangeParams } from '../../common/date-range'
 import { FraudAdminService } from './fraud-admin.service'
 import { FraudService } from './fraud.service'
 
@@ -24,8 +25,14 @@ export class FraudController {
 
   @Get()
   @ApiOperation({ summary: 'Antifraude: pedidos de risco, contas ligadas, eventos e bloqueios' })
-  overview(@Req() req: AdminRequest, @Query('days') days?: string) {
-    return this.admin.overview(getTenantContext(req).tenantId, Math.min(90, Math.max(1, Number(days) || 30)))
+  overview(@Req() req: AdminRequest, @Query('days') days?: string, @Query('from') from?: string, @Query('to') to?: string) {
+    const tenantId = getTenantContext(req).tenantId
+    if (from || to) {
+      const range = validateDateRangeParams(from, to)
+      return this.admin.overview(tenantId, { since: new Date(`${range.from}T00:00:00Z`), until: new Date(`${range.to}T23:59:59.999Z`) })
+    }
+    const safeDays = Math.min(90, Math.max(1, Number(days) || 30))
+    return this.admin.overview(tenantId, { since: new Date(Date.now() - safeDays * 86_400_000) })
   }
 
   @Post('orders/:id/review')

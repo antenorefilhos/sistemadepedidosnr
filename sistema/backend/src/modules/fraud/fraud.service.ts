@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
 import { addressKey, deviceKey, type DeviceContext, isDisposableEmail, normalizeEmail } from './fraud.util'
 
@@ -16,6 +17,7 @@ const KIND_LABEL: Record<string, string> = { DEVICE: 'aparelho', DEVICE_KEY: 'ap
 
 export type RiskAssessment = { score: number; level: 'LOW' | 'MEDIUM' | 'HIGH'; reasons: string[] }
 export type LinkedCustomer = { customerId: string; via: string[] }
+export type BlockMatch = { reason: string; kind: string; value: string }
 
 @Injectable()
 export class FraudService {
@@ -95,17 +97,23 @@ export class FraudService {
     return { eligible: true }
   }
 
-  /** Evento para a tela Antifraude; nao repete o mesmo evento do mesmo cliente em 10 min (o checkout recalcula varias vezes). */
-  async logEvent(tenantId: string, vector: string, value: string, customerId?: string | null, orderId?: string | null) {
+  /**
+   * Evento para a tela Antifraude; nao repete o mesmo evento do mesmo cliente
+   * em 10 min (o checkout recalcula varias vezes). `details` guarda o que foi
+   * tentado de fato (16/10/2026) -- sem isso, o evento so dizia "alguem
+   * tentou" e nunca QUEM nem COM QUAL identificador/aparelho.
+   */
+  async logEvent(tenantId: string, vector: string, value: string, customerId?: string | null, orderId?: string | null, details?: Record<string, unknown> | null) {
     if (customerId) {
       const recent = await this.prisma.fraudLog.findFirst({ where: { tenantId, vector, customerId, createdAt: { gte: new Date(Date.now() - 10 * 60_000) } }, select: { id: true } })
       if (recent) return
     }
-    await this.prisma.fraudLog.create({ data: { tenantId, vector, value, customerId: customerId || null, orderId: orderId || null } }).catch(() => null)
+    const safeDetails = details ? (JSON.parse(JSON.stringify(details)) as Prisma.InputJsonValue) : undefined
+    await this.prisma.fraudLog.create({ data: { tenantId, vector, value, customerId: customerId || null, orderId: orderId || null, details: safeDetails } }).catch(() => null)
   }
 
-  /** Identificador bloqueado pelo admin (CPF, WhatsApp, e-mail ou aparelho). Devolve o motivo ou null. */
-  async blockedReason(tenantId: string, ids: { cpf?: string | null; whatsapp?: string | null; email?: string | null }, ctx?: DeviceContext | null): Promise<string | null> {
+  /** Identificador bloqueado pelo admin (CPF, WhatsApp, e-mail ou aparelho). Devolve o motivo e QUAL identificador bateu, ou null. */
+  async blockedReason(tenantId: string, ids: { cpf?: string | null; whatsapp?: string | null; email?: string | null }, ctx?: DeviceContext | null): Promise<BlockMatch | null> {
     const or: Array<{ kind: string; value: string }> = []
     if (ids.cpf) or.push({ kind: 'CPF', value: String(ids.cpf).replace(/\D/g, '') })
     if (ids.whatsapp) or.push({ kind: 'WHATSAPP', value: String(ids.whatsapp).replace(/\D/g, '') })
@@ -115,8 +123,8 @@ export class FraudService {
     const key = ctx ? deviceKey(ctx) : null
     if (key) or.push({ kind: 'DEVICE_KEY', value: key })
     if (!or.length) return null
-    const hit = await this.prisma.fraudBlock.findFirst({ where: { tenantId, OR: or }, select: { reason: true } })
-    return hit ? hit.reason || 'bloqueado' : null
+    const hit = await this.prisma.fraudBlock.findFirst({ where: { tenantId, OR: or }, select: { reason: true, kind: true, value: true } })
+    return hit ? { reason: hit.reason || 'bloqueado', kind: hit.kind, value: hit.value } : null
   }
 
   /**

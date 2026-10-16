@@ -1306,3 +1306,54 @@ depois do `--build`. BuildKit reaproveitou camada em cache de forma errada
 busca) que não têm nada a ver com o que você mudou. Se `prisma migrate
 status` no container mostrar menos migrations do que a pasta local tem,
 rode `docker compose build --no-cache <serviço>` antes de `up -d`.
+
+## Antifraude: registra o que foi tentado, não só que alguém tentou (16/10/2026)
+
+Pedido do Jonathan: identificar quem está tentando burlar o bloqueio, não só
+saber que alguém tentou. Até aqui, `fraud_logs` de uma tentativa bloqueada
+(`FraudService.logEvent`, chamado por `auth.service.ts#assertIdentityAllowed`
+no cadastro/login e por `orders.service.ts` no pedido) gravava um rótulo
+genérico (`'cadastro/login'`/`'pedido'`) e `customerId: null` quando a
+identidade ainda não tinha conta — ou seja, dava pra saber *que* alguém
+bateu num bloqueio, nunca *qual* CPF/WhatsApp/aparelho usou nem o que
+submeteu de novo.
+
+- `FraudService.blockedReason()` agora devolve qual identificador bateu
+  (`{ reason, kind, value }`, era só a string do motivo) — `fraud_blocks`
+  já guardava isso, só não saía do método.
+- `FraudService.logEvent()` ganhou `details?: Json` — grava o identificador
+  que bateu, o que a pessoa submeteu (cpf/whatsapp/email tentados) e o
+  aparelho/IP da tentativa.
+- `FraudAdminService.overview()` traduz isso numa linha legível por evento
+  (`describeAttempt`, em `fraud-admin.service.ts`), mascarando CPF/WhatsApp
+  (mesmo padrão `mask()` já usado nos clusters de conta ligada) — e-mail,
+  aparelho e IP ficam em claro, são operacionais, não pessoais por si.
+  Ex.: "aparelho bloqueado: dev-x · tentou com CPF 153••••••56, WhatsApp
+  2499•••••02, e-mail novo@x.com · IP 203.0.113.55".
+- Testado de ponta a ponta localmente: cliente bloqueado com sinal de
+  aparelho gravado, tentativa de cadastro nova (CPF/WhatsApp/e-mail
+  inéditos) pelo mesmo aparelho → 403 e a ocorrência aparece com os dados
+  acima na tela Antifraude.
+
+## Período por calendário: Visão Geral e Antifraude (16/10/2026)
+
+As duas telas só tinham presets fixos (Hoje/7/30 dias na Visão Geral;
+30 dias fixo, sem nem seletor, na Antifraude) — sem jeito de olhar mais que
+30 dias. Adicionado "Personalizado" com dois `<input type="date">` nas duas.
+
+- `dashboard-overview.service.ts`: `customRange(from, to, now)` ao lado do
+  `periodRange()` já existente, mesma régua (fuso de Brasília via
+  `startOfDayBrt`, `to` só vai até agora se o dia final for hoje, anterior é
+  a mesma quantidade de dias imediatamente antes). O bucket da série
+  (hora vs. dia) deixou de depender do enum `period` — agora é derivado do
+  próprio `range` (`from`/`to` caem no mesmo dia → hora; senão → dia, com
+  a quantidade real de dias, não só 7 ou 30 fixos). Isso também simplificou
+  `results()`, que não recebe mais `period`.
+- `GET /admin/overview` aceita `period=custom&from=AAAA-MM-DD&to=AAAA-MM-DD`
+  além dos presets; `GET /admin/fraud` aceita `from`/`to` além de `days`.
+- `common/date-range.ts` (`validateDateRangeParams`): valida formato, ordem
+  e teto de 366 dias — as consultas de relatório (`orders.findMany` etc.)
+  não paginam, um período de anos puxaria a base inteira pra memória.
+- `AdminOverview.results.bucket` (`'hour'|'day'`) substitui os lugares que
+  checavam `period === 'day'` no frontend — continua certo pro período
+  personalizado de um dia só.

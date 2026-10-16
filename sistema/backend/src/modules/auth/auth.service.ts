@@ -58,11 +58,20 @@ export class AuthService {
    * Antifraude no cadastro/login (01/10/2026): identificador bloqueado (CPF,
    * WhatsApp, e-mail, aparelho) nao entra nem com conta nova. Mensagem
    * generica de proposito: nao conta a quem tenta qual dado esta bloqueado.
+   *
+   * O log guarda qual identificador bateu no bloqueio, o que foi submetido e
+   * o aparelho/IP da tentativa (16/10/2026) -- antes so registrava que
+   * "alguem tentou", sem jeito de saber quem.
    */
   private async assertIdentityAllowed(ids: { cpf?: string | null; whatsapp?: string | null; email?: string | null }, ctx?: DeviceContext, customerId?: string) {
-    const reason = await this.fraud?.blockedReason(DEFAULT_TENANT_ID, ids, ctx)
-    if (!reason) return
-    await this.prisma.fraudLog.create({ data: { tenantId: DEFAULT_TENANT_ID, vector: 'BLOCKED', value: 'cadastro/login', customerId: customerId || null } }).catch(() => null)
+    const match = await this.fraud?.blockedReason(DEFAULT_TENANT_ID, ids, ctx)
+    if (!match) return
+    await this.fraud?.logEvent(DEFAULT_TENANT_ID, 'BLOCKED', 'cadastro/login', customerId || null, null, {
+      matchedKind: match.kind,
+      matchedValue: match.value,
+      attempted: { cpf: ids.cpf || null, whatsapp: ids.whatsapp || null, email: ids.email || null },
+      device: ctx ? { deviceId: ctx.deviceId, ip: ctx.ip, country: ctx.country } : null,
+    })
     throw new ForbiddenException({ statusCode: 403, message: 'Não foi possível continuar. Fale com a loja pelo WhatsApp.', error: 'Conta suspensa' })
   }
 
