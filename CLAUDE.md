@@ -1196,3 +1196,47 @@ Na página da receita a lista "Ingredientes na loja" já chega marcada, com o to
 - Qualquer outra observação, ou nenhuma → ingrediente, marcado.
 
 Passo do preparo que começa com "Dica:" ou "Harmonização:" sai da numeração e vira quadro. Produto por peso entra no carrinho com uma porção, ou seja, o passo do cadastro: o filé mignon de peça inteira entra com 2,35 kg.
+
+## App nativo (Android/iOS) via Capacitor (iniciado em 16/10/2026)
+
+Decisão do Jonathan: colocar a loja (storefront) nas duas lojas de app, sem
+reescrever o frontend. `sistema/frontend` já era PWA (manifest + service
+worker de push) — virou a base pro empacotamento nativo com **Capacitor**
+(Ionic), não um app React Native separado.
+
+- **`capacitor.config.ts`**: `appId` = `br.com.antenorefilhos.mercado`
+  (bundle ID — não muda depois de publicado nas lojas). `server.url` aponta
+  pra `https://mercado.antenorefilhos.com.br` em vez de empacotar o `dist/`
+  local — **decisão deliberada**: o frontend builda e deploya várias vezes
+  por semana (ver `git log`), e empacotar local exigiria reenviar o app pra
+  Play Store/App Store a cada mudança de UI. Com `server.url`, o app nativo
+  só muda quando algo do PRÓPRIO empacotamento muda (ícone, splash, plugin
+  nativo, permissão) — o resto do deploy continua idêntico ao que já existia.
+- **`sistema/frontend/assets/`**: fontes do ícone/splash (`icon.png`,
+  `icon-foreground.png`, `icon-background.png`, `splash.png`), gerados a
+  partir de `public/branding/pwa-icon-512*.png` (não tinha fonte em 1024px+;
+  se algum dia tiver uma versão maior do logo, regenerar daqui rende ícone
+  mais nítido). `npx capacitor-assets generate --android` lê esses 4
+  arquivos e gera os ~120 tamanhos/variações em `android/app/src/main/res/`
+  — não editar esses arquivos gerados direto, regenerar a partir da fonte.
+- **`sistema/frontend/android/`**: projeto Android gerado pelo Capacitor
+  (`npx cap add android`), com `.gitignore` próprio (não versiona
+  `build/`, `local.properties`, nem a cópia do `dist/` web). Abre direto no
+  Android Studio pra buildar/rodar/assinar.
+- **iOS**: ainda não iniciado — **não dá pra gerar/compilar o projeto iOS
+  nesta máquina (Windows), exige Xcode/CocoaPods, só existe em macOS.**
+  Decisão do Jonathan: usar serviço de build em nuvem (Codemagic ou EAS
+  Build) em vez de Mac físico — evita depender de hardware Apple. Falta
+  configurar esse serviço e então rodar `npx cap add ios` (precisa rodar
+  num ambiente com CocoaPods, não localmente).
+- **Em aberto, não resolvido ainda**: push notification hoje é só Web Push
+  (service worker + `PushManager`, ver seção "Push" acima) — dentro do
+  WebView nativo isso é inconsistente, principalmente no iOS (WKWebView
+  historicamente não suporta bem a Push API). Pra push confiável no app
+  nativo, provavelmente precisa migrar pro plugin
+  `@capacitor/push-notifications` (FCM no Android, APNs no iOS), que é um
+  canal de envio separado do Web Push atual — os dois teriam que conviver
+  enquanto existir cliente via navegador E via app.
+- Contas ainda não criadas: Google Play Developer (US$ 25, pagamento único)
+  e Apple Developer Program (US$ 99/ano) — necessárias pra publicar de
+  verdade, não só testar localmente.

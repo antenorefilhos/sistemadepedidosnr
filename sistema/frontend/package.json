@@ -16,6 +16,9 @@
     "test:unit:cov": "vitest run --coverage"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
     "@tanstack/react-query": "^4.29.12",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
@@ -33,6 +36,7 @@
     "web-vitals": "^5.2.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.2.15",
