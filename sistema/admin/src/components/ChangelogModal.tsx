@@ -14,6 +14,17 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.21.7',
+    date: '11/10/2026',
+    title: 'Banners Mais Caprichados',
+    highlights: [
+      { type: 'fix', description: 'No banner principal da Home (o carrossel do topo), selo, título e sombra agora ficam alinhados e proporcionais certinho nos quatro cantos — antes o selo ficava um pouco deslocado e a sombra cortava de forma esquisita.' },
+      { type: 'fix', description: 'Quando você alinha o conteúdo de um banner à direita, o selo (tipo "Pra hoje") agora acompanha pro mesmo lado — antes ficava sempre preso à esquerda, mesmo escolhendo direita.' },
+      { type: 'fix', description: 'Banners com título mais comprido, nos intercalados e no topo das páginas de categoria, não cortam mais o texto de forma feia no meio da linha.' },
+      { type: 'fix', description: 'Na tela de Banners, clicar em "Salvar" não fecha mais a janela de edição — dá pra continuar ajustando e conferir o resultado sem precisar reabrir.' },
+    ],
+  },
+  {
     version: '1.21.6',
     date: '08/10/2026',
     title: 'Garrafas com Zoom na Página da Adega',

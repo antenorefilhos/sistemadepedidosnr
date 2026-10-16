@@ -21,6 +21,19 @@ que fecha desce para o histórico com a data e o commit.
 
 ## Em aberto
 
+- [ ] **App nativo (Android/iOS) do storefront via Capacitor.** (iniciado
+      16/10/2026) Decisão do Jonathan: colocar a loja nas lojas de app sem
+      reescrever o frontend. Capacitor envolve o storefront React (já era
+      PWA) num shell nativo, carregando sempre a versão ao vivo do site —
+      deploy de frontend continua sem passo a mais. Detalhe completo em
+      [CLAUDE.md](../CLAUDE.md), seção "App nativo (Android/iOS) via
+      Capacitor". Feito: projeto Android gerado, ícone/splash a partir da
+      arte já existente. Falta: testar o build no Android Studio do
+      Jonathan, configurar build em nuvem pro iOS (exige CocoaPods/Xcode,
+      não roda no Windows), migrar push pra plugin nativo (hoje é só Web
+      Push, pouco confiável dentro do WebView), contas de desenvolvedor
+      (Google Play e Apple Developer).
+
 - [x] **Migração de VPS (Hostinger KVM 2) — marco zero do lançamento
       oficial "Antenor & Filhos — NOVA REAL".** (10/10/2026)
       Corte feito às 5h30 (loja fechada, abre 7h), com a loja fechada —
