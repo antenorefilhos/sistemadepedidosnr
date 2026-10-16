@@ -8,7 +8,7 @@ const build = () => {
     pushSubscription: { groupBy: jest.fn().mockResolvedValue([]) },
   }
   const integrations = { syncCrmContact: jest.fn() }
-  const service = new CustomersService(prisma as never, integrations as never)
+  const service = new CustomersService(prisma as never, integrations as never, {} as never)
   return { service, prisma }
 }
 

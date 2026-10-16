@@ -189,9 +189,11 @@ export default function PrivacyPolicy() {
 
         <h2 id="exclusao" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">10. Exclusão de conta</h2>
         <p>
-          O usuário poderá solicitar a exclusão de sua conta por meio dos canais oficiais de atendimento. A
-          exclusão poderá não abranger informações cuja manutenção seja exigida por obrigação legal,
-          regulatória ou para exercício regular de direitos.
+          O usuário pode excluir a própria conta na opção "Excluir minha conta", em Minha conta &gt; Meus
+          dados, ou solicitar pelos canais oficiais de atendimento. Nome, CPF, WhatsApp e e-mail deixam de
+          ficar associados ao cadastro; endereços, listas de compras e dados de fidelidade são apagados. O
+          histórico de pedidos é mantido, pois constitui documento fiscal com guarda exigida por obrigação
+          legal.
         </p>
 
         <h2 id="cookies" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">11. Cookies e tecnologias semelhantes</h2>

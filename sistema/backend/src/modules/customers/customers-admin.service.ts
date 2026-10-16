@@ -83,6 +83,7 @@ export class CustomersAdminService {
         password: true,
         blocked: true,
         blockedReason: true,
+        deletedAt: true,
         origin: true,
         createdAt: true,
         addresses: { orderBy: { isDefault: 'desc' } },

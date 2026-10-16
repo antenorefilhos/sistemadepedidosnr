@@ -182,10 +182,22 @@ export class DataPrivacyService {
           tokenVersion: { increment: 1 },
           blocked: true,
           blockedReason: 'LGPD_ANONYMIZED',
+          // 16/10/2026: marca encerramento a pedido do titular, separado de
+          // bloqueio por fraude -- JwtStrategy e a tela de clientes usam isso
+          // pra mostrar "conta excluída" em vez de "conta suspensa".
+          deletedAt: new Date(),
         },
         select: CUSTOMER_SAFE_SELECT,
       })
       await tx.pushSubscription.deleteMany({ where: { customerId } })
+      // 16/10/2026: sem motivo pra reter depois que a conta encerra -- nenhum
+      // dos quatro tem obrigacao legal ou interesse de antifraude associado
+      // (diferente de Order, que fica, e de identity_signals/fraud_blocks,
+      // que o anonymizeCustomer nem toca).
+      await tx.shoppingList.deleteMany({ where: { tenantId, customerId } })
+      await tx.campaignDelivery.deleteMany({ where: { tenantId, customerId } })
+      await tx.customerSegmentMember.deleteMany({ where: { tenantId, customerId } })
+      await tx.loyaltyAccount.deleteMany({ where: { tenantId, customerId } })
       await tx.address.updateMany({
         where: { tenantId, customerId },
         data: {

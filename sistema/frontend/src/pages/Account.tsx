@@ -801,7 +801,67 @@ function ProfileTab({ profile, onChanged, onLogout }: { profile: Customer; onCha
       <button type="button" onClick={onLogout} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-red-600 hover:bg-red-50">
         <LogOut size={17} /> Sair da conta
       </button>
+
+      <DeleteAccountButton customerId={profile.id} onLogout={onLogout} />
     </div>
+  )
+}
+
+/** Exclusão de conta a pedido do titular (LGPD, 16/10/2026). Anonimiza nome,
+ * CPF, WhatsApp e e-mail; o histórico de pedidos continua (nota fiscal). */
+function DeleteAccountButton({ customerId, onLogout }: { customerId: string; onLogout: () => void }) {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [understood, setUnderstood] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const confirm = async () => {
+    setDeleting(true)
+    setError(null)
+    try {
+      await customersAPI.remove(customerId)
+      toast.success('Sua conta foi excluída.')
+      onLogout()
+      navigate('/')
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Não foi possível excluir sua conta agora.'))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="mx-auto block text-xs font-medium text-gray-400 underline-offset-2 hover:text-red-600 hover:underline">
+        Excluir minha conta
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/45 sm:items-center sm:p-4" onClick={() => !deleting && setOpen(false)} role="dialog" aria-modal="true" aria-label="Excluir conta">
+          <div className="w-full rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-bold text-[#231F20]">Excluir sua conta</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Seu nome, CPF, WhatsApp e e-mail deixam de ficar associados à conta. Endereços, listas de compras e fidelidade são apagados.
+            </p>
+            <p className="mt-2 text-sm text-gray-600">
+              Seus pedidos continuam no histórico da loja — é a nota fiscal deles, e a lei exige guardar isso. Você não consegue mais entrar com esta conta depois.
+            </p>
+            {error && <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
+            <label className="mt-4 flex items-start gap-2.5 text-sm text-[#231F20]">
+              <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#5D082A]" />
+              Entendi que isso não tem volta.
+            </label>
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={() => setOpen(false)} disabled={deleting} className={buttonVariants({ variant: 'outline', className: 'h-12 flex-1 rounded-xl' })}>Cancelar</button>
+              <button type="button" onClick={confirm} disabled={!understood || deleting} className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 text-sm font-semibold text-white disabled:opacity-40">
+                {deleting && <Loader2 size={16} className="animate-spin" />} Excluir minha conta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

@@ -14,6 +14,15 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.22.0',
+    date: '16/10/2026',
+    title: 'Cliente Pode Excluir a Própria Conta',
+    highlights: [
+      { type: 'feat', description: 'Direito que a política de privacidade já prometia, agora de verdade: em Minha conta > Meus dados, o cliente encontra "Excluir minha conta". Nome, CPF, WhatsApp e e-mail saem do cadastro; endereços, listas de compra e fidelidade são apagados. O histórico de pedidos continua — é a nota fiscal dele, e a lei exige guardar.' },
+      { type: 'feat', description: 'No painel do cliente (tela Clientes), novo botão "Excluir conta (LGPD)" para quem preferir pedir pela loja em vez de fazer pelo site.' },
+    ],
+  },
+  {
     version: '1.21.7',
     date: '11/10/2026',
     title: 'Banners Mais Caprichados',

@@ -10,7 +10,7 @@ const build = (grouped: Array<{ customerId: string; _count: { _all: number } }>)
     customer: { findMany: jest.fn() },
     pushSubscription: { groupBy: jest.fn().mockResolvedValue(grouped) },
   }
-  const service = new CustomersService(prisma as never, {} as never)
+  const service = new CustomersService(prisma as never, {} as never, {} as never)
   return { service, prisma }
 }
 

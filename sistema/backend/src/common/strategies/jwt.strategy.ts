@@ -53,9 +53,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.role === 'customer') {
       const customer = await this.prisma.customer.findUnique({
         where: { id: payload.id },
-        select: { id: true, blocked: true, tokenVersion: true, tenantId: true },
+        select: { id: true, blocked: true, deletedAt: true, tokenVersion: true, tenantId: true },
       })
       if (!customer) throw new UnauthorizedException('Conta nao encontrada.')
+      if (customer.deletedAt) throw new UnauthorizedException('Conta excluida.')
       if (customer.blocked) throw new UnauthorizedException('Conta suspensa.')
       // JON-138: token emitido antes de uma troca/reset de senha tem
       // tokenVersion desatualizado -- rejeita mesmo com assinatura valida.

@@ -1091,6 +1091,8 @@ export const customersAPI = {
     api.patch<{ id: string; name: string; blocked: boolean; blockedReason: string | null }>(`/customers/${id}/block`, { blocked, reason }),
   generateResetLink: (id: string) =>
     api.post<{ resetUrl: string; expiresAt: string }>(`/customers/${id}/reset-link`),
+  // Exclusao de conta a pedido do titular (LGPD, 16/10/2026): anonimiza, nao apaga o pedido.
+  remove: (id: string) => api.delete<{ id: string; deletedAt: string }>(`/customers/${id}`),
   // Phase 17
   getOriginAnalytics: () => api.get<CustomerOriginItem[]>('/customers/analytics/origin'),
 }
@@ -1125,6 +1127,7 @@ export interface CustomerDetail {
   hasPassword: boolean
   blocked: boolean
   blockedReason: string | null
+  deletedAt: string | null
   origin: string | null
   createdAt: string
   pushDevices: number

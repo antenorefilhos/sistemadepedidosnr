@@ -165,22 +165,22 @@ export class CustomersController {
     return this.customersService.generateResetLink(id, getTenantContext(req))
   }
 
-  @Roles('admin')
   @Delete(':id')
   @ApiOperation({
-    summary: 'Deletar cliente',
-    description: 'Remove um cliente do sistema.',
+    summary: 'Excluir conta (LGPD)',
+    description: 'Anonimiza os dados pessoais do cliente e encerra a conta. Pedidos não são afetados (guarda fiscal obrigatória). O próprio cliente pode excluir a própria conta; admin pode excluir a de qualquer cliente do tenant.',
   })
   @ApiParam({ name: 'id', type: String, description: 'ID do cliente' })
-  @ApiResponse({
-    status: 200,
-    description: 'Cliente deletado com sucesso',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Cliente não encontrado',
-  })
+  @ApiResponse({ status: 200, description: 'Conta excluída (ou já estava)' })
+  @ApiResponse({ status: 400, description: 'Cliente tem pedido em andamento' })
+  @ApiResponse({ status: 404, description: 'Cliente não encontrado' })
   async remove(@Param('id') id: string, @Req() req: TenantContextRequest) {
-    return this.customersService.remove(id, getTenantContext(req))
+    const role = String(req.user?.role || '').toLowerCase()
+    const requesterId = String(req.user?.id || '')
+    if (role !== 'admin' && requesterId !== id) {
+      throw new ForbiddenException('Acesso negado para este cliente')
+    }
+    const requestedBy = role === 'admin' ? `admin:${requesterId}` : 'customer'
+    return this.customersService.remove(id, getTenantContext(req), requestedBy)
   }
 }

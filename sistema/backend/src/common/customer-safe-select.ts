@@ -15,6 +15,7 @@ export const CUSTOMER_SAFE_SELECT = {
   origin: true,
   blocked: true,
   blockedReason: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
 } as const

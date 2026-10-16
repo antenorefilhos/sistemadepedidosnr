@@ -318,6 +318,8 @@ export const customersAPI = {
   update: (id: string, data: Partial<CreateCustomerPayload>) => api.put(`/customers/${id}`, data),
   getFidelidade: (id: string) =>
     api.get<{ clubeFidelidade: boolean; nome?: string; categoria?: { descricao?: string } }>(`/customers/${id}/fidelidade`),
+  // Exclusao de conta a pedido do titular (LGPD, 16/10/2026): anonimiza, nao apaga pedido/nota fiscal.
+  remove: (id: string) => api.delete<{ id: string; deletedAt: string }>(`/customers/${id}`),
 }
 
 // Orders

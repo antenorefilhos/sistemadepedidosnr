@@ -1250,3 +1250,59 @@ worker de push) — virou a base pro empacotamento nativo com **Capacitor**
 - Contas ainda não criadas: Google Play Developer (US$ 25, pagamento único)
   e Apple Developer Program (US$ 99/ano) — necessárias pra publicar de
   verdade, não só testar localmente.
+
+## Exclusão de conta (LGPD): anonimização, não DELETE (16/10/2026)
+
+A política de privacidade já prometia o direito desde antes, mas não existia
+jeito de exercer: só dava pra "Ocultar" nada (não havia essa opção pra
+cliente) ou editar campo a campo no admin. Implementado nos dois lados —
+`DELETE /customers/:id` (`customers.controller.ts`/`customers.service.ts`),
+o próprio cliente só pode excluir a si mesmo (`requesterId === id`), admin
+exclui qualquer um do tenant.
+
+**Não é um DELETE de verdade.** `Order.customer` é `Restrict` de propósito
+(nota fiscal tem guarda obrigatória por lei) — apagar a linha do `Customer`
+quebraria com erro de FK em qualquer cliente que já comprou, e mesmo sem a
+FK seria errado: o pedido não é só nosso dado para apagar.
+
+O que o `remove()` faz de fato:
+- **Anonimiza** `name`/`cpf`/`whatsapp`/`email` (valor opaco único, decisão
+  do Jonathan de anonimizar também o CPF — libera recadastro futuro com o
+  mesmo CPF; a nota fiscal já emitida não depende desse campo), zera senha,
+  marca `blocked=true` com `blockedReason` próprio e `deletedAt=now()`,
+  incrementa `tokenVersion` (derruba sessão ativa na hora, mesmo mecanismo
+  do JON-138).
+- **Remove de verdade** o que é dado pessoal sem motivo de reter depois que
+  a conta encerra: `Address`, `CustomerProfile`, `ShoppingList`,
+  `CampaignDelivery`, `CustomerSegmentMember`, `LoyaltyAccount`,
+  `PushSubscription`.
+- **Não toca** em `identity_signals`/`fraud_blocks` (antifraude) — interesse
+  legítimo de segurança contra reuso de dispositivo pra ganhar benefício de
+  novo, já documentado na política de privacidade, e nenhum dos dois exige
+  o cadastro continuar identificável.
+- **Recusa com 400** se o cliente tem pedido em andamento (mesmos status de
+  `ACTIVE_ORDER_STATUSES` do storefront, `hooks/useOrders.ts`) — excluir no
+  meio do fluxo cortaria o jeito de falar com ele sobre uma entrega rolando.
+- Registra em `DataSubjectRequest` (model do schema inicial, nunca usado até
+  aqui) o que foi feito, pra auditoria do pedido do titular.
+- Idempotente: cliente já excluído (`deletedAt` setado) devolve sem rodar de
+  novo.
+
+`JwtStrategy.validate()` e os pontos de login (`auth.service.ts`) já
+checavam `blocked` — reaproveitado, sem precisar duplicar a checagem: o
+`blockedReason` customizado já aparece pro cliente que tentar entrar de novo.
+
+No storefront, o botão fica em Minha conta > Meus dados (`Account.tsx`,
+`DeleteAccountButton`), com checkbox de confirmação antes de habilitar.
+No admin, no painel do cliente (`CustomersSection.tsx`), com `window.confirm`
++ digitar "EXCLUIR".
+
+**Armadilha achada no deploy local (stack parada 4 semanas):** `docker
+compose up -d --build` sozinho não garante imagem atualizada -- o container
+`antenor_api` subiu com 78 migrations quando o código já tinha 111, mesmo
+depois do `--build`. BuildKit reaproveitou camada em cache de forma errada
+(não é `.dockerignore`, `prisma/` não está lá). Sintoma: erros em cascata de
+"coluna/tabela não existe" em módulos recentes (cart-reminder, encarte,
+busca) que não têm nada a ver com o que você mudou. Se `prisma migrate
+status` no container mostrar menos migrations do que a pasta local tem,
+rode `docker compose build --no-cache <serviço>` antes de `up -d`.

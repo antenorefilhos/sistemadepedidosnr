@@ -27,8 +27,9 @@ const build = () => {
     pushSubscription: { groupBy: jest.fn().mockResolvedValue([]) },
   }
   const integrations = { syncCrmContact: jest.fn().mockResolvedValue(undefined) }
-  const service = new CustomersService(prisma as never, integrations as never)
-  return { service, prisma }
+  const dataPrivacy = { anonymizeCustomer: jest.fn() }
+  const service = new CustomersService(prisma as never, integrations as never, dataPrivacy as never)
+  return { service, prisma, dataPrivacy }
 }
 
 describe('CustomersService — isolamento por tenant (JON-142)', () => {
@@ -51,7 +52,7 @@ describe('CustomersService — isolamento por tenant (JON-142)', () => {
 
   it('remove com id de outro tenant recusa', async () => {
     const { service } = build()
-    await expect(service.remove('c-b', { tenantId: 'tenant_a' })).rejects.toBeInstanceOf(NotFoundException)
+    await expect(service.remove('c-b', { tenantId: 'tenant_a' }, 'admin:x')).rejects.toBeInstanceOf(NotFoundException)
   })
 
   it('setBlocked com id de outro tenant recusa', async () => {

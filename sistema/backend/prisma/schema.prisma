@@ -161,6 +161,10 @@ model Customer {
   shoppingLists ShoppingList[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // Exclusao de conta a pedido do titular (LGPD, 16/10/2026): quando setado, os
+  // dados de contato (nome/cpf/whatsapp/email) ja foram anonimizados. Pedidos
+  // ficam intactos (obrigacao fiscal) -- ver customers.service.ts#remove.
+  deletedAt DateTime?
 
   @@index([tenantId])
   @@map("customers")

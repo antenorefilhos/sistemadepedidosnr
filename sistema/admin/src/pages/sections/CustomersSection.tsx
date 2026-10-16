@@ -334,6 +334,16 @@ function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () =
       await run('block', () => customersAPI.setBlocked(id, false))
     }
   }
+  // Excluir conta a pedido do titular (LGPD, 16/10/2026): anonimiza nome, CPF,
+  // whatsapp e e-mail e encerra a conta -- o pedido em si não é apagado (nota
+  // fiscal tem guarda obrigatória). Irreversível, por isso confirmação dupla.
+  const removeAccount = async () => {
+    if (!c) return
+    if (!window.confirm(`Excluir a conta de ${c.name}? Nome, CPF, WhatsApp e e-mail somem do cadastro, endereços e listas são removidos. O histórico de pedidos continua (nota fiscal). Não tem como desfazer.`)) return
+    if (window.prompt('Digite EXCLUIR para confirmar:') !== 'EXCLUIR') return
+    const ok = await run('remove', () => customersAPI.remove(id))
+    if (ok) onClose()
+  }
   const makeReset = async () => {
     setBusy('reset')
     try {
@@ -598,6 +608,11 @@ function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () =
                   </div>
                 </dl>
 
+                {c.deletedAt ? (
+                  <p className="mt-3 rounded-xl border border-black/[0.08] bg-gray-50 p-3 text-xs text-gray-500">
+                    Conta excluída a pedido do titular em {new Date(c.deletedAt).toLocaleDateString('pt-BR')}. Nome, CPF, WhatsApp e e-mail foram anonimizados; o histórico de pedidos continua intacto.
+                  </p>
+                ) : (
                 <div className="mt-3 space-y-2">
                   {reset ? (
                     <div className="rounded-xl border border-black/[0.08] p-3">
@@ -639,7 +654,17 @@ function CustomerProfile({ id, onClose, onChanged }: { id: string; onClose: () =
                     {c.blocked ? 'Desbloquear' : 'Bloquear cliente'}
                   </button>
                   {c.blocked && c.blockedReason && <p className="text-xs text-gray-500">Motivo do bloqueio: {c.blockedReason}</p>}
+                  <button
+                    type="button"
+                    onClick={removeAccount}
+                    disabled={busy === 'remove'}
+                    className="w-full rounded-xl px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40"
+                  >
+                    <span className="inline-flex items-center gap-1.5"><Trash2 size={14} /> Excluir conta (LGPD)</span>
+                  </button>
+                  <p className="text-center text-[11px] text-gray-400">Apaga endereços, listas e fidelidade; anonimiza nome, CPF, WhatsApp e e-mail. O histórico de pedidos é mantido (nota fiscal).</p>
                 </div>
+                )}
               </section>
             </div>
           </div>

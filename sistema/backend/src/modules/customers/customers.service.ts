@@ -1,9 +1,10 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common'
+import { Injectable, Logger, NotFoundException, BadRequestException, Optional } from '@nestjs/common'
 import { createHash, randomBytes } from 'crypto'
 import { FraudService } from '../fraud/fraud.service'
 import { PrismaService } from '../../common/prisma.service'
 import { CreateCustomerDto } from './dto/create-customer.dto'
 import { IntegrationsService } from '../integrations/integrations.service'
+import { DataPrivacyService } from '../data-privacy/data-privacy.service'
 import { TenantContext } from '../../common/tenant/tenant-context'
 
 // JON-142 (Auditoria 360, High): nenhum metodo aqui filtrava por tenant --
@@ -35,6 +36,7 @@ export class CustomersService {
   constructor(
     private prisma: PrismaService,
     private integrations: IntegrationsService,
+    private dataPrivacy: DataPrivacyService,
     @Optional() private fraud?: FraudService,
   ) {}
 
@@ -162,10 +164,32 @@ export class CustomersService {
     return this.prisma.customer.findFirst({ where: { id, tenantId: scope.tenantId }, include: { addresses: true } })
   }
 
-  async remove(id: string, scope: TenantScope) {
-    const result = await this.prisma.customer.deleteMany({ where: { id, tenantId: scope.tenantId } })
-    if (result.count === 0) throw new NotFoundException('Cliente nao encontrado')
-    return { id }
+  /**
+   * Exclusao de conta a pedido do titular (LGPD, 16/10/2026). Delega pro
+   * `DataPrivacyService.anonymizeCustomer` -- ja existia pronto (modulo
+   * `data-privacy`, com AuditLogService e as correcoes JON-119/120/121/122),
+   * so nunca tinha um botao no admin ou no storefront chamando ele. Nao e um
+   * DELETE de verdade: `Order.customer` nao tem cascade de proposito (pedido/
+   * nota fiscal tem guarda obrigatoria por lei).
+   *
+   * So troca a mensagem tecnica de pedido ativo ("force=true ou encerramento
+   * operacional") por uma que faz sentido pro cliente ler, e e idempotente:
+   * conta ja excluida devolve sem rodar a anonimizacao de novo.
+   */
+  async remove(id: string, scope: TenantScope, requestedBy: string) {
+    const existing = await this.prisma.customer.findFirst({ where: { id, tenantId: scope.tenantId }, select: { id: true, deletedAt: true } })
+    if (!existing) throw new NotFoundException('Cliente nao encontrado')
+    if (existing.deletedAt) return { id: existing.id, deletedAt: existing.deletedAt }
+
+    try {
+      const { customer } = await this.dataPrivacy.anonymizeCustomer(id, {}, { tenantId: scope.tenantId, actorId: requestedBy })
+      return { id: customer.id, deletedAt: customer.deletedAt }
+    } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw new BadRequestException('Este cliente tem pedido em andamento. Aguarde terminar (entregue, concluído ou cancelado) antes de excluir a conta.')
+      }
+      throw err
+    }
   }
 
   /** Bloquear tambem bloqueia CPF, WhatsApp, e-mail e aparelhos (FraudService, 01/10/2026). */

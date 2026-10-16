@@ -29,6 +29,18 @@ const mockPrisma: any = {
   customerProfile: {
     updateMany: jest.fn(),
   },
+  shoppingList: {
+    deleteMany: jest.fn(),
+  },
+  campaignDelivery: {
+    deleteMany: jest.fn(),
+  },
+  customerSegmentMember: {
+    deleteMany: jest.fn(),
+  },
+  loyaltyAccount: {
+    deleteMany: jest.fn(),
+  },
   $transaction: jest.fn(),
 }
 
@@ -132,6 +144,10 @@ describe('DataPrivacyService', () => {
       address: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       customerProfile: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       customerConsent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      shoppingList: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      campaignDelivery: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      customerSegmentMember: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      loyaltyAccount: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
       dataSubjectRequest: { create: jest.fn().mockResolvedValue({ id: 'dsr-3', status: 'COMPLETED' }) },
     }))
 
@@ -145,12 +161,18 @@ describe('DataPrivacyService', () => {
     const customerUpdate = jest.fn().mockResolvedValue({ id: 'customer-1', name: 'Cliente anonimizado tomer-1' })
     const pushDeleteMany = jest.fn().mockResolvedValue({ count: 2 })
     const addressUpdateMany = jest.fn().mockResolvedValue({ count: 1 })
+    const shoppingListDeleteMany = jest.fn().mockResolvedValue({ count: 1 })
+    const loyaltyAccountDeleteMany = jest.fn().mockResolvedValue({ count: 1 })
     mockPrisma.$transaction.mockImplementation(async (callback: any) => callback({
       customer: { update: customerUpdate },
       pushSubscription: { deleteMany: pushDeleteMany },
       address: { updateMany: addressUpdateMany },
       customerProfile: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       customerConsent: { updateMany: jest.fn().mockResolvedValue({ count: 3 }) },
+      shoppingList: { deleteMany: shoppingListDeleteMany },
+      campaignDelivery: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      customerSegmentMember: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      loyaltyAccount: { deleteMany: loyaltyAccountDeleteMany },
       dataSubjectRequest: { create: jest.fn().mockResolvedValue({ id: 'dsr-2', status: 'COMPLETED' }) },
     }))
 
@@ -175,9 +197,15 @@ describe('DataPrivacyService', () => {
         resetTokenExpiresAt: null,
         tokenVersion: { increment: 1 },
         blocked: true,
+        deletedAt: expect.any(Date),
       }),
     }))
     expect(pushDeleteMany).toHaveBeenCalledWith({ where: { customerId: 'customer-1' } })
+
+    // 16/10/2026: lista de compras e fidelidade nao tem base legal pra
+    // reter depois que a conta encerra -- saem de verdade, nao so anonimizam.
+    expect(shoppingListDeleteMany).toHaveBeenCalledWith({ where: { tenantId: 'tenant_default', customerId: 'customer-1' } })
+    expect(loyaltyAccountDeleteMany).toHaveBeenCalledWith({ where: { tenantId: 'tenant_default', customerId: 'customer-1' } })
 
     // JON-120: locality/deliveryPointCode nao eram zerados -- referencia a
     // condominio/localidade especifica sobrevivia ao endereco "anonimizado".
