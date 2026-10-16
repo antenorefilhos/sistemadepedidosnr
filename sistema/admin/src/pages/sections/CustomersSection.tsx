@@ -227,7 +227,7 @@ export default function CustomersSection() {
                     <span className="md:hidden"> · último pedido {ago(c.lastOrderAt)}</span>
                   </span>
                   <span className="hidden text-sm text-gray-600 md:block">{ago(c.lastOrderAt)}</span>
-                  <span className="hidden justify-center md:flex">{c.pushDevices > 0 ? <Bell size={15} className="text-gray-700" aria-label="Recebe avisos" /> : <span className="text-gray-300">—</span>}</span>
+                  <span className="hidden justify-center md:flex">{c.pushDevices > 0 ? <Bell size={15} className="text-gray-700" aria-label="Recebe avisos" /> : <span className="text-sm text-gray-300">—</span>}</span>
                 </button>
               </li>
             ))}

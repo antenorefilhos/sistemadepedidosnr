@@ -732,9 +732,9 @@ function ProductPanel({
                     value={form.visibilityUntil}
                     min={addDaysISO(1)}
                     onChange={(e) => set({ visibilityUntil: e.target.value })}
-                    className="mt-1.5 h-9 w-full rounded-lg border border-black/[0.08] bg-white px-2.5 text-sm text-gray-900"
+                    className="mt-1.5 h-10 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-gray-900"
                   />
-                  <p className="mt-1 text-gray-400">
+                  <p className="mt-1 text-xs text-gray-400">
                     {form.visibilityUntil
                       ? `Volta a seguir a API sozinho em ${new Date(`${form.visibilityUntil}T00:00:00-03:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}.`
                       : 'Sem prazo, fica oculto até você mudar aqui de novo.'}
