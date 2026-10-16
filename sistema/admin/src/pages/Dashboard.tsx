@@ -8,6 +8,7 @@ import { ChangelogModal } from '@/components/ChangelogModal'
 export type Section =
   | 'dashboard'
   | 'products'
+  | 'productTurnover'
   | 'orders'
   | 'picking'
   | 'staff'
@@ -46,6 +47,7 @@ const StoreBannersManager = lazy(() => import('./StoreBannersManager'))
 const BrandIdentity = lazy(() => import('./BrandIdentity'))
 const DashboardSection = lazy(() => import('./sections/DashboardSection').then((module) => ({ default: module.DashboardSection })))
 const ProductsSection = lazy(() => import('./sections/ProductsSection'))
+const ProductTurnoverSection = lazy(() => import('./sections/ProductTurnoverSection'))
 const OrdersSection = lazy(() => import('./sections/OrdersSection'))
 const PickingSection = lazy(() => import('./sections/PickingSection'))
 const CustomersSection = lazy(() => import('./sections/CustomersSection'))
@@ -53,7 +55,7 @@ const PaymentsSection = lazy(() => import('./sections/PaymentsSection'))
 const StaffSection = lazy(() => import('./sections/StaffSection'))
 
 const VALID_SECTIONS: Section[] = [
-  'dashboard', 'products', 'orders', 'picking', 'staff',
+  'dashboard', 'products', 'productTurnover', 'orders', 'picking', 'staff',
   'customers', 'layout', 'categories', 'deliveryZones',
   'businessHours', 'fraudAudit', 'notifications', 'coupons', 'sponsoredShelves', 'mostruario', 'recipes', 'storeBanners', 'deliveryRoutes',
   'brandIdentity', 'intelligence', 'integrations', 'payments',
@@ -135,6 +137,17 @@ export default function AdminDashboard() {
           {activeSection === 'products' && (
             <Suspense fallback={lazySectionFallback}>
               <ProductsSection />
+            </Suspense>
+          )}
+
+          {activeSection === 'productTurnover' && (
+            <Suspense fallback={lazySectionFallback}>
+              <ProductTurnoverSection
+                onOpenProduct={(query) => {
+                  setActiveSectionState('products')
+                  setSearchParams({ section: 'products', tab: 'all', q: query }, { replace: true })
+                }}
+              />
             </Suspense>
           )}
 

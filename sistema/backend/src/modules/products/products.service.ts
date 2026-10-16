@@ -1257,6 +1257,75 @@ export class ProductsService {
     })
   }
 
+  /**
+   * Giro de produto (16/10/2026): o que já vendeu, quanto e há quanto tempo
+   * não vende -- decisão de o que empurrar ou tirar do mix. So conta item com
+   * status PICKED (realmente separado e cobrado): PENDING ainda não saiu,
+   * MISSING faltou, SUBSTITUTED foi trocado por outro produto (que tem seu
+   * proprio OrderItem, contado à parte). Pedido CANCELLED/REFUNDED fora --
+   * mesmo criterio do painel "Mais vendidos" da Visão geral
+   * (dashboard-overview.service.ts), so que aqui e a lista inteira, nao so o
+   * top 6, e com o filtro extra de status do item pra nao contar o que nao
+   * foi de fato entregue.
+   */
+  async getTurnoverReport() {
+    const items = await this.prisma.orderItem.findMany({
+      where: { status: 'PICKED', order: { status: { notIn: ['CANCELLED', 'REFUNDED'] } } },
+      select: {
+        productId: true,
+        quantity: true,
+        subtotal: true,
+        finalSubtotal: true,
+        fulfilledQuantity: true,
+        orderId: true,
+        order: { select: { createdAt: true } },
+      },
+    })
+
+    type Agg = { unitsSold: number; revenue: number; orderIds: Set<string>; lastSoldAt: Date; firstSoldAt: Date }
+    const byProduct = new Map<string, Agg>()
+    for (const item of items) {
+      const units = Number(item.fulfilledQuantity ?? item.quantity ?? 0)
+      const revenue = Number(item.finalSubtotal ?? item.subtotal ?? 0)
+      const at = item.order.createdAt
+      const entry = byProduct.get(item.productId) ?? { unitsSold: 0, revenue: 0, orderIds: new Set<string>(), lastSoldAt: at, firstSoldAt: at }
+      entry.unitsSold += units
+      entry.revenue += revenue
+      entry.orderIds.add(item.orderId)
+      if (at > entry.lastSoldAt) entry.lastSoldAt = at
+      if (at < entry.firstSoldAt) entry.firstSoldAt = at
+      byProduct.set(item.productId, entry)
+    }
+
+    const productIds = [...byProduct.keys()]
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, titleMask: true, ean: true, erpProductId: true, category: true, active: true, syncOption: true, stock: true },
+    })
+    const byId = new Map(products.map((p) => [p.id, p]))
+
+    const sellableCount = await this.prisma.product.count({ where: { active: true, syncOption: { not: 'NUNCA' } } })
+
+    const data = productIds.map((id) => {
+      const p = byId.get(id)
+      const e = byProduct.get(id)!
+      return {
+        productId: id,
+        name: p?.titleMask || p?.name || '(produto removido do catálogo)',
+        ean: p?.ean ?? null,
+        erpProductId: p?.erpProductId ?? null,
+        category: p?.category ?? null,
+        unitsSold: Math.round(e.unitsSold * 1000) / 1000,
+        ordersCount: e.orderIds.size,
+        revenue: Math.round(e.revenue * 100) / 100,
+        lastSoldAt: e.lastSoldAt,
+        onSite: p ? isProductSellable(p) : false,
+      }
+    })
+
+    return { data, soldProductsCount: data.length, sellableCatalogCount: sellableCount }
+  }
+
   async getAvailabilityMetrics(): Promise<ProductAvailabilityMetrics> {
     const mappedEans = await this.prisma.productCategoryMapping.findMany({ select: { ean: true } })
     const [totalActive, outOfStock, lowStockProducts, alwaysEnabledWithZeroStock, inactiveWithStock, uncategorizedProducts] =

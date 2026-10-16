@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Section } from '../pages/Dashboard'
 import {
   BarChart3, Package, ShoppingCart, ClipboardCheck, Users,
-  Tag, ChefHat, Sparkles, Image, Palette, Truck, Clock3, Bot, Workflow, ShieldAlert, BellRing, CreditCard, Megaphone, RadioTower,
+  Tag, ChefHat, Sparkles, Image, Palette, Truck, Clock3, Bot, Workflow, ShieldAlert, BellRing, CreditCard, Megaphone, RadioTower, TrendingUp,
   LogOut, Menu, X, ChevronDown, ChevronRight,
 } from 'lucide-react'
 
@@ -35,6 +35,7 @@ const MENU_GROUPS: MenuGroup[] = [
       { key: 'products', label: 'Produtos', icon: Package },
       { key: 'categories', label: 'Departamentos', icon: Tag },
       { key: 'recipes', label: 'Receitas', icon: ChefHat },
+      { key: 'productTurnover', label: 'Giro de Produto', icon: TrendingUp },
     ],
   },
   {

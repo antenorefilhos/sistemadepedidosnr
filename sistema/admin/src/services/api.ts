@@ -944,6 +944,25 @@ export interface CatalogResponse {
   }
 }
 
+/** Giro de produto (16/10/2026): o que já vendeu, quanto e há quanto tempo não vende. */
+export interface ProductTurnoverRow {
+  productId: string
+  name: string
+  ean: string | null
+  erpProductId: number | null
+  category: string | null
+  unitsSold: number
+  ordersCount: number
+  revenue: number
+  lastSoldAt: string
+  onSite: boolean
+}
+export interface ProductTurnoverReport {
+  data: ProductTurnoverRow[]
+  soldProductsCount: number
+  sellableCatalogCount: number
+}
+
 export const productsAPI = {
   getAll: () => api.get('/products'),
   getAdmin: (params: {
@@ -962,6 +981,7 @@ export const productsAPI = {
   getMercadologicalTree: () => api.get<MercadologicalTreeResponse>('/products/admin/mercadological-tree'),
   catalog: (params: { tab?: CatalogTab; search?: string; category?: string; page?: number; limit?: number }) =>
     api.get<CatalogResponse>('/products/admin/catalog', { params }),
+  turnoverReport: () => api.get<ProductTurnoverReport>('/products/admin/turnover-report'),
   updateSite: (
     id: string,
     data: {

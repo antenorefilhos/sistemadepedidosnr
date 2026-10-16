@@ -100,6 +100,15 @@ export class ProductsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
+  @Get('admin/turnover-report')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Giro de produto: o que já vendeu, quanto e há quanto tempo não vende' })
+  getTurnoverReport() {
+    return this.productsService.getTurnoverReport()
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Patch('admin/:id/site')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ajustes do site que o sync respeita: ocultar/sempre a venda, categoria, nome no site' })
