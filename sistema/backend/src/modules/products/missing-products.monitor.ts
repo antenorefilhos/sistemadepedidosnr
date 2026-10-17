@@ -5,6 +5,9 @@ import { AntenorApiService } from '../integrations/antenor-api.service'
 import { IntegrationModulesService } from '../integrations/integration-modules.service'
 import { EmailService } from '../notifications/email.service'
 import { winstonLogger } from '../../common/logger'
+import { isSempreValidadoPeloMostruario, parseMostruarioSalvos } from '../../common/product-availability'
+
+const DEFAULT_FILIAL_ID = 1
 
 /**
  * Rede de seguranca pro bug do "Limao kg" (27/08/2026): o produto estava
@@ -19,6 +22,14 @@ import { winstonLogger } from '../../common/logger'
  * `ERPProduct` e a mesma interface nos dois services, troca sem mudar a logica
  * de comparacao. Ganhou a mesma checagem de modulo ligado que o
  * PdvCancellationScheduler ja fazia (e este monitor nao fazia).
+ *
+ * Na mesma migracao: o `SEMPRE` da AntenorApi so e confiavel quando validado
+ * pelo Motor de Presenca Real (`/mostruario/produtos-salvos`) -- exatamente a
+ * mesma checagem que `ProductsService.downgradeUnvalidatedSempre` ja faz no
+ * sync (23/09/2026, 178 produtos com SEMPRE sem venda real). Sem isso este
+ * monitor alertaria todo dia para produto que o proprio sync ja rebaixa de
+ * proposito, nao para um bug. A regra mora em
+ * `common/product-availability.ts`, usada pelos dois lugares -- nao duplicada.
  *
  * Roda ANTES do sync completo de propriedade, nao depois: o sync completo e
  * quem CORRIGE o syncOption. Uma checagem posterior nunca acharia nada, porque
@@ -85,10 +96,11 @@ export class MissingProductsMonitor {
   }
 
   /**
-   * Produtos que o ERP manda como `SEMPRE` (vendavel ignorando estoque) mas
-   * que o nosso banco esconde da vitrine. A regra de visibilidade e a mesma de
-   * `isStorefrontVisible`: ativo E syncOption != NUNCA E (SEMPRE OU estoque > 0).
-   * Como o ERP diz SEMPRE, so sobra um jeito de sumir: o nosso syncOption
+   * Produtos que o ERP manda como `SEMPRE` (vendavel ignorando estoque),
+   * validado pelo Motor de Presenca Real, mas que o nosso banco esconde da
+   * vitrine. A regra de visibilidade e a mesma de `isStorefrontVisible`:
+   * ativo E syncOption != NUNCA E (SEMPRE OU estoque > 0). Como o ERP diz
+   * SEMPRE validado, so sobra um jeito de sumir: o nosso syncOption
    * divergir E o estoque estar zerado/negativo.
    */
   async findWronglyHidden(): Promise<Array<{ ean: string; name: string; syncOption: string; stock: number }>> {
@@ -97,14 +109,34 @@ export class MissingProductsMonitor {
       return []
     }
     const { data } = await this.erp.syncProducts()
-    const erpSempre = new Set(
-      data.filter((item) => item.syncOption === 'SEMPRE' && item.active).map((item) => item.ean),
-    )
-    if (erpSempre.size === 0) {
+    const erpSempreRaw = data.filter((item) => item.syncOption === 'SEMPRE' && item.active)
+    if (erpSempreRaw.length === 0) {
       // Nenhum SEMPRE no retorno inteiro nao e "esta tudo certo" -- e sinal de
       // que o campo parou de vir (o mesmo modo de falha do bug original).
       // Alertar aqui seria ruido; deixar passar calado seria o bug de novo.
       winstonLogger.warn('missing_products_erp_no_sempre', { erpRows: data.length })
+      return []
+    }
+
+    let salvos: unknown[]
+    try {
+      salvos = await this.erp.getMostruarioProdutosSalvos(DEFAULT_FILIAL_ID)
+    } catch (error) {
+      // Sem a lista de validados nao da pra distinguir SEMPRE confiavel de
+      // SEMPRE cru-nao-validado -- alertar aqui seria o falso positivo que
+      // esta checagem existe pra evitar.
+      winstonLogger.warn('missing_products_mostruario_indisponivel', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return []
+    }
+    const validados = parseMostruarioSalvos(salvos)
+
+    const erpSempre = new Set(
+      erpSempreRaw.filter((item) => isSempreValidadoPeloMostruario(item.erpProductId, validados)).map((item) => item.ean),
+    )
+    if (erpSempre.size === 0) {
+      winstonLogger.info('missing_products_sempre_sem_validacao', { erpSempreRaw: erpSempreRaw.length })
       return []
     }
 
@@ -133,8 +165,8 @@ export class MissingProductsMonitor {
       `[Antenor] ${missing.length} produto(s) sumiram da vitrine`,
       `<div style="font-family: Arial, sans-serif; max-width: 560px;">
         <h2>Produtos fora da vitrine indevidamente</h2>
-        <p>O Solidcom marca estes produtos como <strong>SEMPRE</strong> (vendáveis mesmo sem estoque),
-        mas eles não estão aparecendo na loja.</p>
+        <p>O ERP marca estes produtos como <strong>SEMPRE</strong> (vendáveis mesmo sem estoque, com venda
+        real recente confirmada), mas eles não estão aparecendo na loja.</p>
         <ul>${linhas}</ul>
         ${extra}
         <p>O sync completo das 04:00 deve corrigir sozinho. Se o alerta se repetir amanhã,

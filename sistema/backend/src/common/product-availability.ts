@@ -75,3 +75,32 @@ export function resolveSiteVisibility(
   if (siteVisibility === 'OCULTO' && siteVisibilityUntil && siteVisibilityUntil <= now) return null
   return siteVisibility ?? null
 }
+
+/**
+ * `syncOption=SEMPRE` gravado direto no cadastro do ERP (TipoIntegracao)
+ * nunca passa pelo Motor de Presenca Real quando ja veio assim de origem --
+ * so os itens que o MOTOR promove (estoque negativo + venda real no PDV)
+ * aparecem em `/mostruario/produtos-salvos`. Achado em 23/09/2026: 178
+ * produtos (bacalhau importado, fondue, panetone/tender de fim de ano)
+ * ficavam "sempre vendaveis" com estoque zero/negativo sem NENHUMA venda
+ * recente.
+ *
+ * Regra unica, usada por `ProductsService.downgradeUnvalidatedSempre`
+ * (rebaixa pra ESTOQUE no sync) e por `MissingProductsMonitor` (decide o
+ * que alertar) -- duplicar o criterio em dois lugares faria os dois
+ * divergirem silenciosamente se o endpoint ou o campo mudar.
+ */
+export function parseMostruarioSalvos(salvos: unknown[]): Set<number> {
+  return new Set(
+    salvos
+      .map((item) => (item as { cdProduto?: number })?.cdProduto)
+      .filter((id): id is number => typeof id === 'number'),
+  )
+}
+
+export function isSempreValidadoPeloMostruario(
+  erpProductId: number | null | undefined,
+  validados: Set<number>,
+): boolean {
+  return erpProductId != null && validados.has(erpProductId)
+}

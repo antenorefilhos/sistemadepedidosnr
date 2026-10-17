@@ -16,7 +16,13 @@ import { Prisma } from '@prisma/client'
 import { IntegrationModulesService } from '../../modules/integrations/integration-modules.service'
 import { TenantContext, tenantStoreWhere } from '../../common/tenant/tenant-context'
 import { productIdsMatchingText } from '../../common/unaccent-search'
-import { applySiteVisibility, isProductSellable, resolveSiteVisibility } from '../../common/product-availability'
+import {
+  applySiteVisibility,
+  isProductSellable,
+  isSempreValidadoPeloMostruario,
+  parseMostruarioSalvos,
+  resolveSiteVisibility,
+} from '../../common/product-availability'
 import { normalizeSaleWeekdays } from '../../common/sale-days'
 import { sanitizeWineProfile } from '../../common/wine-profile'
 import { eansWithPhoto, photoVersion } from '../../common/product-photos'
@@ -2114,11 +2120,7 @@ export class ProductsService {
       return { downgraded: 0, skipped: true, reason: 'endpoint de mostruario indisponivel' }
     }
 
-    const validados = new Set(
-      salvos
-        .map((item) => (item as { cdProduto?: number })?.cdProduto)
-        .filter((id): id is number => typeof id === 'number'),
-    )
+    const validados = parseMostruarioSalvos(salvos)
 
     const candidatos = await this.prisma.product.findMany({
       where: { active: true, syncOption: 'SEMPRE', stock: { lte: 0 }, OR: [{ siteVisibility: null }, { siteVisibility: { not: 'SEMPRE' } }] },
@@ -2126,7 +2128,7 @@ export class ProductsService {
     })
 
     const paraRebaixar = candidatos.filter(
-      (p) => p.erpProductId == null || !validados.has(p.erpProductId),
+      (p) => !isSempreValidadoPeloMostruario(p.erpProductId, validados),
     )
 
     if (paraRebaixar.length === 0) {
