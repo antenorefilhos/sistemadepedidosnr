@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../common/prisma.service'
-import { SolidcomERPService } from '../integrations/solidcom-erp.service'
+import { AntenorApiService } from '../integrations/antenor-api.service'
+import { IntegrationModulesService } from '../integrations/integration-modules.service'
 import { EmailService } from '../notifications/email.service'
 import { winstonLogger } from '../../common/logger'
 
@@ -12,12 +13,19 @@ import { winstonLogger } from '../../common/logger'
  * o endpoint dele nao manda `tipoIntegracao`) esta corrigida -- ver CLAUDE.md.
  * Este monitor existe pra avisar se ela voltar, por qualquer caminho novo.
  *
+ * Migrado de SolidcomERPService pra AntenorApiService em 17/10/2026: o modulo
+ * Solidcom esta `enabled: false` desde 10/09/2026 (ver integration_module_configs),
+ * e esse monitor era o unico ponto do sistema ainda lendo o ERP legado direto --
+ * `ERPProduct` e a mesma interface nos dois services, troca sem mudar a logica
+ * de comparacao. Ganhou a mesma checagem de modulo ligado que o
+ * PdvCancellationScheduler ja fazia (e este monitor nao fazia).
+ *
  * Roda ANTES do sync completo de propriedade, nao depois: o sync completo e
  * quem CORRIGE o syncOption. Uma checagem posterior nunca acharia nada, porque
  * a janela em que o dado fica errado e justamente o intervalo entre um sync
  * completo e o proximo. Por isso o cron default e 03:30 e o do sync e 04:00.
  *
- * O fetch do ERP e proprio (~190s, uma vez por dia, de madrugada) em vez de
+ * O fetch do ERP e proprio (uma vez por dia, de madrugada) em vez de
  * reaproveitar o do sync. Custa pouco e mantem o monitor independente: se o
  * sync quebrar, o monitor continua rodando e continua avisando.
  */
@@ -28,7 +36,8 @@ export class MissingProductsMonitor {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly erp: SolidcomERPService,
+    private readonly erp: AntenorApiService,
+    private readonly integrationModules: IntegrationModulesService,
     private readonly email: EmailService,
   ) {
     // Sem esta linha nao ha como saber, olhando o log, se o monitor esta de pe:
@@ -83,6 +92,10 @@ export class MissingProductsMonitor {
    * divergir E o estoque estar zerado/negativo.
    */
   async findWronglyHidden(): Promise<Array<{ ean: string; name: string; syncOption: string; stock: number }>> {
+    if (!(await this.integrationModules.isEnabled('antenorapi'))) {
+      winstonLogger.warn('missing_products_antenorapi_disabled')
+      return []
+    }
     const { data } = await this.erp.syncProducts()
     const erpSempre = new Set(
       data.filter((item) => item.syncOption === 'SEMPRE' && item.active).map((item) => item.ean),

@@ -5,11 +5,12 @@ import { MissingProductsMonitor } from './missing-products.monitor'
  * esconde". Errar o lado da comparacao faz o monitor rodar todo dia sem nunca
  * achar nada -- exatamente o modo de falha silencioso que ele existe pra pegar.
  */
-const build = (erpData: any[], hiddenInDb: any[]) => {
+const build = (erpData: any[], hiddenInDb: any[], antenorApiEnabled = true) => {
   const prisma = { product: { findMany: jest.fn().mockResolvedValue(hiddenInDb) } }
   const erp = { syncProducts: jest.fn().mockResolvedValue({ synced: erpData.length, failed: 0, data: erpData }) }
+  const integrationModules = { isEnabled: jest.fn().mockResolvedValue(antenorApiEnabled) }
   const email = { send: jest.fn().mockResolvedValue(true) }
-  return new MissingProductsMonitor(prisma as any, erp as any, email as any)
+  return new MissingProductsMonitor(prisma as any, erp as any, integrationModules as any, email as any)
 }
 
 const LIMAO = { ean: '7891', name: 'Limao kg', syncOption: 'ESTOQUE', stock: 0 }
@@ -40,6 +41,11 @@ describe('MissingProductsMonitor.findWronglyHidden', () => {
     // o cruzamento daria vazio e o monitor diria "tudo certo" justamente na
     // falha que ele monitora.
     const monitor = build([{ ean: '7891', active: true, syncOption: undefined }], [LIMAO])
+    await expect(monitor.findWronglyHidden()).resolves.toEqual([])
+  })
+
+  it('nao chama o ERP quando o modulo AntenorApi esta desligado', async () => {
+    const monitor = build([{ ean: '7891', active: true, syncOption: 'SEMPRE' }], [LIMAO], false)
     await expect(monitor.findWronglyHidden()).resolves.toEqual([])
   })
 })
