@@ -152,6 +152,12 @@ services:
       # cancelado no caixa (ver DAV 102073/102076 no CLAUDE.md).
       PDV_CANCELLATION_CRON_ENABLED: ${PDV_CANCELLATION_CRON_ENABLED:-true}
       PDV_CANCELLATION_CRON: ${PDV_CANCELLATION_CRON:-*/5 * * * *}
+      # Monitor do "Limao kg" (17/10/2026): valida SEMPRE pelo Mostruario antes
+      # de alertar (common/product-availability.ts) -- alerta sai pro Telegram
+      # do check-up diario, e-mail e so um canal extra opcional.
+      MISSING_PRODUCTS_MONITOR_ENABLED: ${MISSING_PRODUCTS_MONITOR_ENABLED:-true}
+      MISSING_PRODUCTS_MONITOR_CRON: ${MISSING_PRODUCTS_MONITOR_CRON:-30 3 * * *}
+      MISSING_PRODUCTS_ALERT_EMAIL: ${MISSING_PRODUCTS_ALERT_EMAIL:-}
       TZ: ${TZ:-America/Sao_Paulo}
     depends_on:
       - db

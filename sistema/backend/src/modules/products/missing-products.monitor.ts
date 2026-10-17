@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service'
 import { AntenorApiService } from '../integrations/antenor-api.service'
 import { IntegrationModulesService } from '../integrations/integration-modules.service'
 import { EmailService } from '../notifications/email.service'
+import { TelegramService } from '../notifications/telegram.service'
 import { winstonLogger } from '../../common/logger'
 import { isSempreValidadoPeloMostruario, parseMostruarioSalvos } from '../../common/product-availability'
 
@@ -50,6 +51,7 @@ export class MissingProductsMonitor {
     private readonly erp: AntenorApiService,
     private readonly integrationModules: IntegrationModulesService,
     private readonly email: EmailService,
+    private readonly telegram: TelegramService,
   ) {
     // Sem esta linha nao ha como saber, olhando o log, se o monitor esta de pe:
     // um monitor calado por estar desligado e indistinguivel de um calado por
@@ -63,10 +65,10 @@ export class MissingProductsMonitor {
       winstonLogger.info('missing_products_monitor_disabled')
       return
     }
-    const destino = this.alertTo ? this.alertTo : 'SO NO LOG (MISSING_PRODUCTS_ALERT_EMAIL vazia)'
     winstonLogger.info('missing_products_monitor_ready', {
       cron: process.env.MISSING_PRODUCTS_MONITOR_CRON || '30 3 * * *',
-      alertTo: destino,
+      alertEmail: this.alertTo || 'nao configurado',
+      alertTelegram: 'sempre tenta (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID)',
     })
   }
 
@@ -150,30 +152,51 @@ export class MissingProductsMonitor {
       .map((p) => ({ ean: p.ean as string, name: p.name, syncOption: p.syncOption, stock: p.stock ?? 0 }))
   }
 
+  /**
+   * Telegram e e-mail, cada um melhor-esforco e independente: e-mail so sai
+   * se `MISSING_PRODUCTS_ALERT_EMAIL` estiver preenchida (opcional), Telegram
+   * sempre tenta (mesmo bot do check-up diario, ja configurado em producao --
+   * 17/10/2026, pedido do Jonathan por nao depender so de e-mail). Se os dois
+   * falharem, so resta o log de erro que `handleScheduledCheck` ja gravou.
+   */
   private async notify(missing: Array<{ ean: string; name: string; syncOption: string }>): Promise<void> {
-    if (!this.alertTo) {
-      winstonLogger.warn('missing_products_alert_email_missing', { count: missing.length })
-      return
+    const amostra = missing.slice(0, 50)
+    const extraCount = missing.length - amostra.length
+
+    const linhasTexto = amostra.map((p) => `• ${p.name} (EAN ${p.ean}) — no banco: ${p.syncOption}`)
+    const telegramText = [
+      `⚠️ ${missing.length} produto(s) sumiram da vitrine indevidamente`,
+      '',
+      ...linhasTexto,
+      ...(extraCount > 0 ? [`…e mais ${extraCount}. Lista completa no log da API.`] : []),
+    ].join('\n')
+    const telegramSent = await this.telegram.send(telegramText)
+
+    let emailSent = false
+    if (this.alertTo) {
+      const linhasHtml = amostra
+        .map((p) => `<li><strong>${p.name}</strong> (EAN ${p.ean}) — no banco: ${p.syncOption}</li>`)
+        .join('')
+      const extraHtml = extraCount > 0 ? `<p>…e mais ${extraCount}. Lista completa no log da API.</p>` : ''
+      emailSent = await this.email.send(
+        this.alertTo,
+        `[Antenor] ${missing.length} produto(s) sumiram da vitrine`,
+        `<div style="font-family: Arial, sans-serif; max-width: 560px;">
+          <h2>Produtos fora da vitrine indevidamente</h2>
+          <p>O ERP marca estes produtos como <strong>SEMPRE</strong> (vendáveis mesmo sem estoque, com venda
+          real recente confirmada), mas eles não estão aparecendo na loja.</p>
+          <ul>${linhasHtml}</ul>
+          ${extraHtml}
+          <p>O sync completo das 04:00 deve corrigir sozinho. Se o alerta se repetir amanhã,
+          o problema está na gravação do <code>syncOption</code> — ver CLAUDE.md.</p>
+          <p><em>Depois de corrigir, reindexe o MeiliSearch: o produto volta na categoria
+          mas continua sumido na busca até a reindexação.</em></p>
+        </div>`,
+      )
     }
-    const linhas = missing
-      .slice(0, 50)
-      .map((p) => `<li><strong>${p.name}</strong> (EAN ${p.ean}) — no banco: ${p.syncOption}</li>`)
-      .join('')
-    const extra = missing.length > 50 ? `<p>…e mais ${missing.length - 50}. Lista completa no log da API.</p>` : ''
-    await this.email.send(
-      this.alertTo,
-      `[Antenor] ${missing.length} produto(s) sumiram da vitrine`,
-      `<div style="font-family: Arial, sans-serif; max-width: 560px;">
-        <h2>Produtos fora da vitrine indevidamente</h2>
-        <p>O ERP marca estes produtos como <strong>SEMPRE</strong> (vendáveis mesmo sem estoque, com venda
-        real recente confirmada), mas eles não estão aparecendo na loja.</p>
-        <ul>${linhas}</ul>
-        ${extra}
-        <p>O sync completo das 04:00 deve corrigir sozinho. Se o alerta se repetir amanhã,
-        o problema está na gravação do <code>syncOption</code> — ver CLAUDE.md.</p>
-        <p><em>Depois de corrigir, reindexe o MeiliSearch: o produto volta na categoria
-        mas continua sumido na busca até a reindexação.</em></p>
-      </div>`,
-    )
+
+    if (!telegramSent && !emailSent) {
+      winstonLogger.warn('missing_products_alert_sem_canal', { count: missing.length })
+    }
   }
 }

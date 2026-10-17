@@ -5,11 +5,13 @@ import { isProductSellable } from '../../common/product-availability'
 import { eansWithPhoto } from '../../common/product-photos'
 import { winstonLogger } from '../../common/logger'
 import { AntenorApiService } from '../integrations/antenor-api.service'
+import { TelegramService } from '../notifications/telegram.service'
 
 // Check-up diario (pedido do Jonathan, 28/09/2026): "sempre tem um problema
 // que ninguem viu". Cada verificacao aqui e um erro real que ja aconteceu e
 // so foi achado no olho -- vira regra para nao voltar sem aviso. Resultado vai
-// para o Telegram (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).
+// para o Telegram (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID), via TelegramService
+// (compartilhado com MissingProductsMonitor desde 17/10/2026).
 // Para acrescentar uma regra: um item a mais em runChecks(), com o motivo.
 
 export type CheckResult = { name: string; ok: boolean; detail: string }
@@ -32,6 +34,7 @@ export class CheckupService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly antenorApi: AntenorApiService,
+    private readonly telegram: TelegramService,
   ) {}
 
   @Cron(process.env.CHECKUP_CRON || '30 6 * * *', { name: 'checkup-diario', timeZone: 'America/Sao_Paulo' })
@@ -45,7 +48,7 @@ export class CheckupService {
 
   async runAndNotify() {
     const results = await this.runChecks()
-    const sent = await this.sendTelegram(this.format(results))
+    const sent = await this.telegram.send(this.format(results))
     winstonLogger.info('checkup_executado', { falhas: results.filter((r) => !r.ok).length, telegram: sent })
     return { results, telegram: sent }
   }
@@ -196,31 +199,4 @@ export class CheckupService {
     return [head, '', ...lines].join('\n')
   }
 
-  private async resolveChatId(token: string) {
-    if (process.env.TELEGRAM_CHAT_ID) return process.env.TELEGRAM_CHAT_ID
-    // Sem chat configurado, usa a ultima conversa que mandou /start ao robo.
-    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`)
-    const body = (await res.json()) as { result?: Array<{ message?: { chat?: { id: number } } }> }
-    const last = [...(body.result || [])].reverse().find((u) => u.message?.chat?.id)
-    return last?.message?.chat?.id ? String(last.message.chat.id) : null
-  }
-
-  async sendTelegram(text: string): Promise<boolean> {
-    const token = process.env.TELEGRAM_BOT_TOKEN
-    if (!token) {
-      winstonLogger.warn('checkup_sem_telegram', { motivo: 'TELEGRAM_BOT_TOKEN vazio' })
-      return false
-    }
-    const chatId = await this.resolveChatId(token)
-    if (!chatId) {
-      winstonLogger.warn('checkup_sem_telegram', { motivo: 'nenhum chat: mande /start ao robo' })
-      return false
-    }
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4000), disable_web_page_preview: true }),
-    })
-    return res.ok
-  }
 }

@@ -9,7 +9,7 @@ describe('check-up diario', () => {
   })
 
   it('resumo: tudo ok x lista de problemas', () => {
-    const svc = new CheckupService({} as never, {} as never)
+    const svc = new CheckupService({} as never, {} as never, {} as never)
     expect(svc.format([{ name: 'A', ok: true, detail: 'x' }])).toMatch(/^✅ Check-up .*: tudo ok/)
     const msg = svc.format([{ name: 'A', ok: true, detail: 'x' }, { name: 'Pedido sem DAV', ok: false, detail: '1: #ABC' }])
     expect(msg).toMatch(/^⚠️ Check-up .*: 1 problema/)

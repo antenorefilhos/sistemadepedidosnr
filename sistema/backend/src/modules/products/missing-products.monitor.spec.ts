@@ -16,7 +16,9 @@ const build = (erpData: any[], hiddenInDb: any[], opts: { antenorApiEnabled?: bo
   }
   const integrationModules = { isEnabled: jest.fn().mockResolvedValue(antenorApiEnabled) }
   const email = { send: jest.fn().mockResolvedValue(true) }
-  return new MissingProductsMonitor(prisma as any, erp as any, integrationModules as any, email as any)
+  const telegram = { send: jest.fn().mockResolvedValue(true) }
+  const monitor = new MissingProductsMonitor(prisma as any, erp as any, integrationModules as any, email as any, telegram as any)
+  return { monitor, email, telegram }
 }
 
 const LIMAO = { ean: '7891', name: 'Limao kg', syncOption: 'ESTOQUE', stock: 0 }
@@ -28,21 +30,21 @@ const SALVOS_COM_LIMAO = [{ cdProduto: 501 }]
 
 describe('MissingProductsMonitor.findWronglyHidden', () => {
   it('acha o produto que o ERP marca SEMPRE validado pelo Mostruario e o banco esconde', async () => {
-    const monitor = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { salvos: SALVOS_COM_LIMAO })
+    const { monitor } = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { salvos: SALVOS_COM_LIMAO })
     await expect(monitor.findWronglyHidden()).resolves.toEqual([
       { ean: '7891', name: 'Limao kg', syncOption: 'ESTOQUE', stock: 0 },
     ])
   })
 
   it('ignora produto escondido que o ERP tambem nao quer na vitrine', async () => {
-    const monitor = build([OUTRO_SEMPRE, { ean: '7891', erpProductId: 501, active: true, syncOption: 'ESTOQUE' }], [LIMAO], {
+    const { monitor } = build([OUTRO_SEMPRE, { ean: '7891', erpProductId: 501, active: true, syncOption: 'ESTOQUE' }], [LIMAO], {
       salvos: SALVOS_COM_LIMAO,
     })
     await expect(monitor.findWronglyHidden()).resolves.toEqual([])
   })
 
   it('ignora SEMPRE que esta inativo no ERP', async () => {
-    const monitor = build([OUTRO_SEMPRE, { ean: '7891', erpProductId: 501, active: false, syncOption: 'SEMPRE' }], [LIMAO], {
+    const { monitor } = build([OUTRO_SEMPRE, { ean: '7891', erpProductId: 501, active: false, syncOption: 'SEMPRE' }], [LIMAO], {
       salvos: SALVOS_COM_LIMAO,
     })
     await expect(monitor.findWronglyHidden()).resolves.toEqual([])
@@ -52,12 +54,12 @@ describe('MissingProductsMonitor.findWronglyHidden', () => {
     // Sem essa guarda, um retorno sem `tipoIntegracao` viraria "zero SEMPRE",
     // o cruzamento daria vazio e o monitor diria "tudo certo" justamente na
     // falha que ele monitora.
-    const monitor = build([{ ean: '7891', erpProductId: 501, active: true, syncOption: undefined }], [LIMAO])
+    const { monitor } = build([{ ean: '7891', erpProductId: 501, active: true, syncOption: undefined }], [LIMAO])
     await expect(monitor.findWronglyHidden()).resolves.toEqual([])
   })
 
   it('nao chama o ERP quando o modulo AntenorApi esta desligado', async () => {
-    const monitor = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { antenorApiEnabled: false, salvos: SALVOS_COM_LIMAO })
+    const { monitor } = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { antenorApiEnabled: false, salvos: SALVOS_COM_LIMAO })
     await expect(monitor.findWronglyHidden()).resolves.toEqual([])
   })
 
@@ -65,14 +67,44 @@ describe('MissingProductsMonitor.findWronglyHidden', () => {
     // O mesmo caso que motivou downgradeUnvalidatedSempre: SEMPRE gravado
     // direto no cadastro, sem venda real recente -- o sync ja rebaixa isso
     // de proposito, nao e um bug pra alertar.
-    const monitor = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { salvos: [{ cdProduto: 999 }] })
+    const { monitor } = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { salvos: [{ cdProduto: 999 }] })
     await expect(monitor.findWronglyHidden()).resolves.toEqual([])
   })
 
   it('nao alerta quando o Mostruario esta indisponivel', async () => {
-    const monitor = build([LIMAO_SEMPRE_VALIDADO], [LIMAO])
+    const { monitor } = build([LIMAO_SEMPRE_VALIDADO], [LIMAO])
     const erp = (monitor as any).erp
     erp.getMostruarioProdutosSalvos.mockRejectedValueOnce(new Error('timeout'))
     await expect(monitor.findWronglyHidden()).resolves.toEqual([])
+  })
+})
+
+describe('MissingProductsMonitor.handleScheduledCheck (notificacao)', () => {
+  const withEnabled = (monitor: MissingProductsMonitor) => {
+    ;(monitor as any).enabled = true
+    return monitor
+  }
+
+  it('manda pro Telegram mesmo sem e-mail configurado', async () => {
+    const { monitor, email, telegram } = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { salvos: SALVOS_COM_LIMAO })
+    await withEnabled(monitor).handleScheduledCheck()
+    expect(telegram.send).toHaveBeenCalledTimes(1)
+    expect(telegram.send.mock.calls[0][0]).toContain('Limao kg')
+    expect(email.send).not.toHaveBeenCalled()
+  })
+
+  it('manda pros dois canais quando o e-mail esta configurado', async () => {
+    const { monitor, email, telegram } = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { salvos: SALVOS_COM_LIMAO })
+    ;(monitor as any).alertTo = 'lojista@antenorefilhos.com.br'
+    await withEnabled(monitor).handleScheduledCheck()
+    expect(telegram.send).toHaveBeenCalledTimes(1)
+    expect(email.send).toHaveBeenCalledTimes(1)
+  })
+
+  it('nao manda nada quando nao ha produto escondido', async () => {
+    const { monitor, email, telegram } = build([OUTRO_SEMPRE], [], { salvos: [{ cdProduto: 999 }] })
+    await withEnabled(monitor).handleScheduledCheck()
+    expect(telegram.send).not.toHaveBeenCalled()
+    expect(email.send).not.toHaveBeenCalled()
   })
 })
