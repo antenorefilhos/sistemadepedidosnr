@@ -147,6 +147,11 @@ services:
       PROMOTIONS_SYNC_CRON_ENABLED: ${PROMOTIONS_SYNC_CRON_ENABLED:-true}
       PROMOTIONS_SYNC_CRON: ${PROMOTIONS_SYNC_CRON:-*/30 * * * *}
       PROMOTIONS_EXPIRE_CRON: ${PROMOTIONS_EXPIRE_CRON:-*/5 * * * *}
+      # Deteccao automatica de pedido cancelado no PDV (17/10/2026): ligado
+      # de proposito, evita separador/entregador trabalhar pedido ja
+      # cancelado no caixa (ver DAV 102073/102076 no CLAUDE.md).
+      PDV_CANCELLATION_CRON_ENABLED: ${PDV_CANCELLATION_CRON_ENABLED:-true}
+      PDV_CANCELLATION_CRON: ${PDV_CANCELLATION_CRON:-*/5 * * * *}
       TZ: ${TZ:-America/Sao_Paulo}
     depends_on:
       - db
