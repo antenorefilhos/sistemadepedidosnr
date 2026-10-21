@@ -131,6 +131,8 @@ export default function ProductsSection() {
   const [error, setError] = useState('')
   const [open, setOpen] = useState<CatalogProduct | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [reindexing, setReindexing] = useState(false)
+  const [reindexed, setReindexed] = useState(false)
   const [exporting, setExporting] = useState(false)
   const reqId = useRef(0)
 
@@ -190,6 +192,23 @@ export default function ProductsSection() {
       setSyncing(true)
     } catch (e) {
       setError(getApiErrorMessage(e, 'Não foi possível iniciar o sync.'))
+    }
+  }
+
+  // Reindexa o MeiliSearch (busca inteligente). Produto corrigido no ERP volta
+  // sozinho pra categoria no próximo sync, mas continua sumido na busca até
+  // alguém mandar reindexar -- ver "missing-products.monitor.ts".
+  const reindexSearch = async () => {
+    setError('')
+    setReindexing(true)
+    setReindexed(false)
+    try {
+      await productsAPI.reindexSearch()
+      setReindexed(true)
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Não foi possível reindexar a busca.'))
+    } finally {
+      setReindexing(false)
     }
   }
 
@@ -265,6 +284,16 @@ export default function ProductsSection() {
           className="inline-flex items-center gap-1.5 rounded-xl border border-black/[0.08] px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-40"
         >
           <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} /> Sincronizar agora
+        </button>
+        <button
+          type="button"
+          onClick={reindexSearch}
+          disabled={reindexing}
+          title="Produto corrigido no sync volta pra categoria sozinho, mas só volta na busca depois de reindexar."
+          className="inline-flex items-center gap-1.5 rounded-xl border border-black/[0.08] px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-40"
+        >
+          <Search size={14} className={reindexing ? 'animate-pulse' : ''} />
+          {reindexing ? 'Reindexando…' : reindexed ? 'Busca reindexada ✓' : 'Reindexar busca'}
         </button>
       </div>
 

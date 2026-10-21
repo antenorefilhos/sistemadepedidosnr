@@ -1008,6 +1008,7 @@ export const productsAPI = {
       lastResult: any
       lastError: string | null
     }>('/products/admin/sync/status'),
+  reindexSearch: () => api.post('/products/admin/reindex-search'),
   getTopAnalytics: (limit = 5) => api.get<TopProductAnalyticsItem[]>('/products/analytics/top', { params: { limit } }),
   uploadImage: (ean: string, file: File, slot: '1' | '2' = '1') => {
     const formData = new FormData()
