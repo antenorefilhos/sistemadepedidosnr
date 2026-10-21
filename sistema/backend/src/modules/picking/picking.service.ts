@@ -752,9 +752,11 @@ export class PickingService {
       Boolean(p?.isFractional) || ['kg', 'quilo', 'g'].includes(String(p?.unit || '').toLowerCase())
 
     let extra = 0
+    let missingOriginal = 0
     const lines = order.items
       .filter((item) => item.status === 'MISSING' && (open.some((s) => s.orderItemId === item.id) || !settled.has(item.id)))
       .map((item) => {
+        missingOriginal += item.subtotal
         const s = open.find((candidate) => candidate.orderItemId === item.id)
         const p = s ? productById.get(s.productId) : undefined
         if (!s || !p) return { originalName: item.product?.name || 'Produto', originalSubtotal: item.subtotal, suggestion: null }
@@ -768,8 +770,13 @@ export class PickingService {
         }
       })
 
-    const totalWithout = this.roundMoney(order.total)
-    const totalWith = this.roundMoney(order.total + extra)
+    // order.total ainda conta o(s) item(ns) MISSING pelo preco original (o
+    // item so sai do pedido quando o cliente decide) -- sem descontar
+    // `missingOriginal` aqui, "sem a troca" e "com a troca" saem os dois
+    // inflados pelo preco do item que faltou (achado em 21/10/2026, mensagem
+    // real enviada ao cliente com o calculo errado).
+    const totalWithout = this.roundMoney(order.total - missingOriginal)
+    const totalWith = this.roundMoney(order.total - missingOriginal + extra)
     const message = buildSubstitutionMessage({
       customerName: order.customer?.name,
       orderCode: order.erpDav || `#${order.id.slice(-8).toUpperCase()}`,

@@ -425,3 +425,55 @@ describe('o cliente escolhe as trocas pelo site (08/10/2026)', () => {
     expect(notifications.notifyPickingTeamSubstitutionAnswer).toHaveBeenCalledWith('order-1', '102130', 0, 1)
   })
 })
+
+describe('sendSuggestions: total da mensagem de troca (21/10/2026)', () => {
+  const svc = () => new PickingService(mockPrismaService as never, mockNotificationsService as never, {} as never, mockIntegrationModulesService as never)
+
+  // Pedido: item 1 separado (R$ 50) + item 2 faltou (R$ 20), trocado por
+  // sugestao de R$ 25. "Sem a troca" tem que descontar o item que faltou
+  // (50), e "com a troca" tem que descontar o original e somar o substituto
+  // (75) -- nao usar order.total cru, que ainda inclui o item faltante pelo
+  // preco original.
+  const orderWithMissingItem = {
+    id: 'order-1',
+    tenantId: 'tenant_default',
+    storeId: 'store_default',
+    customerId: 'customer-1',
+    status: 'PICKING',
+    erpDav: null,
+    total: 70,
+    customer: { id: 'customer-1', name: 'Cliente', whatsapp: '5511999999999' },
+    items: [
+      {
+        id: 'order-item-1',
+        status: 'PICKED',
+        subtotal: 50,
+        product: { id: 'prod-1', name: 'Produto 1', unit: 'un', isFractional: false },
+      },
+      {
+        id: 'order-item-2',
+        status: 'MISSING',
+        subtotal: 20,
+        product: { id: 'prod-2', name: 'Produto 2', unit: 'un', isFractional: false },
+      },
+    ],
+  }
+
+  it('desconta o item faltante do total, em vez de somar o substituto por cima do total cheio', async () => {
+    mockPrismaService.order.findFirst.mockResolvedValueOnce(orderWithMissingItem)
+    mockPrismaService.substitutionSuggestion.findMany
+      .mockResolvedValueOnce([{ id: 's0', orderItemId: 'order-item-2', productId: 'prod-sub', quantity: 1, unitPrice: 25, sentAt: null }])
+      .mockResolvedValueOnce([])
+    mockPrismaService.product.findMany.mockResolvedValueOnce([{ id: 'prod-sub', name: 'Produto Substituto', unit: 'un', isFractional: false }])
+    mockPrismaService.order.findUnique.mockResolvedValueOnce({ status: 'PICKING' })
+    mockPrismaService.pickingTask.findFirst.mockResolvedValueOnce(null)
+
+    const service = svc()
+    jest.spyOn(service as never, 'findTaskByOrder').mockResolvedValue({} as never)
+
+    const result = await service.sendSuggestions('order-1', {})
+
+    expect(result.message).toContain('Sem a troca, fica em R$ 50,00')
+    expect(result.message).toContain('Com a troca, o pedido fica em R$ 75,00')
+  })
+})
