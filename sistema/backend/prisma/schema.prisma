@@ -2043,6 +2043,12 @@ model FraudBlock {
   customerId String?
   createdBy  String?
   createdAt  DateTime @default(now())
+  // Escalonamento automatico (16/10/2026): bloqueio automatico e temporario
+  // de aparelho/rede quando reincide em tentativa bloqueada ou aparece em
+  // muitas contas novas em pouco tempo. `automatic=false` (bloqueio manual
+  // pelo admin) nunca tem expiresAt -- so expira quem o sistema criou sozinho.
+  automatic  Boolean  @default(false)
+  expiresAt  DateTime?
 
   @@unique([tenantId, kind, value])
   @@map("fraud_blocks")
