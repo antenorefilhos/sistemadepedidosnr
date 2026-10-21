@@ -1,6 +1,10 @@
 # AGENTS.md — Antenor & Filhos (Sistema de Pedidos)
 
 - **Idioma**: TUDO SEMPRE EM PT-BR.
+- **Estilo de Resposta (Anti-Verbosity & Silêncio)**:
+  - NUNCA envie mensagens de narração ou status intermediário ("Sim...", "Estou retomando...", "Processando..."). Permaneça em silêncio absoluto durante a execução.
+  - Responda apenas o resultado final direto, sem preâmbulos, cumprimentos ou conclusões recapitulativas.
+  - Ao executar comandos, evite despejar milhares de linhas no terminal; redirecione saídas volumosas para arquivo ou `$null`.
 - **Fonte de verdade das regras operacionais do código**: [CLAUDE.md](CLAUDE.md), na raiz deste repo. Este arquivo não duplica aquelas regras — só referencia. Leia o CLAUDE.md antes de qualquer tarefa de código.
 - **Modelo de memória**: vault Obsidian (Zettelkasten) + `docs/` deste repo + Graphify (knowledge graph). Três camadas, cada uma com um papel diferente — ver seção 4.
 
@@ -12,7 +16,7 @@
 |---|---|
 | Código-fonte (este repo) | `F:\VC.VERSE\PROJETOS\antenor e filhos\pedidos nr\` |
 | Vault Obsidian do projeto | `E:\_Biblioteca\Notas Obsidian\Antenor e Filhos\` |
-| Deploy (VPS Hostinger) | `root@179.198.122.67`, repo clonado em `/opt/antenor` (branch `main`) |
+| Deploy (VPS Hostinger) | `root@179.199.155.81` (alias SSH `antenor-vps`), repo clonado em `/opt/antenor` (branch `main`) — KVM 2, corte de 10/10/2026. A VPS anterior (`179.198.122.67`) foi formatada por completo no mesmo dia; não existe rollback para ela |
 | Domínio | `antenorefilhos.com.br` (subdomínios: `mercado.`, `admin.`, `api.`, `separacao.`, `entrega.`) |
 
 Projeto é portátil por design: código, `.env`, uploads e docs vivem dentro da
