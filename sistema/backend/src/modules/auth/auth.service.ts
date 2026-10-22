@@ -71,7 +71,7 @@ export class AuthService {
       matchedValue: match.value,
       attempted: { cpf: ids.cpf || null, whatsapp: ids.whatsapp || null, email: ids.email || null },
       device: ctx ? { deviceId: ctx.deviceId, ip: ctx.ip, country: ctx.country } : null,
-    })
+    }, ctx)
     throw new ForbiddenException({ statusCode: 403, message: 'Não foi possível continuar. Fale com a loja pelo WhatsApp.', error: 'Conta suspensa' })
   }
 

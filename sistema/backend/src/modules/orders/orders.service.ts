@@ -513,7 +513,7 @@ export class OrdersService {
           matchedKind: match.kind,
           matchedValue: match.value,
           device: { deviceId: fraudCtx.deviceId, ip: fraudCtx.ip, country: fraudCtx.country },
-        })
+        }, fraudCtx)
         await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
         throw new ForbiddenException('Não foi possível concluir o pedido. Fale com a loja pelo WhatsApp.')
       }

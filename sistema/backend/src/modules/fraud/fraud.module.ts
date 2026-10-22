@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common'
 import { FraudAdminService } from './fraud-admin.service'
+import { FraudBlockExpiryScheduler } from './fraud-block-expiry.scheduler'
 import { FraudController } from './fraud.controller'
 import { FraudService } from './fraud.service'
 
@@ -7,7 +8,7 @@ import { FraudService } from './fraud.service'
 @Global()
 @Module({
   controllers: [FraudController],
-  providers: [FraudService, FraudAdminService],
+  providers: [FraudService, FraudAdminService, FraudBlockExpiryScheduler],
   exports: [FraudService],
 })
 export class FraudModule {}

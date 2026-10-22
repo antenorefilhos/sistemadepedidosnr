@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma.service'
-import { addressKey, deviceKey, type DeviceContext, isDisposableEmail, normalizeEmail } from './fraud.util'
+import { addressKey, deviceKey, type DeviceContext, isDisposableEmail, mask, normalizeEmail } from './fraud.util'
 
 // Antifraude (01/10/2026). Modelo da loja: o cliente paga na entrega ou na
 // retirada, entao o risco nao e cartao roubado -- e (1) a mesma pessoa abrir
@@ -14,6 +14,35 @@ const VALID = { status: { notIn: ['CANCELLED', 'REFUNDED'] } }
 /** Liga contas com seguranca. Impressao digital sozinha colide (iPhone do mesmo modelo), so conta junto da rede (DEVICE_KEY). */
 const STRONG_KINDS = ['DEVICE', 'DEVICE_KEY', 'EMAIL']
 const KIND_LABEL: Record<string, string> = { DEVICE: 'aparelho', DEVICE_KEY: 'aparelho e rede', EMAIL: 'e-mail' }
+const IDENT_PT: Record<string, string> = { CPF: 'CPF', WHATSAPP: 'WhatsApp', EMAIL: 'e-mail', DEVICE: 'aparelho', DEVICE_KEY: 'aparelho/rede' }
+const maskIfPersonal = (kind: string, value: string) => (kind === 'CPF' || kind === 'WHATSAPP' ? mask(value, kind === 'CPF' ? 3 : 4) : value)
+const whenBR = (d: Date) => d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+/**
+ * Escalonamento automatico de bloqueio (21/10/2026). Telemetria real checada
+ * antes de inventar numero: `fraud_logs` nunca registrou um "BLOCKED" em
+ * producao e `fraud_blocks` nunca teve uma linha -- ou seja, zero abuso
+ * documentado pra calibrar limiar estatistico. Por isso os dois gatilhos
+ * abaixo NAO sao numero novo chutado:
+ *
+ * - Reincidencia: identidade ja bloqueada tentando de novo e prova direta,
+ *   nao estatistica -- basta 1 ocorrencia pra bloquear o aparelho dela.
+ * - Velocidade: reaproveita o limiar que a nota de risco ja usa desde
+ *   01/10/2026 ("3 ou mais contas no mesmo aparelho em 7 dias", +30 pontos,
+ *   visivel em "Como a nota e calculada" na tela Antifraude) -- o Jonathan
+ *   ja validou esse numero implicitamente ao aceitar o calculo de risco.
+ *   So promove de "soma ponto" para "bloqueia o aparelho".
+ *
+ * Prazo mais curto na velocidade (sinal mais fraco -- o maior cluster real
+ * visto em produção foi 2 contas no mesmo aparelho ao longo de meses,
+ * provavelmente família) do que na reincidencia (sinal direto, aparelho
+ * comprovadamente ligado a quem ja esta bloqueado). Os dois sao revertiveis
+ * a qualquer momento na tela Antifraude, e nunca sobrescrevem bloqueio
+ * manual existente.
+ */
+const ESCALATION_REINCIDENCE_DAYS = 30
+const ESCALATION_VELOCITY_DAYS = 15
+const ESCALATION_VELOCITY_THRESHOLD = 3
 
 export type RiskAssessment = { score: number; level: 'LOW' | 'MEDIUM' | 'HIGH'; reasons: string[] }
 export type LinkedCustomer = { customerId: string; via: string[] }
@@ -102,14 +131,66 @@ export class FraudService {
    * em 10 min (o checkout recalcula varias vezes). `details` guarda o que foi
    * tentado de fato (16/10/2026) -- sem isso, o evento so dizia "alguem
    * tentou" e nunca QUEM nem COM QUAL identificador/aparelho.
+   *
+   * `ctx` (21/10/2026): quando o evento e 'BLOCKED', e o aparelho da
+   * tentativa ainda nao esta bloqueado, bloqueia ele sozinho -- ver
+   * `escalateReincidence`. So entra aqui, nunca no cadastro/login ou pedido
+   * em si, pra nao duplicar a logica de quando escalar em dois lugares.
    */
-  async logEvent(tenantId: string, vector: string, value: string, customerId?: string | null, orderId?: string | null, details?: Record<string, unknown> | null) {
+  async logEvent(tenantId: string, vector: string, value: string, customerId?: string | null, orderId?: string | null, details?: Record<string, unknown> | null, ctx?: DeviceContext | null) {
     if (customerId) {
       const recent = await this.prisma.fraudLog.findFirst({ where: { tenantId, vector, customerId, createdAt: { gte: new Date(Date.now() - 10 * 60_000) } }, select: { id: true } })
       if (recent) return
     }
     const safeDetails = details ? (JSON.parse(JSON.stringify(details)) as Prisma.InputJsonValue) : undefined
     await this.prisma.fraudLog.create({ data: { tenantId, vector, value, customerId: customerId || null, orderId: orderId || null, details: safeDetails } }).catch(() => null)
+    if (vector === 'BLOCKED' && ctx) await this.escalateReincidence(tenantId, ctx, details).catch(() => null)
+  }
+
+  /** So cria se nao existir bloqueio nenhum pro par kind/value -- nunca sobrescreve bloqueio manual (ou automatico) ja existente. */
+  private async createAutoBlock(tenantId: string, kind: string, value: string, reason: string, days: number) {
+    const exists = await this.prisma.fraudBlock.findUnique({ where: { tenantId_kind_value: { tenantId, kind, value } }, select: { id: true } })
+    if (exists) return
+    await this.prisma.fraudBlock
+      .create({ data: { tenantId, kind, value, reason, automatic: true, expiresAt: new Date(Date.now() + days * 86_400_000) } })
+      .catch(() => null)
+  }
+
+  /**
+   * Tentativa bloqueada de novo (16/10/2026 registra; 21/10/2026 escala):
+   * quem fez a tentativa ja tem identidade bloqueada, e isso e prova direta
+   * -- nao precisa de volume pra agir, trava o aparelho na hora.
+   */
+  private async escalateReincidence(tenantId: string, ctx: DeviceContext, details?: Record<string, unknown> | null) {
+    const key = deviceKey(ctx)
+    const targets: Array<[string, string]> = []
+    if (ctx.deviceId) targets.push(['DEVICE', ctx.deviceId])
+    if (key) targets.push(['DEVICE_KEY', key])
+    if (!targets.length) return
+    const matchedKind = details?.matchedKind ? String(details.matchedKind) : null
+    const matchedValue = details?.matchedValue ? String(details.matchedValue) : null
+    const quem = matchedKind && matchedValue ? `${IDENT_PT[matchedKind] || matchedKind} bloqueado ${maskIfPersonal(matchedKind, matchedValue)}` : 'identidade já bloqueada'
+    const reason = `Automático: aparelho usado por ${quem} tentou de novo em ${whenBR(new Date())}.`
+    for (const [kind, value] of targets) await this.createAutoBlock(tenantId, kind, value, reason, ESCALATION_REINCIDENCE_DAYS)
+  }
+
+  /**
+   * 3+ contas novas no mesmo aparelho em 7 dias (mesmo limiar da nota de
+   * risco, ja validado em producao desde 01/10/2026 -- ver comentario grande
+   * acima de `ESCALATION_VELOCITY_DAYS`).
+   */
+  private async escalateVelocity(tenantId: string, ctx: DeviceContext, accountsOnDevice: number) {
+    if (!ctx.deviceId) return
+    const reason = `Automático: ${accountsOnDevice} contas diferentes usaram este aparelho em 7 dias (limite de ${ESCALATION_VELOCITY_THRESHOLD}) em ${whenBR(new Date())}.`
+    const key = deviceKey(ctx)
+    await this.createAutoBlock(tenantId, 'DEVICE', ctx.deviceId, reason, ESCALATION_VELOCITY_DAYS)
+    if (key) await this.createAutoBlock(tenantId, 'DEVICE_KEY', key, reason, ESCALATION_VELOCITY_DAYS)
+  }
+
+  /** Remove um bloqueio pelo id (21/10/2026): o automatico nao tem cliente pra usar `setCustomerBlocked`. */
+  async removeBlock(tenantId: string, id: string) {
+    const res = await this.prisma.fraudBlock.deleteMany({ where: { id, tenantId } })
+    return { ok: res.count > 0 }
   }
 
   /** Identificador bloqueado pelo admin (CPF, WhatsApp, e-mail ou aparelho). Devolve o motivo e QUAL identificador bateu, ou null. */
@@ -202,7 +283,10 @@ export class FraudService {
         },
       }),
     ])
-    if (accountsOnDevice >= 3) points.push([30, `${accountsOnDevice} contas usaram este aparelho em 7 dias`])
+    if (accountsOnDevice >= ESCALATION_VELOCITY_THRESHOLD) {
+      points.push([30, `${accountsOnDevice} contas usaram este aparelho em 7 dias`])
+      await this.escalateVelocity(tenantId, ctx, accountsOnDevice).catch(() => null)
+    }
     if (failedDeliveries) points.push([Math.min(60, 35 * failedDeliveries), `${failedDeliveries} entrega(s) frustrada(s) antes`])
     if (burst >= 2) points.push([30, `${burst + 1} pedidos em 10 minutos`])
 

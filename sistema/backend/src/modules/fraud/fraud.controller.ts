@@ -52,4 +52,10 @@ export class FraudController {
   unblock(@Req() req: AdminRequest, @Param('id') id: string) {
     return this.fraud.setCustomerBlocked(getTenantContext(req).tenantId, id, false, null, req.user?.id)
   }
+
+  @Delete('blocks/:id')
+  @ApiOperation({ summary: 'Remove um bloqueio automático de aparelho/rede (sem cliente vinculado)' })
+  removeBlock(@Req() req: AdminRequest, @Param('id') id: string) {
+    return this.fraud.removeBlock(getTenantContext(req).tenantId, id)
+  }
 }

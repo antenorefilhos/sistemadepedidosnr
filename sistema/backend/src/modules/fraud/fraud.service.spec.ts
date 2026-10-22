@@ -39,11 +39,19 @@ function build(opts: {
       }),
     },
     customer: { findUnique: jest.fn().mockResolvedValue(opts.customer || { createdAt: new Date(Date.now() - 30 * 86_400_000), email: 'a@gmail.com' }) },
-    fraudBlock: { findFirst: jest.fn(({ where }: any) => Promise.resolve((opts.blocks || []).find((b) => where.OR.some((o: any) => o.kind === b.kind && o.value === b.value)) || null)) },
+    fraudLog: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
+    fraudBlock: {
+      findFirst: jest.fn(({ where }: any) => Promise.resolve((opts.blocks || []).find((b) => where.OR.some((o: any) => o.kind === b.kind && o.value === b.value)) || null)),
+      findUnique: jest.fn(({ where }: any) => Promise.resolve((opts.blocks || []).find((b) => b.kind === where.tenantId_kind_value.kind && b.value === where.tenantId_kind_value.value) || null)),
+      create: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     deliveryStop: { count: jest.fn().mockResolvedValue(opts.failedStops ?? 0) },
   }
   return new FraudService(prisma as never)
 }
+
+const prismaOf = (s: FraudService) => (s as unknown as { prisma: any }).prisma
 
 describe('FraudService.firstPurchase (por pessoa)', () => {
   it('conta nova sem ligacao: elegivel', async () => {
@@ -111,5 +119,80 @@ describe('FraudService.assessOrder', () => {
     const r = await build({ ordersBy: { c: 1 } }).assessOrder({ tenantId: 't', customerId: 'c', ctx: ctx({ country: 'US' }) as never, total: 50 })
     expect(r.reasons).toEqual(['Acesso de fora do Brasil (US)'])
     expect(r.level).toBe('MEDIUM')
+  })
+
+  describe('escalonamento automatico: velocidade (21/10/2026)', () => {
+    it('3+ contas no mesmo aparelho em 7 dias bloqueia o aparelho sozinho, automatico, por 15 dias', async () => {
+      const s = build({ ordersBy: { c: 1 }, deviceAccounts: 3 })
+      await s.assessOrder({ tenantId: 't', customerId: 'c', ctx: ctx() as never, total: 80 })
+      const calls = prismaOf(s).fraudBlock.create.mock.calls.map((c: any) => c[0].data)
+      expect(calls).toEqual([
+        expect.objectContaining({ tenantId: 't', kind: 'DEVICE', value: 'dev-1', automatic: true }),
+        expect.objectContaining({ tenantId: 't', kind: 'DEVICE_KEY', value: 'fp1@179.215.10', automatic: true }),
+      ])
+      const left = calls[0].expiresAt.getTime() - Date.now()
+      expect(left).toBeGreaterThan(14 * 86_400_000)
+      expect(left).toBeLessThan(16 * 86_400_000)
+    })
+
+    it('2 contas no aparelho: so soma ponto, nao bloqueia', async () => {
+      const s = build({ ordersBy: { c: 1 }, deviceAccounts: 2 })
+      await s.assessOrder({ tenantId: 't', customerId: 'c', ctx: ctx() as never, total: 80 })
+      expect(prismaOf(s).fraudBlock.create).not.toHaveBeenCalled()
+    })
+
+    it('aparelho ja bloqueado: nao cria de novo', async () => {
+      const s = build({ ordersBy: { c: 1 }, deviceAccounts: 5, blocks: [{ kind: 'DEVICE', value: 'dev-1' }, { kind: 'DEVICE_KEY', value: 'fp1@179.215.10' }] })
+      await s.assessOrder({ tenantId: 't', customerId: 'c', ctx: ctx() as never, total: 80 })
+      expect(prismaOf(s).fraudBlock.create).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe('FraudService.logEvent: escalonamento automatico por reincidencia (21/10/2026)', () => {
+  it('BLOCKED com aparelho da tentativa: bloqueia o aparelho e a chave (aparelho+rede) na hora, com motivo legivel', async () => {
+    const s = build()
+    await s.logEvent('t', 'BLOCKED', 'cadastro/login', null, null, { matchedKind: 'CPF', matchedValue: '52998224725' }, ctx() as never)
+    const calls = prismaOf(s).fraudBlock.create.mock.calls.map((c: any) => c[0].data)
+    expect(calls).toEqual([
+      expect.objectContaining({ kind: 'DEVICE', value: 'dev-1', automatic: true }),
+      expect.objectContaining({ kind: 'DEVICE_KEY', value: 'fp1@179.215.10', automatic: true }),
+    ])
+    expect(calls[0].reason).toMatch(/CPF bloqueado 529••••••25/)
+    const left = calls[0].expiresAt.getTime() - Date.now()
+    expect(left).toBeGreaterThan(29 * 86_400_000)
+    expect(left).toBeLessThan(31 * 86_400_000)
+  })
+
+  it('aparelho e chave ja bloqueados: nao duplica', async () => {
+    const s = build({ blocks: [{ kind: 'DEVICE', value: 'dev-1' }, { kind: 'DEVICE_KEY', value: 'fp1@179.215.10' }] })
+    await s.logEvent('t', 'BLOCKED', 'cadastro/login', null, null, { matchedKind: 'CPF', matchedValue: '52998224725' }, ctx() as never)
+    expect(prismaOf(s).fraudBlock.create).not.toHaveBeenCalled()
+  })
+
+  it('sem ctx (chamada antiga, sem aparelho): so registra o log, nao tenta escalar', async () => {
+    const s = build()
+    await s.logEvent('t', 'BLOCKED', 'pedido', null, null, { matchedKind: 'CPF', matchedValue: '1' })
+    expect(prismaOf(s).fraudBlock.create).not.toHaveBeenCalled()
+  })
+
+  it('vetor diferente de BLOCKED nao escala, mesmo com ctx', async () => {
+    const s = build()
+    await s.logEvent('t', 'FIRST_PURCHASE', 'frete gratis', 'c', null, undefined, ctx() as never)
+    expect(prismaOf(s).fraudBlock.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('FraudService.removeBlock (21/10/2026)', () => {
+  it('remove pelo id, sem depender de customerId', async () => {
+    const s = build()
+    prismaOf(s).fraudBlock.deleteMany.mockResolvedValueOnce({ count: 1 })
+    expect(await s.removeBlock('t', 'blk-1')).toEqual({ ok: true })
+    expect(prismaOf(s).fraudBlock.deleteMany).toHaveBeenCalledWith({ where: { id: 'blk-1', tenantId: 't' } })
+  })
+
+  it('id inexistente: ok false', async () => {
+    const s = build()
+    expect(await s.removeBlock('t', 'nada')).toEqual({ ok: false })
   })
 })

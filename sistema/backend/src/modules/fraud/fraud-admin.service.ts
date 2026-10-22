@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
+import { mask } from './fraud.util'
 
-const mask = (v: string, keep = 3) => (v.length > keep + 2 ? `${v.slice(0, keep)}${'•'.repeat(Math.max(0, v.length - keep - 2))}${v.slice(-2)}` : v)
 const KIND_LABEL: Record<string, string> = { DEVICE: 'mesmo aparelho', DEVICE_KEY: 'mesmo aparelho e rede', EMAIL: 'mesmo e-mail' }
 const VECTOR_LABEL: Record<string, string> = {
   FIRST_PURCHASE: 'Primeira compra negada',
@@ -135,11 +135,16 @@ export class FraudAdminService {
     })
     const blockName = new Map(blockCustomers.map((c) => [c.id, c.name]))
     const blockedPeople = new Map<string, { customerId: string; name: string; reason: string | null; at: Date; identifiers: number }>()
-    for (const b of blocks) {
-      const key = b.customerId || b.id
+    for (const b of blocks.filter((b) => b.customerId)) {
+      const key = b.customerId!
       const cur = blockedPeople.get(key)
-      blockedPeople.set(key, { customerId: b.customerId || '', name: blockName.get(b.customerId || '') || '—', reason: b.reason, at: cur?.at ?? b.createdAt, identifiers: (cur?.identifiers ?? 0) + 1 })
+      blockedPeople.set(key, { customerId: key, name: blockName.get(key) || '—', reason: b.reason, at: cur?.at ?? b.createdAt, identifiers: (cur?.identifiers ?? 0) + 1 })
     }
+    // Bloqueio automatico (escalonamento, 21/10/2026) e de aparelho/rede, nunca
+    // de pessoa -- por isso nao tem customerId e aparece um por um, nao agrupado.
+    const autoBlocks = blocks
+      .filter((b) => !b.customerId)
+      .map((b) => ({ id: b.id, kind: b.kind, value: b.value, reason: b.reason, automatic: b.automatic, expiresAt: b.expiresAt, at: b.createdAt }))
 
     const count = (level: string) => assessed.find((a) => a.riskLevel === level)?._count._all ?? 0
     return {
@@ -153,6 +158,7 @@ export class FraudAdminService {
         denied: logs.filter((l) => l.vector === 'FIRST_PURCHASE' || l.vector === 'COUPON' || l.vector === 'BLOCKED').length,
         linkedAccounts: allIds.length,
         blocked: blockedPeople.size,
+        autoBlocked: autoBlocks.length,
       },
       riskOrders: riskOrders.map((o) => ({ ...o, total: Number(o.total) })),
       clusters,
@@ -167,6 +173,7 @@ export class FraudAdminService {
         attempt: describeAttempt(l.details),
       })),
       blocked: [...blockedPeople.values()],
+      autoBlocks,
     }
   }
 

@@ -1556,7 +1556,7 @@ export interface SubstitutionEvent {
 export interface FraudOverview {
   since: string
   until: string
-  summary: { assessed: number; high: number; medium: number; pendingReview: number; denied: number; linkedAccounts: number; blocked: number }
+  summary: { assessed: number; high: number; medium: number; pendingReview: number; denied: number; linkedAccounts: number; blocked: number; autoBlocked: number }
   riskOrders: Array<{
     id: string
     erpDav: string | null
@@ -1576,6 +1576,8 @@ export interface FraudOverview {
   }>
   events: Array<{ id: string; kind: string; label: string; customerId: string | null; customer: string | null; orderId: string | null; at: string; attempt: string | null }>
   blocked: Array<{ customerId: string; name: string; reason: string | null; at: string; identifiers: number }>
+  // Bloqueio automático de aparelho/rede (escalonamento, 21/10/2026): sem cliente vinculado, por isso separado de `blocked`.
+  autoBlocks: Array<{ id: string; kind: string; value: string; reason: string | null; automatic: boolean; expiresAt: string | null; at: string }>
 }
 
 export const fraudAPI = {
@@ -1585,6 +1587,7 @@ export const fraudAPI = {
   review: (orderId: string) => api.post(`/admin/fraud/orders/${orderId}/review`),
   block: (customerId: string, reason?: string) => api.post(`/admin/fraud/customers/${customerId}/block`, { reason }),
   unblock: (customerId: string) => api.delete(`/admin/fraud/customers/${customerId}/block`),
+  removeBlock: (id: string) => api.delete(`/admin/fraud/blocks/${id}`),
 }
 
 export interface AdminNotification {

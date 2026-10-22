@@ -10,6 +10,12 @@ const TZ = 'America/Sao_Paulo'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const when = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const LEVEL = { HIGH: { label: 'Risco alto', dot: 'bg-rose-500' }, MEDIUM: { label: 'Atenção', dot: 'bg-amber-500' }, LOW: { label: 'Baixo', dot: 'bg-emerald-500' } } as const
+const AUTO_KIND_LABEL: Record<string, string> = { DEVICE: 'Aparelho', DEVICE_KEY: 'Aparelho + rede' }
+const daysLeft = (iso: string | null) => {
+  if (!iso) return null
+  const ms = new Date(iso).getTime() - Date.now()
+  return Math.max(0, Math.ceil(ms / 86_400_000))
+}
 const todayStr = () => new Date().toISOString().slice(0, 10)
 type Period = 7 | 30 | 90 | 'custom'
 const PERIODS: Array<{ value: Period; label: string }> = [
@@ -133,7 +139,7 @@ export default function FraudAudit() {
             <Stat label="Para conferir" value={String(d.summary.pendingReview)} tone={d.summary.pendingReview ? 'bad' : 'ok'} hint={`${d.summary.high} risco alto e ${d.summary.medium} atenção · ${periodLabel}`} />
             <Stat label="Pedidos analisados" value={String(d.summary.assessed)} hint={`todo pedido novo ganha nota de risco · ${periodLabel}`} />
             <Stat label="Benefícios negados" value={String(d.summary.denied)} tone={d.summary.denied ? 'warn' : undefined} hint="cupom ou frete de primeira compra" />
-            <Stat label="Contas ligadas" value={String(d.summary.linkedAccounts)} hint={`${d.summary.blocked} pessoa(s) bloqueada(s)`} />
+            <Stat label="Contas ligadas" value={String(d.summary.linkedAccounts)} hint={`${d.summary.blocked} pessoa(s) bloqueada(s)${d.summary.autoBlocked ? ` · ${d.summary.autoBlocked} aparelho(s) automático` : ''}`} />
           </div>
 
           <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
@@ -265,6 +271,36 @@ export default function FraudAudit() {
             </section>
           </div>
 
+          {d.autoBlocks.length > 0 && (
+            <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
+              <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Bloqueios automáticos · aparelho/rede</h3>
+              <p className="mt-1 text-xs text-gray-500">O sistema bloqueou sozinho, sem admin clicar em nada — por reincidência de identidade já bloqueada ou por 3+ contas novas no mesmo aparelho em 7 dias. Expira só e some daqui; pode remover antes se for engano.</p>
+              <ul className="mt-2 divide-y divide-black/[0.05]">
+                {d.autoBlocks.map((b) => {
+                  const left = daysLeft(b.expiresAt)
+                  return (
+                    <li key={b.id} className="flex items-start gap-3 py-2 text-sm">
+                      <span className="min-w-0 flex-1">
+                        <span className="text-gray-900">{AUTO_KIND_LABEL[b.kind] || b.kind}</span>
+                        <span className="ml-1 font-mono text-xs text-gray-400">{b.value}</span>
+                        <span className="block text-xs text-gray-600">{b.reason || 'sem motivo registrado'}</span>
+                        <span className="block text-xs text-gray-500">desde {when(b.at)}{left !== null && ` · expira em ${left} dia(s)`}</span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled={busy === `rb:${b.id}`}
+                        onClick={() => run(`rb:${b.id}`, () => fraudAPI.removeBlock(b.id), 'Bloqueio removido.')}
+                        className="shrink-0 text-xs text-gray-600 underline disabled:opacity-40"
+                      >
+                        remover
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
+
           <section className="rounded-2xl border border-black/[0.06] bg-white p-4">
             <button type="button" onClick={() => setHowOpen((v) => !v)} className="flex w-full items-center justify-between text-left">
               <h3 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Como a nota é calculada</h3>
@@ -276,9 +312,10 @@ export default function FraudAudit() {
                 <li>Entrega frustrada antes (a pessoa, contando as contas ligadas): +35 cada, até 60</li>
                 <li>Conta criada hoje com primeiro pedido acima de R$ 600: +40 (acima de R$ 300: +20)</li>
                 <li>Mesmo aparelho ou e-mail de outras contas: +15 por conta, até 40</li>
-                <li>3 ou mais contas usando o mesmo aparelho em 7 dias: +30</li>
+                <li>3 ou mais contas usando o mesmo aparelho em 7 dias: +30 (e bloqueia esse aparelho sozinho, por 15 dias)</li>
                 <li>Vários pedidos em 10 minutos: +30 · Acesso de fora do Brasil: +30 · E-mail descartável: +15</li>
-                <li className="pt-1 text-gray-500">60 pontos ou mais é risco alto (ligar antes de separar); de 30 a 59, atenção. A nota não bloqueia pedido: só o bloqueio manual barra, e ele vale para CPF, WhatsApp, e-mail e aparelhos da pessoa.</li>
+                <li className="pt-1 text-gray-500">60 pontos ou mais é risco alto (ligar antes de separar); de 30 a 59, atenção. A nota não bloqueia pedido por si só, mas identidade bloqueada (manual ou automática) nunca fecha pedido nem cadastro novo. Bloqueio manual vale para CPF, WhatsApp, e-mail e aparelhos da pessoa; o automático é só do aparelho/rede e some sozinho no prazo (veja "Bloqueios automáticos" abaixo).</li>
+                <li className="text-gray-500">Tentar de novo com identidade nova depois de cair num bloqueio já bloqueia o aparelho da tentativa por 30 dias, na hora — sem precisar repetir.</li>
                 <li className="text-gray-500">Benefício de primeira compra (cupom ou frete) vale por pessoa: conta nova no mesmo aparelho, e-mail ou endereço de quem já comprou não ganha de novo.</li>
               </ul>
             )}

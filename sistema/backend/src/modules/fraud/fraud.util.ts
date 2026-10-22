@@ -78,3 +78,6 @@ const DISPOSABLE = new Set([
   'mohmal.com', 'fakeinbox.com', 'throwawaymail.com', 'minuteinbox.com', 'mintemail.com', 'tempr.email', 'discard.email',
 ])
 export const isDisposableEmail = (email?: string | null) => DISPOSABLE.has(String(email || '').split('@')[1]?.toLowerCase() || '')
+
+/** Mascara CPF/WhatsApp pra mostrar na tela sem expor o dado inteiro: "153***...**56". */
+export const mask = (v: string, keep = 3) => (v.length > keep + 2 ? `${v.slice(0, keep)}${'•'.repeat(Math.max(0, v.length - keep - 2))}${v.slice(-2)}` : v)
