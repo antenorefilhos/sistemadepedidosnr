@@ -14,6 +14,20 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.24.0',
+    date: '22/10/2026',
+    title: 'Antifraude Bloqueia Sozinho, Giro de Produto e Mais',
+    highlights: [
+      { type: 'feat', description: 'Antifraude agora bloqueia sozinho: aparelho que tenta contornar um bloqueio (CPF, WhatsApp ou e-mail novo) é bloqueado na hora por até 30 dias, e 3 ou mais contas usando o mesmo aparelho numa semana também travam sozinhas por até 15 dias. A tela mostra o motivo exato de cada bloqueio automático, com botão pra liberar antes do prazo.' },
+      { type: 'feat', description: 'Novo relatório em Catálogo > Giro de Produto: o que vendeu, quanto e há quanto tempo não vende — pra ajudar a decidir o que empurrar ou tirar do mix.' },
+      { type: 'feat', description: 'Ocultar um produto agora aceita prazo (7, 15, 30 dias ou data livre) — volta sozinho a seguir a API quando vencer, sem precisar lembrar de reativar.' },
+      { type: 'feat', description: 'Catálogo ganhou monitor automático: quando um produto some do site sem explicação, chega um aviso no Telegram.' },
+      { type: 'feat', description: 'Botão "Reindexar busca" na tela de Catálogo, pra atualizar a busca na hora sem esperar o próximo sync.' },
+      { type: 'fix', description: 'Mensagem de troca enviada pelo WhatsApp mostrava o total errado quando algum item faltava — corrigido.' },
+      { type: 'feat', description: 'Pedido cancelado no caixa agora é detectado automaticamente pelo site, sem precisar mexer manualmente — evita separador ou entregador trabalhando em pedido já cancelado.' },
+    ],
+  },
+  {
     version: '1.23.1',
     date: '16/10/2026',
     title: 'Editar Área no Mapa Não Trava Mais',
