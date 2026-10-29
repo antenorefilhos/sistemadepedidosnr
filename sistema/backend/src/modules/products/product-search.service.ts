@@ -387,6 +387,7 @@ export class ProductSearchService implements OnModuleInit {
     classification03: string | null
     classification04: string | null
     saleWeekdays?: number[]
+    requiresAgeVerification?: boolean
   }, popularityScore: number) {
     return {
       id: product.id,
@@ -418,6 +419,9 @@ export class ProductSearchService implements OnModuleInit {
       saleWeekdays: product.saleWeekdays || [],
       availability: this.resolveAvailability(product),
       popularityScore,
+      // AEF-062: sem isso, resultado de busca/listagem escondia o produto do
+      // gate de idade -- mostrava preco e deixava adicionar ao carrinho direto.
+      requiresAgeVerification: Boolean(product.requiresAgeVerification),
     }
   }
 
