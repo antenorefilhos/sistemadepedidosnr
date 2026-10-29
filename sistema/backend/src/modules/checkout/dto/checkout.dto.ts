@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer'
-import { IsArray, IsISO8601, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
+import { IsArray, IsBoolean, IsISO8601, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
 
 export class CheckoutDeliveryDto {
   @IsOptional()
@@ -98,6 +98,13 @@ export class QuoteCheckoutSessionDto {
   @IsOptional()
   @IsISO8601()
   scheduledFor?: string
+
+  // AEF-062 (29/10/2026): true depois que o cliente confirmou ter 18 anos ou
+  // mais no gate do site (produto com bebida alcoolica/tabacaria no carrinho).
+  // Revalidado no servidor contra o conteudo real do carrinho -- ver getBlockers.
+  @IsOptional()
+  @IsBoolean()
+  ageConfirmed?: boolean
 }
 
 export class ConfirmCheckoutSessionDto extends QuoteCheckoutSessionDto {

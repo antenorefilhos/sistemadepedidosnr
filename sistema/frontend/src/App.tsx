@@ -12,6 +12,8 @@ import { NetworkToast } from './components/NetworkToast'
 import { PageTransition } from './components/PageTransition'
 import { DeliveryVerificationModal } from './components/DeliveryVerificationModal'
 import { DeliveryVerificationModalProvider } from './contexts/DeliveryVerificationModalContext'
+import { AgeVerificationModal } from './components/AgeVerificationModal'
+import { AgeVerificationProvider } from './contexts/AgeVerificationContext'
 import { Loader2 } from 'lucide-react'
 import './App.css'
 
@@ -180,27 +182,30 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <DeliveryVerificationModalProvider>
-            <NetworkToast />
-            <Toaster
-              position="bottom-center"
-              gutter={8}
-              toastOptions={{
-                duration: 2600,
-                style: {
-                  background: '#5D082A',
-                  color: '#FBF7F0',
-                  border: '1px solid #D2BB8A',
-                  fontSize: '0.875rem', // degrau `body` da rampa do DESIGN.md
-                  fontWeight: 600,
-                  maxWidth: '92vw',
-                },
-                success: {
-                  iconTheme: { primary: '#D2BB8A', secondary: '#5D082A' },
-                },
-              }}
-            />
-            <DeliveryVerificationModal />
-            <AppRoutes />
+            <AgeVerificationProvider>
+              <NetworkToast />
+              <Toaster
+                position="bottom-center"
+                gutter={8}
+                toastOptions={{
+                  duration: 2600,
+                  style: {
+                    background: '#5D082A',
+                    color: '#FBF7F0',
+                    border: '1px solid #D2BB8A',
+                    fontSize: '0.875rem', // degrau `body` da rampa do DESIGN.md
+                    fontWeight: 600,
+                    maxWidth: '92vw',
+                  },
+                  success: {
+                    iconTheme: { primary: '#D2BB8A', secondary: '#5D082A' },
+                  },
+                }}
+              />
+              <DeliveryVerificationModal />
+              <AgeVerificationModal />
+              <AppRoutes />
+            </AgeVerificationProvider>
           </DeliveryVerificationModalProvider>
         </AuthProvider>
       </QueryClientProvider>

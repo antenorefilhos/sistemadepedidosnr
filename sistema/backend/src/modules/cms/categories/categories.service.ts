@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { isProductSellable } from '../../../common/product-availability';
 import { eansWithPhoto } from '../../../common/product-photos';
 import { PrismaService } from '../../../common/prisma.service';
+import { buildCategoryAgeVerificationFlags, AGE_VERIFICATION_CLASSIFICATION_EXCEPTION_VALUES } from '../../../common/age-verification';
 
 const COMMERCIAL_CATEGORY_PRIORITY = [
   'CARNES_DIA_A_DIA',
@@ -444,7 +445,7 @@ export class CategoriesService {
     });
   }
 
-  async update(id: string, data: { shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
+  async update(id: string, data: { shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[]; requiresAgeVerification?: boolean | null }) {
     // O nome e a chave que liga a categoria ao site e ao sync do ERP: renomear
     // tirava a categoria do site. So o nome curto (o que o cliente le) e editavel.
     const { curatedProductIds, name: _name, ...categoryData } = data as typeof data & { name?: string };
@@ -456,6 +457,13 @@ export class CategoriesService {
 
     await this.replaceCategoryCurations(id, curatedProductIds);
 
+    // AEF-062: so revarre o catalogo quando o flag de idade foi de fato tocado
+    // neste PATCH -- e um campo em potencialmente milhares de produtos,
+    // nao vale rodar em toda edicao de banner/prioridade.
+    if (data.requiresAgeVerification !== undefined) {
+      await this.recomputeProductAgeVerificationFlags();
+    }
+
     return this.prisma.category.findUnique({
       where: { id },
       include: {
@@ -464,6 +472,36 @@ export class CategoriesService {
           include: { product: true },
         },
       },
+    });
+  }
+
+  /**
+   * AEF-062 (29/10/2026): reaplica `Product.requiresAgeVerification` pra todo
+   * o catalogo a partir do flag (com heranca) de cada categoria -- chamado
+   * depois de qualquer PATCH que mexa em `Category.requiresAgeVerification`,
+   * e tambem reusado pelo sync do ERP (products.service.ts) via o mesmo mapa.
+   */
+  async recomputeProductAgeVerificationFlags() {
+    const categories = await this.prisma.category.findMany({
+      select: { id: true, name: true, parentId: true, requiresAgeVerification: true },
+    });
+    const flagsByCode = buildCategoryAgeVerificationFlags(categories);
+    const trueCodes = [...flagsByCode.entries()].filter(([, flag]) => flag).map(([code]) => code);
+
+    if (trueCodes.length > 0) {
+      await this.prisma.product.updateMany({
+        where: { category: { in: trueCodes }, NOT: { classification03: { in: AGE_VERIFICATION_CLASSIFICATION_EXCEPTION_VALUES } } },
+        data: { requiresAgeVerification: true },
+      });
+    }
+    await this.prisma.product.updateMany({
+      where: {
+        OR: [
+          trueCodes.length > 0 ? { category: { notIn: trueCodes } } : {},
+          { classification03: { in: AGE_VERIFICATION_CLASSIFICATION_EXCEPTION_VALUES } },
+        ],
+      },
+      data: { requiresAgeVerification: false },
     });
   }
 
@@ -483,7 +521,7 @@ export class CategoriesService {
     const withPhoto = eansWithPhoto();
 
     const [categories, mappings, products, sales] = await Promise.all([
-      this.prisma.category.findMany({ where: { parentId: null }, select: { id: true, name: true, shortName: true, active: true, priority: true } }),
+      this.prisma.category.findMany({ where: { parentId: null }, select: { id: true, name: true, shortName: true, active: true, priority: true, requiresAgeVerification: true } }),
       this.prisma.productCategoryMapping.findMany({ select: { ean: true, categoryId: true } }),
       this.prisma.product.findMany({
         where: { erpActive: true },
@@ -525,6 +563,8 @@ export class CategoriesService {
         shortName: c.shortName,
         active: c.active,
         priority: c.priority,
+        // AEF-062: raiz sem pai -- o proprio valor ja e o efetivo, null=desligado.
+        requiresAgeVerification: Boolean(c.requiresAgeVerification),
         ...(stats.get(c.id) || { onSite: 0, offSite: 0, noPhoto: 0, promo: 0 }),
         ...(salesById.get(c.id) || { orders: 0, revenue: 0 }),
       }))

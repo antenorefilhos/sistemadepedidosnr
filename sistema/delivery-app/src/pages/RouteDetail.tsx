@@ -268,6 +268,11 @@ export default function RouteDetail({ routeId, onBack }: { routeId: string; onBa
                   <strong>Instruções:</strong> {stop.order.deliveryInstructions}
                 </p>
               )}
+              {stop.order?.ageVerificationRequired && (
+                <p className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-1.5 mb-2">
+                  +18: pedido tem bebida alcoólica ou tabacaria. Confira a idade de quem recebe antes de entregar.
+                </p>
+              )}
 
               <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
                 <span>R$ {stop.order?.total?.toFixed(2) || '0.00'}</span>

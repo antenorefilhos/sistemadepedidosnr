@@ -6,8 +6,8 @@ const now = new Date('2026-09-30T12:00:00Z').getTime()
 const ctx: HealthContext = {
   offers: 0,
   departments: [
-    { id: '1', name: 'Açougue & Churrasco', shortName: 'Açougue', active: true, priority: 1, onSite: 91, offSite: 0, noPhoto: 0, promo: 0, orders: 0, revenue: 0 },
-    { id: '2', name: 'Bebês & Infantil', shortName: null, active: true, priority: 2, onSite: 0, offSite: 3, noPhoto: 0, promo: 0, orders: 0, revenue: 0 },
+    { id: '1', name: 'Açougue & Churrasco', shortName: 'Açougue', active: true, priority: 1, requiresAgeVerification: false, onSite: 91, offSite: 0, noPhoto: 0, promo: 0, orders: 0, revenue: 0 },
+    { id: '2', name: 'Bebês & Infantil', shortName: null, active: true, priority: 2, requiresAgeVerification: false, onSite: 0, offSite: 3, noPhoto: 0, promo: 0, orders: 0, revenue: 0 },
   ],
   campaigns: [{ erpCampaignId: 372, name: 'Encarte Final Semana', active: true, startDate: '2026-10-03T03:00:00Z', endDate: '2026-10-05T02:59:59Z' }],
 }

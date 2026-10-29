@@ -66,6 +66,7 @@ export interface DepartmentOverview {
   shortName: string | null
   active: boolean
   priority: number
+  requiresAgeVerification: boolean
   onSite: number
   offSite: number
   noPhoto: number

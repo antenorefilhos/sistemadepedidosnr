@@ -60,6 +60,19 @@ export default function DepartmentsSection({ onOpenProducts }: Props) {
     }
   }
 
+  const toggleAgeVerification = async (d: DepartmentOverview) => {
+    setBusy(d.id)
+    setError('')
+    try {
+      await cmsAPI.categories.update(d.id, { requiresAgeVerification: !d.requiresAgeVerification })
+      setRows((prev) => prev.map((r) => (r.id === d.id ? { ...r, requiresAgeVerification: !d.requiresAgeVerification } : r)))
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Não foi possível mudar a confirmação de idade.'))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const saveName = async () => {
     if (!editing) return
     const value = editing.value.trim()
@@ -152,7 +165,7 @@ export default function DepartmentsSection({ onOpenProducts }: Props) {
         <div className="h-96 animate-pulse rounded-2xl bg-white/70" />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
-          <div className="hidden grid-cols-[28px_minmax(0,1fr)_150px_repeat(3,70px)_150px_110px] items-center gap-3 border-b border-black/[0.05] px-4 py-2 text-[11px] uppercase tracking-wide text-gray-400 lg:grid">
+          <div className="hidden grid-cols-[28px_minmax(0,1fr)_150px_repeat(3,70px)_150px_110px_90px] items-center gap-3 border-b border-black/[0.05] px-4 py-2 text-[11px] uppercase tracking-wide text-gray-400 lg:grid">
             <span />
             <span>Departamento · na ordem do site</span>
             <span>No site</span>
@@ -161,6 +174,7 @@ export default function DepartmentsSection({ onOpenProducts }: Props) {
             <span className="text-right">Promo</span>
             <span>Vendas 30 dias</span>
             <span className="text-right">No site?</span>
+            <span className="text-right">+18?</span>
           </div>
           <ul className="divide-y divide-black/[0.05]">
             {rows.map((d, i) => (
@@ -182,7 +196,7 @@ export default function DepartmentsSection({ onOpenProducts }: Props) {
                   setDragId(null)
                   setOverId(null)
                 }}
-                className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 lg:grid-cols-[28px_minmax(0,1fr)_150px_repeat(3,70px)_150px_110px] ${
+                className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 lg:grid-cols-[28px_minmax(0,1fr)_150px_repeat(3,70px)_150px_110px_90px] ${
                   overId === d.id && dragId !== d.id ? 'bg-gray-50' : ''
                 } ${d.active ? '' : 'text-gray-400'}`}
               >
@@ -233,6 +247,12 @@ export default function DepartmentsSection({ onOpenProducts }: Props) {
                     <ArrowDown size={16} />
                   </button>
                   <Switch on={d.active} disabled={busy === d.id} onClick={() => toggle(d)} label={d.shortName || d.name} />
+                  <Switch
+                    on={d.requiresAgeVerification}
+                    disabled={busy === d.id}
+                    onClick={() => toggleAgeVerification(d)}
+                    label={`Confirmação de idade (+18) em ${d.shortName || d.name}`}
+                  />
                 </div>
 
                 {/* No site com barra */}
@@ -280,6 +300,14 @@ export default function DepartmentsSection({ onOpenProducts }: Props) {
                 <div className="hidden items-center justify-end gap-1 lg:flex">
                   <Switch on={d.active} disabled={busy === d.id} onClick={() => toggle(d)} label={d.shortName || d.name} />
                 </div>
+                <div className="hidden items-center justify-end gap-1 lg:flex">
+                  <Switch
+                    on={d.requiresAgeVerification}
+                    disabled={busy === d.id}
+                    onClick={() => toggleAgeVerification(d)}
+                    label={`Confirmação de idade (+18) em ${d.shortName || d.name}`}
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -291,6 +319,10 @@ export default function DepartmentsSection({ onOpenProducts }: Props) {
         <p>
           O departamento de cada produto vem do cadastro no ERP. Para mudar um produto de lugar, use Produtos → Categoria no site. Vendas contam pedidos não
           cancelados dos últimos 30 dias, pelo valor dos itens.
+        </p>
+        <p>
+          "+18" liga o aviso de confirmação de idade no site: quem entra num produto, numa listagem ou tenta levar no carrinho precisa confirmar que tem 18
+          anos ou mais antes de ver o preço. Itens sem álcool dentro do departamento (ex.: cerveja sem álcool, mixer para drinque) ficam de fora sozinhos.
         </p>
       </div>
     </div>

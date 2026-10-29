@@ -50,6 +50,7 @@ type QuoteProduct = {
   fractionStep: number | null
   manualIsFractional: boolean | null
   manualFractionStep: number | null
+  requiresAgeVerification: boolean
 }
 
 type QuoteItem = {
@@ -64,6 +65,7 @@ type QuoteItem = {
   margin: number | null
   subtotal: number
   priceListId: string | null
+  requiresAgeVerification: boolean
 }
 
 type PromotionLike = Prisma.PromotionGetPayload<{
@@ -225,6 +227,7 @@ export class PricingService {
         fractionStep: true,
         manualIsFractional: true,
         manualFractionStep: true,
+        requiresAgeVerification: true,
       },
     })
     const productsById = new Map(products.map((product) => [product.id, product as QuoteProduct]))
@@ -298,6 +301,7 @@ export class PricingService {
         margin,
         subtotal,
         priceListId: priceListItem?.priceListId || null,
+        requiresAgeVerification: product.requiresAgeVerification,
       }
     })
 

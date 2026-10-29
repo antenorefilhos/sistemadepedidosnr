@@ -54,7 +54,7 @@ export function useQuoteCheckoutSession() {
       data,
     }: {
       id: string
-      data: { customerId?: string; couponCode?: string; deliveryAddressId?: string; delivery?: CheckoutDeliveryPayload; scheduledFor?: string }
+      data: { customerId?: string; couponCode?: string; deliveryAddressId?: string; delivery?: CheckoutDeliveryPayload; scheduledFor?: string; ageConfirmed?: boolean }
     }) => checkoutAPI.quoteSession(id, data),
   })
 }
@@ -77,6 +77,7 @@ export function useConfirmCheckoutSession() {
         /** ISO do horario escolhido. Ausente = o quanto antes. */
         scheduledFor?: string
         deviceId?: string
+        ageConfirmed?: boolean
       }
     }) => checkoutAPI.confirmSession(id, data),
   })

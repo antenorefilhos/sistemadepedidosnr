@@ -37,6 +37,8 @@ export interface DeliveryStop {
     paymentMethod: string
     notes: string | null
     deliveryInstructions: string | null
+    /** AEF-062: pedido tem bebida alcoólica/tabacaria -- conferir idade de quem recebe. */
+    ageVerificationRequired?: boolean
     addressSnapshot?: {
       street?: string
       number?: string

@@ -372,6 +372,7 @@ export class OrdersService {
       deviceFingerprint,
       deviceAutomation,
       clientCountry,
+      ageConfirmed,
     } = createOrderDto
     const tenantId = rawTenantId || DEFAULT_TENANT_ID
     const storeId = rawStoreId || DEFAULT_STORE_ID
@@ -466,6 +467,15 @@ export class OrdersService {
       throw new BadRequestException(
         'O preco do pedido mudou entre a confirmacao e a gravacao (promocao ou produto pode ter sido atualizado). Revise o pedido antes de confirmar.',
       )
+    }
+
+    // AEF-062 (29/10/2026): mesma checagem do CheckoutService.getBlockers,
+    // repetida aqui porque create() e o ponto que realmente grava o pedido --
+    // chamada direta (fora do fluxo de checkout) nao passa pelo blocker.
+    const ageVerificationRequired = quote.items.some((item) => item.requiresAgeVerification)
+    if (ageVerificationRequired && !ageConfirmed) {
+      await this.markCreateOrderIdempotencyFailed(idempotency.recordId)
+      throw new BadRequestException('É necessário confirmar que você tem 18 anos ou mais para levar bebida alcoólica/tabacaria.')
     }
 
     // ── Anti-fraude: frete grátis no primeiro pedido ──────────────────
@@ -606,6 +616,8 @@ export class OrdersService {
         clientIp,
         deviceFingerprint: deviceFingerprint || null,
         clientCountry: clientCountry || null,
+        ageVerificationRequired,
+        ageVerificationConfirmedAt: ageVerificationRequired ? new Date() : null,
         ...(risk ? { riskScore: risk.score, riskLevel: risk.level, riskReasons: risk.reasons } : {}),
         customerSnapshot: this.buildCustomerSnapshot(customer),
         addressSnapshot: address ? this.buildAddressSnapshot(address) : Prisma.JsonNull,

@@ -79,6 +79,12 @@ export class CreateOrderDto {
   @IsString()
   clientCountry?: string
 
+  // AEF-062 (29/10/2026): o cliente confirmou ter 18+ no gate do site.
+  // CheckoutService ja barra em getBlockers quando falta e o carrinho exige
+  // -- aqui e so o snapshot gravado no pedido (ver Order.ageVerification*).
+  @IsOptional()
+  ageConfirmed?: boolean
+
   @IsOptional()
   @IsString()
   tenantId?: string

@@ -6,6 +6,7 @@ import type { User as AuthUser } from '../contexts/AuthContext'
 import { useCustomerById } from '../hooks/useOrders'
 import { BrazilianValidators } from '../utils/validators'
 import { useCart } from '../hooks/useCart'
+import { useAgeVerification } from '../contexts/AgeVerificationContext'
 import {
   useAddBackendCartItem,
   useConfirmCheckoutSession,
@@ -85,6 +86,7 @@ export default function Checkout() {
   const createCheckoutSession = useCreateCheckoutSession()
   const quoteCheckoutSession = useQuoteCheckoutSession()
   const confirmCheckoutSession = useConfirmCheckoutSession()
+  const { isVerified: isAgeVerified } = useAgeVerification()
   const orderIdempotencyKeyRef = useRef<string | null>(null)
   const backendCartIdRef = useRef<string | null>(null)
   const checkoutSessionIdRef = useRef<string | null>(null)
@@ -438,6 +440,7 @@ export default function Checkout() {
         // O preco de oferta segue o dia da entrega (02/10/2026): o total da
         // tela e o cobrado no confirmar usam o mesmo dia agendado.
         scheduledFor: scheduledFor || undefined,
+        ageConfirmed: isAgeVerified,
       },
     })
     setCheckoutQuote(quoteResponse.data)
@@ -449,6 +452,7 @@ export default function Checkout() {
     createBackendCart,
     createCheckoutSession,
     getDeliveryPayload,
+    isAgeVerified,
     quoteCheckoutSession,
     scheduledFor,
     user?.id,
@@ -835,6 +839,7 @@ export default function Checkout() {
           deliveryAddressId,
           delivery: getDeliveryPayload(deliveryAddressId),
           couponCode: couponCode || undefined,
+          ageConfirmed: isAgeVerified,
         },
       })
 

@@ -27,6 +27,8 @@ export interface Product {
   /** Ficha do vinho (curadoria por rotulo); ver utils/wine.ts. */
   wineProfile?: import('../utils/wine').WineProfile | null
   classification03?: string | null
+  /** Bebida alcoólica/tabacaria (AEF-062): exige confirmar 18+ antes de ver preço/comprar. */
+  requiresAgeVerification?: boolean
 }
 
 export interface Customer {

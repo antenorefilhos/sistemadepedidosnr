@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Minus, Plus, Flame } from 'lucide-react'
+import { Minus, Plus, Flame, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ProductImagePlaceholder } from './ProductImagePlaceholder'
 import { useCart } from '../hooks/useCart'
+import { useAgeVerification } from '../contexts/AgeVerificationContext'
 import type { Product } from '../types'
 import { productPath } from '../utils/productUrl'
 import { formatPrice, formatProductTitle } from '../utils/format'
@@ -49,8 +50,12 @@ export function StoreProductCard({
   analyticsMeta,
 }: StoreProductCardProps) {
   const { cart, addItem, removeItem, updateQuantity } = useCart()
+  const { isVerified: isAgeVerified, requestVerification } = useAgeVerification()
   const [imgError, setImgError] = useState(false)
   const [imageIndex, setImageIndex] = useState(0)
+  // AEF-062: produto de bebida alcoolica/tabacaria sem confirmacao de idade
+  // ainda nesta sessao -- esconde preco e trava adicionar ao carrinho.
+  const ageGated = Boolean(product.requiresAgeVerification) && !isAgeVerified
 
   const cartItem = cart.find((item) => item.productId === product.id)
   const quantity = cartItem?.quantity || 0
@@ -84,7 +89,8 @@ export function StoreProductCard({
     })
   }
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
+    if (ageGated && !(await requestVerification())) return
     addItem(product, 1)
     fireAddToCartEvent()
     toast.success(
@@ -115,7 +121,8 @@ export function StoreProductCard({
     removeItem(product.id)
   }
 
-  const handleIncrease = () => {
+  const handleIncrease = async () => {
+    if (ageGated && !(await requestVerification())) return
     addItem(product, 1)
     fireAddToCartEvent()
   }
@@ -173,10 +180,10 @@ export function StoreProductCard({
           <button
             type="button"
             onClick={handleAdd}
-            aria-label={`Adicionar ${title} ao carrinho`}
+            aria-label={ageGated ? `Confirmar idade para ${title}` : `Adicionar ${title} ao carrinho`}
             className="absolute bottom-1.5 right-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-[#5D082A] text-white shadow-md transition-transform hover:scale-110 active:scale-95 before:absolute before:-inset-1 before:content-['']"
           >
-            <Plus className="h-5 w-5" strokeWidth={2.8} />
+            {ageGated ? <Lock className="h-4 w-4" strokeWidth={2.8} /> : <Plus className="h-5 w-5" strokeWidth={2.8} />}
           </button>
         ) : (
           <QuantityPill label={displayQuantity} onDecrease={handleDecrease} onIncrease={handleIncrease} className="absolute inset-x-1.5 bottom-1.5 z-10" />
@@ -185,7 +192,16 @@ export function StoreProductCard({
     </div>
   )
 
-  const priceBlock = (
+  const priceBlock = ageGated ? (
+    <button
+      type="button"
+      onClick={handleAdd}
+      className="flex items-center gap-1 text-[12px] font-bold text-[#5D082A]"
+    >
+      <Lock className="h-3.5 w-3.5" strokeWidth={2.5} />
+      Confirmar idade (+18)
+    </button>
+  ) : (
     <div className="leading-none">
       {viewModel.originalPrice && (
         <p className="mb-0.5 text-[11px] font-medium text-gray-400 line-through">{formatPrice(viewModel.originalPrice)}</p>
@@ -214,10 +230,10 @@ export function StoreProductCard({
             <button
               type="button"
               onClick={handleAdd}
-              aria-label={`Adicionar ${title} ao carrinho`}
+              aria-label={ageGated ? `Confirmar idade para ${title}` : `Adicionar ${title} ao carrinho`}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#5D082A] text-white shadow-md active:scale-95"
             >
-              <Plus className="h-5 w-5" strokeWidth={2.8} />
+              {ageGated ? <Lock className="h-4 w-4" strokeWidth={2.8} /> : <Plus className="h-5 w-5" strokeWidth={2.8} />}
             </button>
           ) : (
             <QuantityPill vertical label={displayQuantity} onDecrease={handleDecrease} onIncrease={handleIncrease} />

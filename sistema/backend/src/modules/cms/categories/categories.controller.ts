@@ -86,7 +86,7 @@ export class CategoriesController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  async update(@Param('id') id: string, @Body() data: { shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[] }) {
+  async update(@Param('id') id: string, @Body() data: { shortName?: string; bannerUrl?: string; active?: boolean; priority?: number; limit?: number; curatedProductIds?: string[]; requiresAgeVerification?: boolean | null }) {
     const result = await this.categoriesService.update(id, data);
     // Ocultar/reexibir departamento vale na hora (vitrine, recomendacao, listagem).
     invalidateNotOffered();

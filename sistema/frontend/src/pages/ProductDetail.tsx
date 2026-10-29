@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, ChevronRight, Clock, Film, Loader2, Minus, Plus, Scale, Search, Share2, ShoppingCart, Store, Truck } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, Clock, Film, Loader2, Lock, Minus, Plus, Scale, Search, Share2, ShoppingCart, Store, Truck } from 'lucide-react'
 import { useProduct, useCart, useProductRecommendations, useSmartSubstitutes } from '../hooks/useCart'
 import type { Product } from '../types'
 import { formatPrice, formatProductTitle } from '../utils/format'
@@ -16,6 +16,7 @@ import { getProductDetailSections } from '../utils/productDetailSchema'
 import { erpIdFromSlug, productPath } from '../utils/productUrl'
 import { CMS_CATEGORY_TO_RULE_ID, HOME_CATEGORY_RULES, normalizeCategoryCode, toCategoryUrlParam } from '../utils/homeCategories'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
+import { useAgeVerification } from '../contexts/AgeVerificationContext'
 import { readDeliveryVerification, subscribeDeliveryVerification } from '../services/deliveryVerification'
 import { StoreProductCard } from '../components/StoreProductCard'
 import { ProductImagePlaceholder } from '../components/ProductImagePlaceholder'
@@ -74,10 +75,14 @@ const departmentCrumb = (product: Product) => {
  */
 function usePurchase(product: Product | undefined) {
   const { cart, addItem, updateQuantity, removeItem, subtotal, count } = useCart()
+  const { isVerified: isAgeVerified, requestVerification } = useAgeVerification()
   const [pending, setPending] = useState(1)
   const [justAdded, setJustAdded] = useState(false)
   const timer = useRef<number>()
   const quantity = product ? cart.find((item) => item.productId === product.id)?.quantity || 0 : 0
+  // AEF-062: produto ja no carrinho implica que a confirmacao ja rolou em
+  // algum momento desta sessao -- so trava quem ainda nao tem o item.
+  const ageGated = Boolean(product?.requiresAgeVerification) && !isAgeVerified && quantity === 0
 
   useEffect(() => setPending(1), [product?.id])
   useEffect(() => () => window.clearTimeout(timer.current), [])
@@ -93,20 +98,25 @@ function usePurchase(product: Product | undefined) {
     justAdded,
     subtotal,
     count,
-    add() {
+    ageGated,
+    async add() {
       if (!product) return
+      if (ageGated && !(await requestVerification())) return
       addItem(product, pending)
       track(pending)
       setJustAdded(true)
       window.clearTimeout(timer.current)
       timer.current = window.setTimeout(() => setJustAdded(false), 1600)
     },
-    increase() {
+    async increase() {
       if (!product) return
       if (quantity > 0) {
         addItem(product, 1)
         track(1)
-      } else setPending((n) => n + 1)
+      } else {
+        if (ageGated && !(await requestVerification())) return
+        setPending((n) => n + 1)
+      }
     },
     decrease() {
       if (!product) return
@@ -115,10 +125,14 @@ function usePurchase(product: Product | undefined) {
       else setPending((n) => Math.max(1, n - 1))
     },
     /** Quantidade direta (meia caixa / caixa do vinho): antes de comprar so escolhe; no carrinho, ajusta. */
-    setQuantity(n: number) {
+    async setQuantity(n: number) {
       if (!product) return
-      if (quantity > 0) updateQuantity(product.id, n)
-      else setPending(n)
+      if (quantity > 0) {
+        updateQuantity(product.id, n)
+      } else {
+        if (ageGated && !(await requestVerification())) return
+        setPending(n)
+      }
     },
   }
 }
@@ -314,6 +328,20 @@ function PriceBlock({ product, viewModel }: { product: Product; viewModel: Produ
   const unitReference = product.category === 'ADEGA_VINHOS_ESPUMANTES' ? '' : getUnitReference(product)
   const promoUntil = viewModel.isOnSale ? promoEndLabel(product.promotionalPriceValidUntil) : ''
   const nearExpiryIds = useNearExpiryProductIds()
+  const { isVerified: isAgeVerified, requestVerification } = useAgeVerification()
+  const ageGated = Boolean(product.requiresAgeVerification) && !isAgeVerified
+
+  if (ageGated) {
+    return (
+      <button
+        type="button"
+        onClick={() => requestVerification()}
+        className="flex items-center gap-2 rounded-xl border border-[#D2BB8A] bg-[#F8F4EA] px-3 py-2.5 text-sm font-semibold text-[#5D082A]"
+      >
+        <Lock size={16} /> Confirmar idade (+18) para ver o preço
+      </button>
+    )
+  }
 
   return (
     <div className="space-y-1">
@@ -409,8 +437,14 @@ function PurchaseActions({ product, purchase, size = 'lg' }: { product: Product;
       <QuantityStepper label={label} onDecrease={purchase.decrease} onIncrease={purchase.increase} size={size} />
       {purchase.quantity === 0 ? (
         <Button onClick={purchase.add} className={`${height} flex-1 justify-between gap-2 rounded-xl px-4 text-[15px]`}>
-          <span className="inline-flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Adicionar</span>
-          <span className="font-black tabular-nums">{formatPrice(price.displayPrice * purchase.shown)}</span>
+          {purchase.ageGated ? (
+            <span className="inline-flex items-center gap-2"><Lock className="h-5 w-5" /> Confirmar idade (+18)</span>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Adicionar</span>
+              <span className="font-black tabular-nums">{formatPrice(price.displayPrice * purchase.shown)}</span>
+            </>
+          )}
         </Button>
       ) : (
         <Link to="/carrinho" className={buttonVariants({ variant: 'primary', className: `${height} flex-1 justify-between gap-2 rounded-xl px-4 text-[15px]` })}>

@@ -247,6 +247,7 @@ export class CheckoutService {
         deviceFingerprint: dto.deviceFingerprint,
         deviceAutomation: dto.deviceAutomation,
         clientCountry: dto.clientCountry,
+        ageConfirmed: Boolean(dto.ageConfirmed),
         tenantId,
         storeId,
       })
@@ -414,7 +415,13 @@ export class CheckoutService {
       delivery = this.applyOrderMinimum(delivery, price.subtotal)
     }
 
-    const blockers = this.getBlockers(stock, delivery)
+    // AEF-062: carrinho com produto que exige confirmacao de idade e sem a
+    // confirmacao (dto.ageConfirmed) nao fecha -- defesa no servidor, o gate
+    // do site ja deveria ter barrado antes de chegar aqui.
+    const ageVerificationRequired = price.items.some((item) => item.requiresAgeVerification)
+    const ageVerificationBlocked = ageVerificationRequired && !dto.ageConfirmed
+
+    const blockers = this.getBlockers(stock, delivery, ageVerificationBlocked)
     const canConfirm = blockers.length === 0
 
     const priceSnapshot = this.priceSnapshot(price)
@@ -614,12 +621,13 @@ export class CheckoutService {
     }
   }
 
-  private getBlockers(stock: StockSnapshot, delivery: DeliverySnapshot) {
+  private getBlockers(stock: StockSnapshot, delivery: DeliverySnapshot, ageVerificationBlocked = false) {
     const blockers: string[] = []
     if (stock.unavailableItems.some((i) => i.reason === 'FORA_DO_DIA')) blockers.push('há itens que não são vendidos no dia escolhido')
     if (stock.unavailableItems.some((i) => i.reason !== 'FORA_DO_DIA')) blockers.push('há itens indisponíveis no carrinho')
     if (delivery.outOfArea) blockers.push('o endereço está fora da área de entrega')
     if (!delivery.minimumOrderMet) blockers.push('o pedido está abaixo do mínimo para entrega neste endereço')
+    if (ageVerificationBlocked) blockers.push('é necessário confirmar que você tem 18 anos ou mais para levar bebida alcoólica/tabacaria')
     return blockers
   }
 

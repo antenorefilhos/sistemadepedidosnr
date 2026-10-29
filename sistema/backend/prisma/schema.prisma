@@ -467,6 +467,12 @@ model Product {
   tags      String[] @default([])
   origin    String?
   syncOption String   @default("ESTOQUE")
+  // AEF-062 (29/10/2026): denormalizado a partir de Category.requiresAgeVerification
+  // (pelo codigo em `category`) menos as excecoes de classification03 (ex.: "Cerveja
+  // sem Alcool") -- ver common/age-verification.ts. Recalculado no sync do ERP e
+  // quando o admin muda o flag da categoria. Persistido (em vez de calculado na leitura)
+  // porque e lido em toda listagem/busca/checkout, nao so na tela de produto.
+  requiresAgeVerification Boolean @default(false)
   badges    String?
   titleMask String?
   titleMaskShort String?
@@ -727,6 +733,12 @@ model Order {
   /// Horario escolhido pelo cliente pra receber/retirar. Null = "o quanto
   /// antes". Vira hrCombinada no Solidcom.
   scheduledFor DateTime?
+  // AEF-062 (29/10/2026): snapshot no momento do pedido -- se exigia confirmacao
+  // +18 (bebida alcoolica/tabacaria no carrinho) e quando o cliente confirmou.
+  // ageVerificationRequired nao muda depois (igual approvedSubtotal); serve pro
+  // app de entrega avisar o motorista a conferir a idade de quem recebe.
+  ageVerificationRequired Boolean @default(false)
+  ageVerificationConfirmedAt DateTime?
   /// DAV gerado pelo Solidcom. E o numero que o separador digita no PDV.
   erpDav String?
   customerSnapshot Json?
@@ -1351,6 +1363,9 @@ model Category {
   active    Boolean  @default(true)
   priority  Int      @default(0)
   limit     Int      @default(12)
+  // AEF-062 (29/10/2026): null = herda do pai (ou false na raiz); true/false
+  // sobrescreve. Resolvido em common/age-verification.ts, nunca lido cru.
+  requiresAgeVerification Boolean?
   curatedProducts CategoryProductCuration[]
   classificationMappings CategoryClassificationMapping[]
   mappedProductsAsCategory ProductCategoryMapping[] @relation("ProductCategoryMappingCategory")

@@ -28,6 +28,7 @@ import { sanitizeWineProfile } from '../../common/wine-profile'
 import { eansWithPhoto, photoVersion } from '../../common/product-photos'
 import { notOfferedCategoryCodes } from '../../common/not-offered-categories'
 import { resolveEffectiveFractional, type FractionalSource } from '../../common/fractional.util'
+import { buildCategoryAgeVerificationFlags, productRequiresAgeVerification } from '../../common/age-verification'
 
 // Categorias que combinam com cada categoria no "compre junto" (ordem = prioridade).
 const COMPLEMENTARY_CATEGORIES: Record<string, string[]> = {
@@ -1623,7 +1624,17 @@ export class ProductsService {
       if (dto.categoryId) {
         const category = await this.prisma.category.findFirst({ where: { id: dto.categoryId, parentId: null }, select: { id: true, name: true } })
         if (!category) throw new BadRequestException('Categoria invalida.')
-        Object.assign(data, { categoryOverrideId: category.id, category: this.normalizeCategory(category.name) })
+        const newCategoryCode = this.normalizeCategory(category.name)
+        // AEF-062: categoria manual tambem decide o flag de idade na hora,
+        // nao so no proximo sync.
+        const ageFlags = buildCategoryAgeVerificationFlags(
+          await this.prisma.category.findMany({ select: { id: true, name: true, parentId: true, requiresAgeVerification: true } }),
+        )
+        Object.assign(data, {
+          categoryOverrideId: category.id,
+          category: newCategoryCode,
+          requiresAgeVerification: productRequiresAgeVerification({ category: newCategoryCode, classification03: product.classification03 }, ageFlags),
+        })
         await this.prisma.productCategoryMapping.upsert({
           where: { ean: product.ean },
           update: { categoryId: category.id, subCategoryId: null, source: 'admin' },
@@ -2242,6 +2253,12 @@ export class ProductsService {
         .map((c) => [c.id, this.normalizeCategory(c.name)]),
     )
 
+    // AEF-062 (29/10/2026): flag de confirmacao de idade por categoria (com
+    // heranca), resolvido uma vez por sync inteiro -- nao por produto.
+    const ageVerificationFlagsByCode = buildCategoryAgeVerificationFlags(
+      await this.prisma.category.findMany({ select: { id: true, name: true, parentId: true, requiresAgeVerification: true } }),
+    )
+
     // 30/09/2026: o ERP passou o EAN 1500 do salmao 5036 (fora do feed) para o
     // 24446, e o sync quebrava todo dia no unique de `ean` ao gravar o 24446.
     // So o sync completo libera: ele ve o feed inteiro, entao quem segura o EAN
@@ -2339,6 +2356,14 @@ export class ProductsService {
           fractionStep: item.fractionStep ?? null,
           unit: item.unit || 'un',
           category: categoryCode,
+          // AEF-062: resolvido a partir do mapa calculado uma vez acima --
+          // categoria gatilha (com heranca) menos excecao de tipo (ex.: "Cerveja
+          // sem Alcool"). Sempre recalculado no sync (nunca `undefined`): ao
+          // contrario de syncOption, nao ha ajuste manual por produto aqui.
+          requiresAgeVerification: productRequiresAgeVerification(
+            { category: categoryCode, classification03: item.classification03 },
+            ageVerificationFlagsByCode,
+          ),
           // ecommerceCategory/tags ficam FORA de `fields` de proposito, mesmo
           // motivo do syncOption logo abaixo: so a AntenorApi manda esses
           // campos, o Solidcom nunca manda -- gravar undefined/[] aqui
@@ -2394,7 +2419,18 @@ export class ProductsService {
               where: { id: existing.id },
               data: {
                 ...fields,
-                ...(overrideCategoryCode ? { category: overrideCategoryCode } : {}),
+                ...(overrideCategoryCode
+                  ? {
+                      category: overrideCategoryCode,
+                      // AEF-062: categoria manual do admin tambem decide o flag de
+                      // idade -- sem isso, produto movido pra fora de Adega/Tabacaria
+                      // continuaria marcado ate o proximo recompute em massa.
+                      requiresAgeVerification: productRequiresAgeVerification(
+                        { category: overrideCategoryCode, classification03: item.classification03 },
+                        ageVerificationFlagsByCode,
+                      ),
+                    }
+                  : {}),
                 active: effective.active,
                 erpActive,
                 ean: mainEan,

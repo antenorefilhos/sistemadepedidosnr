@@ -345,7 +345,7 @@ export const checkoutAPI = {
     api.post<{ session: CheckoutQuoteResponse['session']; reused: boolean }>('/checkout/sessions', data),
   quoteSession: (
     id: string,
-    data: { customerId?: string; couponCode?: string; deliveryAddressId?: string; delivery?: CheckoutDeliveryPayload; scheduledFor?: string },
+    data: { customerId?: string; couponCode?: string; deliveryAddressId?: string; delivery?: CheckoutDeliveryPayload; scheduledFor?: string; ageConfirmed?: boolean },
   ) => api.post<CheckoutQuoteResponse>(`/checkout/sessions/${id}/quote`, data),
   confirmSession: (
     id: string,
@@ -358,6 +358,8 @@ export const checkoutAPI = {
       notes?: string
       changeAmount?: string
       deviceId?: string
+      scheduledFor?: string
+      ageConfirmed?: boolean
     },
   ) => api.post<CheckoutConfirmResponse>(`/checkout/sessions/${id}/confirm`, data),
   cancelSession: (id: string, reason?: string) => api.post(`/checkout/sessions/${id}/cancel`, { reason }),

@@ -22,6 +22,7 @@ import { AlertTriangle, ArrowLeft, ChevronDown, Info, MapPin, Minus, Plus, Refre
 import { FreeShippingBar } from '../components/FreeShippingBar'
 import { useKnownZoneFreeAbove } from '../hooks/useKnownZoneFreeAbove'
 import { useDeliveryVerificationModal } from '../contexts/DeliveryVerificationModalContext'
+import { useAgeVerification } from '../contexts/AgeVerificationContext'
 import { readDeliveryVerification, subscribeDeliveryVerification } from '../services/deliveryVerification'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -50,6 +51,7 @@ export default function Cart() {
   const saleWeekday = useSaleWeekday()
   const delivery = useDeliveryOperation()
   const { openModal: openDeliveryModal } = useDeliveryVerificationModal()
+  const { isVerified: isAgeVerified, requestVerification } = useAgeVerification()
   const { cart, removeItem, updateQuantity, updateAllowSubstitution, clear, discount, couponCode, applyCoupon, removeCoupon, refreshProducts } = useCart()
   const nearExpiryIds = useNearExpiryProductIds()
 
@@ -168,8 +170,13 @@ export default function Cart() {
 
   const [confirmClear, setConfirmClear] = useState(false)
 
-  const goCheckout = () => {
+  const goCheckout = async () => {
     unavailable.forEach((l) => removeItem(l.item.productId))
+    // AEF-062: se o item ja estava no carrinho de outra aba/sessao sem a
+    // confirmacao desta aba, trava antes do checkout em vez de confiar que
+    // ja foi confirmado quando o item entrou.
+    const needsAgeConfirmation = available.some((l) => l.product.requiresAgeVerification) && !isAgeVerified
+    if (needsAgeConfirmation && !(await requestVerification())) return
     navigate('/finalizar-compra')
   }
   const checkoutLabel = unavailable.length > 0 ? 'Tirar indisponíveis e fechar pedido' : 'Fechar pedido'
