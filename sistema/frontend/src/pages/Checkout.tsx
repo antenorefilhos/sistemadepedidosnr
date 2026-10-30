@@ -21,7 +21,7 @@ import { authAPI, deliveryAPI, type CheckoutQuoteResponse, type WhatsAppDispatch
 import { Loader2, Banknote, QrCode, CreditCard, Ticket, MapPin, ShoppingBag, Plus, LocateFixed, Store, Truck } from 'lucide-react'
 import { LoadingButton } from '../components/LoadingButton'
 import { getDeviceId } from '../utils/device'
-import { trackEvent } from '../utils/analytics'
+import { trackEvent, trackPurchase } from '../utils/analytics'
 import type { Order } from '../types'
 import { buildChangeForOptions } from '../utils/changeOptions'
 import { getProductStep } from '../utils/productPricing'
@@ -844,6 +844,7 @@ export default function Checkout() {
       })
 
       setCreatedOrder(orderResponse.data.order)
+      trackPurchase(orderResponse.data.order)
       setWhatsappDispatch(orderResponse.data.whatsapp)
       // Limpa ANTES de abrir o WhatsApp (29/09/2026, DAV 102117/102118): no
       // navegador interno de app o window.open pode trocar a página, e o

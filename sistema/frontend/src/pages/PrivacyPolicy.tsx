@@ -202,6 +202,12 @@ export default function PrivacyPolicy() {
           <li>funcionamento da plataforma;</li><li>autenticação;</li><li>segurança;</li>
           <li>análise de uso;</li><li>melhoria da experiência do usuário.</li>
         </ul>
+        <p className="mt-3">
+          Para entender como visitantes navegam e usam o site, utilizamos o Google Analytics (Google LLC) e o
+          Microsoft Clarity (Microsoft Corporation), que coletam páginas acessadas, cliques, rolagem de tela e
+          podem gravar a navegação na tela para fins estatísticos. Esses provedores processam os dados fora do
+          Brasil, sob suas próprias políticas de privacidade.
+        </p>
 
         <h2 id="alteracoes" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">12. Alterações desta política</h2>
         <p>
