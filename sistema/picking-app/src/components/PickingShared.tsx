@@ -3,7 +3,7 @@ import { OrderItem, PickingTaskItem, SubstitutionSuggestion } from '../services/
 import { SuggestionRow } from './SubstitutionPanel'
 import { noteLabel, qtd } from '../utils/quantity'
 import { PICK_METHOD_LABEL } from '../utils/orderInfo'
-import { itemChange, signedBrl } from '../utils/orderAdjustment'
+import { brl, itemChange, signedBrl } from '../utils/orderAdjustment'
 import { weightLong, weightOnScale, weightShort } from '../utils/weight'
 
 /** Item de balanca: peso em gramas/quilos, nao "0,22 kg". */
@@ -37,7 +37,7 @@ export function ItemCard({
   product, orderItem, expanded, onToggle, onScan, onEan, onManual, onMissing, onSubstitute, disabled,
 }: {
   product?: { id: string; name: string; ean: string | null; imageUrl: string | null; unit: string | null; isFractional?: boolean | null } | null
-  orderItem?: { quantity: number; requestedQuantity: number | null; substitutionPolicy?: string } | null
+  orderItem?: { quantity: number; requestedQuantity: number | null; substitutionPolicy?: string; unitPrice?: number; subtotal?: number } | null
   expanded: boolean
   onToggle: () => void
   onScan: () => void
@@ -69,6 +69,12 @@ export function ItemCard({
           ) : (
             <p className="text-sm text-gray-800">
               <strong>{qtd(qty)} {qty === 1 ? 'unidade' : 'unidades'}</strong>
+            </p>
+          )}
+          {orderItem?.unitPrice != null && (
+            <p className="text-xs text-gray-500">
+              {brl(orderItem.unitPrice)}{weighed ? '/kg' : '/un'}
+              {orderItem.subtotal != null && <span className="font-semibold text-gray-700"> · {brl(orderItem.subtotal)}</span>}
             </p>
           )}
           {product?.ean && <p className="font-mono text-[11px] tracking-wide text-gray-400">EAN {product.ean}</p>}
@@ -198,6 +204,13 @@ export function DoneItemCard({
             <p className="text-[11px] text-gray-500">
               {method}
               {readCode ? <span className="font-mono"> · lido {readCode}</span> : product?.ean ? <span className="font-mono text-gray-400">{method ? ' · ' : ''}EAN {product.ean}</span> : null}
+            </p>
+          )}
+          {orderItem?.unitPrice != null && !isMissing && (
+            <p className="text-[11px] text-gray-500">
+              {brl(orderItem.unitPrice)}{weighed ? '/kg' : '/un'}
+              {' · '}
+              <span className="font-semibold text-gray-700">{brl(Number(orderItem.finalSubtotal ?? orderItem.subtotal))}</span>
             </p>
           )}
         </div>
