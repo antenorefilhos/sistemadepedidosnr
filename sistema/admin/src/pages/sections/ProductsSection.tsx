@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertCircle, ChevronLeft, ChevronRight, Download, ExternalLink, ImageOff, Loader2, RefreshCw, Search, Trash2, UploadCloud, X } from 'lucide-react'
+import { AlertCircle, ChevronLeft, ChevronRight, Download, ExternalLink, ImageOff, Loader2, RefreshCw, Search, ShoppingBag, Trash2, UploadCloud, X } from 'lucide-react'
 import { WorkspaceDialog } from '../../components/WorkspaceDialog'
 import {
   getApiErrorMessage,
+  ordersAPI,
   productsAPI,
   resolveApiUrl,
+  type AdminOrderSummary,
   type CatalogProduct,
   type CatalogResponse,
   type CatalogTab,
 } from '../../services/api'
 import { normalizeSaleWeekdays, saleDaysLabel, saleDaysShort } from '../../utils/saleDays'
+import { OrderDetail } from './OrdersSection'
 
 // Produtos (refeita em 29/09/2026 com o Jonathan). O ERP (AntenorApi) e a fonte
 // de preco, estoque e cadastro -- o que se edita aqui e como o produto aparece
@@ -608,6 +611,24 @@ function ProductPanel({
   const [error, setError] = useState('')
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }))
 
+  // Pedidos com este produto (busca sob demanda, so quando o lojista pede).
+  const [orders, setOrders] = useState<AdminOrderSummary[] | null>(null)
+  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [ordersError, setOrdersError] = useState('')
+  const [viewOrderId, setViewOrderId] = useState<string | null>(null)
+  const loadOrders = async () => {
+    setOrdersLoading(true)
+    setOrdersError('')
+    try {
+      const r = await ordersAPI.listSummary({ productId: p.id })
+      setOrders(r.data)
+    } catch (e) {
+      setOrdersError(getApiErrorMessage(e, 'Não foi possível carregar os pedidos.'))
+    } finally {
+      setOrdersLoading(false)
+    }
+  }
+
   const erpSync = p.erpSyncOption || p.syncOption
   const erpCategory = p.categoryOverrideId ? null : p.categoryName
   const dirty = JSON.stringify(form) !== JSON.stringify(initial)
@@ -941,6 +962,7 @@ function ProductPanel({
           </section>
         </div>
 
+        <div className="space-y-8">
           <section>
             <h4 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Do ERP</h4>
             <p className="mt-1 text-xs text-gray-500">Corrija no cadastro do ERP. Entra aqui no próximo sync.</p>
@@ -975,7 +997,46 @@ function ProductPanel({
               <Field label="Árvore do cadastro">{tree}</Field>
             </div>
           </section>
+
+          <section>
+            <h4 className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Pedidos</h4>
+            <p className="mt-1 text-xs text-gray-500">Em quais pedidos este produto foi vendido.</p>
+            {orders === null ? (
+              <button
+                type="button"
+                onClick={loadOrders}
+                disabled={ordersLoading}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-black/[0.08] px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-40"
+              >
+                {ordersLoading ? <Loader2 size={14} className="animate-spin" /> : <ShoppingBag size={14} />}
+                {ordersLoading ? 'Buscando…' : 'Ver pedidos'}
+              </button>
+            ) : orders.length === 0 ? (
+              <p className="mt-2 text-sm text-gray-500">Nenhum pedido com este produto ainda.</p>
+            ) : (
+              <div className="mt-2 max-h-72 divide-y divide-black/[0.05] overflow-y-auto rounded-xl border border-black/[0.06]">
+                {orders.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setViewOrderId(o.id)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      <span className="text-gray-900">{o.customer?.name || 'Cliente'}</span>
+                      <span className="text-gray-400"> · {new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
+                    </span>
+                    <span className="shrink-0 text-gray-500">{brl(o.total)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {ordersError && <p className="mt-1 text-xs text-rose-700">{ordersError}</p>}
+          </section>
+        </div>
       </div>
+
+      {viewOrderId && <OrderDetail orderId={viewOrderId} onClose={() => setViewOrderId(null)} onChanged={() => {}} />}
     </WorkspaceDialog>
   )
 }

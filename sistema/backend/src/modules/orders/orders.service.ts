@@ -47,6 +47,7 @@ type AdminOrderFilters = {
   status?: string
   paymentStatus?: string
   customerId?: string
+  productId?: string
   limit?: number
   /** 'summary': so os campos da lista do admin (a lista completa trazia o produto inteiro de cada item: 336 KB para 33 pedidos). */
   view?: string
@@ -866,6 +867,7 @@ export class OrdersService {
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.paymentStatus ? { paymentStatus: filters.paymentStatus } : {}),
       ...(filters.customerId ? { customerId: filters.customerId } : {}),
+      ...(filters.productId ? { items: { some: { productId: filters.productId } } } : {}),
     }
 
     if (summary) {

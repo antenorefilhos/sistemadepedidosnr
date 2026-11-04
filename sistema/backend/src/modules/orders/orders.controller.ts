@@ -382,6 +382,7 @@ export class AdminOrdersController {
     @Query('status') status?: string,
     @Query('paymentStatus') paymentStatus?: string,
     @Query('customerId') customerId?: string,
+    @Query('productId') productId?: string,
     @Query('limit') limit?: string,
     @Query('view') view?: string,
   ) {
@@ -389,6 +390,7 @@ export class AdminOrdersController {
       status,
       paymentStatus,
       customerId,
+      productId,
       limit: limit ? parseInt(limit, 10) : undefined,
       view,
     })

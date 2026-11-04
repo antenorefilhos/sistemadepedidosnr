@@ -1037,7 +1037,7 @@ export const ordersAPI = {
       // aviso ao cliente) e registra quem mudou. Antes gravava direto como evento.
       : api.post<AdminOrder>(`/admin/orders/${id}/status`, { status, ...(reason && { reason }) }),
   /** Lista enxuta para a tela de pedidos (so o que as linhas mostram). */
-  listSummary: () => api.get<AdminOrderSummary[]>('/admin/orders', { params: { view: 'summary', limit: 1000 } }),
+  listSummary: (params?: { productId?: string }) => api.get<AdminOrderSummary[]>('/admin/orders', { params: { view: 'summary', limit: 1000, ...params } }),
   update: (id: string, data: { paymentStatus?: string; paymentMethod?: string }) => api.put(`/orders/${id}`, data),
   cancelItem: (orderId: string, itemId: string, data?: { reason?: string; pickerNotes?: string }) =>
     api.post(`/admin/orders/${orderId}/items/${itemId}/cancel`, data ?? {}),
