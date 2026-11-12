@@ -436,7 +436,9 @@ mandando 7 dias, quem já tinha visto uma foto continuava com a antiga depois da
 troca no admin ("a foto volta"). Corrigido sem mexer na zona inteira: Cache
 Rule `Fotos de produto` (ruleset `07d0b6fb3769413e93a159fbfa57690e`, fase
 `http_request_cache_settings`) só para `mercado` + `/uploads/products/` e
-`/thumbs/products/`, com `browser_ttl` e `edge_ttl` em `respect_origin`. A
+`/thumbs/products/`, com `browser_ttl` e `edge_ttl` em `respect_origin`. Desde
+12/11/2026 a regra vale também para o host `api` (admin, separação e entrega
+carregam a foto por lá e o navegador guardava 4 h). A
 origem manda `max-age=300` (navegador reconfere a cada 5 min, 304 com ETag) e
 `s-maxage` longo para a borda, que o upload purga (`uploads.controller.ts`).
 O header nasce na API (`app.module.ts`, `ServeStaticModule.setHeaders`), não no

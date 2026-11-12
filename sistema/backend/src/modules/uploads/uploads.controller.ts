@@ -94,8 +94,12 @@ export class UploadsController {
     // a foto nova e o admin a antiga, mesmo com Ctrl+F5.
     const apiBase = `https://api.antenorefilhos.com.br/uploads/products/${ean}${suffix}.webp`;
     const apiThumb = `https://api.antenorefilhos.com.br/thumbs/products/${ean}${suffix}.webp`;
-    // v=3 desde 01/10/2026; v=2 ainda pode vir de pagina antiga em cache.
-    return [base, thumb, apiBase, apiThumb, ...['2', '3'].flatMap((v) => [`${base}?v=${v}`, `${thumb}?v=${v}`])];
+    // v=3 desde 01/10/2026; v=2 ainda pode vir de pagina antiga em cache. O app
+    // de separacao pede pelo host da API com ?v=3 (12/11/2026: faltava purgar).
+    return [
+      base, thumb, apiBase, apiThumb,
+      ...['2', '3'].flatMap((v) => [`${base}?v=${v}`, `${thumb}?v=${v}`, `${apiBase}?v=${v}`, `${apiThumb}?v=${v}`]),
+    ];
   }
 
   @Post()

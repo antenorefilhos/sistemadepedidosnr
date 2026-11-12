@@ -14,6 +14,14 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.25.1',
+    date: '12/11/2026',
+    title: 'Foto Trocada Aparece em Todo Lugar',
+    highlights: [
+      { type: 'fix', description: 'Ao trocar a foto de um produto, algumas listagens do site (busca, vitrines, cards) podiam continuar mostrando a foto antiga, enquanto o cadastro e a tela do produto já mostravam a nova. A miniatura agora sempre acompanha a foto atual, e a limpeza do cache também cobre as telas do admin e o app de separação.' },
+    ],
+  },
+  {
     version: '1.25.0',
     date: '11/11/2026',
     title: 'Motivo do Frete Grátis, Pedidos por Produto e Troca Certa',

@@ -1,7 +1,7 @@
 import { Controller, Get, NotFoundException, Param, Query, Res } from '@nestjs/common'
 import { ApiExcludeController } from '@nestjs/swagger'
 import type { Response } from 'express'
-import { existsSync, mkdirSync, statSync } from 'fs'
+import { existsSync, mkdirSync, renameSync, statSync, utimesSync } from 'fs'
 import { join } from 'path'
 import sharp from 'sharp'
 import { RelaxedThrottle } from '../../common/decorators/relaxed-throttle.decorator'
@@ -27,9 +27,17 @@ export class ThumbsController {
     if (!original) throw new NotFoundException()
 
     const target = join(THUMBS, `${ean}.webp`)
-    if (!existsSync(target) || statSync(target).mtimeMs < statSync(original).mtimeMs) {
+    // A miniatura carrega a data do original de onde saiu (12/11/2026). Comparar
+    // "miniatura mais velha que o original" falhava numa corrida: miniatura
+    // gerada da foto ANTIGA enquanto a nova era gravada ficava com data mais
+    // nova que o original e nunca mais era refeita (panetones AeF).
+    const originalStat = statSync(original)
+    if (!existsSync(target) || Math.abs(statSync(target).mtimeMs - originalStat.mtimeMs) >= 1) {
       mkdirSync(THUMBS, { recursive: true })
-      await sharp(original).resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 72 }).toFile(target)
+      const staging = `${target}.${process.pid}.${Date.now()}.tmp`
+      await sharp(original).resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 72 }).toFile(staging)
+      utimesSync(staging, originalStat.atimeMs / 1000, originalStat.mtimeMs / 1000)
+      renameSync(staging, target)
     }
     // Navegador reconfere a cada 5 min (304 com ETag); a borda guarda 1 dia e
     // e purgada na troca de foto (uploads.controller). Antes o navegador
