@@ -14,6 +14,17 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.25.0',
+    date: '11/11/2026',
+    title: 'Motivo do Frete Grátis, Pedidos por Produto e Troca Certa',
+    highlights: [
+      { type: 'feat', description: 'O detalhe do pedido agora diz por que o frete saiu grátis: primeiro pedido do cliente ou valor mínimo atingido (com o valor). O app de separação também mostra "Frete grátis: pedido acima de R$ X".' },
+      { type: 'feat', description: 'No painel de um produto, o botão "Ver pedidos" mostra em quais pedidos ele foi vendido; clicar abre o pedido completo.' },
+      { type: 'feat', description: 'O app de separação passou a mostrar o preço de cada item na tela de separação.' },
+      { type: 'fix', description: 'A mensagem de troca enviada pelo WhatsApp podia descontar o item que faltou duas vezes e mostrar um total menor que o real ("sem a troca" e "com a troca"). Agora o total sai certo em qualquer ordem de separação.' },
+    ],
+  },
+  {
     version: '1.24.0',
     date: '22/10/2026',
     title: 'Antifraude Bloqueia Sozinho, Giro de Produto e Mais',

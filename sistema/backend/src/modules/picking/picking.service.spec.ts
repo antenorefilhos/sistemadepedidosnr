@@ -476,4 +476,32 @@ describe('sendSuggestions: total da mensagem de troca (21/10/2026)', () => {
     expect(result.message).toContain('Sem a troca, fica em R$ 50,00')
     expect(result.message).toContain('Com a troca, o pedido fica em R$ 75,00')
   })
+
+  // Pedido 102177 (05/11/2026): o item faltou e depois outro foi separado, o
+  // que recalculou order.total SEM o faltante. Descontar o original de novo
+  // dava R$ 50,84 / R$ 72,74 em vez de R$ 75,74 / R$ 97,64.
+  it('nao desconta duas vezes quando order.total ja exclui o item faltante', async () => {
+    mockPrismaService.order.findFirst.mockResolvedValueOnce({
+      ...orderWithMissingItem,
+      total: 50,
+      items: [
+        { id: 'order-item-1', status: 'PICKED', subtotal: 50, finalSubtotal: 50, product: { id: 'prod-1', name: 'Produto 1', unit: 'un', isFractional: false } },
+        { id: 'order-item-2', status: 'MISSING', subtotal: 20, finalSubtotal: 0, product: { id: 'prod-2', name: 'Produto 2', unit: 'un', isFractional: false } },
+      ],
+    })
+    mockPrismaService.substitutionSuggestion.findMany
+      .mockResolvedValueOnce([{ id: 's0', orderItemId: 'order-item-2', productId: 'prod-sub', quantity: 1, unitPrice: 25, sentAt: null }])
+      .mockResolvedValueOnce([])
+    mockPrismaService.product.findMany.mockResolvedValueOnce([{ id: 'prod-sub', name: 'Produto Substituto', unit: 'un', isFractional: false }])
+    mockPrismaService.order.findUnique.mockResolvedValueOnce({ status: 'PICKING' })
+    mockPrismaService.pickingTask.findFirst.mockResolvedValueOnce(null)
+
+    const service = svc()
+    jest.spyOn(service as never, 'findTaskByOrder').mockResolvedValue({} as never)
+
+    const result = await service.sendSuggestions('order-1', {})
+
+    expect(result.message).toContain('Sem a troca, fica em R$ 50,00')
+    expect(result.message).toContain('Com a troca, o pedido fica em R$ 75,00')
+  })
 })

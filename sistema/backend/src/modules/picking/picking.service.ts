@@ -752,11 +752,9 @@ export class PickingService {
       Boolean(p?.isFractional) || ['kg', 'quilo', 'g'].includes(String(p?.unit || '').toLowerCase())
 
     let extra = 0
-    let missingOriginal = 0
     const lines = order.items
       .filter((item) => item.status === 'MISSING' && (open.some((s) => s.orderItemId === item.id) || !settled.has(item.id)))
       .map((item) => {
-        missingOriginal += item.subtotal
         const s = open.find((candidate) => candidate.orderItemId === item.id)
         const p = s ? productById.get(s.productId) : undefined
         if (!s || !p) return { originalName: item.product?.name || 'Produto', originalSubtotal: item.subtotal, suggestion: null }
@@ -770,13 +768,18 @@ export class PickingService {
         }
       })
 
-    // order.total ainda conta o(s) item(ns) MISSING pelo preco original (o
-    // item so sai do pedido quando o cliente decide) -- sem descontar
-    // `missingOriginal` aqui, "sem a troca" e "com a troca" saem os dois
-    // inflados pelo preco do item que faltou (achado em 21/10/2026, mensagem
-    // real enviada ao cliente com o calculo errado).
-    const totalWithout = this.roundMoney(order.total - missingOriginal)
-    const totalWith = this.roundMoney(order.total - missingOriginal + extra)
+    // Nao parte de order.total: ele so e recalculado quando se separa um item,
+    // e markItemMissing nao recalcula -- entao o total ora ainda inclui o item
+    // faltante (21/10/2026: mensagem inflada), ora ja o exclui porque outro
+    // item foi separado depois (pedido 102177, 05/11/2026: o item saia
+    // descontado duas vezes, R$ 50,84 em vez de R$ 75,74). Soma os itens: o que
+    // faltou fica de fora, o resto vale pelo peso/preco final.
+    const itemsTotal = order.items.reduce((sum, item) => {
+      if (['MISSING', 'CANCELLED', 'SUBSTITUTED'].includes(item.status)) return sum
+      return sum + (this.numberValue(item.finalSubtotal) ?? item.subtotal)
+    }, 0)
+    const totalWithout = this.roundMoney(itemsTotal + Number(order.delivery || 0) - Number(order.discount || 0))
+    const totalWith = this.roundMoney(totalWithout + extra)
     const message = buildSubstitutionMessage({
       customerName: order.customer?.name,
       orderCode: order.erpDav || `#${order.id.slice(-8).toUpperCase()}`,

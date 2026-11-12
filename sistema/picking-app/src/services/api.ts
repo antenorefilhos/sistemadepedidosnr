@@ -77,7 +77,7 @@ export interface Order {
   paymentMethod: string
   fulfillmentType?: string
   delivery?: number
-  deliverySnapshot?: { freeShippingReason?: 'FIRST_ORDER' | 'EARNED' | null } | null
+  deliverySnapshot?: { freeShippingReason?: 'FIRST_ORDER' | 'EARNED' | null; freeAbove?: number | null } | null
   addressSnapshot?: {
     street?: string
     number?: string

@@ -27,10 +27,15 @@ export function addressLines(a: Order['addressSnapshot']): { line1: string; line
   return { line1, line2, reference: a.reference || '', mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` }
 }
 
-/** Mesmo texto que vai no `obs` do DAV (buildDeliveryLabel no backend). */
+/** Parecido com o `obs` do DAV (buildDeliveryLabel no backend); aqui o frete por valor minimo diz o valor. */
 export function deliveryLabel(order: Pick<Order, 'fulfillmentType' | 'delivery' | 'deliverySnapshot'>): string {
   if (order.fulfillmentType === 'PICKUP') return 'Retirada na loja'
   const fee = Number(order.delivery) || 0
   if (fee > 0) return `Taxa de entrega: R$ ${fee.toFixed(2).replace('.', ',')}`
-  return order.deliverySnapshot?.freeShippingReason === 'FIRST_ORDER' ? 'Primeiro pedido - frete grátis' : 'Frete grátis'
+  const snapshot = order.deliverySnapshot
+  if (snapshot?.freeShippingReason === 'FIRST_ORDER') return 'Primeiro pedido - frete grátis'
+  if (snapshot?.freeShippingReason === 'EARNED' && snapshot.freeAbove) {
+    return `Frete grátis: pedido acima de R$ ${Number(snapshot.freeAbove).toFixed(2).replace('.', ',')}`
+  }
+  return 'Frete grátis'
 }

@@ -187,6 +187,15 @@ const TABS: Array<{ key: Tab; label: string }> = [
 ]
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+/** Por que o frete saiu de graca (gravado no pedido); vazio em pedido antigo sem o motivo. */
+function freeShippingNote(snapshot: AdminOrder['deliverySnapshot']): string {
+  if (snapshot?.freeShippingReason === 'FIRST_ORDER') return 'Frete grátis: primeiro pedido do cliente'
+  if (snapshot?.freeShippingReason === 'EARNED') {
+    return snapshot.freeAbove ? `Frete grátis: o pedido atingiu o valor mínimo (${brl(snapshot.freeAbove)})` : 'Frete grátis: o pedido atingiu o valor mínimo'
+  }
+  return ''
+}
 const code = (id: string) => id.slice(-8).toUpperCase()
 const firstName = (name?: string | null) => String(name || '').trim().split(/\s+/)[0] || ''
 const num = (v?: number | string | null) => (v === null || v === undefined || v === '' ? undefined : Number(v))
@@ -658,6 +667,9 @@ export function OrderDetail({ orderId, onClose, onChanged }: { orderId: string; 
                   <div className="flex justify-between text-gray-600"><dt>Subtotal</dt><dd className="tabular-nums">{brl(order.subtotal)}</dd></div>
                   {order.discount > 0 && <div className="flex justify-between text-gray-600"><dt>Desconto</dt><dd className="tabular-nums">−{brl(order.discount)}</dd></div>}
                   <div className="flex justify-between text-gray-600"><dt>Frete</dt><dd className="tabular-nums">{order.delivery > 0 ? brl(order.delivery) : 'grátis'}</dd></div>
+                  {order.delivery <= 0 && order.fulfillmentType !== 'PICKUP' && freeShippingNote(order.deliverySnapshot) && (
+                    <p className="text-xs text-emerald-700">{freeShippingNote(order.deliverySnapshot)}</p>
+                  )}
                   {adjustment && Math.abs(adjustment.diff) >= 0.01 ? (
                     <>
                       {/* Ajuste explicado (08/10/2026): de onde vem a diferenca, nao so o percentual. */}

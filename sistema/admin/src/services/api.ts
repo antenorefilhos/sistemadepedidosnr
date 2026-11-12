@@ -675,6 +675,7 @@ export interface AdminOrder {
     zipCode?: string
     reference?: string
   } | null
+  deliverySnapshot?: { freeShippingReason?: 'FIRST_ORDER' | 'EARNED' | null; freeAbove?: number | null } | null
   createdAt: string
   events?: AdminOrderEvent[]
 }
