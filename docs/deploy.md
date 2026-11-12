@@ -77,14 +77,21 @@ servidor cair ou ser perdido, só contra erro humano (apagar produto, etc).
 
 ```bash
 cp backup/rclone.conf.example backup/rclone.conf
-# editar backup/rclone.conf com as credenciais do object storage
-# (Backblaze B2 ou similar; ver comentários no arquivo)
+# editar backup/rclone.conf com as credenciais do armazenamento externo
+# (produção: Google Drive da antenormkt@gmail.com + camada crypt; ver o
+# passo a passo e os comentários em backup/rclone.conf.example)
 ```
 
 E em `.env.production`:
 ```
-BACKUP_RCLONE_REMOTE=antenor-backup:antenor-backups
+BACKUP_RCLONE_REMOTE=antenor-backup-crypt:antenor-backups
 ```
+
+O dump tem CPF e WhatsApp de cliente, por isso o envio é cifrado (`crypt`).
+**Guarde as senhas do crypt fora da VPS**: sem elas, a cópia do Drive não abre.
+Falha no envio, no dump ou no tar avisa no Telegram (mesmo bot do monitor de
+produtos; `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`), e todo domingo chega uma
+confirmação "semana ok" — se ela não chegar, o próprio backup parou.
 
 ## 6. Subir a stack
 

@@ -40,10 +40,20 @@ exit $pg_dump_exit
 EOF
   chmod +x "$FAKE_BIN/pg_dump"
 
+  # curl falso: so registra os argumentos, para checar se o aviso saiu.
+  : > "$WORKDIR/curl.log"
+  cat > "$FAKE_BIN/curl" <<EOF
+#!/bin/sh
+echo "\$*" >> "$WORKDIR/curl.log"
+exit 0
+EOF
+  chmod +x "$FAKE_BIN/curl"
+
   rm -rf "$DAILY_DIR" "$WEEKLY_DIR"
   mkdir -p "$DAILY_DIR" "$WEEKLY_DIR"
 
   export PATH="$FAKE_BIN:$PATH"
+  export TELEGRAM_BOT_TOKEN=token-falso TELEGRAM_CHAT_ID=chat-falso
   export POSTGRES_PASSWORD=x
   export DAILY_DIR WEEKLY_DIR UPLOADS_DIR
   export BACKUP_LOOP=0
@@ -65,11 +75,14 @@ EOF
     assert "$(echo "$out" | grep -c RUN_OK)" "1" "$label: run_backup retorna sucesso"
     assert "$gz_count" "1" "$label: publica exatamente 1 dump .sql.gz"
     assert "$(echo "$out" | grep -c 'concluido')" "1" "$label: imprime concluido"
+    assert "$(wc -l < "$WORKDIR/curl.log" | tr -d ' ')" "0" "$label: nao manda aviso no Telegram"
   else
     assert "$(echo "$out" | grep -c RUN_FAIL)" "1" "$label: run_backup retorna falha"
     assert "$gz_count" "0" "$label: NAO publica dump nenhum"
     assert "$(echo "$out" | grep -c 'concluido')" "0" "$label: NAO imprime concluido"
     assert "$(echo "$out" | grep -c 'FALHOU o dump')" "1" "$label: avisa falha do dump"
+    assert "$(wc -l < "$WORKDIR/curl.log" | tr -d ' ')" "1" "$label: manda 1 aviso no Telegram"
+    assert "$(grep -c 'api.telegram.org/bottoken-falso/sendMessage' "$WORKDIR/curl.log")" "1" "$label: aviso vai para o endpoint do bot"
   fi
 }
 

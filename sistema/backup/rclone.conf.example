@@ -1,12 +1,39 @@
 # Copie para rclone.conf (sem .example) e preencha com as credenciais reais.
 # rclone.conf NAO deve ir pro git -- ver .gitignore.
 #
-# Exemplo com Backblaze B2 (barato, ~R$0,03/GB/mes). Rode `rclone config`
-# localmente uma vez pra gerar isto certinho, ou preencha na mao:
+# Producao (desde 12/11/2026): Google Drive da conta antenormkt@gmail.com com
+# escopo `drive.file` (o rclone so enxerga o que ele mesmo criou), e uma camada
+# `crypt` por cima: o dump do banco tem CPF/WhatsApp de cliente e nao pode ir
+# em claro para o Drive. Nomes de arquivo ficam legiveis, o conteudo e cifrado.
 #
+# Gerar o token (no PC do Jonathan, que tem navegador):
+#   RCLONE_DRIVE_SCOPE=drive.file rclone authorize drive --auth-no-open-browser
+#   -> abrir a URL no Chrome com a conta antenormkt e permitir.
+# Gerar o remoto cifrado (as senhas ficam obscurecidas no arquivo):
+#   rclone config create antenor-backup-crypt crypt remote antenor-backup:enc \
+#     filename_encryption off directory_name_encryption false \
+#     password <senha1> password2 <senha2> --config backup/rclone.conf
+#
+# GUARDE as duas senhas FORA da VPS (gerenciador de senhas). Sem elas, o
+# backup do Drive nao abre -- e a VPS e justamente o que pode se perder.
+#
+# [antenor-backup]
+# type = drive
+# scope = drive.file
+# token = {"access_token":"...","token_type":"Bearer","refresh_token":"...","expiry":"..."}
+#
+# [antenor-backup-crypt]
+# type = crypt
+# remote = antenor-backup:enc
+# filename_encryption = off
+# directory_name_encryption = false
+# password = ...
+# password2 = ...
+#
+# BACKUP_RCLONE_REMOTE no .env.production fica: antenor-backup-crypt:antenor-backups
+#
+# Alternativa barata sem Drive (Backblaze B2, ~R$0,03/GB/mes):
 # [antenor-backup]
 # type = b2
 # account = SEU_KEY_ID
 # key = SUA_APPLICATION_KEY
-#
-# BACKUP_RCLONE_REMOTE no .env.production fica: antenor-backup:antenor-backups

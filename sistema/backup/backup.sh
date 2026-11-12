@@ -14,6 +14,17 @@ UPLOADS_DIR="${UPLOADS_DIR:-/uploads}"
 
 mkdir -p "$DAILY_DIR" "$WEEKLY_DIR"
 
+# Aviso no Telegram (mesmo bot do monitor de produtos sumidos). Sem token/chat
+# so loga. 12/11/2026: o envio ao Drive ficou semanas falhando por cota cheia e
+# ninguem soube, porque o erro so aparecia no log do container.
+notify() {
+  if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ]; then
+    curl -fsS -m 20 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+      --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text=$1" >/dev/null 2>&1 || echo "[backup] aviso no Telegram nao saiu" >&2
+  fi
+}
+
 run_backup() {
   stamp=$(date +%Y%m%d_%H%M%S)
   weekday=$(date +%u) # 7 = domingo
@@ -29,17 +40,20 @@ run_backup() {
   if ! PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h db -U postgres -d antenor_db > "$db_tmp"; then
     echo "[backup] $stamp: FALHOU o dump do Postgres" >&2
     rm -f "$db_tmp"
+    notify "Backup Antenor: FALHOU o dump do Postgres ($stamp). Nenhuma copia nova foi feita hoje."
     return 1
   fi
   if ! gzip "$db_tmp"; then
     echo "[backup] $stamp: FALHOU ao compactar o dump" >&2
     rm -f "$db_tmp" "$db_tmp.gz"
+    notify "Backup Antenor: FALHOU ao compactar o dump ($stamp). Nenhuma copia nova foi feita hoje."
     return 1
   fi
 
   echo "[backup] $stamp: compactando fotos de produto"
   if ! tar czf "$DAILY_DIR/uploads_${stamp}.tar.gz" -C "$UPLOADS_DIR" .; then
     echo "[backup] $stamp: FALHOU o tar dos uploads" >&2
+    notify "Backup Antenor: FALHOU o tar das fotos ($stamp). O dump do banco foi salvo, as fotos nao."
     return 1
   fi
 
@@ -55,9 +69,18 @@ run_backup() {
 
   if [ -n "${RCLONE_REMOTE:-}" ]; then
     echo "[backup] $stamp: enviando para $RCLONE_REMOTE"
-    rclone sync "$DAILY_DIR" "$RCLONE_REMOTE/daily" --config /config/rclone/rclone.conf || \
+    remote_ok=1
+    rclone sync "$DAILY_DIR" "$RCLONE_REMOTE/daily" --config /config/rclone/rclone.conf || remote_ok=0
+    rclone sync "$WEEKLY_DIR" "$RCLONE_REMOTE/weekly" --config /config/rclone/rclone.conf || remote_ok=0
+    if [ "$remote_ok" = "1" ]; then
+      # Domingo: confirmacao semanal. Se ela nao chegar, o proprio backup parou.
+      if [ "$weekday" = "7" ]; then
+        notify "Backup Antenor: semana ok, copia no Drive em dia ($stamp)."
+      fi
+    else
       echo "[backup] $stamp: envio remoto falhou, backup local preservado" >&2
-    rclone sync "$WEEKLY_DIR" "$RCLONE_REMOTE/weekly" --config /config/rclone/rclone.conf || true
+      notify "Backup Antenor: o envio para o Drive FALHOU ($stamp). A copia local esta salva na VPS. Detalhe: docker logs antenor_backup"
+    fi
   else
     echo "[backup] $stamp: RCLONE_REMOTE nao configurado -- backup so local. Ver docs/deploy.md."
   fi
