@@ -31,7 +31,7 @@ const metricToneClassName: Record<NonNullable<SectionMetricProps['tone']>, strin
 
 export function SectionToolbar({ children, className = '' }: SectionToolbarProps) {
   return (
-    <div className={`rounded-[16px] border border-[#ead7df] bg-[linear-gradient(180deg,#fffafc_0%,#ffffff_100%)] p-4 shadow-[0_18px_40px_rgba(93,8,42,0.08)] sm:p-6 ${className}`.trim()}>
+    <div className={`rounded-[16px] border border-[#ead7df] bg-[linear-gradient(180deg,#fffafc_0%,#ffffff_100%)] p-4 shadow-[0_18px_40px_rgba(93,8,42,0.08)] dark:bg-none dark:bg-white sm:p-6 ${className}`.trim()}>
       {children}
     </div>
   )
@@ -56,7 +56,7 @@ export function SectionMetric({ label, value, tone = 'default' }: SectionMetricP
 
 export function SectionEmptyState({ title, description }: SectionEmptyStateProps) {
   return (
-    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[14px] border border-dashed border-[#ead7df] bg-[linear-gradient(180deg,#fffafc_0%,#fff 100%)] px-6 py-10 text-center">
+    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[14px] border border-dashed border-[#ead7df] bg-[linear-gradient(180deg,#fffafc_0%,#fff 100%)] px-6 py-10 text-center dark:bg-none dark:bg-white">
       <p className="text-base font-semibold text-[#5d082a]">{title}</p>
       {description && <p className="mt-2 max-w-md text-sm text-gray-500">{description}</p>}
     </div>

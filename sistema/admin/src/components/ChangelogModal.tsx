@@ -14,6 +14,15 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.26.0',
+    date: '13/11/2026',
+    title: 'Modo Escuro no Painel',
+    highlights: [
+      { type: 'feat', description: 'O painel ganhou o modo escuro, para trabalhar à noite sem cansar a vista. Um botão novo no topo (ícone de sol, lua ou tela) alterna entre Automático (segue o aparelho), Claro e Escuro, e a escolha fica salva neste navegador.' },
+      { type: 'feat', description: 'Está em teste: por enquanto o painel continua abrindo no claro para todo mundo, e o escuro só aparece para quem apertar o botão. Se alguma tela ficar ruim de ler no escuro, avise para a gente ajustar.' },
+    ],
+  },
+  {
     version: '1.25.2',
     date: '13/11/2026',
     title: 'Avisos do Telegram Mais Amigáveis',
@@ -542,7 +551,7 @@ export function ChangelogModal({ open, onClose }: ChangelogModalProps) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-lg max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-[linear-gradient(180deg,#fffafc_0%,#fff_100%)]">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-[linear-gradient(180deg,#fffafc_0%,#fff_100%)] dark:bg-none dark:bg-white">
           <div>
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <Sparkles size={18} className="text-[#8A6A3A]" />

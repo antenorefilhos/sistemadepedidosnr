@@ -50,6 +50,12 @@ via HTTPS com uma conta `role=picker`. Ver `Notificador/README.md`.
 
 O botão "v1.x · Novidades" do painel lê a versão do `admin/package.json`, e a lista vem do `ADMIN_CHANGELOG` (`admin/src/components/ChangelogModal.tsx`), escrita à mão e em linguagem de loja. Ficou parada em 1.11.0 de 22/09 a 08/10/2026, com 172 commits sem registro, porque ninguém tinha essa tarefa. **Toda entrega que muda o que a loja ou a equipe vê ganha uma linha ali, e a versão sobe no mesmo commit.** O teste `ChangelogModal.test.ts` falha se a versão do `package.json` não for a da novidade mais recente.
 
+## Admin: modo escuro por variáveis CSS (13/11/2026)
+
+O admin tem tema Automático / Claro / Escuro (botão de sol, lua ou tela no cabeçalho, `src/components/ThemeToggle.tsx`; lógica em `src/lib/theme.ts`, preferência no `localStorage` em `antenor-admin-theme`, classe `dark` no `<html>`, script no `index.html` evita o flash branco). Para não reescrever as ~1.900 classes de cor fixas, o `tailwind.config.js` redefine as escalas `gray`, `slate`, `rose`, `amber`, `emerald`, `red` e `blue` como variáveis CSS (`--c-<cor>-<tom>`) que valem exatamente o padrão do Tailwind no claro (conferido: o CSS gerado no claro é idêntico ao anterior) e trocam em `.dark`. Regras que evitam texto ilegível: **fundo forte (tons 400+) não inverte** (leva texto branco por cima), `text-gray-300` e `text-white` não invertem, `bg-white` vira a superfície escura e `border/ring/divide-black` (linha fina com 5-10% de opacidade) viram branco.
+
+Ao mexer em cor no admin: use as classes da paleta (`text-gray-500`, `bg-rose-50`...) e o tema escuro vem junto. **Cor escrita em hex** (`text-[#5d082a]`, `style={{ background: '#...' }}`) **não** passa pela paleta: use `rgb(var(--c-gray-100))` / `rgb(var(--chart-accent))` ou uma regra `.dark` em `index.css` (já existem para o vinho em texto, bordas e fundos claros da marca). Logo em cartão claro: `ThemedLogo` (vinho no claro, branco no escuro). **O padrão (`DEFAULT_PREFERENCE` em `theme.ts` e a mesma regra no script do `index.html`) está em `light`** até o escuro ser conferido tela a tela com o Jonathan; depois trocar os dois para `auto`. Conferido em 13/11: login, visão geral e pedidos, e contraste (WCAG) das combinações da paleta no escuro.
+
 ## Roadmap
 
 Plano de lançamento e pendências em [docs/roadmap.md](docs/roadmap.md).

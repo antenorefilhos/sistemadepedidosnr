@@ -7,7 +7,8 @@ import type { Section } from '../Dashboard'
 // so o que leva a uma decisao. Nada de cor gritando -- o acento da marca
 // aparece nos graficos; verde/vermelho so nas variacoes, em tom baixo.
 
-const ACCENT = '#5D082A'
+// Vinho da marca nos graficos; no escuro clareado (--chart-accent, index.css) para nao apagar no fundo.
+const ACCENT = 'rgb(var(--chart-accent))'
 const REFRESH_MS = 60_000
 
 const PERIODS: Array<{ value: OverviewPeriod; label: string; compare: string }> = [
@@ -97,7 +98,7 @@ function Bars({ data, format, caption }: { data: Array<{ label: string; value: n
               className="w-full rounded-t-[4px] transition-opacity"
               style={{
                 height: d.value ? `${Math.max(3, (d.value / max) * 100)}%` : '1px',
-                background: d.value ? ACCENT : '#e5e7eb',
+                background: d.value ? ACCENT : 'rgb(var(--c-gray-200))',
                 opacity: hover === null || hover === i ? 0.85 : 0.35,
               }}
             />

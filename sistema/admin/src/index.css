@@ -26,6 +26,33 @@
     --input: 336 36% 88%;
     --ring: 334 84% 20%;
     --radius: 0.5rem;
+    --chart-accent: 93 8 42; /* #5D082A, vinho da marca nos graficos */
+  }
+
+  /* Tema escuro (classe `dark` no <html>, ver src/lib/theme.ts). Grafite azulado, com o
+     vinho da marca clareado nos botoes e nos destaques para nao sumir no fundo. As escalas
+     gray/rose/amber... estao nas variaveis --c-* geradas por tailwind.config.js. */
+  .dark {
+    --background: 220 23% 8%;
+    --foreground: 210 20% 94%;
+    --card: 218 21% 11%;
+    --card-foreground: 210 20% 94%;
+    --popover: 218 21% 11%;
+    --popover-foreground: 210 20% 94%;
+    --primary: 334 62% 40%;
+    --primary-foreground: 36 100% 97%;
+    --secondary: 220 15% 17%;
+    --secondary-foreground: 30 40% 90%;
+    --muted: 220 15% 15%;
+    --muted-foreground: 215 12% 66%;
+    --accent: 334 30% 20%;
+    --accent-foreground: 340 80% 90%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 218 16% 22%;
+    --input: 218 16% 22%;
+    --ring: 334 70% 62%;
+    --chart-accent: 201 74 125; /* vinho clareado: o original some no fundo escuro */
   }
 
   * {
@@ -103,11 +130,24 @@ textarea:focus {
   }
 }
 
-/* Dark mode improvements */
-@media (prefers-color-scheme: dark) {
-  button:focus-visible {
-    outline-color: #fdf0f4;
-  }
+/* Cores da marca escritas direto na classe (text-[#5d082a], border-[#ead7df]...) nao passam
+   pela paleta do Tailwind: ajuste do tema escuro por regra. Cobre maiuscula e minuscula, que
+   existem nos dois jeitos no codigo. Acrescentar aqui se surgir outra cor de marca em classe. */
+.dark .text-\[\#5d082a\], .dark .text-\[\#5D082A\], .dark .text-\[\#4a0622\] { color: #f0a9c2; }
+.dark .hover\:text-\[\#4a0622\]:hover { color: #f7c6d8; }
+.dark .text-\[\#231f20\], .dark .text-\[\#231F20\] { color: rgb(var(--c-gray-900)); }
+.dark .text-\[\#8a6a3a\], .dark .text-\[\#8A6A3A\] { color: #d2bb8a; }
+.dark .text-\[\#1a0dab\] { color: #8ab4f8; }
+.dark .border-\[\#ead7df\], .dark .border-\[\#f1dbe3\] { border-color: rgb(var(--c-gray-200)); }
+.dark .bg-\[\#5d082a\]\/60, .dark .bg-\[\#5D082A\]\/60 { background-color: rgb(var(--chart-accent) / 0.6); }
+.dark .bg-\[\#5d082a\]\/70, .dark .bg-\[\#5D082A\]\/70 { background-color: rgb(var(--chart-accent) / 0.7); }
+.dark .bg-\[\#5d082a\]\/80, .dark .bg-\[\#5D082A\]\/80 { background-color: rgb(var(--chart-accent) / 0.8); }
+.dark .bg-\[\#fff7fa\], .dark .bg-\[\#fdf0f4\], .dark .bg-\[\#f7f0e4\], .dark .bg-\[\#F7F0E4\] { background-color: rgb(var(--c-gray-50)); }
+
+/* Anel de foco claro no tema escuro. Antes reagia ao modo do APARELHO e deixava o foco rosa-claro
+   em tela clara; agora segue o tema escolhido no botao (classe `dark`). */
+.dark button:focus-visible {
+  outline-color: #fdf0f4;
 }
 
 /* Custom smooth and thin scrollbar for admin panels */
@@ -124,4 +164,10 @@ textarea:focus {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #d4a0b5;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5565;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7686;
 }

@@ -260,7 +260,7 @@ function Heatmap({ points }: { points: Array<{ dow: number; hour: number; n: num
                     key={h}
                     title={`${d} ${h}h: ${n} pedido(s)`}
                     className="h-6 min-w-[18px] rounded text-center tabular-nums text-white"
-                    style={{ background: n ? `rgba(93, 8, 42, ${0.15 + (n / max) * 0.75})` : '#f3f4f6' }}
+                    style={{ background: n ? `rgba(93, 8, 42, ${0.15 + (n / max) * 0.75})` : 'rgb(var(--c-gray-100))' }}
                   >
                     {n || ''}
                   </td>

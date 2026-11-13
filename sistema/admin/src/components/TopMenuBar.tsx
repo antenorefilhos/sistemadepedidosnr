@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Section } from '../pages/Dashboard'
+import ThemeToggle from './ThemeToggle'
 import {
   BarChart3, Package, ShoppingCart, ClipboardCheck, Users,
   Tag, ChefHat, Sparkles, Image, Palette, Truck, Clock3, Bot, Workflow, ShieldAlert, BellRing, CreditCard, Megaphone, RadioTower, TrendingUp,
@@ -156,6 +157,7 @@ export function TopMenuBar({ activeSection, onSectionChange, adminName, onLogout
           <div className="w-8 h-8 bg-[#6f1737] rounded-full flex items-center justify-center text-xs font-semibold ring-1 ring-[#8a2048]">
             AF
           </div>
+          <ThemeToggle className="p-2 rounded hover:bg-[#5d082a] transition-colors text-[#e8c0cf] hover:text-white" />
           <button
             type="button"
             onClick={onLogout}

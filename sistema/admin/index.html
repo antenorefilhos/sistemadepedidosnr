@@ -9,6 +9,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Admin - Mercado Antenor" />
     <title>Admin - Mercado Antenor</title>
+    <script>
+      // Tema escuro sem piscar branco: roda antes do React. MESMA regra de src/lib/theme.ts
+      // (chave, padrao 'light', automatico segue o aparelho). Se mudar la, mude aqui tambem.
+      (function () {
+        var dark = false;
+        try {
+          var p = localStorage.getItem('antenor-admin-theme');
+          if (p !== 'auto' && p !== 'light' && p !== 'dark') p = 'light';
+          dark = p === 'dark' || (p === 'auto' && !!window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        } catch (e) {}
+        if (dark) document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

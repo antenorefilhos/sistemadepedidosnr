@@ -6,8 +6,7 @@ import { getApiErrorMessage } from '../services/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
-const HORIZONTAL_LOGO_SRC = '/branding/logo-horizontal-bordo.png'
+import ThemedLogo from '@/components/ThemedLogo'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -35,11 +34,7 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#5d082a] to-[#3a0418] flex items-center justify-center">
       <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-        <img
-          src={HORIZONTAL_LOGO_SRC}
-          alt="Antenor & Filhos"
-          className="mx-auto mb-8 h-16 w-auto object-contain"
-        />
+        <ThemedLogo className="mx-auto mb-8 h-16 w-auto object-contain" />
 
         {error && (
           <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
