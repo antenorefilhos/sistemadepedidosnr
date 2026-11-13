@@ -475,16 +475,18 @@ restrição explícita: **não pode prejudicar o e-mail corporativo**
   Security → Events depois de alguns dias e decidir por trocar `log` por
   `block` (ou por regra a regra, via `overrides.rules[]` em vez do
   `overrides.action` geral).
-  **Atualização 13/11/2026: `block` ligado e desfeito (voltou para `log`)
-  ANTES de testar uploads reais.** O único evento Bloquear em Security →
-  Events nessa janela foi o teste de ataque de exemplo que eu fiz (regra "Log4j
-  Headers", User-Agent `${jndi:ldap://127.0.0.1/a}` contra o nosso site): nenhuma
-  requisição real foi barrada, então **não há falso positivo conhecido**; o
-  Jonathan subiu fotos no admin já com o WAF em `log` (`POST
-  /uploads/product/:ean 201`), o que não prova nada sobre o `block`. Falta
-  religar e repetir o teste (upload de foto no admin, login em outro app). Dá
-  para ler os eventos no dashboard (Security → Events) lendo o DOM; clicar na
-  linha com eventos sintéticos abre o detalhe (regra, Ray ID, caminho). A análise de 30 dias
+  **Atualização 13/11/2026: AGORA EM `block`, testado com fluxo real.** Ligado
+  pelo Jonathan às 04:55 BRT (depois de um primeiro liga/desliga em que ele
+  desfez antes de testar). Com o bloqueio ligado: 3 uploads de foto no admin
+  (`POST /uploads/product/:ean` 201), 2 trocas de foto (`DELETE` 200), login e
+  `POST /picker/orders/:id/start` no app da separação (200/201), impressões do
+  CMS (201). Em Security → Events o único "Bloquear" é o meu teste de ataque
+  de exemplo (regra "Log4j Headers", User-Agent `${jndi:ldap://127.0.0.1/a}`
+  contra o nosso site): **nenhum falso positivo**. Para ler os eventos sem o
+  painel renderizar: abrir a página no Chrome e ler o DOM (`[role=row]`);
+  clicar na linha com eventos sintéticos (`pointerdown`/`mousedown`/`click`)
+  abre o detalhe (regra, Ray ID, caminho); IDs de 32 hex saem como
+  "[BLOCKED]" na ferramenta, use o nome da regra. A análise de 30 dias
   (1,15 M de requisições; 33,96 mil disparos, todos em log) mostrou só
   varredura de bot (exploit React CVE-2025-55182, `wp-config`), nenhum
   cliente. O Jonathan trocou com
