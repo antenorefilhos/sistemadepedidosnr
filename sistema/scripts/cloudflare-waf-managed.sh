@@ -8,9 +8,10 @@
 # .env.production; o token nunca e impresso.
 #
 # Uso, a partir da raiz do repo no PC:
-#   ssh antenor-vps 'bash -s -- status' < sistema/scripts/cloudflare-waf-managed.sh
-#   ssh antenor-vps 'bash -s -- block'  < sistema/scripts/cloudflare-waf-managed.sh
-#   ssh antenor-vps 'bash -s -- log'    < sistema/scripts/cloudflare-waf-managed.sh   # desfaz
+#   tr -d '\r' < sistema/scripts/cloudflare-waf-managed.sh | ssh antenor-vps 'bash -s -- status'
+#   tr -d '\r' < sistema/scripts/cloudflare-waf-managed.sh | ssh antenor-vps 'bash -s -- block'
+#   tr -d '\r' < sistema/scripts/cloudflare-waf-managed.sh | ssh antenor-vps 'bash -s -- log'     # desfaz
+# O `tr -d '\r'` evita que o git do Windows (autocrlf) quebre o bash da VPS com CRLF.
 set -euo pipefail
 
 MODE="${1:-}"
