@@ -39,7 +39,7 @@ export default function PrivacyPolicy() {
 
       <main className="mx-auto max-w-3xl px-4 py-8 text-sm leading-relaxed text-[#231F20]">
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#8A6A3A]">
-          Aplicativo e site Antenor & Filhos · Última atualização: junho de 2026
+          Aplicativo e site Antenor & Filhos · Última atualização: novembro de 2026
         </p>
         <p className="mt-3">
           Este documento estabelece a Política de Privacidade aplicável à utilização do aplicativo e site
@@ -207,6 +207,15 @@ export default function PrivacyPolicy() {
           Microsoft Clarity (Microsoft Corporation), que coletam páginas acessadas, cliques, rolagem de tela e
           podem gravar a navegação na tela para fins estatísticos. Esses provedores processam os dados fora do
           Brasil, sob suas próprias políticas de privacidade.
+        </p>
+        <p className="mt-3">
+          Também utilizamos o Pixel da Meta (Meta Platforms, Inc.), que registra páginas visitadas, produtos
+          vistos, itens colocados no carrinho e pedidos concluídos, com o valor da compra, junto de
+          identificadores do navegador (como cookies). Usamos essas informações para medir o resultado dos
+          nossos anúncios no Facebook e no Instagram e para mostrar anúncios a pessoas com interesse
+          semelhante. A Meta processa os dados fora do Brasil, sob a política de privacidade dela. Você pode
+          limitar esse uso nas configurações de anúncios da sua conta do Facebook ou do Instagram e pelo
+          bloqueio de cookies de terceiros no navegador.
         </p>
 
         <h2 id="alteracoes" className="mb-2 mt-8 scroll-mt-20 text-lg font-bold">12. Alterações desta política</h2>
