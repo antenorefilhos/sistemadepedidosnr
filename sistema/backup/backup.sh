@@ -70,7 +70,11 @@ run_backup() {
   if [ -n "${RCLONE_REMOTE:-}" ]; then
     echo "[backup] $stamp: enviando para $RCLONE_REMOTE"
     remote_ok=1
-    rclone sync "$DAILY_DIR" "$RCLONE_REMOTE/daily" --config /config/rclone/rclone.conf || remote_ok=0
+    # Diario no Drive: so o dump do banco (~11 MB). O tar das fotos (~800 MB) e quase o
+    # mesmo todo dia e enchia o Drive (15 GiB divididos com Gmail/Fotos): em 13/11/2026 eram
+    # 9,9 GiB para ~11 MB de banco de verdade. As fotos vao so no semanal (abaixo). A copia
+    # local diaria continua completa; `--exclude` tambem poupa de apagar o que ja estiver la.
+    rclone sync "$DAILY_DIR" "$RCLONE_REMOTE/daily" --exclude 'uploads_*' --config /config/rclone/rclone.conf || remote_ok=0
     rclone sync "$WEEKLY_DIR" "$RCLONE_REMOTE/weekly" --config /config/rclone/rclone.conf || remote_ok=0
     if [ "$remote_ok" = "1" ]; then
       # Domingo: confirmacao semanal. Se ela nao chegar, o proprio backup parou.

@@ -89,6 +89,39 @@ EOF
 run_case "pg_dump ok" 0
 run_case "pg_dump falha (status 1, stdout vazio)" 1
 
+# Envio ao remoto: o diario NAO leva o tar das fotos (so o dump do banco, ~11 MB);
+# o semanal leva tudo. Sem isso o Drive de 15 GiB enche (13/11/2026: 9,9 GiB).
+run_remote_case() {
+  : > "$WORKDIR/rclone.log"
+  cat > "$FAKE_BIN/pg_dump" <<EOF
+#!/bin/sh
+echo "-- dump falso valido"
+EOF
+  cat > "$FAKE_BIN/rclone" <<EOF
+#!/bin/sh
+echo "\$*" >> "$WORKDIR/rclone.log"
+exit 0
+EOF
+  chmod +x "$FAKE_BIN/pg_dump" "$FAKE_BIN/rclone"
+  rm -rf "$DAILY_DIR" "$WEEKLY_DIR"
+  mkdir -p "$DAILY_DIR" "$WEEKLY_DIR"
+  out_file="$WORKDIR/out_remote.txt"
+  {
+    export RCLONE_REMOTE="remoto-falso:bucket"
+    # shellcheck disable=SC1091
+    . "$(dirname "$0")/backup.sh"
+    if run_backup; then echo "RUN_OK"; else echo "RUN_FAIL"; fi
+  } >"$out_file" 2>&1
+  unset RCLONE_REMOTE
+  daily_line=$(grep '/daily' "$WORKDIR/rclone.log" || true)
+  weekly_line=$(grep '/weekly' "$WORKDIR/rclone.log" || true)
+  assert "$(grep -c RUN_OK "$out_file")" "1" "remoto: run_backup retorna sucesso"
+  assert "$(echo "$daily_line" | grep -c "exclude uploads_")" "1" "remoto: o diario NAO envia o tar das fotos"
+  assert "$(echo "$weekly_line" | grep -c "exclude")" "0" "remoto: o semanal envia tudo"
+  assert "$(wc -l < "$WORKDIR/rclone.log" | tr -d ' ')" "2" "remoto: duas sincronizacoes (diario e semanal)"
+}
+run_remote_case
+
 if [ "$fail" = "0" ]; then
   echo "TODOS OS CASOS PASSARAM"
 else
