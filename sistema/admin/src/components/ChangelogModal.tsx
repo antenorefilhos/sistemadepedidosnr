@@ -14,6 +14,15 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.25.2',
+    date: '13/11/2026',
+    title: 'Avisos do Telegram Mais Amigáveis',
+    highlights: [
+      { type: 'feat', description: 'Os avisos do robô no Telegram ficaram mais simples e amigáveis: o resumo da manhã cumprimenta e diz de cara se está tudo certo ou o que precisa de atenção, o aviso de produto que sumiu da vitrine explica o que fazer, e os avisos do backup dizem o que aconteceu com a cópia e se algo se perdeu.' },
+      { type: 'feat', description: 'O site passou a registrar visitas, produtos vistos e compras para medir os anúncios do Facebook e do Instagram (Meta Pixel da NOVA REAL).' },
+    ],
+  },
+  {
     version: '1.25.1',
     date: '12/11/2026',
     title: 'Foto Trocada Aparece em Todo Lugar',
