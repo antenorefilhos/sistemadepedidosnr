@@ -88,6 +88,11 @@ BACKUP_RCLONE_REMOTE=antenor-backup-crypt:antenor-backups
 ```
 
 O dump tem CPF e WhatsApp de cliente, por isso o envio é cifrado (`crypt`).
+No Drive o **diário leva só o dump do banco** (~11 MB) e as **fotos vão só no
+semanal** (o tar diário de ~800 MB era quase igual todo dia e enchia os 15 GiB da
+conta, dividida com Gmail/Fotos). A cópia local na VPS continua completa. Com o
+escopo `drive.file`, cada client_id só enxerga o que ele mesmo criou: trocar o
+client_id exige recopiar tudo (ver nota "Backup Remoto Google Drive" no vault).
 **Guarde as senhas do crypt fora da VPS**: sem elas, a cópia do Drive não abre.
 Falha no envio, no dump ou no tar avisa no Telegram (mesmo bot do monitor de
 produtos; `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`), e todo domingo chega uma
