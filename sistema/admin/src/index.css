@@ -144,6 +144,10 @@ textarea:focus {
 .dark .bg-\[\#5d082a\]\/80, .dark .bg-\[\#5D082A\]\/80 { background-color: rgb(var(--chart-accent) / 0.8); }
 .dark .bg-\[\#fff7fa\], .dark .bg-\[\#fdf0f4\], .dark .bg-\[\#f7f0e4\], .dark .bg-\[\#F7F0E4\] { background-color: rgb(var(--c-gray-50)); }
 
+/* Interruptor LIGADO usa bg-gray-900 (trilho escuro com bolinha branca). No escuro a bolinha (bg-white)
+   vira a superficie escura, entao o trilho ligado precisa ser CLARO para aparecer; desligado fica escuro. */
+.dark [role="switch"][aria-checked="true"].bg-gray-900 { background-color: rgb(var(--c-gray-700)); }
+
 /* Anel de foco claro no tema escuro. Antes reagia ao modo do APARELHO e deixava o foco rosa-claro
    em tela clara; agora segue o tema escolhido no botao (classe `dark`). */
 .dark button:focus-visible {

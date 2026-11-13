@@ -9,8 +9,9 @@ const baseColors = require('tailwindcss/colors')
  * O botao de tema esta em src/components/ThemeToggle.tsx, a logica em src/lib/theme.ts.
  *
  * Regras que evitam texto ilegivel:
- *  - FUNDO forte (tons 400+ de qualquer cor, ex.: bg-gray-900, bg-emerald-600) NAO inverte:
- *    quase sempre leva texto branco por cima. So os tons claros de fundo (50-300) trocam.
+ *  - FUNDO forte (tons 400+ de qualquer cor, ex.: bg-emerald-600) NAO inverte: quase sempre
+ *    leva texto branco por cima. So os tons claros de fundo (50-300) trocam. Excecao: bg-gray-700/800/900
+ *    ficam cinza-azulado medio no escuro (DARK_STRONG_GRAY), para nao sumir na superficie.
  *  - text-gray-300 NAO inverte: e o texto claro que fica sobre esses fundos fortes.
  *  - bg-white vira a superficie escura; text-white nunca muda.
  *  - border/ring/divide "black" (usados com 5-10% de opacidade como linha fina) viram branco no escuro.
@@ -22,9 +23,12 @@ const FAMILIES = ['gray', 'slate', 'rose', 'amber', 'emerald', 'red', 'blue']
 const FLIP = { 50: 950, 100: 900, 200: 800, 300: 700, 400: 600, 500: 500, 600: 400, 700: 300, 800: 200, 900: 100 }
 // Cinzas no escuro: rampa propria (azul-grafite) para dar hierarquia de superficies.
 const DARK_GRAY = {
-  50: '29 34 44', 100: '37 43 55', 200: '55 63 78', 300: '75 85 101', 400: '128 138 155',
+  50: '29 34 44', 100: '37 43 55', 200: '55 63 78', 300: '75 85 101', 400: '140 150 168',
   500: '152 161 176', 600: '178 186 199', 700: '203 209 219', 800: '226 230 236', 900: '243 245 248',
 }
+// Fundo cinza FORTE (bg-gray-700/800/900: botao escuro, selo, trilho de interruptor): no escuro vira cinza-azulado
+// medio, porque o fundo escuro original sumia na superficie e o texto branco por cima precisa continuar legivel.
+const DARK_STRONG_GRAY = { 700: '96 108 128', 800: '82 94 114', 900: '71 82 102' }
 const toRgb = (hex) => {
   const n = parseInt(hex.slice(1), 16)
   return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`
@@ -32,6 +36,10 @@ const toRgb = (hex) => {
 const cssVar = (name) => `rgb(var(${name}) / <alpha-value>)`
 const lightVars = { '--c-surface': '255 255 255', '--c-black': '0 0 0' }
 const darkVars = { '--c-surface': '23 27 35', '--c-black': '255 255 255' }
+for (const shade of [700, 800, 900]) {
+  lightVars[`--bg-gray-${shade}`] = toRgb(baseColors.gray[shade])
+  darkVars[`--bg-gray-${shade}`] = DARK_STRONG_GRAY[shade]
+}
 for (const family of FAMILIES) {
   for (const shade of SHADES) {
     lightVars[`--c-${family}-${shade}`] = toRgb(baseColors[family][shade])
@@ -39,7 +47,8 @@ for (const family of FAMILIES) {
   }
 }
 const scale = (family) => Object.fromEntries(SHADES.map((s) => [s, cssVar(`--c-${family}-${s}`)]))
-const strongBackgrounds = (family) => Object.fromEntries(SHADES.filter((s) => s >= 400).map((s) => [s, baseColors[family][s]]))
+const strongBackgrounds = (family) =>
+  Object.fromEntries(SHADES.filter((s) => s >= 400).map((s) => [s, family === 'gray' && s >= 700 ? cssVar(`--bg-gray-${s}`) : baseColors[family][s]]))
 const themeVarsPlugin = plugin(({ addBase }) => addBase({ ':root': lightVars, '.dark': darkVars }))
 
 /** @type {import('tailwindcss').Config} */

@@ -14,6 +14,14 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.26.1',
+    date: '13/11/2026',
+    title: 'Ajustes no Modo Escuro',
+    highlights: [
+      { type: 'fix', description: 'No modo escuro, os interruptores ligados (banners, vitrines, departamentos, taxas e outros) sumiam no fundo escuro; agora aparecem claros quando ligados. Os botões escuros ganharam um cinza mais claro para se destacar, e os textos de apoio ficaram mais fáceis de ler.' },
+    ],
+  },
+  {
     version: '1.26.0',
     date: '13/11/2026',
     title: 'Modo Escuro no Painel',
