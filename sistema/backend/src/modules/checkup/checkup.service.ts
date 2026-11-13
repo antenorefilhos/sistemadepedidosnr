@@ -59,7 +59,7 @@ export class CheckupService {
       try {
         results.push({ name, ...(await fn()) })
       } catch (error) {
-        results.push({ name, ok: false, detail: `verificacao falhou: ${error instanceof Error ? error.message : error}` })
+        results.push({ name, ok: false, detail: `não consegui fazer esta verificação (${error instanceof Error ? error.message : error})` })
       }
     }
 
@@ -191,12 +191,28 @@ export class CheckupService {
     return { ok: true, detail: noPhoto.length ? `${noPhoto.length} de ${onSite.length} no site (ex.: ${sample(noPhoto.map((p) => p.name))})` : 'todos com foto' }
   }
 
-  format(results: CheckResult[]) {
+  /**
+   * Texto do Telegram. Quem le e o dono, no celular, geralmente de manha: cumprimenta
+   * pela hora de Sao Paulo, diz de cara se esta tudo certo ou o que precisa de olhar, e
+   * poe os problemas antes do que esta em ordem. `now` existe so para o teste fixar a hora.
+   */
+  format(results: CheckResult[], now: Date = new Date()) {
     const failures = results.filter((r) => !r.ok)
-    const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
-    const head = failures.length === 0 ? `✅ Check-up ${today}: tudo ok` : `⚠️ Check-up ${today}: ${failures.length} problema(s)`
-    const lines = results.map((r) => `${r.ok ? '✅' : '❌'} ${r.name}: ${r.detail}`)
-    return [head, '', ...lines].join('\n')
+    const good = results.filter((r) => r.ok)
+    const today = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    const hour = Number(new Intl.DateTimeFormat('pt-BR', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Sao_Paulo' }).format(now))
+    const [hi, icon] = hour >= 5 && hour < 12 ? ['Bom dia', '☀️'] : hour >= 12 && hour < 18 ? ['Boa tarde', '🌤️'] : ['Boa noite', '🌙']
+
+    if (failures.length === 0) {
+      return [`${icon} ${hi}! Check-up de ${today}: está tudo certo com a loja. 🎉`, '', ...good.map((r) => `✅ ${r.name}: ${r.detail}`)].join('\n')
+    }
+    const n = failures.length
+    return [
+      `${icon} ${hi}! Check-up de ${today}: ${n === 1 ? 'tem 1 coisa' : `tem ${n} coisas`} para a gente olhar. 👀`,
+      '',
+      ...failures.map((r) => `❌ ${r.name}: ${r.detail}`),
+      ...(good.length ? ['', 'O resto está em ordem:', ...good.map((r) => `✅ ${r.name}: ${r.detail}`)] : []),
+    ].join('\n')
   }
 
 }

@@ -40,11 +40,13 @@ exit $pg_dump_exit
 EOF
   chmod +x "$FAKE_BIN/pg_dump"
 
-  # curl falso: so registra os argumentos, para checar se o aviso saiu.
+  # curl falso: so registra os argumentos (uma linha por chamada, mesmo que o texto
+  # do aviso tenha quebra de linha), para checar se o aviso saiu.
   : > "$WORKDIR/curl.log"
   cat > "$FAKE_BIN/curl" <<EOF
 #!/bin/sh
-echo "\$*" >> "$WORKDIR/curl.log"
+echo "\$*" | tr '\n' ' ' >> "$WORKDIR/curl.log"
+echo >> "$WORKDIR/curl.log"
 exit 0
 EOF
   chmod +x "$FAKE_BIN/curl"
@@ -83,6 +85,8 @@ EOF
     assert "$(echo "$out" | grep -c 'FALHOU o dump')" "1" "$label: avisa falha do dump"
     assert "$(wc -l < "$WORKDIR/curl.log" | tr -d ' ')" "1" "$label: manda 1 aviso no Telegram"
     assert "$(grep -c 'api.telegram.org/bottoken-falso/sendMessage' "$WORKDIR/curl.log")" "1" "$label: aviso vai para o endpoint do bot"
+    assert "$(grep -c 'não consegui copiar o banco de dados' "$WORKDIR/curl.log")" "1" "$label: aviso em linguagem clara, sem termo tecnico"
+    assert "$(grep -c 'Nenhuma cópia nova foi feita hoje' "$WORKDIR/curl.log")" "1" "$label: aviso diz o que aconteceu com a copia"
   fi
 }
 
@@ -121,6 +125,34 @@ EOF
   assert "$(wc -l < "$WORKDIR/rclone.log" | tr -d ' ')" "2" "remoto: duas sincronizacoes (diario e semanal)"
 }
 run_remote_case
+
+# Envio ao Drive falhando: 1 aviso amigavel dizendo que nada se perdeu.
+run_remote_fail_case() {
+  : > "$WORKDIR/curl.log"
+  cat > "$FAKE_BIN/pg_dump" <<EOF
+#!/bin/sh
+echo "-- dump falso valido"
+EOF
+  cat > "$FAKE_BIN/rclone" <<EOF
+#!/bin/sh
+exit 1
+EOF
+  chmod +x "$FAKE_BIN/pg_dump" "$FAKE_BIN/rclone"
+  rm -rf "$DAILY_DIR" "$WEEKLY_DIR"
+  mkdir -p "$DAILY_DIR" "$WEEKLY_DIR"
+  out_file="$WORKDIR/out_remote_fail.txt"
+  {
+    export RCLONE_REMOTE="remoto-falso:bucket"
+    # shellcheck disable=SC1091
+    . "$(dirname "$0")/backup.sh"
+    if run_backup; then echo "RUN_OK"; else echo "RUN_FAIL"; fi
+  } >"$out_file" 2>&1
+  unset RCLONE_REMOTE
+  assert "$(wc -l < "$WORKDIR/curl.log" | tr -d ' ')" "1" "envio falho: manda 1 aviso no Telegram"
+  assert "$(grep -c 'não consegui enviá-la para o Google Drive' "$WORKDIR/curl.log")" "1" "envio falho: aviso em linguagem clara"
+  assert "$(grep -c 'Nada se perdeu' "$WORKDIR/curl.log")" "1" "envio falho: avisa que nada se perdeu"
+}
+run_remote_fail_case
 
 if [ "$fail" = "0" ]; then
   echo "TODOS OS CASOS PASSARAM"

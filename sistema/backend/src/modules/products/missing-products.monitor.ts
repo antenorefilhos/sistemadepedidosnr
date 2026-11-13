@@ -163,12 +163,15 @@ export class MissingProductsMonitor {
     const amostra = missing.slice(0, 50)
     const extraCount = missing.length - amostra.length
 
-    const linhasTexto = amostra.map((p) => `• ${p.name} (EAN ${p.ean}) — no banco: ${p.syncOption}`)
+    const linhasTexto = amostra.map((p) => `• ${p.name} (EAN ${p.ean}): no site está como ${p.syncOption}`)
+    const plural = missing.length > 1
     const telegramText = [
-      `⚠️ ${missing.length} produto(s) sumiram da vitrine indevidamente`,
+      `👋 Oi! Achei ${plural ? `${missing.length} produtos` : '1 produto'} que ${plural ? 'deviam' : 'devia'} estar na loja e ${plural ? 'não estão aparecendo' : 'não está aparecendo'}:`,
       '',
       ...linhasTexto,
-      ...(extraCount > 0 ? [`…e mais ${extraCount}. Lista completa no log da API.`] : []),
+      ...(extraCount > 0 ? [`…e mais ${extraCount} (a lista completa fica no log da API).`] : []),
+      '',
+      'O ERP diz que eles vendem de verdade, mas a vitrine está escondendo. A atualização das 04:00 costuma corrigir sozinha. Se o aviso voltar amanhã, vale a gente investigar. 🔎',
     ].join('\n')
     const telegramSent = await this.telegram.send(telegramText)
 

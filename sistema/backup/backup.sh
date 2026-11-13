@@ -25,8 +25,29 @@ notify() {
   fi
 }
 
+# Textos do Telegram: quem le e o dono, no celular, geralmente de manha. Portugues
+# claro, sem termo tecnico, dizendo o que aconteceu com a copia e se algo se perdeu.
+# Funcoes (e nao texto solto no meio do fluxo) para o teste e a previa usarem o
+# mesmo texto que vai para o bot. $1 = dia (dd/mm).
+msg_falha_dump() {
+  printf '😟 Oi! O backup de hoje não saiu: não consegui copiar o banco de dados (%s).\nNenhuma cópia nova foi feita hoje. Eu tento de novo amanhã. Para ver o motivo: docker logs antenor_backup' "$1"
+}
+msg_falha_gzip() {
+  printf '😟 Oi! O backup de hoje não saiu: copiei o banco de dados, mas não consegui compactar (%s).\nNenhuma cópia nova foi feita hoje. Eu tento de novo amanhã. Para ver o motivo: docker logs antenor_backup' "$1"
+}
+msg_falha_tar() {
+  printf '⚠️ O banco de dados foi salvo, mas não consegui guardar as fotos dos produtos (%s).\nHoje as fotos ficam sem cópia nova. Eu tento de novo amanhã. Para ver o motivo: docker logs antenor_backup' "$1"
+}
+msg_falha_envio() {
+  printf '⚠️ A cópia de hoje está guardada aqui na VPS, mas não consegui enviá-la para o Google Drive (%s).\nNada se perdeu: só falta a cópia fora do servidor. Para ver o motivo: docker logs antenor_backup' "$1"
+}
+msg_semana_ok() {
+  printf '✅ Tudo certo com os backups desta semana! 💾\nA cópia no Google Drive está em dia (%s).' "$1"
+}
+
 run_backup() {
   stamp=$(date +%Y%m%d_%H%M%S)
+  dia=$(date +%d/%m)
   weekday=$(date +%u) # 7 = domingo
 
   echo "[backup] $stamp: iniciando dump do Postgres"
@@ -40,20 +61,20 @@ run_backup() {
   if ! PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h db -U postgres -d antenor_db > "$db_tmp"; then
     echo "[backup] $stamp: FALHOU o dump do Postgres" >&2
     rm -f "$db_tmp"
-    notify "Backup Antenor: FALHOU o dump do Postgres ($stamp). Nenhuma copia nova foi feita hoje."
+    notify "$(msg_falha_dump "$dia")"
     return 1
   fi
   if ! gzip "$db_tmp"; then
     echo "[backup] $stamp: FALHOU ao compactar o dump" >&2
     rm -f "$db_tmp" "$db_tmp.gz"
-    notify "Backup Antenor: FALHOU ao compactar o dump ($stamp). Nenhuma copia nova foi feita hoje."
+    notify "$(msg_falha_gzip "$dia")"
     return 1
   fi
 
   echo "[backup] $stamp: compactando fotos de produto"
   if ! tar czf "$DAILY_DIR/uploads_${stamp}.tar.gz" -C "$UPLOADS_DIR" .; then
     echo "[backup] $stamp: FALHOU o tar dos uploads" >&2
-    notify "Backup Antenor: FALHOU o tar das fotos ($stamp). O dump do banco foi salvo, as fotos nao."
+    notify "$(msg_falha_tar "$dia")"
     return 1
   fi
 
@@ -79,11 +100,11 @@ run_backup() {
     if [ "$remote_ok" = "1" ]; then
       # Domingo: confirmacao semanal. Se ela nao chegar, o proprio backup parou.
       if [ "$weekday" = "7" ]; then
-        notify "Backup Antenor: semana ok, copia no Drive em dia ($stamp)."
+        notify "$(msg_semana_ok "$dia")"
       fi
     else
       echo "[backup] $stamp: envio remoto falhou, backup local preservado" >&2
-      notify "Backup Antenor: o envio para o Drive FALHOU ($stamp). A copia local esta salva na VPS. Detalhe: docker logs antenor_backup"
+      notify "$(msg_falha_envio "$dia")"
     fi
   else
     echo "[backup] $stamp: RCLONE_REMOTE nao configurado -- backup so local. Ver docs/deploy.md."

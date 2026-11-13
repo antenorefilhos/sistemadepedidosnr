@@ -93,6 +93,14 @@ describe('MissingProductsMonitor.handleScheduledCheck (notificacao)', () => {
     expect(email.send).not.toHaveBeenCalled()
   })
 
+  it('o aviso do Telegram e amigavel: cumprimenta, diz o que houve e o que fazer', async () => {
+    const { monitor, telegram } = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { salvos: SALVOS_COM_LIMAO })
+    await withEnabled(monitor).handleScheduledCheck()
+    const text = telegram.send.mock.calls[0][0] as string
+    expect(text).toMatch(/^👋 Oi! Achei 1 produto que devia estar na loja e não está aparecendo:/)
+    expect(text).toContain('A atualização das 04:00 costuma corrigir sozinha')
+  })
+
   it('manda pros dois canais quando o e-mail esta configurado', async () => {
     const { monitor, email, telegram } = build([LIMAO_SEMPRE_VALIDADO], [LIMAO], { salvos: SALVOS_COM_LIMAO })
     ;(monitor as any).alertTo = 'lojista@antenorefilhos.com.br'
