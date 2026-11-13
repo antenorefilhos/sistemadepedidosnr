@@ -59,10 +59,14 @@
       })(window, document, "clarity", "script", "z5ograouoi");
     </script>
 
-    <!-- Meta Pixel (conjunto de dados "Mercado Antenor e Filhos", portfolio da pagina do
-         Facebook, 13/11/2026). O ID do pixel e publico (aparece no HTML de qualquer site
-         que usa o pixel), nao e segredo. Os eventos ViewContent/AddToCart/InitiateCheckout/
-         Purchase saem de src/utils/analytics.ts; aqui so o carregamento e o PageView. -->
+    <!-- Meta Pixel, dois pixels em paralelo (13/11/2026). Os IDs sao publicos (aparecem no
+         HTML de qualquer site que usa o pixel), nao sao segredo.
+         1693287552520879: "Mercado Antenor e Filhos", portfolio 940761272449792 (primeiro, mantido).
+         2308084703100170: "Mercado Antenor e Filhos - Pedidos", portfolio da NOVA REAL
+         4311164365783478, ligado a conta de anuncios "Anuncios Mercado"; sem API de Conversoes.
+         fbq('track', ...) sem trackSingle chega aos dois: o PageView daqui e os eventos
+         ViewContent/AddToCart/InitiateCheckout/Purchase de src/utils/analytics.ts.
+         Nao use trackSingle/trackSingleCustom, senao o evento vai para um pixel so. -->
     <script>
       !function(f,b,e,v,n,t,s)
       {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -73,6 +77,7 @@
       s.parentNode.insertBefore(t,s)}(window, document,'script',
       'https://connect.facebook.net/en_US/fbevents.js');
       fbq('init', '1693287552520879');
+      fbq('init', '2308084703100170');
       fbq('track', 'PageView');
     </script>
   </head>
