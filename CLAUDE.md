@@ -475,6 +475,18 @@ restrição explícita: **não pode prejudicar o e-mail corporativo**
   Security → Events depois de alguns dias e decidir por trocar `log` por
   `block` (ou por regra a regra, via `overrides.rules[]` em vez do
   `overrides.action` geral).
+  **Atualização 13/11/2026: agora em `block`.** A análise de 30 dias
+  (1,15 M de requisições; 33,96 mil disparos, todos em log) mostrou só
+  varredura de bot (exploit React CVE-2025-55182, `wp-config`), nenhum
+  cliente. O Jonathan trocou com
+  `tr -d '\r' < sistema/scripts/cloudflare-waf-managed.sh | ssh antenor-vps 'bash -s -- block'`
+  (`status` consulta, `log` desfaz; o painel da Cloudflare dá 404 nessa regra,
+  que foi criada por API, então é por esse script). Testado depois: ataque de
+  exemplo (Log4Shell no User-Agent) → 403 "Sorry, you have been blocked";
+  as 5 URLs e a API de produtos seguiram em 200; o webhook do Automatiza Posts
+  (`posts.antenorefilhos.com.br`) segue respondendo o 403 do próprio app.
+  Se um cliente legítimo reclamar de bloqueio, olhe Security → Events e
+  desfaça com `log` antes de investigar.
 
 Verificado depois de cada mudança: MX/DKIM intocados, `mercado`/`api`/`admin`
 respondendo 200. Nenhuma mudança de DNS nessa leva, só configuração de
