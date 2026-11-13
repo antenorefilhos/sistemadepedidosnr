@@ -475,7 +475,12 @@ restrição explícita: **não pode prejudicar o e-mail corporativo**
   Security → Events depois de alguns dias e decidir por trocar `log` por
   `block` (ou por regra a regra, via `overrides.rules[]` em vez do
   `overrides.action` geral).
-  **Atualização 13/11/2026: agora em `block`.** A análise de 30 dias
+  **Atualização 13/11/2026: `block` testado e DESFEITO no mesmo dia (voltou
+  para `log`).** Durante os testes do Jonathan o login passou (`POST
+  /auth/login 200`), mas nenhum upload de foto chegou à API no período, e ele
+  voltou para `log`; o motivo exato está em apuração (olhar Security → Events,
+  ação Block, e achar a regra que pegou). Antes de religar, ponha essa regra em
+  `log` via `overrides.rules[]` e mantenha o resto em `block`. A análise de 30 dias
   (1,15 M de requisições; 33,96 mil disparos, todos em log) mostrou só
   varredura de bot (exploit React CVE-2025-55182, `wp-config`), nenhum
   cliente. O Jonathan trocou com
