@@ -12,11 +12,10 @@ export type ResolvedTheme = 'light' | 'dark'
 export const THEME_STORAGE_KEY = 'antenor-admin-theme'
 
 /**
- * Padrao enquanto o escuro nao foi conferido tela a tela (13/11/2026): quem nunca
- * mexeu no botao continua vendo o claro de sempre, mesmo com o aparelho no escuro.
- * Depois da conferencia, trocar para 'auto' (e o mesmo valor no script do index.html).
+ * Padrao: acompanha o aparelho. Era 'light' ate o escuro ser conferido (13/11/2026);
+ * o Jonathan testou e liberou em 14/11/2026. O mesmo valor vive no script do index.html.
  */
-export const DEFAULT_PREFERENCE: ThemePreference = 'light'
+export const DEFAULT_PREFERENCE: ThemePreference = 'auto'
 
 export const PREFERENCE_LABEL: Record<ThemePreference, string> = {
   auto: 'Automático',

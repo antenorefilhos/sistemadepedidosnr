@@ -14,6 +14,14 @@ export interface ChangelogRelease {
 
 export const ADMIN_CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.26.2',
+    date: '14/11/2026',
+    title: 'Modo Escuro Liberado',
+    highlights: [
+      { type: 'feat', description: 'O painel agora abre no modo Automático: se o computador ou o celular estiver no modo escuro, o painel já abre escuro. Quem preferir pode escolher Claro ou Escuro no botão de sol, lua ou tela no topo, e quem já tinha escolhido continua com a escolha.' },
+    ],
+  },
+  {
     version: '1.26.1',
     date: '13/11/2026',
     title: 'Ajustes no Modo Escuro',

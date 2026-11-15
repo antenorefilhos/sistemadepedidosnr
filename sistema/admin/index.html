@@ -11,12 +11,12 @@
     <title>Admin - Mercado Antenor</title>
     <script>
       // Tema escuro sem piscar branco: roda antes do React. MESMA regra de src/lib/theme.ts
-      // (chave, padrao 'light', automatico segue o aparelho). Se mudar la, mude aqui tambem.
+      // (chave, padrao 'auto', automatico segue o aparelho). Se mudar la, mude aqui tambem.
       (function () {
         var dark = false;
         try {
           var p = localStorage.getItem('antenor-admin-theme');
-          if (p !== 'auto' && p !== 'light' && p !== 'dark') p = 'light';
+          if (p !== 'auto' && p !== 'light' && p !== 'dark') p = 'auto';
           dark = p === 'dark' || (p === 'auto' && !!window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
         } catch (e) {}
         if (dark) document.documentElement.classList.add('dark');
