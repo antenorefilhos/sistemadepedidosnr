@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common'
 import { isWithinDeliveryHours, parseHoursConfig } from '../../common/delivery-hours'
 import { promoDayFor } from '../../common/promo-day'
 import { Prisma } from '@prisma/client'
@@ -12,6 +12,7 @@ import { InventoryService } from '../inventory/inventory.service'
 import { OrdersService } from '../orders/orders.service'
 import { PricingService } from '../pricing/pricing.service'
 import { AntenorApiService } from '../integrations/antenor-api.service'
+import { MetaConversionsService } from '../meta-conversions/meta-conversions.service'
 import { CartService } from './cart.service'
 import { ConfirmCheckoutSessionDto, CreateCheckoutSessionDto, QuoteCheckoutSessionDto } from './dto/checkout.dto'
 
@@ -71,6 +72,8 @@ export class CheckoutService {
     private readonly deliveryService: DeliveryService,
     private readonly ordersService: OrdersService,
     private readonly antenorApi: AntenorApiService,
+    // Opcional: os specs antigos montam o servico na mao, sem este provider.
+    @Optional() private readonly metaConversions?: MetaConversionsService,
   ) {}
 
   async createSession(context: CheckoutContext | undefined, dto: CreateCheckoutSessionDto) {
@@ -156,7 +159,7 @@ export class CheckoutService {
     }
   }
 
-  async confirmSession(context: CheckoutContext | undefined, id: string, dto: ConfirmCheckoutSessionDto & { clientIp?: string; deviceFingerprint?: string; deviceAutomation?: boolean; clientCountry?: string }) {
+  async confirmSession(context: CheckoutContext | undefined, id: string, dto: ConfirmCheckoutSessionDto & { clientIp?: string; userAgent?: string; deviceFingerprint?: string; deviceAutomation?: boolean; clientCountry?: string }) {
     const { tenantId, storeId } = this.resolveContext(context)
     const session = await this.findSessionOrThrow(id, { tenantId, storeId })
 
@@ -300,6 +303,20 @@ export class CheckoutService {
           `Falha ao registrar analytics de ORDER_CREATED (pedido ${result.order.id} ja confirmado, sem impacto no checkout): ${this.errorMessage(analyticsError)}`,
         )
       }
+
+      // API de Conversoes da Meta (15/11/2026): Purchase pelo servidor, com o mesmo
+      // event_id do pixel do navegador (id do pedido) para a Meta deduplicar. Fica
+      // DEPOIS do commit e sem await: marketing nunca atrasa nem reprova um pedido que
+      // ja existe. O servico engole os proprios erros e loga pelo winstonLogger.
+      void this.metaConversions
+        ?.sendPurchase(result.order, {
+          fbp: dto.fbp,
+          fbc: dto.fbc,
+          eventSourceUrl: dto.eventSourceUrl,
+          clientIp: dto.clientIp,
+          userAgent: dto.userAgent,
+        })
+        .catch(() => undefined)
 
       return { session: this.toSessionPayload(completed), order: result.order, whatsapp: result.whatsapp, reused: false }
     } catch (error) {

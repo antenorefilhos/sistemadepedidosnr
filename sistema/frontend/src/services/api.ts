@@ -360,6 +360,10 @@ export const checkoutAPI = {
       deviceId?: string
       scheduledFor?: string
       ageConfirmed?: boolean
+      // Contexto do pixel para o Purchase pelo servidor (API de Conversoes da Meta).
+      fbp?: string
+      fbc?: string
+      eventSourceUrl?: string
     },
   ) => api.post<CheckoutConfirmResponse>(`/checkout/sessions/${id}/confirm`, data),
   cancelSession: (id: string, reason?: string) => api.post(`/checkout/sessions/${id}/cancel`, { reason }),

@@ -353,6 +353,70 @@ describe('CheckoutService', () => {
     )
   })
 
+  describe('API de Conversoes da Meta (Purchase pelo servidor)', () => {
+    const buildWithMeta = (sendPurchase: jest.Mock) =>
+      new CheckoutService(
+        mockPrisma as any,
+        mockCartService as any,
+        mockPricingService as any,
+        mockInventoryService as any,
+        mockDeliveryService as any,
+        mockOrdersService as any,
+        mockAntenorApi as any,
+        { sendPurchase } as any,
+      )
+
+    it('depois de criar o pedido, manda o Purchase com o contexto do navegador', async () => {
+      const sendPurchase = jest.fn().mockResolvedValue({ sent: true })
+      const result = await buildWithMeta(sendPurchase).confirmSession(undefined, 'session-1', {
+        customerId: 'customer-1',
+        paymentMethod: 'PIX',
+        delivery: { cep: '01001000', slotId: 'slot-1' },
+        fbp: 'fb.1.111.222',
+        fbc: 'fb.1.333.AbC',
+        eventSourceUrl: 'https://mercado.antenorefilhos.com.br/checkout',
+        clientIp: '203.0.113.9',
+        userAgent: 'Mozilla/5.0 Test',
+      })
+
+      expect(result.order.id).toBe('order-1')
+      expect(sendPurchase).toHaveBeenCalledTimes(1)
+      expect(sendPurchase).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'order-1' }),
+        { fbp: 'fb.1.111.222', fbc: 'fb.1.333.AbC', eventSourceUrl: 'https://mercado.antenorefilhos.com.br/checkout', clientIp: '203.0.113.9', userAgent: 'Mozilla/5.0 Test' },
+      )
+    })
+
+    it('se o envio para a Meta falhar, o pedido continua concluido e a sessao nao vira FAILED', async () => {
+      const sendPurchase = jest.fn().mockRejectedValue(new Error('graph.facebook.com fora do ar'))
+      const result = await buildWithMeta(sendPurchase).confirmSession(undefined, 'session-1', {
+        customerId: 'customer-1',
+        paymentMethod: 'PIX',
+        delivery: { cep: '01001000', slotId: 'slot-1' },
+      })
+
+      expect(result.session.status).toBe('COMPLETED')
+      expect(result.order.id).toBe('order-1')
+      expect(mockPrisma.checkoutSession.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
+      )
+    })
+
+    it('pedido reaproveitado (reused) nao reenvia o Purchase', async () => {
+      const sendPurchase = jest.fn()
+      mockPrisma.checkoutSession.findFirst.mockResolvedValue({ ...baseSession, status: 'COMPLETED', orderId: 'order-1', priceSnapshot: { total: 27 } })
+      mockOrdersService.findOne.mockResolvedValue({ id: 'order-1' })
+      const result = await buildWithMeta(sendPurchase).confirmSession(undefined, 'session-1', {
+        customerId: 'customer-1',
+        paymentMethod: 'PIX',
+        delivery: { cep: '01001000', slotId: 'slot-1' },
+      })
+
+      expect(result.reused).toBe(true)
+      expect(sendPurchase).not.toHaveBeenCalled()
+    })
+  })
+
   it('treats CARD as offline card-on-delivery payment during checkout confirmation', async () => {
     await service.confirmSession(undefined, 'session-1', {
       customerId: 'customer-1',

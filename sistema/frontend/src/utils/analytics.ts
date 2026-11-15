@@ -10,6 +10,57 @@ declare global {
   }
 }
 
+type PurchaseItem = { productId: string; unitPrice: number; quantity: number; subtotal?: number | null; product?: { name?: string } }
+type PurchaseOrder = { id: string; total: number; delivery: number; items: PurchaseItem[] }
+
+const roundMoney = (n: number) => Math.round(n * 100) / 100
+
+/**
+ * Parametros do Purchase do Meta Pixel. O servidor manda o MESMO evento pela API de
+ * Conversoes (backend/src/modules/meta-conversions) com event_id = id do pedido; a Meta
+ * so deduplica se nome, event_id e conteudo conferirem -- mude os dois lados juntos.
+ * Item pesavel (quantidade fracionada, ex.: 0,8 kg) entra como 1 unidade pelo valor da
+ * linha, porque a Meta espera quantidade inteira. content_ids usa o id interno do
+ * produto, o mesmo do ViewContent e do AddToCart.
+ */
+export const buildPurchaseParams = (order: PurchaseOrder) => {
+  const contents = order.items.map((item) => {
+    const qty = Number(item.quantity) || 0
+    const line = item.subtotal != null ? Number(item.subtotal) : qty * Number(item.unitPrice)
+    return Number.isInteger(qty) && qty > 0
+      ? { id: item.productId, quantity: qty, item_price: roundMoney(Number(item.unitPrice)) }
+      : { id: item.productId, quantity: 1, item_price: roundMoney(line) }
+  })
+  return {
+    value: roundMoney(Number(order.total)),
+    currency: 'BRL',
+    content_type: 'product',
+    content_ids: [...new Set(contents.map((c) => c.id))],
+    contents,
+    num_items: contents.reduce((sum, c) => sum + c.quantity, 0),
+    order_id: order.id,
+  }
+}
+
+const readCookie = (name: string): string | undefined => {
+  try {
+    const match = document.cookie.split('; ').find((row) => row.startsWith(`${name}=`))
+    return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Cookies do pixel e URL da pagina, enviados ao confirmar o pedido para o servidor casar
+ * o Purchase (API de Conversoes) com o anuncio que trouxe o cliente. */
+export const getMetaBrowserContext = (): { fbp?: string; fbc?: string; eventSourceUrl?: string } => {
+  try {
+    return { fbp: readCookie('_fbp'), fbc: readCookie('_fbc'), eventSourceUrl: window.location.href.slice(0, 1024) }
+  } catch {
+    return {}
+  }
+}
+
 export type AnalyticsEventType =
   | 'VIEW_PRODUCT'
   | 'VIEW_CATEGORY'
@@ -52,7 +103,7 @@ const pushToThirdPartyAnalytics = (type: AnalyticsEventType, entityId?: string, 
 /** Dispara no momento em que o pedido e criado com sucesso (Checkout.tsx). Nao
  * passa pelo /analytics/track proprio -- o pedido em si ja e gravado na tabela
  * orders, so falta avisar o GA4/Pixel pra fins de otimizacao de anuncio/funil. */
-export const trackPurchase = (order: { id: string; total: number; delivery: number; items: Array<{ productId: string; unitPrice: number; quantity: number; product?: { name?: string } }> }) => {
+export const trackPurchase = (order: PurchaseOrder) => {
   try {
     window.gtag?.('event', 'purchase', {
       transaction_id: order.id,
@@ -66,7 +117,8 @@ export const trackPurchase = (order: { id: string; total: number; delivery: numb
         quantity: item.quantity,
       })),
     })
-    window.fbq?.('track', 'Purchase', { value: order.total, currency: 'BRL' })
+    // eventID = id do pedido: e o que o servidor manda como event_id (deduplicacao).
+    window.fbq?.('track', 'Purchase', buildPurchaseParams(order), { eventID: order.id })
   } catch {
     // Analytics nunca deve quebrar a experiência do usuário
   }

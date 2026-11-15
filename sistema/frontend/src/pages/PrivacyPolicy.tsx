@@ -213,7 +213,11 @@ export default function PrivacyPolicy() {
           vistos, itens colocados no carrinho e pedidos concluídos, com o valor da compra, junto de
           identificadores do navegador (como cookies). Usamos essas informações para medir o resultado dos
           nossos anúncios no Facebook e no Instagram e para mostrar anúncios a pessoas com interesse
-          semelhante. A Meta processa os dados fora do Brasil, sob a política de privacidade dela. Você pode
+          semelhante. Para não perder essa medição quando o navegador bloqueia o Pixel, também enviamos o
+          pedido concluído (valor, itens e horário) à Meta diretamente do nosso servidor, junto de seu e-mail,
+          telefone e nome convertidos em código irreversível (hash), do endereço de IP e das informações do
+          navegador, apenas para a Meta associar a compra ao anúncio. A Meta processa os dados fora do Brasil,
+          sob a política de privacidade dela. Você pode
           limitar esse uso nas configurações de anúncios da sua conta do Facebook ou do Instagram e pelo
           bloqueio de cookies de terceiros no navegador.
         </p>

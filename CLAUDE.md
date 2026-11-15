@@ -54,7 +54,15 @@ O botão "v1.x · Novidades" do painel lê a versão do `admin/package.json`, e 
 
 O admin tem tema Automático / Claro / Escuro (botão de sol, lua ou tela no cabeçalho, `src/components/ThemeToggle.tsx`; lógica em `src/lib/theme.ts`, preferência no `localStorage` em `antenor-admin-theme`, classe `dark` no `<html>`, script no `index.html` evita o flash branco). Para não reescrever as ~1.900 classes de cor fixas, o `tailwind.config.js` redefine as escalas `gray`, `slate`, `rose`, `amber`, `emerald`, `red` e `blue` como variáveis CSS (`--c-<cor>-<tom>`) que valem exatamente o padrão do Tailwind no claro (conferido: o CSS gerado no claro é idêntico ao anterior) e trocam em `.dark`. Regras que evitam texto ilegível: **fundo forte (tons 400+) não inverte** (leva texto branco por cima; exceção: `bg-gray-700/800/900` viram cinza-azulado médio, senão somem na superfície, e o interruptor LIGADO `[role="switch"].bg-gray-900` fica claro por regra em `index.css`), `text-gray-300` e `text-white` não invertem, `bg-white` vira a superfície escura e `border/ring/divide-black` (linha fina com 5-10% de opacidade) viram branco.
 
-Ao mexer em cor no admin: use as classes da paleta (`text-gray-500`, `bg-rose-50`...) e o tema escuro vem junto. **Cor escrita em hex** (`text-[#5d082a]`, `style={{ background: '#...' }}`) **não** passa pela paleta: use `rgb(var(--c-gray-100))` / `rgb(var(--chart-accent))` ou uma regra `.dark` em `index.css` (já existem para o vinho em texto, bordas e fundos claros da marca). Logo em cartão claro: `ThemedLogo` (vinho no claro, branco no escuro). **O padrão (`DEFAULT_PREFERENCE` em `theme.ts` e a mesma regra no script do `index.html`) está em `light`** até o escuro ser conferido tela a tela com o Jonathan; depois trocar os dois para `auto`. Conferido em 13/11: login, visão geral e pedidos, e contraste (WCAG) das combinações da paleta no escuro.
+Ao mexer em cor no admin: use as classes da paleta (`text-gray-500`, `bg-rose-50`...) e o tema escuro vem junto. **Cor escrita em hex** (`text-[#5d082a]`, `style={{ background: '#...' }}`) **não** passa pela paleta: use `rgb(var(--c-gray-100))` / `rgb(var(--chart-accent))` ou uma regra `.dark` em `index.css` (já existem para o vinho em texto, bordas e fundos claros da marca). Logo em cartão claro: `ThemedLogo` (vinho no claro, branco no escuro). **O padrão (`DEFAULT_PREFERENCE` em `theme.ts` e a mesma regra no script do `index.html`) é `auto`** (acompanha o aparelho) desde 14/11/2026, quando o Jonathan testou o escuro e liberou; quem já escolheu Claro ou Escuro no botão mantém a escolha. Conferido em 13/11: login, visão geral e pedidos, e contraste (WCAG) das combinações da paleta no escuro.
+
+## Meta Pixel + API de Conversões: o Purchase sai pelos dois lados (15/11/2026)
+
+O pixel `2308084703100170` (`frontend/index.html`) recebeu 2 Purchase para 4 pedidos reais. Agora o Purchase sai do navegador (`trackPurchase`, `utils/analytics.ts`) **e** do servidor (`MetaConversionsService`, chamado no fim do `CheckoutService.confirmSession`, sem await, e nunca derruba nem atrasa o pedido). Os dois mandam o mesmo `event_name` e o mesmo `event_id` = **id do pedido** (não o DAV: ele só existe depois que o ERP responde); é isso que faz a Meta deduplicar (janela de 48 h). **Mude navegador e servidor juntos.** `content_ids` usa o id interno do produto, igual ViewContent/AddToCart; item pesável entra com `quantity` 1 e `item_price` = valor da linha (a Meta quer quantidade inteira). O navegador manda `_fbp`, `_fbc` e a URL no corpo do `/confirm`; IP e user agent o servidor lê da requisição; e-mail, telefone, nome e id do cliente vão em SHA-256 normalizado.
+
+O valor é o `order.total` **da criação**, não o ajustado na separação. Em 60 pedidos desde 03/10, 41 tiveram ajuste (média de 10% por pedido), mas o total final ficou só 3,7% acima do aprovado. A Meta não atualiza evento: repetir o `event_id` é descartado como duplicado e um `event_id` novo conta a venda duas vezes, então não se manda o valor final.
+
+Variáveis (todas opcionais; sem token o envio é no-op): `META_CAPI_ACCESS_TOKEN` (**credencial, só na VPS**, em `sistema/.env` e `.env.production` — o compose de produção lê o primeiro), `META_PIXEL_ID` (padrão = o pixel do index.html), `META_CAPI_TEST_EVENT_CODE` (só durante o teste: com ele a Meta mostra o evento na aba "Testar eventos" e **não** o usa em anúncio, então remova depois), `META_GRAPH_VERSION` (v25.0). O Logger do Nest é mudo em produção; os avisos saem pelo winston: `meta_capi_desligada` (token vazio), `meta_capi_recusada` (a Meta respondeu erro; traz código e mensagem), `meta_capi_falhou` (rede/tempo), `meta_capi_enviada` (ok, com `fbtrace_id`). A política de privacidade cita o envio pelo servidor com hash; se mudar o que se manda, atualize lá.
 
 ## Roadmap
 
@@ -482,8 +490,10 @@ restrição explícita: **não pode prejudicar o e-mail corporativo**
   `block` (ou por regra a regra, via `overrides.rules[]` em vez do
   `overrides.action` geral).
   **Atualização 13/11/2026: AGORA EM `block`, testado com fluxo real.** Ligado
-  pelo Jonathan às 04:55 BRT (depois de um primeiro liga/desliga em que ele
-  desfez antes de testar). Com o bloqueio ligado: 3 uploads de foto no admin
+  pelo Jonathan de madrugada: o bloqueio já valia às 04:31 BRT (o teste de
+  ataque das 04:31:56 foi barrado; o 04:55 que constava aqui estava errado).
+  Houve um primeiro liga/desliga em que ele desfez antes de testar. Com o
+  bloqueio ligado: 3 uploads de foto no admin
   (`POST /uploads/product/:ean` 201), 2 trocas de foto (`DELETE` 200), login e
   `POST /picker/orders/:id/start` no app da separação (200/201), impressões do
   CMS (201). Em Security → Events o único "Bloquear" é o meu teste de ataque

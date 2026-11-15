@@ -21,7 +21,7 @@ import { authAPI, deliveryAPI, type CheckoutQuoteResponse, type WhatsAppDispatch
 import { Loader2, Banknote, QrCode, CreditCard, Ticket, MapPin, ShoppingBag, Plus, LocateFixed, Store, Truck } from 'lucide-react'
 import { LoadingButton } from '../components/LoadingButton'
 import { getDeviceId } from '../utils/device'
-import { trackEvent, trackPurchase } from '../utils/analytics'
+import { getMetaBrowserContext, trackEvent, trackPurchase } from '../utils/analytics'
 import type { Order } from '../types'
 import { buildChangeForOptions } from '../utils/changeOptions'
 import { getProductStep } from '../utils/productPricing'
@@ -840,6 +840,7 @@ export default function Checkout() {
           delivery: getDeliveryPayload(deliveryAddressId),
           couponCode: couponCode || undefined,
           ageConfirmed: isAgeVerified,
+          ...getMetaBrowserContext(),
         },
       })
 

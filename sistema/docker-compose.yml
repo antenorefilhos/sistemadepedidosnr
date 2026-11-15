@@ -73,6 +73,11 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@antenorefilhos.com.br}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # API de Conversoes da Meta (Purchase pelo servidor). Todas opcionais: sem o token o
+      # envio e no-op. O token e credencial: so no .env da VPS (ver .env.example).
+      META_CAPI_ACCESS_TOKEN: ${META_CAPI_ACCESS_TOKEN:-}
+      META_PIXEL_ID: ${META_PIXEL_ID:-}
+      META_CAPI_TEST_EVENT_CODE: ${META_CAPI_TEST_EVENT_CODE:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       CHECKUP_CRON: ${CHECKUP_CRON:-30 6 * * *}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer'
-import { IsArray, IsBoolean, IsISO8601, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
+import { IsArray, IsBoolean, IsISO8601, IsNumber, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator'
 
 export class CheckoutDeliveryDto {
   @IsOptional()
@@ -124,4 +124,22 @@ export class ConfirmCheckoutSessionDto extends QuoteCheckoutSessionDto {
   @IsOptional()
   @IsString()
   deviceId?: string
+
+  // Contexto do navegador para a API de Conversoes da Meta (Purchase pelo servidor).
+  // Cookies _fbp/_fbc e a URL da pagina; so servem para a Meta casar o evento com o
+  // anuncio, nada decide pedido, preco ou frete.
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  fbp?: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  fbc?: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1024)
+  eventSourceUrl?: string
 }

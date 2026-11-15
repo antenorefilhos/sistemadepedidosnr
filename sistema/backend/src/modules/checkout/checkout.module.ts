@@ -10,9 +10,10 @@ import { CartService } from './cart.service'
 import { CheckoutService } from './checkout.service'
 import { NotificationsModule } from '../notifications/notifications.module'
 import { IntegrationsModule } from '../integrations/integrations.module'
+import { MetaConversionsModule } from '../meta-conversions/meta-conversions.module'
 
 @Module({
-  imports: [PricingModule, InventoryModule, DeliveryModule, OrdersModule, NotificationsModule, IntegrationsModule],
+  imports: [PricingModule, InventoryModule, DeliveryModule, OrdersModule, NotificationsModule, IntegrationsModule, MetaConversionsModule],
   controllers: [CartController, CheckoutSessionsController, AdminCheckoutController],
   providers: [CartService, CheckoutService, TenantAccessGuard],
   exports: [CartService, CheckoutService],
