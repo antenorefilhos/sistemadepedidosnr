@@ -1074,6 +1074,10 @@ acabar o produto fica barato para sempre — sem ninguém notar, porque o númer
 parece plausível. Hoje lemos `vl_produto_normal`, e foi isso que nos protegeu
 quando o Solidcom serviu `vl_produto` defasado na ração Champion.
 
+## Armadilha: o `timeout` do axios é de inatividade, não de tempo total (17/11/2026)
+
+De 15/11 15:05 a 16/11 13:56 a AntenorApi ficou inalcançável a partir da VPS. O sync completo das 16:00 ficou preso até ela voltar e segurou a trava (`isRunning`/`erpSyncRunning`): os incrementais de hora em hora e os completos das 20:00, 04:00 e 11:00 foram "ignorados" por 23 h, e cada página de produto esperou 30 s pela cesta (221 vezes). O `timeout: 30000` do axios corta só o socket **parado**; conexão presa ou corpo chegando a conta-gotas não estouram. Corrigido em `AntenorApiService.protegerCliente`: toda requisição ganha um prazo total (`ANTENOR_API_DEADLINE_MS`, padrão 120 s; catálogo completo 180 s; cesta 6 s/8 s) por `AbortSignal`, e depois de 3 falhas de rede seguidas as **leituras (GET)** falham na hora por 60 s (escrita nunca é barrada; qualquer resposta HTTP fecha o circuito). Logs: `antenor_api_circuito_aberto` / `antenor_api_circuito_fechado`. O erro devolvido não carrega mais a chave, e `safeAxiosError` (`common/safe-error.ts`, usado pelo bridge do winston) tira `config` (header `Authorization` e corpo com CPF) de qualquer `AxiosError` logado. **Todo cliente HTTP novo precisa de prazo total**, não só `timeout`.
+
 ## Armadilha (RESOLVIDA em 17/09/2026): a rota de cancelamento da AntenorApi usava uma chave que nao tinhamos
 
 Achada na homologacao da v1.6.0, em 08/09/2026 — e e o tipo que nao aparece em

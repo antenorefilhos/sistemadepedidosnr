@@ -222,7 +222,31 @@ export class AntenorApiService {
     return Number(process.env.ANTENOR_API_TIMEOUT_MS || 30000)
   }
 
+  /**
+   * Teto da requisicao INTEIRA (conexao + resposta + corpo). O `timeout` do axios
+   * e de inatividade do socket: nao limita o tempo total.
+   */
+  private get prazoTotalMs(): number {
+    return Number(process.env.ANTENOR_API_DEADLINE_MS || 120000)
+  }
+
   private clienteCache: AxiosInstance | null = null
+
+  // --- Protecao contra a API fora do ar (17/11/2026) ---------------------------
+  // De 15/11 15:05 a 16/11 13:56 a AntenorApi ficou inalcancavel. O sync completo
+  // das 16:00 ficou preso ate ela voltar (o timeout do axios e de inatividade, nao
+  // de tempo total) e segurou a trava de todos os syncs seguintes: 23 h sem
+  // atualizar o catalogo. Em paralelo, cada pagina de produto esperava 30 s pela
+  // cesta, e foram 221 vezes. Duas defesas, as duas aqui no cliente:
+  //  1) toda requisicao ganha um prazo TOTAL (AbortSignal);
+  //  2) depois de 3 falhas de rede seguidas, as LEITURAS (GET) falham na hora por
+  //     60 s em vez de cada uma esperar o proprio timeout. Escrita (pedido,
+  //     cancelamento) nunca e barrada: o reenvio automatico cuida e qualquer
+  //     resposta da API fecha o circuito.
+  private falhasDeRedeSeguidas = 0
+  private circuitoAbertoAte = 0
+  private static readonly FALHAS_PARA_ABRIR = 3
+  private static readonly PAUSA_CIRCUITO_MS = 60_000
 
   /**
    * Cliente HTTP configurado: chave no header e certificado fixado.
@@ -265,13 +289,87 @@ export class AntenorApiService {
       })
     }
 
-    this.clienteCache = axios.create({
+    const novo = axios.create({
       baseURL: base,
       timeout: this.timeoutMs,
       httpsAgent,
       headers: { Authorization: `Bearer ${chave}` },
     })
-    return this.clienteCache
+    this.protegerCliente(novo)
+    this.clienteCache = novo
+    return novo
+  }
+
+  private protegerCliente(cliente: AxiosInstance): void {
+    cliente.interceptors.request.use((config) => {
+      const restanteMs = this.circuitoAbertoAte - Date.now()
+      if (restanteMs > 0 && String(config.method).toLowerCase() === 'get') {
+        throw new AxiosError(
+          `AntenorApi indisponivel: circuito aberto por mais ${Math.ceil(restanteMs / 1000)}s`,
+          'ECIRCUITOABERTO',
+          config,
+        )
+      }
+      if (!config.signal) config.signal = AbortSignal.timeout(this.prazoTotalMs)
+      return config
+    })
+
+    cliente.interceptors.response.use(
+      (resposta) => {
+        this.registrarContato()
+        return resposta
+      },
+      (erro: unknown) => {
+        if (axios.isAxiosError(erro)) {
+          if (erro.response) this.registrarContato()
+          else if (erro.code !== 'ECIRCUITOABERTO') this.registrarFalhaDeRede()
+
+          if (axios.isCancel(erro) && erro.config?.signal?.aborted) {
+            erro.message = `prazo total estourado (${String(erro.config.method).toUpperCase()} ${erro.config.url})`
+            erro.code = 'EPRAZOTOTAL'
+          }
+          this.esconderChave(erro)
+        }
+        return Promise.reject(erro)
+      },
+    )
+  }
+
+  /** Qualquer resposta HTTP (ate 4xx/5xx) prova que a API esta de pe: fecha o circuito. */
+  private registrarContato(): void {
+    if (this.falhasDeRedeSeguidas >= AntenorApiService.FALHAS_PARA_ABRIR) {
+      this.logger.log('antenor_api_circuito_fechado: a AntenorApi voltou a responder')
+    }
+    this.falhasDeRedeSeguidas = 0
+    this.circuitoAbertoAte = 0
+  }
+
+  private registrarFalhaDeRede(): void {
+    this.falhasDeRedeSeguidas += 1
+    if (this.falhasDeRedeSeguidas >= AntenorApiService.FALHAS_PARA_ABRIR) {
+      const jaAberto = this.circuitoAbertoAte > Date.now()
+      this.circuitoAbertoAte = Date.now() + AntenorApiService.PAUSA_CIRCUITO_MS
+      if (!jaAberto) {
+        this.logger.warn(
+          `antenor_api_circuito_aberto: ${this.falhasDeRedeSeguidas} falhas de rede seguidas, ` +
+            `leituras falham na hora por ${AntenorApiService.PAUSA_CIRCUITO_MS / 1000}s`,
+        )
+      }
+    }
+  }
+
+  /**
+   * O erro carrega `config.headers.Authorization` (a chave) e quem o serializa
+   * (log, `lastError`, auditoria) vazaria. So afeta a copia da requisicao que
+   * falhou, nao o cabecalho padrao do cliente.
+   */
+  private esconderChave(erro: AxiosError): void {
+    const headers = erro.config?.headers as unknown as
+      | { set?: (nome: string, valor: string) => void; Authorization?: string }
+      | undefined
+    if (!headers) return
+    if (typeof headers.set === 'function') headers.set('Authorization', '[redigido]')
+    else if (headers.Authorization) headers.Authorization = '[redigido]'
   }
 
   /**
@@ -509,6 +607,8 @@ export class AntenorApiService {
     try {
       const { data } = await this.cliente.get('/api/integracao/produtos', {
         params: { limite: 20000, pagina: 1, loja: this.loja },
+        // Medido em 12-58 s; o teto folgado so impede o sync de ficar preso para sempre.
+        signal: AbortSignal.timeout(Math.max(this.prazoTotalMs, 180_000)),
       })
       const items = this.extractProducts(data)
       return { synced: items.length, failed: 0, data: items }
@@ -549,7 +649,13 @@ export class AntenorApiService {
    * custo/margem ja vem embutidos na pontuacao e nunca saem da API.
    */
   async getCesta(cdProduto: number, limite = 12): Promise<{ versao: number; geradoEm?: string; itens: Array<{ cdProduto: number; origem: 'produto' | 'categoria'; pontuacao: number }> }> {
-    const { data } = await this.cliente.get(`/api/ecommerce/cesta/${cdProduto}`, { params: { limite } })
+    // Roda dentro da pagina do produto: com a API fora do ar o cliente esperava 30 s
+    // (221 vezes entre 15 e 16/11). Aqui desiste em 6 s e a vitrine segue sem a cesta.
+    const { data } = await this.cliente.get(`/api/ecommerce/cesta/${cdProduto}`, {
+      params: { limite },
+      timeout: 6000,
+      signal: AbortSignal.timeout(8000),
+    })
     return data
   }
 

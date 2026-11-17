@@ -1,6 +1,7 @@
 import { LoggerService, LogLevel } from '@nestjs/common'
 import { inspect } from 'util'
 import { winstonLogger } from './logger'
+import { safeAxiosError } from './safe-error'
 
 /**
  * Liga o `Logger` do Nest ao winston.
@@ -72,9 +73,11 @@ export class NestWinstonLogger implements LoggerService {
   }
 
   private write(level: 'info' | 'warn' | 'error' | 'debug', message: unknown, params: unknown[], quietForNoise: boolean) {
-    const { context, extra } = this.split(params)
+    const { context, extra: rawExtra } = this.split(params)
     if (quietForNoise && context && BOOTSTRAP_NOISE.has(context)) return
     const { text, stack } = this.formatMessage(message)
+    // AxiosError inteiro no log vaza a chave (Authorization) e o corpo da requisicao.
+    const extra = rawExtra.map(safeAxiosError)
     winstonLogger.log(level, text, {
       ...(context ? { context } : {}),
       ...(stack ? { stack } : {}),
