@@ -97,6 +97,9 @@ client_id exige recopiar tudo (ver nota "Backup Remoto Google Drive" no vault).
 Falha no envio, no dump ou no tar avisa no Telegram (mesmo bot do monitor de
 produtos; `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`), e todo domingo chega uma
 confirmação "semana ok" — se ela não chegar, o próprio backup parou.
+O backup roda ao subir o container e depois **todo dia às 06:00 UTC (03:00 de
+Brasília)**, horário fixo (`BACKUP_AT_UTC=HH:MM` no ambiente do container muda). Antes
+ele dormia 24 h depois de cada rodada e o horário andava a cada recreate.
 
 ## 6. Subir a stack
 

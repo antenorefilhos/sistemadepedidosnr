@@ -154,6 +154,27 @@ EOF
 }
 run_remote_fail_case
 
+# Horario fixo na madrugada: seconds_until calcula a espera ate HH:MM UTC.
+run_schedule_case() {
+  echo "-- agenda: seconds_until"
+  # 20000*86400 e uma meia-noite UTC qualquer; so a aritmetica interessa.
+  base=$((20000 * 86400))
+  (
+    export BACKUP_LOOP=0 DAILY_DIR WEEKLY_DIR UPLOADS_DIR
+    # shellcheck disable=SC1091
+    . "$(dirname "$0")/backup.sh"
+    assert "$(seconds_until 06:00 $((base + 2 * 3600)))" "14400" "agenda: 02:00 -> 06:00 espera 4 h"
+    assert "$(seconds_until 06:00 $((base + 7 * 3600)))" "82800" "agenda: 07:00 -> 06:00 do dia seguinte (23 h)"
+    assert "$(seconds_until 06:00 $((base + 6 * 3600)))" "86400" "agenda: no minuto exato espera 24 h, nao roda de novo"
+    assert "$(seconds_until 06:00 $((base + 6 * 3600 - 30)))" "86430" "agenda: faltando 30 s pula para amanha"
+    assert "$(seconds_until 00:00 $((base + 23 * 3600)))" "3600" "agenda: alvo 00:00 (zero a esquerda)"
+    assert "$(seconds_until 08:09 $((base)))" "29340" "agenda: 08:09 nao vira octal"
+    assert "$(seconds_until abc $((base + 2 * 3600)) 2>/dev/null)" "14400" "agenda: valor invalido cai em 06:00"
+    [ "$fail" = "0" ]
+  ) || fail=1
+}
+run_schedule_case
+
 if [ "$fail" = "0" ]; then
   echo "TODOS OS CASOS PASSARAM"
 else

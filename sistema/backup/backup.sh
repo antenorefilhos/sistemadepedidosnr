@@ -45,6 +45,33 @@ msg_semana_ok() {
   printf '✅ Tudo certo com os backups desta semana! 💾\nA cópia no Google Drive está em dia (%s).' "$1"
 }
 
+# Horario diario fixo, na madrugada (loja fechada, fora do horario de pico). Antes o
+# script dormia 86400 s depois de cada rodada, entao o horario dependia de quando o
+# container tinha subido: em 17/11/2026 ele migrou de ~07:10 para ~22:49 BRT sozinho,
+# so por um recreate. 06:00 UTC = 03:00 BRT (Brasil sem horario de verao desde 2019).
+# O container roda em UTC, o que tambem faz o domingo do "semana ok" ser o domingo
+# de madrugada BRT. Para mudar: BACKUP_AT_UTC=HH:MM no ambiente do container.
+BACKUP_AT_UTC="${BACKUP_AT_UTC:-06:00}"
+
+# Segundos ate a proxima ocorrencia de HH:MM (UTC). $2 = "agora" em epoch (so o teste usa).
+# Se falta menos de 1 min, pula para o dia seguinte: evita rodar duas vezes seguidas.
+seconds_until() {
+  alvo="$1"
+  case "$alvo" in
+    [01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
+    *) echo "[backup] BACKUP_AT_UTC invalido ('$alvo'), usando 06:00" >&2; alvo="06:00" ;;
+  esac
+  agora="${2:-$(date -u +%s)}"
+  h="${alvo%%:*}"; m="${alvo##*:}"
+  # ${h#0}: '08' e '09' viram octal invalido na aritmetica do sh.
+  alvo_seg=$(( ${h#0} * 3600 + ${m#0} * 60 ))
+  espera=$(( (alvo_seg - agora % 86400 + 86400) % 86400 ))
+  if [ "$espera" -lt 60 ]; then
+    espera=$(( espera + 86400 ))
+  fi
+  echo "$espera"
+}
+
 run_backup() {
   stamp=$(date +%Y%m%d_%H%M%S)
   dia=$(date +%d/%m)
@@ -116,8 +143,12 @@ run_backup() {
 # BACKUP_LOOP=0 (usado por backup.test.sh) so define run_backup sem entrar no
 # loop -- deixa o teste chamar run_backup direto e checar o resultado.
 if [ "${BACKUP_LOOP:-1}" != "0" ]; then
+  # Roda ao subir o container (copia fresca depois de reinicio/deploy) e depois
+  # todo dia na madrugada.
   while true; do
     run_backup || echo "[backup] rodada com falha, tentando de novo na proxima janela"
-    sleep 86400
+    espera=$(seconds_until "$BACKUP_AT_UTC")
+    echo "[backup] proxima rodada as $BACKUP_AT_UTC UTC, em ${espera}s"
+    sleep "$espera"
   done
 fi
